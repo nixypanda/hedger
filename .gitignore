@@ -6,3 +6,5 @@ elm-stuff/
 result
 tags
 examples/
+frontend-web/dist/
+frontend-web/node_modules/

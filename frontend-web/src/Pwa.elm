@@ -1,0 +1,127 @@
+module Pwa exposing
+    ( InstallHintState(..)
+    , InstallPromptState(..)
+    , InstallationState(..)
+    , Model
+    , Msg(..)
+    , ServiceWorkerState(..)
+    , fromFlags
+    , update
+    )
+
+import Ports
+
+
+type alias Model =
+    { serviceWorker : ServiceWorkerState
+    , installation : InstallationState
+    }
+
+
+type ServiceWorkerState
+    = ServiceWorkerUnknown
+    | ServiceWorkerInstalling String
+    | ServiceWorkerUpdateReady
+    | ServiceWorkerControlling
+
+
+type InstallPromptState
+    = InstallPromptAvailable
+    | InstallPromptDismissed
+
+
+type InstallHintState
+    = InstallHintVisible
+    | InstallHintDismissed
+
+
+type InstallationState
+    = IosBrowser InstallHintState
+    | InstallableBrowser InstallPromptState
+    | OtherBrowser
+    | StandaloneApp
+
+
+type Msg
+    = SwStatus String
+    | PromptInstallReady
+    | PromptInstall
+    | DismissInstallPrompt
+    | ApplyServiceWorkerUpdate
+
+
+fromFlags : Bool -> Bool -> Model
+fromFlags isStandalone isIos =
+    { serviceWorker = ServiceWorkerUnknown
+    , installation =
+        if isStandalone then
+            StandaloneApp
+
+        else if isIos then
+            IosBrowser InstallHintVisible
+
+        else
+            OtherBrowser
+    }
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        SwStatus status ->
+            ( { model | serviceWorker = serviceWorkerStateFromStatus status }, Cmd.none )
+
+        PromptInstallReady ->
+            ( installPromptReady model, Cmd.none )
+
+        PromptInstall ->
+            case model.installation of
+                InstallableBrowser InstallPromptAvailable ->
+                    ( dismissInstallPrompt model, Ports.promptInstall () )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        DismissInstallPrompt ->
+            ( dismissInstallPrompt model, Cmd.none )
+
+        ApplyServiceWorkerUpdate ->
+            ( model, Ports.skipWaiting () )
+
+
+serviceWorkerStateFromStatus : String -> ServiceWorkerState
+serviceWorkerStateFromStatus status =
+    if status == "update-ready" then
+        ServiceWorkerUpdateReady
+
+    else if status == "controllerchange" then
+        ServiceWorkerControlling
+
+    else
+        ServiceWorkerInstalling status
+
+
+installPromptReady : Model -> Model
+installPromptReady model =
+    case model.installation of
+        OtherBrowser ->
+            { model | installation = InstallableBrowser InstallPromptAvailable }
+
+        InstallableBrowser _ ->
+            { model | installation = InstallableBrowser InstallPromptAvailable }
+
+        _ ->
+            model
+
+
+dismissInstallPrompt : Model -> Model
+dismissInstallPrompt model =
+    case model.installation of
+        IosBrowser InstallHintVisible ->
+            { model | installation = IosBrowser InstallHintDismissed }
+
+        InstallableBrowser InstallPromptAvailable ->
+            { model | installation = InstallableBrowser InstallPromptDismissed }
+
+        _ ->
+            model

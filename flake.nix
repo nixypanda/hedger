@@ -21,6 +21,41 @@
           pkgs = import nixpkgs { inherit system; };
         in
         pkgs.haskellPackages.callCabal2nix "hedger-backend" ./backend { };
+      frontendFor =
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+          registry =
+            pkgs.runCommand "hedger-elm-registry.dat"
+              {
+                nativeBuildInputs = [
+                  pkgs.coreutils
+                  pkgs.gzip
+                ];
+              }
+              ''
+                base64 --decode ${./frontend-web/registry.dat.gz.b64} | gzip --decompress > $out
+              '';
+        in
+        pkgs.buildNpmPackage {
+          pname = "hedger-frontend";
+          version = "0.1.0";
+          src = ./frontend-web;
+          npmDepsHash = "sha256-MGpNbE7moQI4mAk5RGYwUXg9YZFv/glU7a3mDdBpZeU=";
+          nativeBuildInputs = [ pkgs.elmPackages.elm ];
+          postConfigure = pkgs.elmPackages.fetchElmDeps {
+            elmPackages = import ./frontend-web/elm-srcs.nix;
+            elmVersion = pkgs.elmPackages.elm.version;
+            registryDat = registry;
+          };
+          npmBuildScript = "build";
+          installPhase = ''
+            runHook preInstall
+            mkdir -p $out/share/hedger
+            cp -R dist/. $out/share/hedger/
+            runHook postInstall
+          '';
+        };
     in
     {
       devShells = forAllSystems (
@@ -66,6 +101,7 @@
       packages = forAllSystems (system: {
         default = backendFor system;
         hedger-backend = backendFor system;
+        hedger-frontend = frontendFor system;
       });
 
       apps = forAllSystems (system: {
@@ -97,15 +133,34 @@
               warp
             ]
           );
+          elmRegistry =
+            pkgs.runCommand "hedger-elm-registry.dat"
+              {
+                nativeBuildInputs = [
+                  pkgs.coreutils
+                  pkgs.gzip
+                ];
+              }
+              ''
+                base64 --decode ${./frontend-web/registry.dat.gz.b64} | gzip --decompress > $out
+              '';
+          prepareElmDependencies = pkgs.elmPackages.fetchElmDeps {
+            elmPackages = import ./frontend-web/elm-srcs.nix;
+            elmVersion = pkgs.elmPackages.elm.version;
+            registryDat = elmRegistry;
+          };
         in
         {
           backend = backend;
+          frontend = frontendFor system;
           workspace =
             pkgs.runCommand "hedger-workspace-check"
               {
                 nativeBuildInputs = with pkgs; [
                   cabal-install
+                  elmPackages.elm
                   elmPackages.elm-format
+                  elmPackages.elm-test
                   haskellPackages.fourmolu
                   backendGhc
                   hledger
@@ -118,6 +173,7 @@
                 cp -R ${self} source
                 chmod -R u+w source
                 cd source
+                ${prepareElmDependencies}
                 just check
                 touch $out
               '';

@@ -36,7 +36,10 @@ check-cabal:
 
 check-frontend:
     elm-format frontend-web/src frontend-web/tests --validate
+    cd frontend-web && elm make src/Main.elm --output=/dev/null
+    cd frontend-web && elm-test
     python3 scripts/check_elm_project.py frontend-web/elm.json
+    python3 scripts/check_frontend_assets.py
 
 check-contracts:
     python3 scripts/check_contracts.py contracts/openapi.json backend/test/golden
@@ -47,3 +50,7 @@ test: check
 [working-directory("backend")]
 serve:
     cabal run hedger-server -- --journal test/fixtures/shared.journal
+
+[working-directory("frontend-web")]
+start-frontend:
+    npm run dev

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hedger">
+  <rect width="512" height="512" rx="112" fill="#703ee8"/>
+  <path d="M116 151h280a36 36 0 0 1 36 36v190a36 36 0 0 1-36 36H116a36 36 0 0 1-36-36V135a36 36 0 0 1 36-36h244v52H116z" fill="#fff"/>
+  <path d="M318 231h114v101H318a50 50 0 0 1 0-101z" fill="#dcd1ff"/>
+  <circle cx="333" cy="282" r="14" fill="#703ee8"/>
+</svg>

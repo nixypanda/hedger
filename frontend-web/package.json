@@ -1,14 +1,22 @@
 {
   "name": "hedger-frontend-web",
   "private": true,
+  "type": "module",
   "scripts": {
-    "check": "elm-format src tests --validate",
+    "build": "vite build",
+    "check": "elm-format src tests --validate && elm make src/Main.elm --output=/dev/null && elm-test",
+    "dev": "vite",
     "format": "elm-format src tests --yes",
+    "preview": "vite preview",
+    "review": "elm-review",
     "test": "elm-test"
   },
   "devDependencies": {
     "elm": "0.19.1-6",
     "elm-format": "0.8.8",
-    "elm-test": "0.19.1-revision17"
+    "elm-review": "2.13.2",
+    "elm-test": "0.19.1-revision17",
+    "vite": "6.3.5",
+    "vite-plugin-elm": "3.0.1"
   }
 }

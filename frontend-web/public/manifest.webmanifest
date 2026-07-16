@@ -1,6 +1,13 @@
 {
   "name": "Hedger",
   "short_name": "Hedger",
-  "start_url": "/",
-  "display": "standalone"
+  "description": "A read-only, backend-backed ledger dashboard",
+  "start_url": "/net-worth",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F6F7FF",
+  "theme_color": "#703EE8",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
 }
