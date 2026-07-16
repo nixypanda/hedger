@@ -3,6 +3,22 @@
 These instructions apply to the entire repository. More specific `AGENTS.md`
 files may add to or override them within their directory.
 
+## Build and test workflow
+
+- Enter `nix develop` once and keep that shell or command session alive while
+  working. Do not wrap every build, test, formatter, or check command in a new
+  `nix develop -c` invocation; repeated flake evaluation adds substantial
+  latency.
+- During iteration, run the narrowest relevant command inside that development
+  shell so Cabal can reuse `backend/dist-newstyle`. Run the repository-mandated
+  `just check` before handing work back.
+- Do not use `nix flake check` as the inner development loop. Its checks run in
+  clean Nix derivations, and every source edit changes their input hash, so the
+  previous local build does not make the next edited revision incremental. The
+  workspace check also compiles the backend independently of the package
+  derivation. Reserve `nix flake check` for final Nix/CI verification when the
+  task changes Nix configuration or otherwise calls for it.
+
 ## Haskell
 
 ### Tooling and language
