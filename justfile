@@ -11,7 +11,7 @@ dev:
 
 # Format all source files in place.
 format:
-    fourmolu --mode inplace backend/app backend/src backend/test
+    fourmolu --mode inplace backend/app backend/benchmark backend/src backend/test
     elm-format frontend-web/src frontend-web/tests --yes
     nix fmt
 
@@ -22,7 +22,7 @@ check-backend: check-cabal check-haskell-format check-backend-tests
     hledger -f {{fixture}} check
 
 check-haskell-format:
-    fourmolu --mode check backend/app backend/src backend/test
+    fourmolu --mode check backend/app backend/benchmark backend/src backend/test
 
 [private]
 [working-directory("backend")]
@@ -43,7 +43,7 @@ check-contracts:
 
 test: check
 
-# Run the Phase 1 server against the synthetic fixture.
+# Run the Phase 2 server against the synthetic fixture.
 [working-directory("backend")]
 serve:
     cabal run hedger-server -- --journal test/fixtures/shared.journal

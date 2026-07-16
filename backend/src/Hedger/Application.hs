@@ -9,14 +9,16 @@ module Hedger.Application (
 where
 
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (JournalUnavailable))
+import Hedger.Domain.Snapshot (SnapshotStore, readCurrentSnapshot)
 import Hedger.Domain.Types (Bootstrap (..), Health (..))
 
 data Env = Env
     { config :: Config
-    , hasUsableSnapshot :: Bool
+    , snapshotStore :: SnapshotStore
     }
 
 type AppM = ReaderT Env (ExceptT AppError IO)
@@ -44,5 +46,8 @@ bootstrap = do
 
 requireSnapshot :: AppM ()
 requireSnapshot = do
-    available <- asks hasUsableSnapshot
-    if available then pure () else throwError JournalUnavailable
+    store <- asks snapshotStore
+    snapshot <- liftIO (readCurrentSnapshot store)
+    case snapshot of
+        Just _ -> pure ()
+        Nothing -> throwError JournalUnavailable

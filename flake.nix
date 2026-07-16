@@ -40,11 +40,13 @@
                 haskell: with haskell; [
                   aeson
                   hspec
+                  hledger-lib
                   http-types
                   mtl
                   optparse-applicative
                   servant
                   servant-server
+                  tasty-bench
                   wai
                   wai-extra
                   warp
@@ -83,11 +85,13 @@
             haskell: with haskell; [
               aeson
               hspec
+              hledger-lib
               http-types
               mtl
               optparse-applicative
               servant
               servant-server
+              tasty-bench
               wai
               wai-extra
               warp

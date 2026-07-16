@@ -2,9 +2,22 @@ module Main (main) where
 
 import Data.Aeson (Value, decode)
 import Data.ByteString qualified as ByteString
+import Data.Either (isLeft, isRight)
+import Data.Maybe (isJust)
 import Data.Text qualified as Text
+import Data.Time (fromGregorian)
 import Hedger.Config (Config (..), LogLevel (Info), parseConfig)
+import Hedger.Domain.Snapshot (
+    Snapshot (latestJournalDate, transactions),
+    SnapshotStore,
+    loadSnapshot,
+    newSnapshotStore,
+    readCurrentSnapshot,
+    readLastReloadError,
+    reloadSnapshot,
+ )
 import Hedger.Runtime.Server (makeApplication, snapshotAvailable)
+import Hledger.Data.Types qualified as Hledger
 import Network.HTTP.Types (hContentType, methodGet, status200, status404, status503)
 import Network.Wai qualified as Wai
 import Network.Wai.Test (SResponse (simpleBody, simpleHeaders, simpleStatus), defaultRequest, request, runSession, setPath)
@@ -12,6 +25,11 @@ import Test.Hspec
 
 main :: IO ()
 main = hspec $ do
+    availableStore <- runIO loadedStore
+    unavailableStore <- runIO newSnapshotStore
+    let availableApp = makeApplication configuration availableStore
+        unavailableApp = makeApplication configuration unavailableStore
+
     describe "configuration" $ do
         it "requires a journal runtime path" $
             parseConfig [] [] `shouldBe` Left "A non-empty journal path is required."
@@ -30,6 +48,31 @@ main = hspec $ do
         it "recognizes the shared journal as usable" $ do
             snapshotAvailable "test/fixtures/shared.journal" `shouldReturn` True
             snapshotAvailable "test/fixtures/does-not-exist.journal" `shouldReturn` False
+
+    describe "journal snapshots" $ do
+        it "parses the shared journal with every transaction and posting" $ do
+            result <- loadSnapshot "test/fixtures/shared.journal"
+            result `shouldSatisfy` isRight
+            case result of
+                Left loadError -> expectationFailure (show loadError)
+                Right snapshot -> do
+                    length snapshot.transactions `shouldBe` 13
+                    sum (length . Hledger.tpostings <$> snapshot.transactions) `shouldBe` 27
+                    snapshot.latestJournalDate `shouldBe` Just (fromGregorian 2024 4 2)
+
+        it "rejects malformed journals instead of treating readable files as ready" $ do
+            result <- loadSnapshot "test/fixtures/malformed.journal"
+            result `shouldSatisfy` isLeft
+
+        it "keeps the last good immutable snapshot when a reload fails" $ do
+            store <- loadedStore
+            snapshotBefore <- readCurrentSnapshot store
+            reloadResult <- reloadSnapshot store "test/fixtures/does-not-exist.journal"
+            reloadResult `shouldSatisfy` isLeft
+            snapshotAfter <- readCurrentSnapshot store
+            fmap (length . (.transactions)) snapshotAfter `shouldBe` fmap (length . (.transactions)) snapshotBefore
+            reloadError <- readLastReloadError store
+            reloadError `shouldSatisfy` isJust
 
     describe "API" $ do
         it "serves live, ready, and bootstrap from the fixture" $ do
@@ -71,12 +114,6 @@ configuration =
         , publicBaseUrl = Nothing
         }
 
-availableApp :: Wai.Application
-availableApp = makeApplication configuration True
-
-unavailableApp :: Wai.Application
-unavailableApp = makeApplication configuration False
-
 get :: ByteString.ByteString -> Wai.Application -> IO SResponse
 get path app = runSession (request (setPath defaultRequest{Wai.requestMethod = methodGet} path)) app
 
@@ -88,3 +125,10 @@ getWithRequestId path app =
 
 json :: SResponse -> Maybe Value
 json = decode . simpleBody
+
+loadedStore :: IO SnapshotStore
+loadedStore = do
+    store <- newSnapshotStore
+    result <- reloadSnapshot store "test/fixtures/shared.journal"
+    result `shouldSatisfy` isRight
+    pure store

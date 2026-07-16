@@ -2,15 +2,13 @@
 
 These decisions are fixed for Release 1 unless a contract version changes.
 
-## Transaction identity
+## Transaction payloads
 
-Newly identified transactions use an explicit `hedger-id` tag whose value is
-a canonical lowercase UUID. A legacy transaction without that tag receives a
-derived ID of the form `sha256-v1:<hex>`. The hash input is a versioned,
-canonical encoding of the root-relative source file, source span, date,
-status, code, description, tags, and postings. Absolute paths never enter the
-ID or API. A source edit may change a derived legacy ID; adding `hedger-id`
-makes it durable. Duplicate explicit IDs make the snapshot invalid.
+Transaction list responses contain complete transaction DTOs, including every
+posting needed to render the selected transaction. There is no transaction
+summary DTO, separate transaction-detail fetch, or Hedger-specific transaction
+identifier. The frontend retains the selected transaction from the list it
+already has.
 
 ## Signs and magnitudes
 

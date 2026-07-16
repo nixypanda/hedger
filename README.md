@@ -1,7 +1,7 @@
 # Hedger
 
 Hedger is a backend-backed, read-only replica of eLedger. The repository has
-completed Phase 1 of the implementation roadmap.
+completed Phase 2 of the implementation roadmap.
 
 ```sh
 nix develop
@@ -20,3 +20,8 @@ package.
 
 Release 1 uses the stock WAI access logger. Possible future structured logging
 requirements are recorded in `docs/future-logging.md`.
+
+The backend parses the configured journal into an immutable hledger snapshot
+containing complete transactions and their postings. Reload failures retain
+the last usable snapshot.
+Send the server `SIGHUP` to parse, validate, and atomically publish a replacement.

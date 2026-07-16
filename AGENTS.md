@@ -71,6 +71,10 @@ files may add to or override them within their directory.
 - Derive Aeson encoders and decoders with `Data.Aeson.TH` (`deriveJSON`) rather
   than handwritten instances. Put wire-name transformations in the derivation
   options and cover them with golden or round-trip tests.
+- Return complete transaction DTOs, including postings, in transaction list
+  responses. Do not introduce transaction summary/detail endpoint pairs or
+  Hedger-specific transaction identifiers; the frontend uses the selected
+  object from the list it already loaded.
 
 ### Tests
 
