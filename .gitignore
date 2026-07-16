@@ -1,1 +1,8 @@
 agent-docs/
+.direnv/
+.envrc
+dist-newstyle/
+elm-stuff/
+result
+tags
+examples/

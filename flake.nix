@@ -15,6 +15,12 @@
         "x86_64-linux"
       ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      backendFor =
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        pkgs.haskellPackages.callCabal2nix "hedger-backend" ./backend { };
     in
     {
       devShells = forAllSystems (
@@ -29,7 +35,21 @@
               elmPackages.elm
               elmPackages.elm-format
               elmPackages.elm-test
-              ghc
+              haskellPackages.fourmolu
+              (haskellPackages.ghcWithPackages (
+                haskell: with haskell; [
+                  aeson
+                  hspec
+                  http-types
+                  mtl
+                  optparse-applicative
+                  servant
+                  servant-server
+                  wai
+                  wai-extra
+                  warp
+                ]
+              ))
               hledger
               just
               nodejs_22
@@ -41,25 +61,56 @@
 
       formatter = forAllSystems (system: (import nixpkgs { inherit system; }).nixfmt-tree);
 
+      packages = forAllSystems (system: {
+        default = backendFor system;
+        hedger-backend = backendFor system;
+      });
+
+      apps = forAllSystems (system: {
+        default = {
+          type = "app";
+          program = "${backendFor system}/bin/hedger-server";
+          meta.description = "Run the Hedger read-only ledger backend";
+        };
+      });
+
       checks = forAllSystems (
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          backend = backendFor system;
+          backendGhc = pkgs.haskellPackages.ghcWithPackages (
+            haskell: with haskell; [
+              aeson
+              hspec
+              http-types
+              mtl
+              optparse-applicative
+              servant
+              servant-server
+              wai
+              wai-extra
+              warp
+            ]
+          );
         in
         {
+          backend = backend;
           workspace =
             pkgs.runCommand "hedger-workspace-check"
               {
                 nativeBuildInputs = with pkgs; [
                   cabal-install
                   elmPackages.elm-format
-                  ghc
+                  haskellPackages.fourmolu
+                  backendGhc
                   hledger
                   just
                   python3
                 ];
               }
               ''
+                export HOME=$TMPDIR
                 cp -R ${self} source
                 chmod -R u+w source
                 cd source
