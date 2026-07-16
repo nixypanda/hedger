@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "journal_unavailable",
+    "message": "No usable journal snapshot is available.",
+    "requestId": "req_fixture_0001"
+  }
+}

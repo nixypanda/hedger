@@ -1,0 +1,66 @@
+; Shared contract fixture. All data is synthetic.
+
+commodity INR
+commodity USD
+commodity JPY
+commodity AAPL
+commodity FUND
+commodity MYSTERY
+
+P 2023-04-01 USD INR 82
+P 2023-04-01 AAPL INR 15000
+P 2024-04-01 USD INR 83
+P 2024-04-01 AAPL INR 16500
+
+2023-03-31 Opening balances
+    assets:cash:checking          INR 100000
+    liabilities:loan             INR -20000
+    equity:opening
+
+2023-04-01 Opening USD balance
+    assets:cash:usd               USD 100
+    equity:opening
+
+2023-04-02 Opening unpriced balance
+    assets:cash:jpy               JPY 1000
+    equity:opening
+
+2023-04-03 Salary
+    assets:cash:checking          INR 50000
+    income:salary
+
+2023-04-05 Groceries
+    expenses:food:groceries       INR 2500
+    assets:cash:checking
+
+2023-04-07 Cash transfer
+    assets:cash:wallet            INR 5000
+    assets:cash:checking
+
+2023-04-10 Buy shares with unit cost
+    assets:investments:stocks     AAPL 10 @ INR 12000
+    assets:cash:checking          INR -120000
+
+2023-04-15 Buy fund with total cost
+    assets:investments:funds      FUND 2 @@ INR 5000
+    assets:cash:checking          INR -5000
+
+2023-05-01 Investment with missing cost
+    assets:investments:unknown    MYSTERY 3
+    equity:unvalued               MYSTERY -3
+
+2023-05-10 Grocery refund
+    expenses:food:groceries       INR -500
+    assets:cash:checking          INR 500
+
+2023-12-31 Loan interest
+    expenses:interest             INR 1000
+    liabilities:loan             INR -1000
+
+2024-04-01 Salary
+    assets:cash:checking          INR 55000
+    income:salary
+
+2024-04-02 Utilities
+    expenses:utilities            INR 3000
+    assets:cash:checking

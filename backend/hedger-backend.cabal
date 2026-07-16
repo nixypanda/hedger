@@ -1,0 +1,16 @@
+cabal-version:      3.0
+name:               hedger-backend
+version:            0.1.0.0
+synopsis:           Read-only hledger backend for Hedger
+description:        Backend application for the Hedger read-only ledger UI.
+category:           Finance
+maintainer:         Hedger contributors
+license:            AGPL-3.0-or-later
+build-type:         Simple
+
+library
+  exposed-modules:    Hedger.Phase0
+  hs-source-dirs:      src
+  build-depends:       base >=4.18 && <5
+  default-language:    GHC2021
+  ghc-options:         -Wall -Wcompat

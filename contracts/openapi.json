@@ -1,0 +1,89 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hedger API",
+    "version": "0.1.0"
+  },
+  "servers": [{ "url": "/api/v1" }],
+  "paths": {
+    "/health/live": {
+      "get": {
+        "operationId": "getLiveness",
+        "responses": {
+          "200": {
+            "description": "The process is alive",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "responses": {
+          "200": {
+            "description": "A usable snapshot is available",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } }
+          },
+          "503": {
+            "description": "No usable snapshot is available",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
+    },
+    "/bootstrap": {
+      "get": {
+        "operationId": "getBootstrap",
+        "responses": {
+          "200": {
+            "description": "Small application startup contract",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Bootstrap" } } }
+          },
+          "503": {
+            "description": "Bootstrap data is unavailable",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "required": ["status"],
+        "properties": { "status": { "type": "string", "enum": ["ok"] } },
+        "additionalProperties": false
+      },
+      "Bootstrap": {
+        "type": "object",
+        "required": ["apiVersion", "appName", "fiscalYearStartMonth", "defaultValuationBasis"],
+        "properties": {
+          "apiVersion": { "const": "v1" },
+          "appName": { "const": "Hedger" },
+          "fiscalYearStartMonth": { "type": "integer", "minimum": 1, "maximum": 12 },
+          "defaultValuationBasis": { "type": "string", "enum": ["period-end"] }
+        },
+        "additionalProperties": false
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message", "requestId"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "requestId": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
