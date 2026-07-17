@@ -33,6 +33,7 @@ library
       Hedger.Domain.Internal.Transaction
       Hedger.Domain.Snapshot
       Hedger.Domain.Transaction
+      Hedger.Infrastructure.Hledger.Internal.Cursor
       Hedger.Infrastructure.Hledger.SnapshotStore
       Hedger.Infrastructure.Hledger.TransactionQuery
       Hedger.Interface.HTTP.API
@@ -84,6 +85,7 @@ test-suite hedger-backend-test
     , Hedger.Generators
     , Hedger.ConfigSpec
     , Hedger.Domain.TransactionSpec
+    , Hedger.Infrastructure.Hledger.Internal.CursorSpec
     , Hedger.Infrastructure.Hledger.SnapshotStoreSpec
     , Hedger.Infrastructure.Hledger.TransactionQuerySpec
     , Hedger.Interface.HTTP.APISpec
