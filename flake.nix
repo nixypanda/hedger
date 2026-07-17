@@ -74,6 +74,7 @@
               (haskellPackages.ghcWithPackages (
                 haskell: with haskell; [
                   aeson
+                  hedgehog
                   hspec
                   hledger-lib
                   http-types
@@ -120,6 +121,7 @@
           backendGhc = pkgs.haskellPackages.ghcWithPackages (
             haskell: with haskell; [
               aeson
+              hedgehog
               hspec
               hledger-lib
               http-types

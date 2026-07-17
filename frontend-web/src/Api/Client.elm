@@ -1,7 +1,8 @@
-module Api.Client exposing (getBootstrap)
+module Api.Client exposing (getBootstrap, getTransactions)
 
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
+import Api.Transaction as Transaction exposing (Response)
 import Http
 import Json.Decode as Decode
 
@@ -11,6 +12,14 @@ getBootstrap toMsg =
     Http.get
         { url = "/api/v1/bootstrap"
         , expect = expectApiJson toMsg Bootstrap.decoder
+        }
+
+
+getTransactions : (Result ApiError Response -> msg) -> Cmd msg
+getTransactions toMsg =
+    Http.get
+        { url = "/api/v1/transactions"
+        , expect = expectApiJson toMsg Transaction.decoder
         }
 
 

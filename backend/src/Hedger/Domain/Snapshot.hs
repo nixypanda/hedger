@@ -11,18 +11,24 @@ module Hedger.Domain.Snapshot (
 where
 
 import Control.Exception (SomeAsyncException, SomeException, displayException, fromException, tryJust)
+import Crypto.Hash.MD5 qualified as MD5
+import Data.ByteString qualified as ByteString
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TextEncoding
 import Data.Time (Day)
+import Data.Word (Word8)
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Read qualified as Hledger
+import Numeric (showHex)
 import System.Directory qualified as Directory
 
 data Snapshot = Snapshot
     { journal :: Hledger.Journal
     , transactions :: [Hledger.Transaction]
     , latestJournalDate :: Maybe Day
+    , revision :: Text
     }
     deriving (Eq, Show)
 
@@ -69,6 +75,7 @@ loadSnapshot configuredPath = do
                 { journal = loadedJournal
                 , transactions = records
                 , latestJournalDate = maximumMaybe (Hledger.tdate <$> records)
+                , revision = journalRevision loadedJournal
                 }
 
 readJournal :: Text -> IO (Either SomeException (Either String Hledger.Journal))
@@ -85,3 +92,27 @@ synchronousException exception =
 maximumMaybe :: (Ord value) => [value] -> Maybe value
 maximumMaybe [] = Nothing
 maximumMaybe values = Just (maximum values)
+
+journalRevision :: Hledger.Journal -> Text
+journalRevision journal =
+    "md5:" <> hexEncode (MD5.hash revisionInput)
+  where
+    revisionInput =
+        TextEncoding.encodeUtf8
+            ( Text.concat
+                ( "read-options:definputopts-v1\n"
+                    : (lengthDelimited . snd <$> journal.jfiles)
+                )
+            )
+
+lengthDelimited :: Text -> Text
+lengthDelimited value = Text.pack (show (Text.length value)) <> ":" <> value
+
+hexEncode :: ByteString.ByteString -> Text
+hexEncode = Text.pack . concatMap byteHex . ByteString.unpack
+
+byteHex :: Word8 -> String
+byteHex byte =
+    case showHex byte "" of
+        [digit] -> ['0', digit]
+        digits -> digits

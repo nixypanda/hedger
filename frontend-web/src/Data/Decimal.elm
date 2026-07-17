@@ -1,10 +1,15 @@
-module Data.Decimal exposing (Decimal, decoder, fromString, toString)
+module Data.Decimal exposing (Decimal, decoder, fromString, toString, zero)
 
 import Json.Decode as Decode exposing (Decoder)
 
 
 type Decimal
     = Decimal String
+
+
+zero : Decimal
+zero =
+    Decimal "0"
 
 
 fromString : String -> Result String Decimal

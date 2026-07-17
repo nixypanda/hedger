@@ -5,6 +5,7 @@ module Hedger.Application (
     liveness,
     readiness,
     runAppM,
+    transactionList,
 )
 where
 
@@ -13,8 +14,9 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (JournalUnavailable))
-import Hedger.Domain.Snapshot (SnapshotStore, readCurrentSnapshot)
-import Hedger.Domain.Types (Bootstrap (..), Health (..))
+import Hedger.Domain.Snapshot (Snapshot (..), SnapshotStore, readCurrentSnapshot, readLastReloadError)
+import Hedger.Domain.Transaction (projectTransactions)
+import Hedger.Domain.Types (Bootstrap (..), Health (..), ResponseMetadata (..), TransactionsResponse (..))
 
 data Env = Env
     { config :: Config
@@ -34,20 +36,43 @@ readiness = requireSnapshot >> pure Health{status = "ok"}
 
 bootstrap :: AppM Bootstrap
 bootstrap = do
-    requireSnapshot
+    snapshot <- requireSnapshot
     fiscal <- asks (.config.fiscalYearStartMonth)
+    responseMetadata <- metadataFor snapshot
     pure
         Bootstrap
             { apiVersion = "v1"
             , appName = "Hedger"
             , fiscalYearStartMonth = fiscal
             , defaultValuationBasis = "period-end"
+            , metadata = responseMetadata
             }
 
-requireSnapshot :: AppM ()
+transactionList :: AppM TransactionsResponse
+transactionList = do
+    snapshot <- requireSnapshot
+    responseMetadata <- metadataFor snapshot
+    pure
+        TransactionsResponse
+            { metadata = responseMetadata
+            , transactions = projectTransactions snapshot.transactions
+            }
+
+requireSnapshot :: AppM Snapshot
 requireSnapshot = do
     store <- asks snapshotStore
-    snapshot <- liftIO (readCurrentSnapshot store)
-    case snapshot of
-        Just _ -> pure ()
+    maybeSnapshot <- liftIO (readCurrentSnapshot store)
+    case maybeSnapshot of
+        Just snapshot -> pure snapshot
         Nothing -> throwError JournalUnavailable
+
+metadataFor :: Snapshot -> AppM ResponseMetadata
+metadataFor snapshot = do
+    store <- asks snapshotStore
+    reloadError <- liftIO (readLastReloadError store)
+    pure
+        ResponseMetadata
+            { revision = snapshot.revision
+            , freshness = maybe "fresh" (const "stale") reloadError
+            , warnings = maybe [] (const ["The latest journal reload failed; the last usable snapshot is shown."]) reloadError
+            }

@@ -46,6 +46,21 @@
           }
         }
       }
+    },
+    "/transactions": {
+      "get": {
+        "operationId": "getTransactions",
+        "responses": {
+          "200": {
+            "description": "Every complete journal transaction, newest first",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TransactionsResponse" } } }
+          },
+          "503": {
+            "description": "No usable journal snapshot is available",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -58,12 +73,115 @@
       },
       "Bootstrap": {
         "type": "object",
-        "required": ["apiVersion", "appName", "fiscalYearStartMonth", "defaultValuationBasis"],
+        "required": ["apiVersion", "appName", "fiscalYearStartMonth", "defaultValuationBasis", "metadata"],
         "properties": {
           "apiVersion": { "const": "v1" },
           "appName": { "const": "Hedger" },
           "fiscalYearStartMonth": { "type": "integer", "minimum": 1, "maximum": 12 },
-          "defaultValuationBasis": { "type": "string", "enum": ["period-end"] }
+          "defaultValuationBasis": { "type": "string", "enum": ["period-end"] },
+          "metadata": { "$ref": "#/components/schemas/ResponseMetadata" }
+        },
+        "additionalProperties": false
+      },
+      "ResponseMetadata": {
+        "type": "object",
+        "required": ["revision", "freshness", "warnings"],
+        "properties": {
+          "revision": { "type": "string", "minLength": 1 },
+          "freshness": { "type": "string", "enum": ["fresh", "stale", "refreshing", "partial", "unavailable"] },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "Tag": {
+        "type": "object",
+        "required": ["name", "value"],
+        "properties": {
+          "name": { "type": "string" },
+          "value": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "Cost": {
+        "type": "object",
+        "required": ["costType", "commodity", "quantity"],
+        "properties": {
+          "costType": { "type": "string", "enum": ["unit", "total"] },
+          "commodity": { "type": "string" },
+          "quantity": { "type": "string", "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$" }
+        },
+        "additionalProperties": false
+      },
+      "Amount": {
+        "type": "object",
+        "required": ["commodity", "quantity", "cost"],
+        "properties": {
+          "commodity": { "type": "string" },
+          "quantity": { "type": "string", "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$" },
+          "cost": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/Cost" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Posting": {
+        "type": "object",
+        "required": ["account", "status", "comment", "tags", "amounts"],
+        "properties": {
+          "account": { "type": "string" },
+          "status": { "type": "string", "enum": ["unmarked", "pending", "cleared"] },
+          "comment": { "type": ["string", "null"] },
+          "tags": { "type": "array", "items": { "$ref": "#/components/schemas/Tag" } },
+          "amounts": { "type": "array", "items": { "$ref": "#/components/schemas/Amount" } }
+        },
+        "additionalProperties": false
+      },
+      "CommodityQuantity": {
+        "type": "object",
+        "required": ["commodity", "quantity"],
+        "properties": {
+          "commodity": { "type": "string" },
+          "quantity": { "type": "string", "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$" }
+        },
+        "additionalProperties": false
+      },
+      "TransactionPresentation": {
+        "type": "object",
+        "required": ["classification", "fromAccounts", "toAccounts", "totalAmounts", "openingAccountCount"],
+        "properties": {
+          "classification": { "type": "string", "enum": ["income", "expense", "transfer", "opening_balance"] },
+          "fromAccounts": { "type": "array", "items": { "type": "string" } },
+          "toAccounts": { "type": "array", "items": { "type": "string" } },
+          "totalAmounts": { "type": "array", "items": { "$ref": "#/components/schemas/CommodityQuantity" } },
+          "openingAccountCount": { "type": ["integer", "null"], "minimum": 1 }
+        },
+        "additionalProperties": false
+      },
+      "Transaction": {
+        "type": "object",
+        "required": ["primaryDate", "secondaryDate", "status", "code", "description", "comment", "tags", "postings", "presentation"],
+        "properties": {
+          "primaryDate": { "type": "string", "format": "date" },
+          "secondaryDate": { "type": ["string", "null"], "format": "date" },
+          "status": { "type": "string", "enum": ["unmarked", "pending", "cleared"] },
+          "code": { "type": ["string", "null"] },
+          "description": { "type": "string" },
+          "comment": { "type": ["string", "null"] },
+          "tags": { "type": "array", "items": { "$ref": "#/components/schemas/Tag" } },
+          "postings": { "type": "array", "items": { "$ref": "#/components/schemas/Posting" } },
+          "presentation": { "$ref": "#/components/schemas/TransactionPresentation" }
+        },
+        "additionalProperties": false
+      },
+      "TransactionsResponse": {
+        "type": "object",
+        "required": ["metadata", "transactions"],
+        "properties": {
+          "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
+          "transactions": { "type": "array", "items": { "$ref": "#/components/schemas/Transaction" } }
         },
         "additionalProperties": false
       },

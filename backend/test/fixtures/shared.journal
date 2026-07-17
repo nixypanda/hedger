@@ -61,6 +61,6 @@ P 2024-04-01 AAPL INR 16500
     assets:cash:checking          INR 55000
     income:salary
 
-2024-04-02 Utilities
-    expenses:utilities            INR 3000
-    assets:cash:checking
+2024-04-02=2024-04-03 * (UTIL) Utilities  ; category: household
+    * expenses:utilities          INR 3000  ; method: autopay
+    assets:cash:checking          INR -3000

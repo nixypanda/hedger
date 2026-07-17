@@ -4,19 +4,23 @@ import Api.Bootstrap exposing (Bootstrap)
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..))
+import Api.Transaction
 import Browser
+import Browser.Dom as Dom
 import Browser.Events
 import Browser.Navigation as Nav
 import Element exposing (Element)
 import Element.Font as Font
 import Html.Attributes
 import Json.Decode as Decode
+import Page.Transactions as TransactionsPage
 import Ports
 import Preferences exposing (Preferences, ThemeMode(..))
 import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
+import Task
 import Ui
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -41,6 +45,7 @@ type alias Model =
     , preferences : Preferences
     , pwa : Pwa.Model
     , bootstrap : RemoteData Bootstrap
+    , transactions : TransactionsPage.Model
     }
 
 
@@ -51,9 +56,14 @@ type Msg
     | Resized Int Int
     | BootstrapLoaded (Result ApiError Bootstrap)
     | RefreshBootstrap
+    | TransactionsLoaded (Result ApiError Api.Transaction.Response)
+    | RefreshTransactions
+    | SelectTransaction Api.Transaction.Transaction
+    | BackToTransactions
     | ConfigLoaded Decode.Value
     | ToggleTheme
     | PwaMsg Pwa.Msg
+    | NoOp
 
 
 main : Program Flags Model Msg
@@ -88,10 +98,21 @@ init flags url key =
       , preferences = Preferences.current initialTheme
       , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
       , bootstrap = Loading Nothing
+      , transactions =
+            if Route.fromUrl url == Transactions then
+                TransactionsPage.beginLoading TransactionsPage.init
+
+            else
+                TransactionsPage.init
       }
     , Cmd.batch
         [ redirect
         , Api.getBootstrap BootstrapLoaded
+        , if Route.fromUrl url == Transactions then
+            Api.getTransactions TransactionsLoaded
+
+          else
+            Cmd.none
         , Ports.registerServiceWorker ()
         ]
     )
@@ -112,7 +133,20 @@ update msg model =
             ( model, Nav.pushUrl model.key (Route.toPath route) )
 
         UrlChanged url ->
-            ( { model | route = Route.fromUrl url }, Cmd.none )
+            let
+                route =
+                    Route.fromUrl url
+            in
+            if route == Transactions then
+                ( { model
+                    | route = route
+                    , transactions = TransactionsPage.beginLoading model.transactions
+                  }
+                , Api.getTransactions TransactionsLoaded
+                )
+
+            else
+                ( { model | route = route }, Cmd.none )
 
         Resized width height ->
             ( { model | viewport = { width = width, height = height } }, Cmd.none )
@@ -128,6 +162,28 @@ update msg model =
         RefreshBootstrap ->
             ( { model | bootstrap = RemoteData.beginLoading model.bootstrap }
             , Api.getBootstrap BootstrapLoaded
+            )
+
+        TransactionsLoaded result ->
+            ( { model | transactions = TransactionsPage.receive result model.transactions }, Cmd.none )
+
+        RefreshTransactions ->
+            ( { model | transactions = TransactionsPage.beginLoading model.transactions }
+            , Api.getTransactions TransactionsLoaded
+            )
+
+        SelectTransaction transaction ->
+            ( { model | transactions = TransactionsPage.select transaction model.transactions }
+            , if Ui.isSmall (Element.classifyDevice model.viewport) then
+                focus "transaction-detail"
+
+              else
+                Cmd.none
+            )
+
+        BackToTransactions ->
+            ( { model | transactions = TransactionsPage.clearSelection model.transactions }
+            , focus "transaction-list"
             )
 
         ConfigLoaded value ->
@@ -159,6 +215,14 @@ update msg model =
                     Pwa.update pwaMsg model.pwa
             in
             ( { model | pwa = pwa }, Cmd.map PwaMsg command )
+
+        NoOp ->
+            ( model, Cmd.none )
+
+
+focus : String -> Cmd Msg
+focus elementId =
+    Task.attempt (always NoOp) (Dom.focus elementId)
 
 
 subscriptions : Model -> Sub Msg
@@ -230,26 +294,36 @@ pageView theme model =
             else
                 []
     in
-    Element.column
-        [ Element.width Element.fill
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll")
-        ]
-        [ Ui.pageHeaderBand theme device <|
-            Ui.pageHeader theme
-                { leading = Nothing
-                , title = Typography.pageTitle theme title
-                , subtitle = Just subtitle
-                , actions = actions
-                }
-        , Ui.pageContainer device <|
-            bootstrapStatus theme model.bootstrap
-                :: (if model.route == Review then
-                        reviewGallery theme
+    if model.route == Transactions then
+        TransactionsPage.view theme
+            model.viewport
+            { model = model.transactions
+            , onRefresh = RefreshTransactions
+            , onSelect = SelectTransaction
+            , onBack = BackToTransactions
+            }
 
-                    else
-                        placeholder theme model.route
-                   )
-        ]
+    else
+        Element.column
+            [ Element.width Element.fill
+            , Element.htmlAttribute (Html.Attributes.class "page-scroll")
+            ]
+            [ Ui.pageHeaderBand theme device <|
+                Ui.pageHeader theme
+                    { leading = Nothing
+                    , title = Typography.pageTitle theme title
+                    , subtitle = Just subtitle
+                    , actions = actions
+                    }
+            , Ui.pageContainer device <|
+                bootstrapStatus theme model.bootstrap
+                    :: (if model.route == Review then
+                            reviewGallery theme
+
+                        else
+                            placeholder theme model.route
+                       )
+            ]
 
 
 bootstrapStatus : Theme -> RemoteData Bootstrap -> Element Msg
@@ -354,6 +428,8 @@ reviewGallery theme =
             , { label = "Jul", value = 84 }
             ]
         ]
+    , Ui.card theme
+        [ TransactionsPage.reviewFixtures theme NoOp ]
     ]
 
 

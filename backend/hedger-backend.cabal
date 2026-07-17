@@ -12,6 +12,7 @@ common language-settings
   default-language:    GHC2024
   default-extensions:
       DataKinds
+      DuplicateRecordFields
       ImportQualifiedPost
       MultiWayIf
       OverloadedRecordDot
@@ -29,6 +30,7 @@ library
       Hedger.Config
       Hedger.Domain.Error
       Hedger.Domain.Snapshot
+      Hedger.Domain.Transaction
       Hedger.Domain.Types
       Hedger.Runtime.RequestContext
       Hedger.Runtime.Server
@@ -37,6 +39,8 @@ library
       aeson >=2.2 && <2.3
     , base >=4.18 && <5
     , bytestring >=0.11 && <0.13
+    , containers >=0.7 && <0.8
+    , cryptohash-md5 >=0.11 && <0.12
     , directory >=1.3 && <1.4
     , hledger-lib >=1.52 && <1.53
     , http-types >=0.12 && <0.13
@@ -74,6 +78,7 @@ test-suite hedger-backend-test
     , hedger-backend
     , hledger-lib >=1.52 && <1.53
     , hspec >=2.11 && <2.12
+    , hedgehog >=1.4 && <1.6
     , http-types >=0.12 && <0.13
     , text >=2.0 && <2.2
     , time >=1.12 && <1.15
@@ -86,7 +91,10 @@ benchmark snapshot-bench
   main-is:              Main.hs
   hs-source-dirs:       benchmark
   build-depends:
-      base >=4.18 && <5
+      aeson >=2.2 && <2.3
+    , base >=4.18 && <5
+    , bytestring >=0.11 && <0.13
     , hedger-backend
     , hledger-lib >=1.52 && <1.53
     , tasty-bench >=0.4 && <0.5
+    , text >=2.0 && <2.2

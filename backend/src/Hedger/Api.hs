@@ -8,9 +8,9 @@ where
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson qualified as Aeson
 import Data.Text (Text)
-import Hedger.Application (AppM, Env, bootstrap, liveness, readiness, runAppM)
+import Hedger.Application (AppM, Env, bootstrap, liveness, readiness, runAppM, transactionList)
 import Hedger.Domain.Error (AppError, appErrorStatus, toEnvelope)
-import Hedger.Domain.Types (Bootstrap, Health)
+import Hedger.Domain.Types (Bootstrap, Health, TransactionsResponse)
 import Network.HTTP.Types qualified as HTTP
 import Servant
 
@@ -21,6 +21,7 @@ type API =
         :> ( "health" :> "live" :> Get '[JSON] Health
                 :<|> "health" :> "ready" :> Get '[JSON] Health
                 :<|> "bootstrap" :> Get '[JSON] Bootstrap
+                :<|> "transactions" :> Get '[JSON] TransactionsResponse
            )
 
 apiProxy :: Proxy API
@@ -34,6 +35,7 @@ server environment requestId =
     runAction liveness
         :<|> runAction readiness
         :<|> runAction bootstrap
+        :<|> runAction transactionList
   where
     effectiveRequestId = maybe "request-id-missing" id requestId
     runAction :: AppM value -> Handler value

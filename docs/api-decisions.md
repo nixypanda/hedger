@@ -10,6 +10,35 @@ summary DTO, separate transaction-detail fetch, or Hedger-specific transaction
 identifier. The frontend retains the selected transaction from the list it
 already has.
 
+## Transaction queries
+
+The final transaction-list contract is
+`GET /api/v1/transactions?query=...&limit=...&cursor=...`. The backend parses
+and evaluates the single `query` text value with the repository's pinned
+`hledger-lib` version. An absent or empty query matches all transactions.
+`limit` defaults to `50` and is capped at `200`; `cursor` is an opaque
+continuation token bound to the query and journal revision. There is no JSON
+request DTO for transaction queries. Successful responses remain JSON API
+responses.
+
+Phase 4A may temporarily expose `GET /api/v1/transactions` without query or
+pagination so the complete DTO and frontend can be built first. Phase 4B
+replaces that all-at-once behavior with the final limited contract before
+Release 1.
+
+There is no parallel Hedger-owned structured JSON filter model for dates,
+amounts, commodities, accounts, statuses, or other transaction fields. The
+frontend provides a text field with draft/apply/clear behavior, parser errors,
+and concise query-language help. Advanced relationships between posting
+criteria use hledger's own `expr:`, `any:`, and `all:` semantics.
+
+Relative date expressions use one backend-selected reference date that is
+reported in response metadata and retained by continuation cursors. Query
+options that alter report behavior rather than select transactions are rejected.
+Invalid queries return a stable validation error without logging or returning
+the complete query text. The server caps query length, clients URL-encode the
+value, and access logs and telemetry redact the `query` parameter.
+
 ## Signs and magnitudes
 
 Posting and balance DTOs preserve hledger's signed quantities: assets and
