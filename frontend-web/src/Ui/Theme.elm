@@ -56,6 +56,12 @@ type alias Theme =
     , chipBorder : Color
     , chipSelectedBg : Color
     , chipSelectedFg : Color
+    , borrowingBg : Color
+    , borrowingFg : Color
+    , repaymentBg : Color
+    , repaymentFg : Color
+    , assetBg : Color
+    , assetFg : Color
     , chartSeries : List Color
     , cardShadow : String
     }
@@ -102,6 +108,12 @@ light =
     , chipBorder = rgb255 203 213 225
     , chipSelectedBg = rgb255 112 62 232
     , chipSelectedFg = rgb255 255 255 255
+    , borrowingBg = rgb255 207 250 254
+    , borrowingFg = rgb255 15 118 110
+    , repaymentBg = rgb255 255 241 242
+    , repaymentFg = rgb255 190 18 60
+    , assetBg = rgb255 239 246 255
+    , assetFg = rgb255 37 99 235
     , chartSeries =
         [ rgb255 112 62 232
         , rgb255 16 185 129
@@ -159,6 +171,12 @@ dark =
     , chipBorder = rgb255 71 85 105
     , chipSelectedBg = rgb255 96 165 250
     , chipSelectedFg = rgb255 15 23 42
+    , borrowingBg = rgb255 8 51 47
+    , borrowingFg = rgb255 94 234 212
+    , repaymentBg = rgb255 76 17 36
+    , repaymentFg = rgb255 251 113 133
+    , assetBg = rgb255 23 37 84
+    , assetFg = rgb255 147 197 253
     , chartSeries =
         [ rgb255 96 165 250
         , rgb255 52 211 153

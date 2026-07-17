@@ -864,6 +864,9 @@ type FinancialTone
     | FinancialExpense
     | FinancialNeutral
     | FinancialEquity
+    | FinancialBorrowing
+    | FinancialRepayment
+    | FinancialAsset
 
 
 financialBadge : Theme -> FinancialTone -> String -> Element msg
@@ -882,6 +885,15 @@ financialBadge theme tone label =
 
                 FinancialEquity ->
                     { bg = theme.primarySoft, fg = theme.equity }
+
+                FinancialBorrowing ->
+                    { bg = theme.borrowingBg, fg = theme.borrowingFg }
+
+                FinancialRepayment ->
+                    { bg = theme.repaymentBg, fg = theme.repaymentFg }
+
+                FinancialAsset ->
+                    { bg = theme.assetBg, fg = theme.assetFg }
     in
     Element.el
         [ Background.color colors.bg

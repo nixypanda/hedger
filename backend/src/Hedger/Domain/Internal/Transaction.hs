@@ -9,13 +9,14 @@ module Hedger.Domain.Internal.Transaction (
 
     -- * Domain queries
     classificationFor,
+    dominantMovement,
     isOpening,
 )
 where
 
 import Data.List qualified as List
+import Data.Map.Strict qualified as Map
 import Data.Ord (Down (Down))
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Hledger.Data.Amount qualified as Hledger
 import Hledger.Data.Types qualified as Hledger
@@ -23,10 +24,16 @@ import Hledger.Data.Types qualified as Hledger
 import Hedger.Domain.Internal.Account
 
 data TransactionClassification
-    = TransactionIncome
+    = OpeningBalance
+    | Borrowing
+    | Repayment
+    | AssetAcquisition
+    | AssetDisposal
+    | AssetReallocation
+    | TransactionIncome
     | TransactionExpense
     | TransactionTransfer
-    | OpeningBalance
+    | Unclassified
     deriving (Eq, Show)
 
 data TransactionPresentation = TransactionPresentation
@@ -39,17 +46,37 @@ newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transac
 
 -- * Domain queries
 
+classificationThreshold :: Double
+classificationThreshold = 0.8
+
 classificationFor :: Hledger.Transaction -> TransactionClassification
 classificationFor tx
-    | isOpening tx = OpeningBalance
-    | tone == Positive = TransactionIncome
-    | tone == Negative = TransactionExpense
-    | otherwise = TransactionTransfer
+    | isOpening tx =
+        OpeningBalance
+    | dominantPct < classificationThreshold =
+        Unclassified
+    | any isLiabilities creditAccounts && any isLiabilities debitAccounts =
+        TransactionTransfer
+    | any isLiabilities creditAccounts =
+        Borrowing
+    | dominantGroup == "liabilities" && any isLiabilities debitAccounts =
+        Repayment
+    | dominantGroup == "assets" && any isCashOnly creditAccounts && any isAssetOnly debitAccounts =
+        AssetAcquisition
+    | dominantGroup == "assets" && any isAssetOnly creditAccounts && any isCashOnly debitAccounts =
+        AssetDisposal
+    | dominantGroup == "assets" && any isAssetOnly creditAccounts && any isAssetOnly debitAccounts =
+        AssetReallocation
+    | dominantGroup == "assets" && any isRevenue creditAccounts =
+        TransactionIncome
+    | dominantGroup == "expenses" =
+        TransactionExpense
+    | otherwise =
+        TransactionTransfer
   where
-    tone =
-        toneFromFlow
-            (sortedAccountsForPostings (creditsFor tx.tpostings))
-            (sortedAccountsForPostings (debitsFor tx.tpostings))
+    creditAccounts = postingAccountInfos (creditsFor tx.tpostings)
+    debitAccounts = postingAccountInfos (debitsFor tx.tpostings)
+    (dominantGroup, dominantPct) = dominantMovement tx
 
 isOpening :: Hledger.Transaction -> Bool
 isOpening tx =
@@ -74,6 +101,40 @@ isOpening tx =
             , "initial"
             ]
 
+dominantMovement :: Hledger.Transaction -> (Text.Text, Double)
+dominantMovement tx =
+    (dominantGroup, dominantPct)
+  where
+    debitPs = debitsFor tx.tpostings
+    groupAmounts =
+        Map.fromListWith
+            (+)
+            [ (accountLabel (accountInfo p.paccount), abs (fromRational (toRational amount.aquantity)))
+            | p <- debitPs
+            , amount <- Hledger.amountsRaw p.pamount
+            , amount.aquantity > 0
+            ]
+    totalDebit = sum (Map.elems groupAmounts)
+    dominantGroup =
+        if Map.null groupAmounts
+            then ""
+            else
+                fst
+                    ( Map.foldlWithKey'
+                        ( \(!bestKey, !bestVal) candidateKey candidateVal ->
+                            if candidateVal > bestVal
+                                then (candidateKey, candidateVal)
+                                else (bestKey, bestVal)
+                        )
+                        ("", 0.0)
+                        groupAmounts
+                    )
+    dominantPct =
+        if totalDebit == 0
+            then 0.0
+            else case Map.lookup dominantGroup groupAmounts of
+                Just amount -> amount / totalDebit
+                Nothing -> 0.0
 -- * Core API
 
 presentationFor :: Hledger.Transaction -> TransactionPresentation
@@ -87,24 +148,8 @@ presentationFor tx =
 postingAccountInfos :: [Hledger.Posting] -> [AccountInfo]
 postingAccountInfos = fmap (accountInfo . (.paccount))
 
-sortedAccountsForPostings :: [Hledger.Posting] -> [AccountInfo]
-sortedAccountsForPostings = sortedAccountInfos . postingAccountInfos
-
 creditsFor :: [Hledger.Posting] -> [Hledger.Posting]
 creditsFor = filter (\p -> any ((< 0) . (.aquantity)) (Hledger.amountsRaw p.pamount))
 
 debitsFor :: [Hledger.Posting] -> [Hledger.Posting]
 debitsFor = filter (\p -> any ((> 0) . (.aquantity)) (Hledger.amountsRaw p.pamount))
-
-data FlowTone = Positive | Negative | Neutral
-    deriving (Eq, Show)
-
-toneFromFlow :: [AccountInfo] -> [AccountInfo] -> FlowTone
-toneFromFlow fromAccounts toAccounts
-    | not (Set.null fromSet) && fromSet == toSet = Neutral
-    | any isExpenses toAccounts = Negative
-    | any isAssets toAccounts && any (not . isAssets) fromAccounts = Positive
-    | otherwise = Neutral
-  where
-    fromSet = accountGroups fromAccounts
-    toSet = accountGroups toAccounts

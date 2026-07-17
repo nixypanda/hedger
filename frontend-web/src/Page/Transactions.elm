@@ -1139,10 +1139,15 @@ phonePrimaryRow theme transaction =
 
 trailingSummary : Theme -> Transaction -> Element msg
 trailingSummary theme transaction =
-    Element.column [ Element.alignRight, Element.spacing 2 ]
-        [ Element.el [ Element.alignRight ]
-            (Ui.financialBadge theme (classificationTone transaction.presentation.classification) (classificationLabel transaction))
-        ]
+    case transaction.presentation.classification of
+        "unclassified" ->
+            Element.none
+
+        _ ->
+            Element.column [ Element.alignRight, Element.spacing 2 ]
+                [ Element.el [ Element.alignRight ]
+                    (Ui.financialBadge theme (classificationTone transaction.presentation.classification) (classificationLabel transaction))
+                ]
 
 
 classificationTone : String -> Ui.FinancialTone
@@ -1156,6 +1161,21 @@ classificationTone classification =
 
         "opening_balance" ->
             Ui.FinancialEquity
+
+        "borrowing" ->
+            Ui.FinancialBorrowing
+
+        "repayment" ->
+            Ui.FinancialRepayment
+
+        "asset_acquisition" ->
+            Ui.FinancialAsset
+
+        "asset_disposal" ->
+            Ui.FinancialAsset
+
+        "asset_reallocation" ->
+            Ui.FinancialAsset
 
         _ ->
             Ui.FinancialNeutral
@@ -1172,6 +1192,24 @@ classificationLabel transaction =
 
         "opening_balance" ->
             "Opening balance"
+
+        "borrowing" ->
+            "Borrowing"
+
+        "repayment" ->
+            "Repayment"
+
+        "asset_acquisition" ->
+            "Asset acquisition"
+
+        "asset_disposal" ->
+            "Asset disposal"
+
+        "asset_reallocation" ->
+            "Asset reallocation"
+
+        "unclassified" ->
+            "Unclassified"
 
         _ ->
             "Transfer"

@@ -5,7 +5,11 @@ module Hedger.Domain.Internal.Account (
     accountGroups,
     sortedAccountInfos,
     isAssets,
+    isCashOnly,
+    isAssetOnly,
+    isLiabilities,
     isExpenses,
+    isRevenue,
     isEquity,
     isIncomeOrExpenses,
 )
@@ -62,4 +66,19 @@ isIncomeOrExpenses ai = case ai.atype of
     Just Revenue -> True
     Just Gain -> True
     Just Expense -> True
+    _ -> False
+
+isCashOnly :: AccountInfo -> Bool
+isCashOnly ai = ai.atype == Just Cash
+
+isAssetOnly :: AccountInfo -> Bool
+isAssetOnly ai = ai.atype == Just Asset
+
+isLiabilities :: AccountInfo -> Bool
+isLiabilities ai = ai.atype == Just Liability
+
+isRevenue :: AccountInfo -> Bool
+isRevenue ai = case ai.atype of
+    Just Revenue -> True
+    Just Gain -> True
     _ -> False
