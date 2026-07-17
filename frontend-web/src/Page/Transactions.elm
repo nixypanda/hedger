@@ -6,8 +6,6 @@ module Page.Transactions exposing
     , applyDraft
     , beginLoading
     , beginLoadingMore
-    , cancelDraft
-    , clearQuery
     , clearSelection
     , draftQuery
     , init
@@ -139,8 +137,6 @@ type alias ViewConfig msg =
     , onBack : msg
     , onDraftChange : String -> msg
     , onApply : msg
-    , onCancel : msg
-    , onClear : msg
     , onLoadMore : msg
     }
 
@@ -199,11 +195,6 @@ setDraft draft (Model data) =
     Model { data | draft = draft }
 
 
-cancelDraft : Model -> Model
-cancelDraft (Model data) =
-    Model { data | draft = appliedQueryText (stateAppliedQuery data.state) }
-
-
 applyDraft : Model -> ( Model, Request )
 applyDraft (Model data) =
     let
@@ -220,11 +211,6 @@ applyDraft (Model data) =
             issueFirstRequest applied appliedData
     in
     ( Model { nextData | state = InitialLoading applied token }, FirstPageRequest request )
-
-
-clearQuery : Model -> ( Model, Request )
-clearQuery (Model data) =
-    applyDraft (Model { data | draft = "" })
 
 
 receive : Request -> Result ApiError Response -> Model -> Model
@@ -848,20 +834,21 @@ transactionsHeader theme device onRefresh =
 queryPanel : Theme -> ViewConfig msg -> Element msg
 queryPanel theme config =
     Ui.card theme
-        [ Ui.searchInput theme
-            { label = "hledger query"
-            , text = draftQuery config.model
-            , onChange = config.onDraftChange
-            , extraAttrs =
-                [ Element.htmlAttribute (Html.Attributes.id "transaction-query")
-                , Element.htmlAttribute (Html.Attributes.attribute "autocomplete" "off")
-                , Element.htmlAttribute (Html.Attributes.attribute "aria-describedby" "transaction-query-help transaction-query-error")
-                ]
-            }
-        , Element.wrappedRow [ Element.spacing 8 ]
-            [ Ui.primaryButton theme { label = "Apply", onPress = config.onApply }
-            , Ui.secondaryButton theme { label = "Cancel", onPress = config.onCancel }
-            , Ui.ghostButton theme { label = "Clear", onPress = config.onClear }
+        [ Element.row
+            [ Element.width Element.fill
+            , Element.spacing 8
+            ]
+            [ Ui.searchInput theme
+                { label = "hledger query"
+                , text = draftQuery config.model
+                , onChange = config.onDraftChange
+                , extraAttrs =
+                    [ Element.htmlAttribute (Html.Attributes.id "transaction-query")
+                    , Element.htmlAttribute (Html.Attributes.attribute "autocomplete" "off")
+                    , Element.htmlAttribute (Html.Attributes.attribute "aria-describedby" "transaction-query-help transaction-query-error")
+                    ]
+                }
+            , Ui.primaryButton theme { label = "Apply", onPress = config.onApply }
             ]
         , case queryError (remoteData config.model) of
             Just error ->
@@ -876,7 +863,7 @@ queryPanel theme config =
                 Element.none
         , Element.el [ Element.htmlAttribute (Html.Attributes.id "transaction-query-help") ]
             (Typography.mutedParagraph theme
-                "Use hledger query syntax. Combine terms with spaces (AND), or use not:, any:, all:, and expr: for boolean matching."
+                "Type an hledger query below. Terms separated by spaces combine with AND. Prefix terms with acct:, desc:, date:, amt:, cur:, payee:, note:, status:, real:, tag:, or depth: to filter by field. Use not:, any:, all:, and expr: for boolean logic."
             )
         , Element.wrappedRow [ Element.width Element.fill, Element.spacing 8 ]
             (Typography.mutedCaption theme "Examples:"
@@ -888,7 +875,15 @@ queryPanel theme config =
                             , onClick = Just (config.onDraftChange example)
                             }
                     )
-                    [ "acct:expenses", "desc:grocery", "date:thismonth", "not:status:cleared" ]
+                    [ "acct:expenses"
+                    , "desc:grocery"
+                    , "date:2024-01-01..2024-01-31"
+                    , "cur:EUR"
+                    , "amt:'>50'"
+                    , "status:*"
+                    , "not:status:cleared"
+                    , "expr:'acct:food AND amt:>20'"
+                    ]
             )
         ]
 
@@ -967,13 +962,8 @@ noMatches theme config =
                 "No transactions are available."
 
              else
-                "No transactions match the applied query. Edit it above or clear it to see all transactions."
+                "No transactions match the applied query. Edit it above and apply again to see all transactions."
             )
-        , if String.isEmpty (appliedQuery config.model) then
-            Element.none
-
-          else
-            Ui.secondaryButton theme { label = "Clear query", onPress = config.onClear }
         ]
 
 
@@ -1526,8 +1516,6 @@ reviewFixtures theme message =
                 , onBack = message
                 , onDraftChange = always message
                 , onApply = message
-                , onCancel = message
-                , onClear = message
                 , onLoadMore = message
                 }
             )
@@ -1548,8 +1536,6 @@ reviewFixtures theme message =
                 , onBack = message
                 , onDraftChange = always message
                 , onApply = message
-                , onCancel = message
-                , onClear = message
                 , onLoadMore = message
                 }
             )

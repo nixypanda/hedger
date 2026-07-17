@@ -192,19 +192,6 @@ suite =
                         , status = Page.InitialLoadingStatus
                         , requestedQuery = "acct:expenses"
                         }
-        , test "cancel restores the applied query without fetching" <|
-            \_ ->
-                let
-                    ( applied, _ ) =
-                        Page.init
-                            |> Page.setDraft "acct:assets"
-                            |> Page.applyDraft
-                in
-                applied
-                    |> Page.setDraft "desc:unfinished"
-                    |> Page.cancelDraft
-                    |> Page.draftQuery
-                    |> Expect.equal "acct:assets"
         , test "loaded windows own the applied query independently of later drafts" <|
             \_ ->
                 let
@@ -223,26 +210,6 @@ suite =
                 , Page.requestQuery refreshRequest
                 )
                     |> Expect.equal ( "acct:assets", "desc:unfinished", "acct:assets" )
-        , test "clear resets both query values" <|
-            \_ ->
-                let
-                    ( applied, _ ) =
-                        Page.init |> Page.setDraft "acct:assets" |> Page.applyDraft
-
-                    ( cleared, request ) =
-                        Page.clearQuery applied
-                in
-                { draft = Page.draftQuery cleared
-                , applied = Page.appliedQuery cleared
-                , status = Page.status cleared
-                , requestedQuery = Page.requestQuery request
-                }
-                    |> Expect.equal
-                        { draft = ""
-                        , applied = ""
-                        , status = Page.InitialLoadingStatus
-                        , requestedQuery = ""
-                        }
         , test "paging keeps a bounded five-page window" <|
             \_ ->
                 let

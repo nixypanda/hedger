@@ -60,8 +60,6 @@ type Msg
     | RefreshTransactions
     | EditTransactionQuery String
     | ApplyTransactionQuery
-    | CancelTransactionQuery
-    | ClearTransactionQuery
     | LoadMoreTransactions
     | SelectTransaction Api.Transaction.Transaction
     | BackToTransactions
@@ -195,20 +193,6 @@ update msg model =
             let
                 ( transactions, request ) =
                     TransactionsPage.applyDraft model.transactions
-            in
-            ( { model | transactions = transactions }
-            , fetchTransactions request
-            )
-
-        CancelTransactionQuery ->
-            ( { model | transactions = TransactionsPage.cancelDraft model.transactions }
-            , focus "transaction-query"
-            )
-
-        ClearTransactionQuery ->
-            let
-                ( transactions, request ) =
-                    TransactionsPage.clearQuery model.transactions
             in
             ( { model | transactions = transactions }
             , fetchTransactions request
@@ -362,8 +346,6 @@ pageView theme model =
             , onBack = BackToTransactions
             , onDraftChange = EditTransactionQuery
             , onApply = ApplyTransactionQuery
-            , onCancel = CancelTransactionQuery
-            , onClear = ClearTransactionQuery
             , onLoadMore = LoadMoreTransactions
             }
 
