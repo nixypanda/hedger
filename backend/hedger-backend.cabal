@@ -75,14 +75,26 @@ test-suite hedger-backend-test
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
   hs-source-dirs:      test
+  other-modules:
+      Hedger.TestHelpers
+    , Hedger.SyntheticTransactions
+    , Hedger.Generators
+    , Hedger.ConfigSpec
+    , Hedger.Domain.TransactionSpec
+    , Hedger.Infrastructure.Hledger.SnapshotStoreSpec
+    , Hedger.Infrastructure.Hledger.TransactionQuerySpec
+    , Hedger.Interface.HTTP.APISpec
+    , Hedger.Interface.HTTP.TransactionMapperSpec
   build-depends:
       aeson >=2.2 && <2.3
     , base >=4.18 && <5
     , bytestring >=0.11 && <0.13
     , hedger-backend
     , hledger-lib >=1.52 && <1.53
-    , hspec >=2.11 && <2.12
     , hedgehog >=1.4 && <1.6
+    , tasty >=1.4 && <1.6
+    , tasty-hedgehog >=1.4 && <1.5
+    , tasty-hunit >=0.10 && <0.11
     , http-types >=0.12 && <0.13
     , text >=2.0 && <2.2
     , time >=1.12 && <1.15

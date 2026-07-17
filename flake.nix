@@ -75,7 +75,9 @@
                 haskell: with haskell; [
                   aeson
                   hedgehog
-                  hspec
+                  tasty
+                  tasty-hedgehog
+                  tasty-hunit
                   hledger-lib
                   http-types
                   mtl
@@ -122,7 +124,9 @@
             haskell: with haskell; [
               aeson
               hedgehog
-              hspec
+              tasty
+              tasty-hedgehog
+              tasty-hunit
               hledger-lib
               http-types
               mtl
