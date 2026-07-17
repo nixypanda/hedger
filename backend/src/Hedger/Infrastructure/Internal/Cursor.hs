@@ -1,4 +1,4 @@
-module Hedger.Infrastructure.Hledger.Internal.Cursor (
+module Hedger.Infrastructure.Internal.Cursor (
     encodeCursor,
     decodeCursor,
 )

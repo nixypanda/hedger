@@ -1,10 +1,10 @@
 module Main (main) where
 
+import Hedger.Application.TransactionQuerySpec (transactionQuerySpec)
 import Hedger.ConfigSpec (configSpec)
 import Hedger.Domain.TransactionSpec (transactionSpec)
-import Hedger.Infrastructure.Hledger.Internal.CursorSpec (cursorSpec)
-import Hedger.Infrastructure.Hledger.SnapshotStoreSpec (snapshotStoreSpec)
-import Hedger.Infrastructure.Hledger.TransactionQuerySpec (transactionQuerySpec)
+import Hedger.Infrastructure.Internal.CursorSpec (cursorSpec)
+import Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec)
 import Hedger.Interface.HTTP.APISpec (apiSpec)
 import Hedger.Interface.HTTP.TransactionMapperSpec (transactionMapperSpec)
 import Test.Tasty (defaultMain, testGroup)

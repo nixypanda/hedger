@@ -1,11 +1,11 @@
-module Hedger.Infrastructure.Hledger.SnapshotStoreSpec (snapshotStoreSpec) where
+module Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec) where
 
 import Data.Either (isLeft, isRight)
 import Data.Maybe (isJust)
 import Data.Text qualified as Text
 import Data.Time (fromGregorian)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.Hledger.SnapshotStore (
+import Hedger.Infrastructure.SnapshotStore (
     loadSnapshot,
     newSnapshotStore,
     readCurrentSnapshot,

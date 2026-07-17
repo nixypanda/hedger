@@ -1,4 +1,4 @@
-module Hedger.Infrastructure.Hledger.Internal.CursorSpec (cursorSpec) where
+module Hedger.Infrastructure.Internal.CursorSpec (cursorSpec) where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -7,7 +7,7 @@ import Hedgehog (Gen, Property, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Hedger.Domain.Error (AppError (..))
-import Hedger.Infrastructure.Hledger.Internal.Cursor (decodeCursor, encodeCursor)
+import Hedger.Infrastructure.Internal.Cursor (decodeCursor, encodeCursor)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 

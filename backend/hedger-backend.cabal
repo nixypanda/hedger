@@ -26,6 +26,8 @@ library
   import:               language-settings
   exposed-modules:
       Hedger.Application
+      Hedger.Application.AppM
+      Hedger.Application.TransactionQuery
       Hedger.Config
       Hedger.Domain.Account
       Hedger.Domain.Error
@@ -33,9 +35,8 @@ library
       Hedger.Domain.Internal.Transaction
       Hedger.Domain.Snapshot
       Hedger.Domain.Transaction
-      Hedger.Infrastructure.Hledger.Internal.Cursor
-      Hedger.Infrastructure.Hledger.SnapshotStore
-      Hedger.Infrastructure.Hledger.TransactionQuery
+      Hedger.Infrastructure.Internal.Cursor
+      Hedger.Infrastructure.SnapshotStore
       Hedger.Interface.HTTP.API
       Hedger.Interface.HTTP.Errors
       Hedger.Interface.HTTP.Middleware
@@ -80,16 +81,16 @@ test-suite hedger-backend-test
   main-is:             Main.hs
   hs-source-dirs:      test
   other-modules:
-      Hedger.TestHelpers
-    , Hedger.SyntheticTransactions
-    , Hedger.Generators
+      Hedger.Application.TransactionQuerySpec
     , Hedger.ConfigSpec
     , Hedger.Domain.TransactionSpec
-    , Hedger.Infrastructure.Hledger.Internal.CursorSpec
-    , Hedger.Infrastructure.Hledger.SnapshotStoreSpec
-    , Hedger.Infrastructure.Hledger.TransactionQuerySpec
+    , Hedger.Generators
+    , Hedger.Infrastructure.Internal.CursorSpec
+    , Hedger.Infrastructure.SnapshotStoreSpec
     , Hedger.Interface.HTTP.APISpec
     , Hedger.Interface.HTTP.TransactionMapperSpec
+    , Hedger.SyntheticTransactions
+    , Hedger.TestHelpers
   build-depends:
       aeson >=2.2 && <2.3
     , base >=4.18 && <5

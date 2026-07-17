@@ -1,15 +1,15 @@
-module Hedger.Infrastructure.Hledger.TransactionQuerySpec (transactionQuerySpec) where
+module Hedger.Application.TransactionQuerySpec (transactionQuerySpec) where
 
 import Data.Text qualified as Text
 import Data.Time (fromGregorian)
 import Hedgehog (Property, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
+import Hedger.Application.TransactionQuery (TransactionPage (..), transactionPage)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Transaction (newestFirst)
 import Hedger.Generators (genTransactions)
-import Hedger.Infrastructure.Hledger.TransactionQuery (TransactionPage (..), transactionPage)
 import Hedger.SyntheticTransactions (mkSnapshot)
 import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)

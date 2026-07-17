@@ -5,9 +5,9 @@ import Control.Exception (evaluate)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Text qualified as Text
+import Hedger.Application.TransactionQuery (TransactionPage (transactions), transactionPage)
 import Hedger.Domain.Snapshot (Snapshot (transactions))
-import Hedger.Infrastructure.Hledger.SnapshotStore (loadSnapshot)
-import Hedger.Infrastructure.Hledger.TransactionQuery (TransactionPage (transactions), transactionPage)
+import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
 import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
 import Hedger.Interface.HTTP.Types (
     AmountDto (..),

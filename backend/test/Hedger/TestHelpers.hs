@@ -16,7 +16,7 @@ import Data.ByteString qualified as ByteString
 import Data.Either (isRight)
 import Data.Text qualified as Text
 import Hedger.Config (Config (..), LogLevel (Info))
-import Hedger.Infrastructure.Hledger.SnapshotStore (
+import Hedger.Infrastructure.SnapshotStore (
     SnapshotStore,
     newSnapshotStore,
     reloadSnapshot,

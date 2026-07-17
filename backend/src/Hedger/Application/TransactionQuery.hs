@@ -1,4 +1,4 @@
-module Hedger.Infrastructure.Hledger.TransactionQuery (
+module Hedger.Application.TransactionQuery (
     TransactionPage (..),
     defaultPageLimit,
     maximumPageLimit,
@@ -15,7 +15,7 @@ import Data.Text qualified as Text
 import Data.Time (Day, fromGregorian)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.Hledger.Internal.Cursor (decodeCursor, encodeCursor)
+import Hedger.Infrastructure.Internal.Cursor (decodeCursor, encodeCursor)
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Query qualified as Hledger
 import Text.Read (readMaybe)

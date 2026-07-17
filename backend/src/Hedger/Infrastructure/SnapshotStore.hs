@@ -1,4 +1,4 @@
-module Hedger.Infrastructure.Hledger.SnapshotStore (
+module Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
     SnapshotStore,
     loadSnapshot,

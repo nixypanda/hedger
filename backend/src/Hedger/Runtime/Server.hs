@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Hedger.Application (Env (..))
 import Hedger.Config (Config (..))
-import Hedger.Infrastructure.Hledger.SnapshotStore (
+import Hedger.Infrastructure.SnapshotStore (
     SnapshotStore,
     loadSnapshot,
     newSnapshotStore,

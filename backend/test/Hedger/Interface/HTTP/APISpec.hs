@@ -7,11 +7,11 @@ import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Either (isLeft)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
-import Hedger.Infrastructure.Hledger.SnapshotStore (
+import Hedger.Application.TransactionQuery (maximumQueryLength)
+import Hedger.Infrastructure.SnapshotStore (
     newSnapshotStore,
     reloadSnapshot,
  )
-import Hedger.Infrastructure.Hledger.TransactionQuery (maximumQueryLength)
 import Hedger.Interface.HTTP.Types (
     Bootstrap (..),
     ResponseMetadata (..),
