@@ -16,6 +16,9 @@ import Hedgehog.Range qualified as Range
 import Hedger.Config (Config (..), LogLevel (Info), parseConfig)
 import Hedger.Domain.Snapshot (
     Snapshot (latestJournalDate, revision, transactions),
+ )
+import Hedger.Domain.Transaction (newestFirst)
+import Hedger.Infrastructure.Hledger.SnapshotStore (
     SnapshotStore,
     loadSnapshot,
     newSnapshotStore,
@@ -23,8 +26,8 @@ import Hedger.Domain.Snapshot (
     readLastReloadError,
     reloadSnapshot,
  )
-import Hedger.Domain.Transaction (newestFirst, projectTransactions)
-import Hedger.Domain.Types qualified as Types
+import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
+import Hedger.Interface.HTTP.Types qualified as Types
 import Hedger.Runtime.Server (makeApplication, snapshotAvailable)
 import Hledger.Data.Types qualified as Hledger
 import Network.HTTP.Types (hContentType, methodGet, status200, status404, status503)
@@ -114,7 +117,7 @@ main = hspec $ do
             case result of
                 Left loadError -> expectationFailure (show loadError)
                 Right snapshot -> do
-                    let projected = projectTransactions snapshot.transactions
+                    let projected = toTransactions snapshot.transactions
                     length projected `shouldBe` 13
                     sum (length . (.postings) <$> projected) `shouldBe` 27
                     sum (sum . fmap (length . (.amounts)) . (.postings) <$> projected) `shouldBe` 27
@@ -129,7 +132,7 @@ main = hspec $ do
                 Right snapshot -> do
                     let costs =
                             [ cost.costType
-                            | transaction <- projectTransactions snapshot.transactions
+                            | transaction <- toTransactions snapshot.transactions
                             , posting <- transaction.postings
                             , amount <- posting.amounts
                             , Just cost <- [amount.cost]
@@ -141,7 +144,7 @@ main = hspec $ do
             case result of
                 Left loadError -> expectationFailure (show loadError)
                 Right snapshot ->
-                    case projectTransactions snapshot.transactions of
+                    case toTransactions snapshot.transactions of
                         [] -> expectationFailure "The shared fixture needs transactions."
                         transaction : _ -> do
                             transaction.secondaryDate `shouldBe` Just (fromGregorian 2024 4 3)
@@ -157,7 +160,7 @@ main = hspec $ do
             case result of
                 Left loadError -> expectationFailure (show loadError)
                 Right snapshot -> do
-                    let projected = projectTransactions snapshot.transactions
+                    let projected = toTransactions snapshot.transactions
                     fmap (.presentation.classification) (take 4 projected)
                         `shouldBe` ["expense", "income", "expense", "income"]
                     case projected of

@@ -1,4 +1,4 @@
-module Hedger.Domain.Types (
+module Hedger.Interface.HTTP.Types (
     AmountDto (..),
     Bootstrap (..),
     CommodityQuantityDto (..),

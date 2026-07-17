@@ -1,6 +1,9 @@
 module Hedger.Application (
     AppM,
+    BootstrapInfo (..),
     Env (..),
+    SnapshotMetadata (..),
+    TransactionList (..),
     bootstrap,
     liveness,
     readiness,
@@ -12,11 +15,31 @@ where
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
+import Data.Text (Text)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (JournalUnavailable))
-import Hedger.Domain.Snapshot (Snapshot (..), SnapshotStore, readCurrentSnapshot, readLastReloadError)
-import Hedger.Domain.Transaction (projectTransactions)
-import Hedger.Domain.Types (Bootstrap (..), Health (..), ResponseMetadata (..), TransactionsResponse (..))
+import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Infrastructure.Hledger.SnapshotStore (SnapshotStore, readCurrentSnapshot, readLastReloadError)
+import Hledger.Data.Types qualified as Hledger
+
+data SnapshotMetadata = SnapshotMetadata
+    { revision :: Text
+    , freshness :: Text
+    , warnings :: [Text]
+    }
+
+data BootstrapInfo = BootstrapInfo
+    { apiVersion :: Text
+    , appName :: Text
+    , fiscalYearStartMonth :: Int
+    , defaultValuationBasis :: Text
+    , metadata :: SnapshotMetadata
+    }
+
+data TransactionList = TransactionList
+    { metadata :: SnapshotMetadata
+    , transactions :: [Hledger.Transaction]
+    }
 
 data Env = Env
     { config :: Config
@@ -28,19 +51,19 @@ type AppM = ReaderT Env (ExceptT AppError IO)
 runAppM :: Env -> AppM value -> IO (Either AppError value)
 runAppM environment action = runExceptT (runReaderT action environment)
 
-liveness :: AppM Health
-liveness = pure Health{status = "ok"}
+liveness :: AppM ()
+liveness = pure ()
 
-readiness :: AppM Health
-readiness = requireSnapshot >> pure Health{status = "ok"}
+readiness :: AppM ()
+readiness = requireSnapshot >> pure ()
 
-bootstrap :: AppM Bootstrap
+bootstrap :: AppM BootstrapInfo
 bootstrap = do
     snapshot <- requireSnapshot
     fiscal <- asks (.config.fiscalYearStartMonth)
     responseMetadata <- metadataFor snapshot
     pure
-        Bootstrap
+        BootstrapInfo
             { apiVersion = "v1"
             , appName = "Hedger"
             , fiscalYearStartMonth = fiscal
@@ -48,14 +71,14 @@ bootstrap = do
             , metadata = responseMetadata
             }
 
-transactionList :: AppM TransactionsResponse
+transactionList :: AppM TransactionList
 transactionList = do
     snapshot <- requireSnapshot
     responseMetadata <- metadataFor snapshot
     pure
-        TransactionsResponse
+        TransactionList
             { metadata = responseMetadata
-            , transactions = projectTransactions snapshot.transactions
+            , transactions = snapshot.transactions
             }
 
 requireSnapshot :: AppM Snapshot
@@ -66,12 +89,12 @@ requireSnapshot = do
         Just snapshot -> pure snapshot
         Nothing -> throwError JournalUnavailable
 
-metadataFor :: Snapshot -> AppM ResponseMetadata
+metadataFor :: Snapshot -> AppM SnapshotMetadata
 metadataFor snapshot = do
     store <- asks snapshotStore
     reloadError <- liftIO (readLastReloadError store)
     pure
-        ResponseMetadata
+        SnapshotMetadata
             { revision = snapshot.revision
             , freshness = maybe "fresh" (const "stale") reloadError
             , warnings = maybe [] (const ["The latest journal reload failed; the last usable snapshot is shown."]) reloadError

@@ -1,7 +1,8 @@
 module Hedger.Domain.Transaction (
+    CommodityQuantity (..),
+    TransactionPresentation (..),
     newestFirst,
-    projectTransaction,
-    projectTransactions,
+    presentationFor,
 )
 where
 
@@ -12,84 +13,26 @@ import Data.Ord (Down (Down))
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Hedger.Domain.Types (
-    AmountDto (..),
-    CommodityQuantityDto (..),
-    CostDto (..),
-    PostingDto (..),
-    TagDto (..),
-    TransactionDto (..),
-    TransactionPresentationDto (..),
- )
 import Hledger.Data.Amount qualified as Hledger
 import Hledger.Data.Types qualified as Hledger
 
+data CommodityQuantity = CommodityQuantity
+    { commodity :: Text
+    , quantity :: Text
+    }
+    deriving (Eq, Show)
+
+data TransactionPresentation = TransactionPresentation
+    { classification :: Text
+    , fromAccounts :: [Text]
+    , toAccounts :: [Text]
+    , totalAmounts :: [CommodityQuantity]
+    , openingAccountCount :: Maybe Int
+    }
+    deriving (Eq, Show)
+
 newestFirst :: [Hledger.Transaction] -> [Hledger.Transaction]
 newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex))
-
-projectTransactions :: [Hledger.Transaction] -> [TransactionDto]
-projectTransactions = fmap projectTransaction . newestFirst
-
-projectTransaction :: Hledger.Transaction -> TransactionDto
-projectTransaction transaction =
-    TransactionDto
-        { primaryDate = transaction.tdate
-        , secondaryDate = transaction.tdate2
-        , status = statusText transaction.tstatus
-        , code = nonEmpty transaction.tcode
-        , description = transaction.tdescription
-        , comment = nonEmpty transaction.tcomment
-        , tags = projectTags transaction.ttags
-        , postings = projectPosting <$> transaction.tpostings
-        , presentation = projectPresentation transaction
-        }
-
-projectPosting :: Hledger.Posting -> PostingDto
-projectPosting posting =
-    PostingDto
-        { account = posting.paccount
-        , status = statusText posting.pstatus
-        , comment = nonEmpty posting.pcomment
-        , tags = projectTags posting.ptags
-        , amounts = projectAmount <$> Hledger.amountsRaw posting.pamount
-        }
-
-projectAmount :: Hledger.Amount -> AmountDto
-projectAmount amount =
-    AmountDto
-        { commodity = amount.acommodity
-        , quantity = Text.pack (show amount.aquantity)
-        , cost = projectCost <$> amount.acost
-        }
-
-projectCost :: Hledger.AmountCost -> CostDto
-projectCost amountCost =
-    case amountCost of
-        Hledger.UnitCost amount -> costDto "unit" amount
-        Hledger.TotalCost amount -> costDto "total" amount
-
-costDto :: Text -> Hledger.Amount -> CostDto
-costDto costType amount =
-    CostDto
-        { costType = costType
-        , commodity = amount.acommodity
-        , quantity = Text.pack (show amount.aquantity)
-        }
-
-projectTags :: [Hledger.Tag] -> [TagDto]
-projectTags = fmap (\(name, value) -> TagDto{name = name, value = value})
-
-statusText :: Hledger.Status -> Text
-statusText status =
-    case status of
-        Hledger.Unmarked -> "unmarked"
-        Hledger.Pending -> "pending"
-        Hledger.Cleared -> "cleared"
-
-nonEmpty :: Text -> Maybe Text
-nonEmpty value
-    | Text.null value = Nothing
-    | otherwise = Just value
 
 data Entry = Entry
     { account :: Text
@@ -100,9 +43,9 @@ data Entry = Entry
 data FlowTone = Positive | Negative | Neutral
     deriving (Eq)
 
-projectPresentation :: Hledger.Transaction -> TransactionPresentationDto
-projectPresentation transaction =
-    TransactionPresentationDto
+presentationFor :: Hledger.Transaction -> TransactionPresentation
+presentationFor transaction =
+    TransactionPresentation
         { classification = classification
         , fromAccounts = fromAccounts
         , toAccounts = toAccounts
@@ -191,9 +134,9 @@ relevantEntries tone fromAccounts toAccounts credits debits
             filter ((`elem` fromAccounts) . (.account)) credits
         | otherwise = filter ((`elem` toAccounts) . (.account)) debits
 
-aggregateAmounts :: [Entry] -> [CommodityQuantityDto]
+aggregateAmounts :: [Entry] -> [CommodityQuantity]
 aggregateAmounts entries =
-    [ CommodityQuantityDto
+    [ CommodityQuantity
         { commodity = commodity
         , quantity = Text.pack (show quantity)
         }

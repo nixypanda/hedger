@@ -1,7 +1,4 @@
-module Hedger.Runtime.RequestContext (
-    requestContextMiddleware,
-)
-where
+module Hedger.Interface.HTTP.Middleware (requestContextMiddleware) where
 
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as ByteString
@@ -11,13 +8,12 @@ import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as LazyText
 import Data.Text.Lazy.Builder qualified as TextBuilder
 import Data.Text.Lazy.Builder.Int qualified as TextBuilder
-import Hedger.Domain.Error qualified as AppError
+import Hedger.Domain.Error (AppError (..))
+import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import System.IO.Unsafe (unsafePerformIO)
 
--- This middleware is API plumbing, not logging. It makes the request ID used
--- by stable error envelopes available to Servant and returns it to the client.
 requestContextMiddleware :: Wai.Middleware
 requestContextMiddleware app request respond = do
     requestId <- chooseRequestId (lookup "X-Request-ID" request.requestHeaders)
@@ -29,39 +25,31 @@ requestContextMiddleware app request respond = do
 
 normalizeServantError :: Text -> Wai.Response -> Wai.Response
 normalizeServantError requestId response
-    | HTTP.statusCode status == 404 && not (isJson response) = envelope AppError.RouteNotFound
-    | HTTP.statusCode status == 405 && not (isJson response) = envelope AppError.MethodNotAllowed
-    | HTTP.statusCode status == 400 && not (isJson response) = envelope (AppError.InvalidRequest "The request could not be decoded.")
-    | HTTP.statusCode status >= 500 && not (isJson response) = envelope AppError.InternalError
+    | HTTP.statusCode status == 404 && not (isJson response) = envelope404
+    | HTTP.statusCode status == 405 && not (isJson response) = envelope405
+    | HTTP.statusCode status == 400 && not (isJson response) = envelope (InvalidRequest "The request could not be decoded.")
+    | HTTP.statusCode status >= 500 && not (isJson response) = envelope InternalError
     | otherwise = response
   where
     status = Wai.responseStatus response
-    envelope appError =
-        Wai.responseLBS
-            (AppError.appErrorStatus appError)
-            [(HTTP.hContentType, "application/json; charset=utf-8")]
-            (Aeson.encode (AppError.toEnvelope requestId appError))
+    envelope appError = Wai.responseLBS (appErrorStatus appError) [(HTTP.hContentType, "application/json; charset=utf-8")] (Aeson.encode (toEnvelope requestId appError))
+    envelope404 = Wai.responseLBS HTTP.status404 [(HTTP.hContentType, "application/json; charset=utf-8")] (Aeson.encode (routeEnvelope "not_found" "The requested API route does not exist."))
+    envelope405 = Wai.responseLBS HTTP.status405 [(HTTP.hContentType, "application/json; charset=utf-8")] (Aeson.encode (routeEnvelope "method_not_allowed" "The requested method is not supported for this route."))
+    routeEnvelope :: Text -> Text -> Aeson.Value
+    routeEnvelope code message = Aeson.object ["error" Aeson..= Aeson.object ["code" Aeson..= code, "message" Aeson..= message, "requestId" Aeson..= requestId]]
 
 isJson :: Wai.Response -> Bool
-isJson response =
-    maybe False (ByteString.isPrefixOf "application/json") (lookup HTTP.hContentType (Wai.responseHeaders response))
+isJson response = maybe False (ByteString.isPrefixOf "application/json") (lookup HTTP.hContentType (Wai.responseHeaders response))
 
 chooseRequestId :: Maybe ByteString.ByteString -> IO Text
-chooseRequestId supplied =
-    case supplied >>= validRequestId of
-        Just requestId -> pure requestId
-        Nothing -> nextRequestId
+chooseRequestId supplied = maybe nextRequestId pure (supplied >>= validRequestId)
 
 validRequestId :: ByteString.ByteString -> Maybe Text
 validRequestId raw
     | not (ByteString.null raw) && ByteString.length raw <= 128 && ByteString.all validByte raw = Just (Text.decodeUtf8 raw)
     | otherwise = Nothing
   where
-    validByte byte =
-        (byte >= 48 && byte <= 57)
-            || (byte >= 65 && byte <= 90)
-            || (byte >= 97 && byte <= 122)
-            || byte `elem` [45, 95, 46, 58]
+    validByte byte = (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte `elem` [45, 95, 46, 58]
 
 nextRequestId :: IO Text
 nextRequestId = do

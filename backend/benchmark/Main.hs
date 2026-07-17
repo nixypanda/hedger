@@ -5,8 +5,8 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Text qualified as Text
 import Hedger.Domain.Snapshot (Snapshot (transactions), loadSnapshot)
-import Hedger.Domain.Transaction (projectTransactions)
-import Hedger.Domain.Types (AmountDto (..), CommodityQuantityDto (..), CostDto (..), PostingDto (..), ResponseMetadata (..), TagDto (..), TransactionDto (..), TransactionPresentationDto (..), TransactionsResponse (..))
+import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
+import Hedger.Interface.HTTP.Types (AmountDto (..), CommodityQuantityDto (..), CostDto (..), PostingDto (..), ResponseMetadata (..), TagDto (..), TransactionDto (..), TransactionPresentationDto (..), TransactionsResponse (..))
 import Hledger.Data.Types qualified as Hledger
 import Test.Tasty.Bench (bench, bgroup, defaultMain, env, nf, nfIO)
 
@@ -17,8 +17,8 @@ main =
         , env loadTransactions $ \transactions ->
             bgroup
                 "transactions"
-                [ bench "project/shared-13" $ nf (projectionWeight . projectTransactions) transactions
-                , bench "project/scaled-1300" $ nf (projectionWeight . projectTransactions) (concat (replicate 100 transactions))
+                [ bench "project/shared-13" $ nf (projectionWeight . toTransactions) transactions
+                , bench "project/scaled-1300" $ nf (projectionWeight . toTransactions) (concat (replicate 100 transactions))
                 , bench "encode/shared-13" $ nf (LazyByteString.length . Aeson.encode . responseFor) transactions
                 , bench "encode/scaled-1300" $ nf (LazyByteString.length . Aeson.encode . responseFor) (concat (replicate 100 transactions))
                 ]
@@ -44,7 +44,7 @@ responseFor :: [Hledger.Transaction] -> TransactionsResponse
 responseFor transactions =
     TransactionsResponse
         { metadata = ResponseMetadata{revision = "benchmark", freshness = "fresh", warnings = []}
-        , transactions = projectTransactions transactions
+        , transactions = toTransactions transactions
         }
 
 projectionWeight :: [TransactionDto] -> Int

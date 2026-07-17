@@ -25,14 +25,17 @@ common language-settings
 library
   import:               language-settings
   exposed-modules:
-      Hedger.Api
       Hedger.Application
       Hedger.Config
       Hedger.Domain.Error
       Hedger.Domain.Snapshot
       Hedger.Domain.Transaction
-      Hedger.Domain.Types
-      Hedger.Runtime.RequestContext
+      Hedger.Infrastructure.Hledger.SnapshotStore
+      Hedger.Interface.HTTP.API
+      Hedger.Interface.HTTP.Errors
+      Hedger.Interface.HTTP.Middleware
+      Hedger.Interface.HTTP.TransactionMapper
+      Hedger.Interface.HTTP.Types
       Hedger.Runtime.Server
   hs-source-dirs:      src
   build-depends:
