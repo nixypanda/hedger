@@ -1,6 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 fixture := "backend/test/fixtures/shared.journal"
+default_journal := "examples/india-us-portfolio-2023-2025.journal "
 
 default:
     @just --list
@@ -50,7 +51,7 @@ test: check
 # Run the Phase 2 server against the synthetic fixture.
 [working-directory("backend")]
 serve:
-    cabal run hedger-server -- --journal test/fixtures/shared.journal
+    cabal run hedger-server -- --journal ../examples/india-us-portfolio-2023-2025.journal 
 
 [working-directory("frontend-web")]
 start-frontend:

@@ -81,9 +81,17 @@ nonEmpty value
 presentationDto :: Domain.TransactionPresentation -> TransactionPresentationDto
 presentationDto presentation =
     TransactionPresentationDto
-        { classification = presentation.classification
+        { classification = classificationText presentation.classification
         , fromAccounts = presentation.fromAccounts
         , toAccounts = presentation.toAccounts
-        , totalAmounts = fmap (\amount -> CommodityQuantityDto amount.commodity amount.quantity) presentation.totalAmounts
+        , totalAmounts = fmap (\amount -> CommodityQuantityDto amount.commodity (Text.pack (show amount.quantity))) presentation.totalAmounts
         , openingAccountCount = presentation.openingAccountCount
         }
+
+classificationText :: Domain.TransactionClassification -> Text.Text
+classificationText classification =
+    case classification of
+        Domain.TransactionIncome -> "income"
+        Domain.TransactionExpense -> "expense"
+        Domain.TransactionTransfer -> "transfer"
+        Domain.OpeningBalance -> "opening_balance"
