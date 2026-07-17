@@ -148,14 +148,8 @@ rejectsInvalidQueries :: Wai.Application -> IO ()
 rejectsInvalidQueries availableApp = do
     unsupported <- getQuery "?query=inacct%3Aassets" availableApp
     assertEqual "" (Just "unsupported_query_option") (errorCode unsupported)
-    let unsupportedJson =
-            decode
-                ( "{\"error\":{\"code\":\"unsupported_query_option\",\
-                  \\"message\":\"The transaction query uses unsupported report options.\",\
-                  \\"requestId\":\"req_fixture_0001\",\
-                  \\"details\":{\"reason\":\"Unsupported report option(s): inacct:\",\"position\":null}}"
-                )
-    assertEqual "" unsupportedJson (json unsupported)
+    expected <- LazyByteString.readFile "test/golden/error-unsupported-query-option.json"
+    assertEqual "" (decode expected) (json unsupported)
     mapM_
         (\qs -> getQuery qs availableApp >>= \r -> assertEqual "" (Just "invalid_limit") (errorCode r))
         ["?limit=0", "?limit=201", "?limit=not-a-number"]

@@ -11,7 +11,6 @@ import Hedger.Infrastructure.Hledger.TransactionQuery (TransactionPage (transact
 import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
 import Hedger.Interface.HTTP.Types (
     AmountDto (..),
-    CommodityQuantityDto (..),
     CostDto (..),
     PostingDto (..),
     ResponseMetadata (..),
@@ -133,10 +132,3 @@ tagWeight tag = Text.length tag.name + Text.length tag.value
 presentationWeight :: TransactionPresentationDto -> Int
 presentationWeight presentation =
     Text.length presentation.classification
-        + sum (Text.length <$> presentation.fromAccounts)
-        + sum (Text.length <$> presentation.toAccounts)
-        + sum (commodityQuantityWeight <$> presentation.totalAmounts)
-        + maybe 0 id presentation.openingAccountCount
-
-commodityQuantityWeight :: CommodityQuantityDto -> Int
-commodityQuantityWeight amount = Text.length amount.commodity + Text.length amount.quantity

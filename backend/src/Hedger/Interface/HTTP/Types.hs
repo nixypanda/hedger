@@ -1,7 +1,6 @@
 module Hedger.Interface.HTTP.Types (
     AmountDto (..),
     Bootstrap (..),
-    CommodityQuantityDto (..),
     CostDto (..),
     Health (..),
     PostingDto (..),
@@ -38,7 +37,6 @@ data Bootstrap = Bootstrap
     { apiVersion :: Text
     , appName :: Text
     , fiscalYearStartMonth :: Int
-    , defaultValuationBasis :: Text
     , metadata :: ResponseMetadata
     }
     deriving (Eq, Show)
@@ -82,19 +80,8 @@ data PostingDto = PostingDto
 
 Aeson.deriveJSON Aeson.defaultOptions ''PostingDto
 
-data CommodityQuantityDto = CommodityQuantityDto
-    { commodity :: Text
-    , quantity :: Text
-    }
-    deriving (Eq, Show)
-
-Aeson.deriveJSON Aeson.defaultOptions ''CommodityQuantityDto
-
 data TransactionPresentationDto = TransactionPresentationDto
     { classification :: Text
-    , fromAccounts :: [Text]
-    , toAccounts :: [Text]
-    , totalAmounts :: [CommodityQuantityDto]
     }
     deriving (Eq, Show)
 

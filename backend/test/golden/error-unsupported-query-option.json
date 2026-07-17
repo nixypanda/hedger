@@ -1,0 +1,1 @@
+{"error":{"code":"unsupported_query_option","message":"The transaction query uses unsupported report options.","requestId":"req_fixture_0001","details":{"reason":"Unsupported report option(s): inacct:","position":null}}}

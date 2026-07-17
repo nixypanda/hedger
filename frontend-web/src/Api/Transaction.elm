@@ -45,15 +45,6 @@ type alias Posting =
 
 type alias Presentation =
     { classification : String
-    , fromAccounts : List String
-    , toAccounts : List String
-    , totalAmounts : List CommodityQuantity
-    }
-
-
-type alias CommodityQuantity =
-    { commodity : String
-    , quantity : Decimal
     }
 
 
@@ -107,18 +98,8 @@ transactionDecoder =
 
 presentationDecoder : Decoder Presentation
 presentationDecoder =
-    Decode.map4 Presentation
+    Decode.map Presentation
         (Decode.field "classification" Decode.string)
-        (Decode.field "fromAccounts" (Decode.list Decode.string))
-        (Decode.field "toAccounts" (Decode.list Decode.string))
-        (Decode.field "totalAmounts" (Decode.list commodityQuantityDecoder))
-
-
-commodityQuantityDecoder : Decoder CommodityQuantity
-commodityQuantityDecoder =
-    Decode.map2 CommodityQuantity
-        (Decode.field "commodity" Decode.string)
-        (Decode.field "quantity" decimalDecoder)
 
 
 postingDecoder : Decoder Posting

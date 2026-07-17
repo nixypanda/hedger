@@ -6,7 +6,6 @@ import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
 import Hedger.Interface.HTTP.Types (
     AmountDto (..),
-    CommodityQuantityDto (..),
     CostDto (..),
     PostingDto (..),
     TagDto (..),
@@ -69,15 +68,6 @@ derivesClassificationAndTotals = do
         ""
         ["expense", "income", "expense", "income"]
         (fmap (.presentation.classification) (take 4 projected))
-    case projected of
-        transaction : _ -> do
-            assertEqual "" ["assets"] transaction.presentation.fromAccounts
-            assertEqual "" ["expenses"] transaction.presentation.toAccounts
-            assertEqual
-                ""
-                [("INR", "3000")]
-                (fmap (\amount -> (amount.commodity, amount.quantity)) transaction.presentation.totalAmounts)
-        [] -> assertFailure "The synthetic fixture needs transactions."
 
 costSnapshot :: Snapshot
 costSnapshot =

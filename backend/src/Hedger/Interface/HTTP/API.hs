@@ -81,7 +81,6 @@ toBootstrap value =
         { apiVersion = value.apiVersion
         , appName = value.appName
         , fiscalYearStartMonth = value.fiscalYearStartMonth
-        , defaultValuationBasis = value.defaultValuationBasis
         , metadata = toResponseMetadata value.metadata
         }
 

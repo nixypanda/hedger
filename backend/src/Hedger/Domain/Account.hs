@@ -1,8 +1,7 @@
 module Hedger.Domain.Account (
-    Account,
-    topLevel,
+    AccountInfo (..),
+    accountInfo,
     accountLabel,
-    accountText,
 )
 where
 

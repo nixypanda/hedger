@@ -5,15 +5,11 @@ import Data.List qualified as List
 import Data.Time (fromGregorian)
 import Hedgehog (Property, assert, forAll, property, (===))
 import Hedgehog.Range qualified as Range
-import Hedger.Domain.Internal.Account (Account (..))
 import Hedger.Domain.Internal.Transaction (
     TransactionClassification (..),
     classificationFor,
-    dominantToAccountFor,
-    fromAccountsFor,
     isOpening,
     newestFirst,
-    toAccountsFor,
  )
 import Hedger.Generators (genTransactions)
 import Hledger.Data.Amount (mixed, num)
@@ -44,25 +40,6 @@ transactionSpec =
             , testCase "no equity is not opening" openingNoEquity
             , testCase "income account disqualifies" openingIncomeDisqualifies
             , testCase "empty debits is not opening" openingEmptyDebits
-            ]
-        , testGroup
-            "fromAccountsFor"
-            [ testCase "expense transaction returns credit accounts" fromAccountsExpense
-            , testCase "income transaction returns credit accounts" fromAccountsIncome
-            ]
-        , testGroup
-            "toAccountsFor"
-            [ testCase "opening transaction returns debit accounts" toAccountsOpening
-            , testCase "expense transaction with single from returns debit accounts" toAccountsExpense
-            , testCase "income transaction with single from returns dominant account" toAccountsIncome
-            , testCase "transfer with multiple to accounts returns all" toAccountsTransferMultiple
-            ]
-        , testGroup
-            "dominantToAccountFor"
-            [ testCase "single from with multiple to returns dominant" dominantSingleFromMultipleTo
-            , testCase "multiple from returns Nothing" dominantMultipleFrom
-            , testCase "single from with single to returns Nothing" dominantSingleFromSingleTo
-            , testCase "opening transaction returns Nothing" dominantOpening
             ]
         ]
 
@@ -105,26 +82,6 @@ openingTransaction =
             ]
         }
 
-multiToTransaction :: Hledger.Transaction
-multiToTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:checking", Hledger.pamount = mixed [num (-500)]}
-            , nullposting{Hledger.paccount = "expenses:food", Hledger.pamount = mixed [num 300]}
-            , nullposting{Hledger.paccount = "liabilities:credit", Hledger.pamount = mixed [num 200]}
-            ]
-        }
-
-multiFromTransaction :: Hledger.Transaction
-multiFromTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:checking", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "assets:savings", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "expenses:food", Hledger.pamount = mixed [num 200]}
-            ]
-        }
-
 -- classificationFor tests
 
 classificationExpense :: IO ()
@@ -154,47 +111,6 @@ openingEmptyDebits :: IO ()
 openingEmptyDebits = do
     let txn = nulltransaction{Hledger.tpostings = [nullposting{Hledger.paccount = "equity:opening", Hledger.pamount = mixed [num (-100)]}]}
     assertEqual "empty debits" False (isOpening txn)
-
--- fromAccountsFor tests
-
-fromAccountsExpense :: IO ()
-fromAccountsExpense = assertEqual "expense returns credit accounts" [Assets ["checking"]] (fromAccountsFor expenseTransaction)
-
-fromAccountsIncome :: IO ()
-fromAccountsIncome = assertEqual "income returns credit accounts" [Income ["salary"]] (fromAccountsFor incomeTransaction)
-
--- toAccountsFor tests
-
-toAccountsOpening :: IO ()
-toAccountsOpening =
-    assertEqual "opening returns debit accounts (collapsed by group)" [Assets ["checking"]] (toAccountsFor openingTransaction)
-
-toAccountsExpense :: IO ()
-toAccountsExpense =
-    assertEqual "expense returns debit accounts" [Expenses ["food"]] (toAccountsFor expenseTransaction)
-
-toAccountsIncome :: IO ()
-toAccountsIncome =
-    assertEqual "income returns dominant account" [Assets ["checking"]] (toAccountsFor incomeTransaction)
-
-toAccountsTransferMultiple :: IO ()
-toAccountsTransferMultiple =
-    assertEqual "transfer returns all to accounts (different groups)" [Liabilities ["credit"], Expenses ["food"]] (toAccountsFor multiToTransaction)
-
--- dominantToAccountFor tests
-
-dominantSingleFromMultipleTo :: IO ()
-dominantSingleFromMultipleTo =
-    assertEqual "returns dominant account by total" (Just (Expenses ["food"])) (dominantToAccountFor multiToTransaction)
-
-dominantMultipleFrom :: IO ()
-dominantMultipleFrom = assertEqual "multiple from returns Nothing" Nothing (dominantToAccountFor multiFromTransaction)
-
-dominantSingleFromSingleTo :: IO ()
-dominantSingleFromSingleTo = assertEqual "single from single to returns Nothing" Nothing (dominantToAccountFor expenseTransaction)
-
-dominantOpening :: IO ()
-dominantOpening = assertEqual "opening returns Nothing" Nothing (dominantToAccountFor openingTransaction)
 
 -- Sorting tests
 

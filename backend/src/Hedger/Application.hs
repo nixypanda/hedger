@@ -33,7 +33,6 @@ data BootstrapInfo = BootstrapInfo
     { apiVersion :: Text
     , appName :: Text
     , fiscalYearStartMonth :: Int
-    , defaultValuationBasis :: Text
     , metadata :: SnapshotMetadata
     }
 
@@ -69,7 +68,6 @@ bootstrap = do
             { apiVersion = "v1"
             , appName = "Hedger"
             , fiscalYearStartMonth = fiscal
-            , defaultValuationBasis = "period-end"
             , metadata = responseMetadata
             }
 

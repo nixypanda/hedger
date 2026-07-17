@@ -1,6 +1,5 @@
 module Hedger.Domain.Transaction (
     -- * Types
-    CommodityQuantity (..),
     TransactionClassification (..),
     TransactionPresentation (..),
 
@@ -11,9 +10,6 @@ module Hedger.Domain.Transaction (
     -- * Domain queries
     classificationFor,
     isOpening,
-    fromAccountsFor,
-    toAccountsFor,
-    dominantToAccountFor,
 )
 where
 

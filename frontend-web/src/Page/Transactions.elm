@@ -1545,9 +1545,6 @@ sampleResponse =
                 ]
           , presentation =
                 { classification = "expense"
-                , fromAccounts = [ "assets" ]
-                , toAccounts = [ "expenses" ]
-                , totalAmounts = [ { commodity = "INR", quantity = decimal "3000" } ]
                 }
           }
         ]
