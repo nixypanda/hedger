@@ -53,7 +53,10 @@ keepsSnapshotOnFailedReload = do
     reloadResult <- reloadSnapshot store (Text.pack "test/fixtures/does-not-exist.journal")
     assertBool "reload should fail" (isLeft reloadResult)
     snapshotAfter <- readCurrentSnapshot store
-    assertEqual "" (fmap (length . (.transactions)) snapshotBefore) (fmap (length . (.transactions)) snapshotAfter)
+    assertEqual
+        ""
+        (fmap (length . (.transactions)) snapshotBefore)
+        (fmap (length . (.transactions)) snapshotAfter)
     reloadError <- readLastReloadError store
     assertBool "should have a reload error" (isJust reloadError)
 

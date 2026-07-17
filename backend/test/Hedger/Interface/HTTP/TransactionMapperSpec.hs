@@ -25,9 +25,15 @@ transactionMapperSpec :: TestTree
 transactionMapperSpec =
     testGroup
         "transaction projection"
-        [ testCase "preserves unit and total cost types without manufacturing missing costs" preservesCostTypes
-        , testCase "preserves optional dates, statuses, codes, comments, and tags" preservesMetadataFields
-        , testCase "derives eLedger list classification and exact headline totals in Haskell" derivesClassificationAndTotals
+        [ testCase
+            "preserves unit and total cost types without manufacturing missing costs"
+            preservesCostTypes
+        , testCase
+            "preserves optional dates, statuses, codes, comments, and tags"
+            preservesMetadataFields
+        , testCase
+            "derives eLedger list classification and exact headline totals in Haskell"
+            derivesClassificationAndTotals
         ]
 
 preservesCostTypes :: IO ()
@@ -49,7 +55,9 @@ preservesMetadataFields = do
             assertEqual "" (Just (fromGregorian 2024 4 3)) transaction.secondaryDate
             assertEqual "" "cleared" transaction.status
             assertEqual "" (Just "UTIL") transaction.code
-            assertBool "comment should contain category: household" (maybe False (Text.isInfixOf "category: household") transaction.comment)
+            assertBool
+                "comment should contain category: household"
+                (maybe False (Text.isInfixOf "category: household") transaction.comment)
             assertEqual "" ["category"] (fmap (.name) transaction.tags)
             assertEqual "" ["cleared", "unmarked"] (fmap (.status) transaction.postings)
             assertEqual "" [["method"], []] (fmap (fmap (.name) . (.tags)) transaction.postings)
@@ -81,7 +89,10 @@ costSnapshot =
             , Hledger.tpostings =
                 [ nullposting
                     { Hledger.paccount = "assets:investments:funds"
-                    , Hledger.pamount = mixed [(amountWithCommodity "FUND" (num 2)) @@ amountWithCommodity "INR" (num 5000)]
+                    , Hledger.pamount =
+                        mixed
+                            [ (amountWithCommodity "FUND" (num 2)) @@ amountWithCommodity "INR" (num 5000)
+                            ]
                     }
                 ]
             }
@@ -92,7 +103,10 @@ costSnapshot =
             , Hledger.tpostings =
                 [ nullposting
                     { Hledger.paccount = "assets:investments:stocks"
-                    , Hledger.pamount = mixed [(amountWithCommodity "AAPL" (num 10)) `at` amountWithCommodity "INR" (num 12000)]
+                    , Hledger.pamount =
+                        mixed
+                            [ (amountWithCommodity "AAPL" (num 10)) `at` amountWithCommodity "INR" (num 12000)
+                            ]
                     }
                 ]
             }

@@ -49,7 +49,7 @@ transactionPage snapshot suppliedQuery suppliedLimit suppliedCursor = do
         else pure ()
     parsedQuery <- parseHledgerQuery referenceDate canonicalQuery
     offset <- maybe (Right 0) (decodeCursor snapshot.revision canonicalQuery referenceDate) suppliedCursor
-    let ordered = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex)) snapshot.transactions
+    let ordered = List.sortOn (\tx -> (Down tx.tdate, Down tx.tindex)) snapshot.transactions
         matching = filter (Hledger.matchesTransaction parsedQuery) ordered
     if offset > length matching
         then Left (InvalidCursor "The cursor position is no longer valid.")
@@ -87,7 +87,8 @@ safeOptionNames = Text.intercalate ", " . fmap optionName
 
 safeParserReason :: String -> Text
 safeParserReason raw
-    | "regular expression is invalid" `Text.isInfixOf` lower = "The query contains an invalid or unsupported regular expression."
+    | "regular expression is invalid" `Text.isInfixOf` lower =
+        "The query contains an invalid or unsupported regular expression."
     | "date parse error" `Text.isInfixOf` lower = "The query contains an invalid date expression."
     | "failed to parse query:" `Text.isPrefixOf` lower = "The boolean query expression is invalid."
     | "status" `Text.isInfixOf` lower = "The query contains an invalid status expression."
@@ -109,7 +110,8 @@ parserPosition raw = do
         else Nothing
 
 encodeCursor :: Text -> Text -> Day -> Int -> Text
-encodeCursor revision query referenceDate offset = payload <> "." <> fingerprint ("cursor-check-v1:" <> payload)
+encodeCursor revision query referenceDate offset =
+    payload <> "." <> fingerprint ("cursor-check-v1:" <> payload)
   where
     payload =
         Text.intercalate
@@ -127,14 +129,31 @@ decodeCursor revision query referenceDate cursor =
     case Text.splitOn "." cursor of
         [version, offsetText, cursorReference, queryHash, revisionHash, orderingHash, checksum]
             | version /= "v1" -> invalid "The cursor version is not supported."
-            | checksum /= fingerprint ("cursor-check-v1:" <> payload) -> invalid "The cursor is malformed."
-            | cursorReference /= Text.pack (show referenceDate) -> invalid "The cursor relative-date reference does not match this snapshot."
+            | checksum
+                /= fingerprint ("cursor-check-v1:" <> payload) ->
+                invalid "The cursor is malformed."
+            | cursorReference /= Text.pack (show referenceDate) ->
+                invalid "The cursor relative-date reference does not match this snapshot."
             | queryHash /= fingerprint query -> invalid "The cursor was created for a different query."
-            | revisionHash /= fingerprint revision -> invalid "The cursor was created for a different journal revision."
+            | revisionHash /= fingerprint revision ->
+                invalid "The cursor was created for a different journal revision."
             | orderingHash /= fingerprint ordering -> invalid "The cursor ordering is not supported."
-            | otherwise -> maybe (invalid "The cursor position is malformed.") validateOffset (readMaybe (Text.unpack offsetText))
+            | otherwise ->
+                maybe
+                    (invalid "The cursor position is malformed.")
+                    validateOffset
+                    (readMaybe (Text.unpack offsetText))
           where
-            payload = Text.intercalate "." [version, offsetText, cursorReference, queryHash, revisionHash, orderingHash]
+            payload =
+                Text.intercalate
+                    "."
+                    [ version
+                    , offsetText
+                    , cursorReference
+                    , queryHash
+                    , revisionHash
+                    , orderingHash
+                    ]
         _ -> invalid "The cursor is malformed."
   where
     validateOffset offset

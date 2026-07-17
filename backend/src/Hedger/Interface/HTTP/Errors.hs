@@ -75,12 +75,15 @@ toEnvelope requestIdentifier appError =
     errorMessage (InvalidQuery _ _) = "The transaction query is invalid."
     errorMessage (UnsupportedQueryOption _) = "The transaction query uses unsupported report options."
     errorMessage (InvalidCursor detail) = detail
-    errorMessage (InvalidLimit lowerBound upperBound) = "The limit must be between " <> showText lowerBound <> " and " <> showText upperBound <> "."
-    errorMessage (QueryTooLong upperBound) = "The query must not exceed " <> showText upperBound <> " characters."
+    errorMessage (InvalidLimit lowerBound upperBound) =
+        "The limit must be between " <> showText lowerBound <> " and " <> showText upperBound <> "."
+    errorMessage (QueryTooLong upperBound) =
+        "The query must not exceed " <> showText upperBound <> " characters."
     errorMessage InternalError = "An unexpected server error occurred."
 
     errorDetails (InvalidQuery reason position) = Just ValidationDetails{reason = reason, position = position}
-    errorDetails (UnsupportedQueryOption options) = Just ValidationDetails{reason = "Unsupported report option(s): " <> options, position = Nothing}
+    errorDetails (UnsupportedQueryOption options) =
+        Just ValidationDetails{reason = "Unsupported report option(s): " <> options, position = Nothing}
     errorDetails _ = Nothing
 
     showText = Text.pack . show

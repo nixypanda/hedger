@@ -34,7 +34,8 @@ data SnapshotState = SnapshotState
 newtype SnapshotStore = SnapshotStore (IORef SnapshotState)
 
 newSnapshotStore :: IO SnapshotStore
-newSnapshotStore = SnapshotStore <$> newIORef SnapshotState{currentSnapshot = Nothing, lastReloadError = Nothing}
+newSnapshotStore =
+    SnapshotStore <$> newIORef SnapshotState{currentSnapshot = Nothing, lastReloadError = Nothing}
 
 readCurrentSnapshot :: SnapshotStore -> IO (Maybe Snapshot)
 readCurrentSnapshot (SnapshotStore stateReference) = (.currentSnapshot) <$> readIORef stateReference

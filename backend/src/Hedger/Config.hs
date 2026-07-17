@@ -61,10 +61,13 @@ resolveConfig environment cli = do
         level = configuredLevel `orDefault` Info
     validate
         Config
-            { journalPath = (cli.cliJournalPath <|> lookup "HEDGER_JOURNAL_PATH" environment) `orDefault` ""
-            , listenAddress = (cli.cliListenAddress <|> lookup "HEDGER_LISTEN_ADDRESS" environment) `orDefault` "127.0.0.1"
+            { journalPath =
+                (cli.cliJournalPath <|> lookup "HEDGER_JOURNAL_PATH" environment) `orDefault` ""
+            , listenAddress =
+                (cli.cliListenAddress <|> lookup "HEDGER_LISTEN_ADDRESS" environment) `orDefault` "127.0.0.1"
             , listenPort = port
-            , defaultDisplayCommodity = (cli.cliDisplayCommodity <|> lookup "HEDGER_DISPLAY_COMMODITY" environment) `orDefault` "INR"
+            , defaultDisplayCommodity =
+                (cli.cliDisplayCommodity <|> lookup "HEDGER_DISPLAY_COMMODITY" environment) `orDefault` "INR"
             , fiscalYearStartMonth = fiscal
             , logLevel = level
             , publicBaseUrl = cli.cliPublicBaseUrl <|> lookup "HEDGER_PUBLIC_BASE_URL" environment
@@ -88,7 +91,8 @@ parseArguments arguments =
     case Options.execParserPure Options.defaultPrefs parserInfo (Text.unpack <$> arguments) of
         Options.Success options -> Right options
         Options.Failure failure -> Left . Text.pack . fst $ Options.renderFailure failure "hedger-server"
-        Options.CompletionInvoked _ -> Left "Shell completion is not available through the pure configuration parser."
+        Options.CompletionInvoked _ ->
+            Left "Shell completion is not available through the pure configuration parser."
 
 parserInfo :: Options.ParserInfo CliOptions
 parserInfo =
@@ -110,7 +114,10 @@ cliOptionsParser =
         <*> Options.optional
             ( Options.option
                 (Options.eitherReader (firstText . parseLogLevel . Text.pack))
-                (Options.long "log-level" <> Options.metavar "LEVEL" <> Options.help "debug|info|warn|error (default: info)")
+                ( Options.long "log-level"
+                    <> Options.metavar "LEVEL"
+                    <> Options.help "debug|info|warn|error (default: info)"
+                )
             )
         <*> optionalText "public-base-url" "URL" "Optional absolute public base URL"
   where
@@ -144,8 +151,10 @@ validate config = do
     requireToken "listen address" config.listenAddress
     requireToken "display commodity" config.defaultDisplayCommodity
     if
-        | config.listenPort < 1 || config.listenPort > 65535 -> Left "Port must be between 1 and 65535."
-        | config.fiscalYearStartMonth < 1 || config.fiscalYearStartMonth > 12 -> Left "Fiscal-year start must be between 1 and 12."
+        | config.listenPort < 1 || config.listenPort > 65535 ->
+            Left "Port must be between 1 and 65535."
+        | config.fiscalYearStartMonth < 1 || config.fiscalYearStartMonth > 12 ->
+            Left "Fiscal-year start must be between 1 and 12."
         | otherwise -> pure ()
     validatePublicBaseUrl config.publicBaseUrl
     pure config
@@ -163,8 +172,11 @@ requireToken label value
 validatePublicBaseUrl :: Maybe Text -> Either Text ()
 validatePublicBaseUrl Nothing = Right ()
 validatePublicBaseUrl (Just url)
-    | ("http://" `Text.isPrefixOf` url || "https://" `Text.isPrefixOf` url) && not (Text.any Char.isSpace url) = Right ()
+    | isHttpPrefix && not (Text.any Char.isSpace url) =
+        Right ()
     | otherwise = Left "Public base URL must be an absolute http(s) URL."
+  where
+    isHttpPrefix = "http://" `Text.isPrefixOf` url || "https://" `Text.isPrefixOf` url
 
 parseInteger :: Text -> Text -> Either Text Int
 parseInteger label value =

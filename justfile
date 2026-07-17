@@ -24,6 +24,7 @@ check-backend: check-cabal check-haskell-format check-backend-tests
 
 check-haskell-format:
     fourmolu --mode check backend/app backend/benchmark backend/src backend/test
+    rg '.{111,}' -g '*.hs' backend/app backend/benchmark backend/src backend/test
 
 [private]
 [working-directory("backend")]

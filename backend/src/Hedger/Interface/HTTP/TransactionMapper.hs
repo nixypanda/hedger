@@ -84,7 +84,12 @@ presentationDto presentation =
         { classification = classificationText presentation.classification
         , fromAccounts = presentation.fromAccounts
         , toAccounts = presentation.toAccounts
-        , totalAmounts = fmap (\amount -> CommodityQuantityDto amount.commodity (Text.pack (show amount.quantity))) presentation.totalAmounts
+        , totalAmounts =
+            fmap
+                ( \amount ->
+                    CommodityQuantityDto amount.commodity (Text.pack (show amount.quantity))
+                )
+                presentation.totalAmounts
         , openingAccountCount = presentation.openingAccountCount
         }
 

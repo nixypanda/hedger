@@ -53,7 +53,15 @@ get path app = runSession (request (setPath defaultRequest{Wai.requestMethod = m
 getWithRequestId :: ByteString.ByteString -> Wai.Application -> IO SResponse
 getWithRequestId path app =
     runSession
-        (request (setPath defaultRequest{Wai.requestMethod = methodGet, Wai.requestHeaders = [("X-Request-ID", "req_fixture_0001")]} path))
+        ( request
+            ( setPath
+                defaultRequest
+                    { Wai.requestMethod = methodGet
+                    , Wai.requestHeaders = [("X-Request-ID", "req_fixture_0001")]
+                    }
+                path
+            )
+        )
         app
 
 getQuery :: ByteString.ByteString -> Wai.Application -> IO SResponse

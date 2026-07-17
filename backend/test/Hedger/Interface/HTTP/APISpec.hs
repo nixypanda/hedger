@@ -46,7 +46,7 @@ apiSpec = withResource setup teardown $ \getApps ->
         , testCase "serves the complete transaction shape and shared response metadata" $ do
             (availableApp, _) <- getApps
             servesTransactionShape availableApp
-        , testCase "applies representative hledger account, description, code, date, date2, status, commodity, amount, tag, negation, expr, any, and all queries" $ do
+        , testCase "applies hledger account, description, code, date, status, amount, tag queries" $ do
             (availableApp, _) <- getApps
             appliesHledgerQueries availableApp
         , testCase "returns stable safe parser details without echoing the query" $ do
@@ -82,7 +82,9 @@ servesHealthAndBootstrap :: Wai.Application -> IO ()
 servesHealthAndBootstrap availableApp = do
     live <- get "/api/v1/health/live" availableApp
     assertEqual "" status200 (simpleStatus live)
-    assertBool "X-Request-ID should start with req-" (maybe False (ByteString.isPrefixOf "req-") (lookup "X-Request-ID" (simpleHeaders live)))
+    assertBool
+        "X-Request-ID should start with req-"
+        (maybe False (ByteString.isPrefixOf "req-") (lookup "X-Request-ID" (simpleHeaders live)))
     assertEqual "" (decode "{\"status\":\"ok\"}") (json live)
     ready <- get "/api/v1/health/ready" availableApp
     assertEqual "" status200 (simpleStatus ready)
@@ -106,7 +108,9 @@ servesTransactionShape availableApp = do
             assertBool "revision should start with md5:" (Text.isPrefixOf "md5:" value.metadata.revision)
             assertEqual "" 13 (length value.transactions)
             assertEqual "" 27 (sum (length . (.postings) <$> value.transactions))
-            assertBool "all transactions should have non-empty descriptions" (all (not . Text.null . (.description)) value.transactions)
+            assertBool
+                "all transactions should have non-empty descriptions"
+                (all (not . Text.null . (.description)) value.transactions)
             assertEqual "" Nothing value.nextCursor
     emptyQuery <- getQuery "?query=" availableApp >>= decodeTransactions
     assertEqual "" 13 (length emptyQuery.transactions)
@@ -134,7 +138,9 @@ returnsSafeParserDetails :: Wai.Application -> IO ()
 returnsSafeParserDetails availableApp = do
     response <- getQuery "?query=expr%3A%27%28acct%3Aprivate-secret%20OR%20desc%3ARent%27" availableApp
     assertEqual "" status400 (simpleStatus response)
-    assertBool "should not echo private-secret" (not . ByteString.Char8.isInfixOf "private-secret" $ LazyByteString.toStrict response.simpleBody)
+    assertBool
+        "should not echo private-secret"
+        (not . ByteString.Char8.isInfixOf "private-secret" $ LazyByteString.toStrict response.simpleBody)
     expected <- LazyByteString.readFile "test/golden/error-invalid-query.json"
     assertEqual "" (decode expected) (json response)
 
@@ -142,12 +148,16 @@ rejectsInvalidQueries :: Wai.Application -> IO ()
 rejectsInvalidQueries availableApp = do
     unsupported <- getQuery "?query=inacct%3Aassets" availableApp
     assertEqual "" (Just "unsupported_query_option") (errorCode unsupported)
-    assertEqual
-        ""
-        (decode "{\"error\":{\"code\":\"unsupported_query_option\",\"message\":\"The transaction query uses unsupported report options.\",\"requestId\":\"req_fixture_0001\",\"details\":{\"reason\":\"Unsupported report option(s): inacct:\",\"position\":null}}}")
-        (json unsupported)
+    let unsupportedJson =
+            decode
+                ( "{\"error\":{\"code\":\"unsupported_query_option\",\
+                  \\"message\":\"The transaction query uses unsupported report options.\",\
+                  \\"requestId\":\"req_fixture_0001\",\
+                  \\"details\":{\"reason\":\"Unsupported report option(s): inacct:\",\"position\":null}}"
+                )
+    assertEqual "" unsupportedJson (json unsupported)
     mapM_
-        (\queryString -> getQuery queryString availableApp >>= (\response -> assertEqual "" (Just "invalid_limit") (errorCode response)))
+        (\qs -> getQuery qs availableApp >>= \r -> assertEqual "" (Just "invalid_limit") (errorCode r))
         ["?limit=0", "?limit=201", "?limit=not-a-number"]
     let longQuery = "?query=" <> ByteString.replicate (maximumQueryLength + 1) 97
     overlong <- getQuery longQuery availableApp
@@ -161,11 +171,15 @@ returnsCursorPages availableApp = do
     cursor <- case first.nextCursor of
         Nothing -> assertFailure "Expected a continuation cursor." >> pure ""
         Just c -> pure c
-    secondResponse <- getQuery ("?query=acct%3Aassets&limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor) availableApp
+    secondResponse <-
+        getQuery ("?query=acct%3Aassets&limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor) availableApp
     second <- decodeTransactions secondResponse
     assertEqual "" 2 (length second.transactions)
-    assertBool "transactions should be different" (fmap (.description) first.transactions /= fmap (.description) second.transactions)
-    conflict <- getQuery ("?query=desc%3ASalary&limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor) availableApp
+    assertBool
+        "transactions should be different"
+        (fmap (.description) first.transactions /= fmap (.description) second.transactions)
+    conflict <-
+        getQuery ("?query=desc%3ASalary&limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor) availableApp
     assertEqual "" (Just "invalid_cursor") (errorCode conflict)
 
 marksStaleAfterFailedReload :: IO ()
@@ -187,23 +201,26 @@ reportsUnavailableSnapshot unavailableApp = do
     assertEqual "" status200 (simpleStatus live)
     ready <- getWithRequestId "/api/v1/health/ready" unavailableApp
     assertEqual "" status503 (simpleStatus ready)
-    assertEqual
-        ""
-        (decode "{\"error\":{\"code\":\"journal_unavailable\",\"message\":\"No usable journal snapshot is available.\",\"requestId\":\"req_fixture_0001\"}}")
-        (json ready)
+    let unavailableJson =
+            decode
+                ( "{\"error\":{\"code\":\"journal_unavailable\",\
+                  \\"message\":\"No usable journal snapshot is available.\",\
+                  \\"requestId\":\"req_fixture_0001\"}}"
+                )
+    assertEqual "" unavailableJson (json ready)
     transactionsResponse <- getWithRequestId "/api/v1/transactions" unavailableApp
     assertEqual "" status503 (simpleStatus transactionsResponse)
-    assertEqual
-        ""
-        (decode "{\"error\":{\"code\":\"journal_unavailable\",\"message\":\"No usable journal snapshot is available.\",\"requestId\":\"req_fixture_0001\"}}")
-        (json transactionsResponse)
+    assertEqual "" unavailableJson (json transactionsResponse)
 
 returnsStableNotFound :: Wai.Application -> IO ()
 returnsStableNotFound availableApp = do
     missing <- getWithRequestId "/api/v1/missing" availableApp
     assertEqual "" status404 (simpleStatus missing)
     assertEqual "" (Just "application/json; charset=utf-8") (lookup hContentType (simpleHeaders missing))
-    assertEqual
-        ""
-        (decode "{\"error\":{\"code\":\"not_found\",\"message\":\"The requested API route does not exist.\",\"requestId\":\"req_fixture_0001\"}}")
-        (json missing)
+    let notFoundJson =
+            decode
+                ( "{\"error\":{\"code\":\"not_found\",\
+                  \\"message\":\"The requested API route does not exist.\",\
+                  \\"requestId\":\"req_fixture_0001\"}}"
+                )
+    assertEqual "" notFoundJson (json missing)

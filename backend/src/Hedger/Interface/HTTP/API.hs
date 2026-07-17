@@ -8,11 +8,27 @@ where
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson qualified as Aeson
 import Data.Text (Text)
-import Hedger.Application (AppM, BootstrapInfo (..), Env, SnapshotMetadata (..), TransactionList (..), bootstrap, liveness, readiness, runAppM, transactionList)
+import Hedger.Application (
+    AppM,
+    BootstrapInfo (..),
+    Env,
+    SnapshotMetadata (..),
+    TransactionList (..),
+    bootstrap,
+    liveness,
+    readiness,
+    runAppM,
+    transactionList,
+ )
 import Hedger.Domain.Error (AppError)
 import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
 import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
-import Hedger.Interface.HTTP.Types (Bootstrap (..), Health (..), ResponseMetadata (..), TransactionsResponse (..))
+import Hedger.Interface.HTTP.Types (
+    Bootstrap (..),
+    Health (..),
+    ResponseMetadata (..),
+    TransactionsResponse (..),
+ )
 import Network.HTTP.Types qualified as HTTP
 import Servant
 
@@ -41,7 +57,8 @@ server environment requestId =
     runAction (Health{status = "ok"} <$ liveness)
         :<|> runAction (Health{status = "ok"} <$ readiness)
         :<|> runAction (toBootstrap <$> bootstrap)
-        :<|> \query limit cursor -> runAction (toTransactionsResponse <$> transactionList query limit cursor)
+        :<|> \query limit cursor ->
+            runAction (toTransactionsResponse <$> transactionList query limit cursor)
   where
     effectiveRequestId = maybe "request-id-missing" id requestId
     runAction :: AppM value -> Handler value

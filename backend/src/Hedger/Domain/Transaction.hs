@@ -77,7 +77,10 @@ presentationFor transaction =
     rawToAccounts = sortedAccounts debits
     opening = isOpeningSetup credits debits
     fromAccounts = if opening then ["opening"] else accountLabel <$> rawFromAccounts
-    toAccounts = if opening then accountLabel <$> rawToAccounts else accountLabel <$> dominantToAccounts rawFromAccounts rawToAccounts debits
+    toAccounts =
+        if opening
+            then accountLabel <$> rawToAccounts
+            else accountLabel <$> dominantToAccounts rawFromAccounts rawToAccounts debits
     tone = toneFromFlow rawFromAccounts rawToAccounts
     classification
         | opening = OpeningBalance
@@ -115,7 +118,12 @@ topLevel value =
                 _ -> Other top rest
 
 sortedAccounts :: [Entry] -> [Account]
-sortedAccounts = List.nubBy sameAccountGroup . List.sortOn accountOrder . Set.toList . Set.fromList . fmap (.account)
+sortedAccounts =
+    List.nubBy sameAccountGroup
+        . List.sortOn accountOrder
+        . Set.toList
+        . Set.fromList
+        . fmap (.account)
 
 sameAccountGroup :: Account -> Account -> Bool
 sameAccountGroup left right = accountLabel left == accountLabel right
@@ -170,7 +178,8 @@ dominantToAccounts fromAccounts toAccounts debitEntries
             [(accountLabel entry.account, abs entry.amount.aquantity) | entry <- debitEntries]
     sortedTotals = List.sortBy compareTotals (Map.toList totals)
     compareTotals (leftAccount, leftTotal) (rightAccount, rightTotal)
-        | leftTotal == rightTotal = compare (accountOrderLabel leftAccount) (accountOrderLabel rightAccount)
+        | leftTotal == rightTotal =
+            compare (accountOrderLabel leftAccount) (accountOrderLabel rightAccount)
         | otherwise = compare rightTotal leftTotal
 
 relevantEntries :: FlowTone -> [Account] -> [Account] -> [Entry] -> [Entry] -> [Entry]
@@ -179,7 +188,9 @@ relevantEntries tone fromAccounts toAccounts credits debits
     | otherwise = selected
   where
     selected
-        | tone == Neutral && not (null fromAccounts) && accountGroups fromAccounts == accountGroups toAccounts =
+        | tone == Neutral
+            && not (null fromAccounts)
+            && accountGroups fromAccounts == accountGroups toAccounts =
             filter (accountIn fromAccounts . (.account)) credits
         | otherwise = filter (accountIn toAccounts . (.account)) debits
 
@@ -217,7 +228,16 @@ isOpeningSetup credits debits =
     isIncomeOrExpenses _ = False
 
     hasOpeningSource entry =
-        any (`Text.isInfixOf` Text.toLower (accountText entry.account)) ["opening", "open", "balance", "balances", "conversion", "migration", "initial"]
+        any
+            (`Text.isInfixOf` Text.toLower (accountText entry.account))
+            [ "opening"
+            , "open"
+            , "balance"
+            , "balances"
+            , "conversion"
+            , "migration"
+            , "initial"
+            ]
 
 accountCount :: [Entry] -> Int
 accountCount = Set.size . Set.fromList . fmap (.account)

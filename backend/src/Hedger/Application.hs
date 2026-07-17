@@ -101,5 +101,9 @@ metadataFor snapshot = do
         SnapshotMetadata
             { revision = snapshot.revision
             , freshness = maybe "fresh" (const "stale") reloadError
-            , warnings = maybe [] (const ["The latest journal reload failed; the last usable snapshot is shown."]) reloadError
+            , warnings =
+                maybe
+                    []
+                    (const ["The latest journal reload failed; the last usable snapshot is shown."])
+                    reloadError
             }

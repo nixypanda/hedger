@@ -9,7 +9,17 @@ import Hedger.Domain.Snapshot (Snapshot (transactions))
 import Hedger.Infrastructure.Hledger.SnapshotStore (loadSnapshot)
 import Hedger.Infrastructure.Hledger.TransactionQuery (TransactionPage (transactions), transactionPage)
 import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
-import Hedger.Interface.HTTP.Types (AmountDto (..), CommodityQuantityDto (..), CostDto (..), PostingDto (..), ResponseMetadata (..), TagDto (..), TransactionDto (..), TransactionPresentationDto (..), TransactionsResponse (..))
+import Hedger.Interface.HTTP.Types (
+    AmountDto (..),
+    CommodityQuantityDto (..),
+    CostDto (..),
+    PostingDto (..),
+    ResponseMetadata (..),
+    TagDto (..),
+    TransactionDto (..),
+    TransactionPresentationDto (..),
+    TransactionsResponse (..),
+ )
 import Hledger.Data.Types qualified as Hledger
 import Test.Tasty.Bench (Benchmark, bench, bgroup, defaultMain, env, nf, nfIO)
 
@@ -23,9 +33,14 @@ main =
             bgroup
                 "transactions"
                 [ bench "project/shared-13" $ nf (projectionWeight . toTransactions) transactions
-                , bench "project/scaled-1300" $ nf (projectionWeight . toTransactions) (concat (replicate 100 transactions))
-                , bench "encode/shared-13" $ nf (LazyByteString.length . Aeson.encode . responseFor) transactions
-                , bench "encode/scaled-1300" $ nf (LazyByteString.length . Aeson.encode . responseFor) (concat (replicate 100 transactions))
+                , bench "project/scaled-1300" $
+                    nf (projectionWeight . toTransactions) (concat (replicate 100 transactions))
+                , bench "encode/shared-13" $
+                    nf (LazyByteString.length . Aeson.encode . responseFor) transactions
+                , bench "encode/scaled-1300" $
+                    nf
+                        (LazyByteString.length . Aeson.encode . responseFor)
+                        (concat (replicate 100 transactions))
                 ]
         ]
 
