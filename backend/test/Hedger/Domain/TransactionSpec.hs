@@ -5,8 +5,10 @@ import Data.List qualified as List
 import Data.Time (fromGregorian)
 import Hedgehog (Property, assert, forAll, property, (===))
 import Hedgehog.Range qualified as Range
-import Hedger.Domain.Transaction (newestFirst)
+import Hedger.Domain.Internal.Account (topLevel)
+import Hedger.Domain.Internal.Transaction (Entry (..), FlowTone (..), isOpeningSetup, newestFirst, toneFromFlow)
 import Hedger.Generators (genTransactions)
+import Hledger.Data.Amount (nullamt)
 import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
@@ -21,6 +23,20 @@ transactionSpec =
         [ testCase "orders newest dates first and reverses journal order within a date" ordersNewestFirst
         , testProperty "result is sorted in descending order by (date, index)" sortedProperty
         , testProperty "same-date transactions reversed from input order" sameDateProperty
+        , testGroup
+            "toneFromFlow"
+            [ testCase "expense destination is Negative" toneExpense
+            , testCase "asset destination from non-asset is Positive" toneIncome
+            , testCase "same account group is Neutral" toneNeutralSameGroup
+            , testCase "no matching rules is Neutral" toneNeutralDefault
+            ]
+        , testGroup
+            "isOpeningSetup"
+            [ testCase "equity with opening keyword is detected" openingDetected
+            , testCase "no equity is not opening" openingNoEquity
+            , testCase "income account disqualifies" openingIncomeDisqualifies
+            , testCase "empty debits is not opening" openingEmptyDebits
+            ]
         ]
 
 syntheticTransactions :: [Hledger.Transaction]
@@ -83,6 +99,58 @@ sameDateProperty = property $ do
         resultGroups = groupByDate result
     length inputGroups === length resultGroups
     assert (all (uncurry sameDateOrder) (zip inputGroups resultGroups))
+
+-- toneFromFlow tests
+
+toneExpense :: IO ()
+toneExpense = do
+    let from = [topLevel "assets:checking"]
+        to = [topLevel "expenses:food"]
+    assertEqual "expense destination should be Negative" Negative (toneFromFlow from to)
+
+toneIncome :: IO ()
+toneIncome = do
+    let from = [topLevel "income:salary"]
+        to = [topLevel "assets:checking"]
+    assertEqual "asset destination from non-asset should be Positive" Positive (toneFromFlow from to)
+
+toneNeutralSameGroup :: IO ()
+toneNeutralSameGroup = do
+    let from = [topLevel "assets:checking"]
+        to = [topLevel "assets:savings"]
+    assertEqual "same account group should be Neutral" Neutral (toneFromFlow from to)
+
+toneNeutralDefault :: IO ()
+toneNeutralDefault = do
+    let from = [topLevel "income:salary"]
+        to = [topLevel "equity:opening"]
+    assertEqual "no matching rules should be Neutral" Neutral (toneFromFlow from to)
+
+-- isOpeningSetup tests
+
+openingDetected :: IO ()
+openingDetected = do
+    let credits = [Entry (topLevel "equity:opening") nullamt]
+        debits = [Entry (topLevel "assets:checking") nullamt]
+    assertEqual "equity with opening keyword should be detected" True (isOpeningSetup credits debits)
+
+openingNoEquity :: IO ()
+openingNoEquity = do
+    let credits = [Entry (topLevel "assets:savings") nullamt]
+        debits = [Entry (topLevel "assets:checking") nullamt]
+    assertEqual "no equity should not be opening" False (isOpeningSetup credits debits)
+
+openingIncomeDisqualifies :: IO ()
+openingIncomeDisqualifies = do
+    let credits = [Entry (topLevel "equity:opening") nullamt]
+        debits = [Entry (topLevel "income:salary") nullamt]
+    assertEqual "income account should disqualify" False (isOpeningSetup credits debits)
+
+openingEmptyDebits :: IO ()
+openingEmptyDebits = do
+    let credits = [Entry (topLevel "equity:opening") nullamt]
+        debits = []
+    assertEqual "empty debits should not be opening" False (isOpeningSetup credits debits)
 
 -- Internal helpers
 

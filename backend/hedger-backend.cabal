@@ -27,7 +27,10 @@ library
   exposed-modules:
       Hedger.Application
       Hedger.Config
+      Hedger.Domain.Account
       Hedger.Domain.Error
+      Hedger.Domain.Internal.Account
+      Hedger.Domain.Internal.Transaction
       Hedger.Domain.Snapshot
       Hedger.Domain.Transaction
       Hedger.Infrastructure.Hledger.SnapshotStore
