@@ -48,7 +48,6 @@ type alias Presentation =
     , fromAccounts : List String
     , toAccounts : List String
     , totalAmounts : List CommodityQuantity
-    , openingAccountCount : Maybe Int
     }
 
 
@@ -108,12 +107,11 @@ transactionDecoder =
 
 presentationDecoder : Decoder Presentation
 presentationDecoder =
-    Decode.map5 Presentation
+    Decode.map4 Presentation
         (Decode.field "classification" Decode.string)
         (Decode.field "fromAccounts" (Decode.list Decode.string))
         (Decode.field "toAccounts" (Decode.list Decode.string))
         (Decode.field "totalAmounts" (Decode.list commodityQuantityDecoder))
-        (Decode.field "openingAccountCount" (Decode.nullable Decode.int))
 
 
 commodityQuantityDecoder : Decoder CommodityQuantity

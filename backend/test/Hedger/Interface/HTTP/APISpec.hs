@@ -220,7 +220,7 @@ returnsStableNotFound availableApp = do
     let notFoundJson =
             decode
                 ( "{\"error\":{\"code\":\"not_found\",\
-                  \\"message\":\"The requested API route does not exist.\",\
+                  \\"message\":\"Requested API route does not exist.\",\
                   \\"requestId\":\"req_fixture_0001\"}}"
                 )
     assertEqual "" notFoundJson (json missing)

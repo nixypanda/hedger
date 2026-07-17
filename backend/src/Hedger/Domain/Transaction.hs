@@ -7,6 +7,13 @@ module Hedger.Domain.Transaction (
     -- * Core API
     newestFirst,
     presentationFor,
+
+    -- * Domain queries
+    classificationFor,
+    isOpening,
+    fromAccountsFor,
+    toAccountsFor,
+    dominantToAccountFor,
 )
 where
 

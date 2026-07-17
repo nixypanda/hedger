@@ -1,6 +1,7 @@
 module Hedger.Interface.HTTP.TransactionMapper (toTransactionDto, toTransactions) where
 
 import Data.Text qualified as Text
+import Hedger.Domain.Internal.Account (accountLabel)
 import Hedger.Domain.Transaction qualified as Domain
 import Hedger.Interface.HTTP.Types (
     AmountDto (..),
@@ -82,15 +83,14 @@ presentationDto :: Domain.TransactionPresentation -> TransactionPresentationDto
 presentationDto presentation =
     TransactionPresentationDto
         { classification = classificationText presentation.classification
-        , fromAccounts = presentation.fromAccounts
-        , toAccounts = presentation.toAccounts
+        , fromAccounts = accountLabel <$> presentation.fromAccounts
+        , toAccounts = accountLabel <$> presentation.toAccounts
         , totalAmounts =
             fmap
                 ( \amount ->
                     CommodityQuantityDto amount.commodity (Text.pack (show amount.quantity))
                 )
                 presentation.totalAmounts
-        , openingAccountCount = presentation.openingAccountCount
         }
 
 classificationText :: Domain.TransactionClassification -> Text.Text

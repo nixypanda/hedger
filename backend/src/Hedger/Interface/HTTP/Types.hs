@@ -95,7 +95,6 @@ data TransactionPresentationDto = TransactionPresentationDto
     , fromAccounts :: [Text]
     , toAccounts :: [Text]
     , totalAmounts :: [CommodityQuantityDto]
-    , openingAccountCount :: Maybe Int
     }
     deriving (Eq, Show)
 

@@ -82,12 +82,26 @@ files may add to or override them within their directory.
   round trips, parsers, or meaningful generated input. Prefer properties over a
   long list of hand-picked examples; keep focused example and regression tests
   where a property would be less clear.
+- Get user go-ahead for every property test before implementing it.
+- No oracle-based property tests and no reimplementing the whole logic in the test.
 - Add generators and shrinking appropriate to the domain. A property that only
   exercises a few constants is not a useful property test.
+- Tests with more than 3 lines should be turned into separate functions.
+- Follow Haskell internal module strategy when there are sufficient things to test.
+- Tests should mimic src layout.
 - Keep API endpoint tests selective. Test endpoints when they add value at the
   HTTP boundary: routing, status and headers, JSON shape, authentication or
   validation, and stable error envelopes. Do not duplicate all domain behavior
   through WAI tests.
+
+### Design principles
+
+- Avoid Text/String types.
+- Parse, don't validate.
+- Parse on boundaries or functional core, imperative shell.
+- Make invalid states impossible to represent.
+- Total functions.
+- Newtypes for semantic distinction.
 
 ### Ledger benchmarks
 

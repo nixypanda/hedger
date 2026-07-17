@@ -495,7 +495,6 @@ sampleResponse revision =
                 , fromAccounts = [ "assets" ]
                 , toAccounts = [ "expenses" ]
                 , totalAmounts = []
-                , openingAccountCount = Nothing
                 }
           }
         ]

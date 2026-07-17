@@ -1,23 +1,26 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Hedger.Domain.Internal.Transaction (
     -- * Types
     CommodityQuantity (..),
     TransactionClassification (..),
     TransactionPresentation (..),
-    Entry (..),
-    FlowTone (..),
 
     -- * Core API
     newestFirst,
     presentationFor,
 
-    -- * Internal helpers (exported for testing)
+    -- * Domain queries
+    classificationFor,
+    isOpening,
+    fromAccountsFor,
+    toAccountsFor,
+    dominantToAccountFor,
+
+    -- * Internal (shared between domain functions)
     postingEntries,
     sortedAccountsForEntries,
-    toneFromFlow,
     dominantToAccounts,
-    relevantEntries,
-    aggregateAmounts,
-    isOpeningSetup,
 )
 where
 
@@ -31,7 +34,20 @@ import Data.Text qualified as Text
 import Hledger.Data.Amount qualified as Hledger
 import Hledger.Data.Types qualified as Hledger
 
+import GHC.Records (HasField (getField))
 import Hedger.Domain.Internal.Account
+
+instance HasField "entries" Hledger.Transaction [Entry] where
+    getField :: Hledger.Transaction -> [Entry]
+    getField tx = postingEntries tx.tpostings
+
+instance HasField "credits" Hledger.Transaction [Entry] where
+    getField :: Hledger.Transaction -> [Entry]
+    getField tx = filter ((< 0) . (.amount.aquantity)) tx.entries
+
+instance HasField "debits" Hledger.Transaction [Entry] where
+    getField :: Hledger.Transaction -> [Entry]
+    getField tx = filter ((> 0) . (.amount.aquantity)) tx.entries
 
 data CommodityQuantity = CommodityQuantity
     { commodity :: Text
@@ -48,55 +64,99 @@ data TransactionClassification
 
 data TransactionPresentation = TransactionPresentation
     { classification :: TransactionClassification
-    , fromAccounts :: [Text]
-    , toAccounts :: [Text]
+    , fromAccounts :: [Account]
+    , toAccounts :: [Account]
     , totalAmounts :: [CommodityQuantity]
-    , openingAccountCount :: Maybe Int
     }
     deriving (Eq, Show)
 
 newestFirst :: [Hledger.Transaction] -> [Hledger.Transaction]
 newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex))
 
+-- * Domain queries
+
+classificationFor :: Hledger.Transaction -> TransactionClassification
+classificationFor tx
+    | isOpening tx = OpeningBalance
+    | tone == Positive = TransactionIncome
+    | tone == Negative = TransactionExpense
+    | otherwise = TransactionTransfer
+  where
+    tone = toneFromFlow (sortedAccountsForEntries tx.credits) (sortedAccountsForEntries tx.debits)
+
+isOpening :: Hledger.Transaction -> Bool
+isOpening tx =
+    any isEquity accounts
+        && not (any isIncomeOrExpenses accounts)
+        && not (null tx.debits)
+        && any hasOpeningSource tx.credits
+  where
+    accounts = (.account) <$> tx.credits <> tx.debits
+
+    hasOpeningSource entry =
+        any
+            (`Text.isInfixOf` Text.toLower (accountText entry.account))
+            [ "opening"
+            , "open"
+            , "balance"
+            , "balances"
+            , "conversion"
+            , "migration"
+            , "initial"
+            ]
+
+fromAccountsFor :: Hledger.Transaction -> [Account]
+fromAccountsFor tx = sortedAccountsForEntries tx.credits
+
+toAccountsFor :: Hledger.Transaction -> [Account]
+toAccountsFor tx = sortedAccountsForEntries tx.debits
+
+dominantToAccountFor :: Hledger.Transaction -> Maybe Account
+dominantToAccountFor tx
+    | length rawFromAccounts == 1 && length rawToAccounts > 1 =
+        case sortedTotals of
+            [] -> Nothing
+            (account, _) : _ -> Just account
+    | otherwise = Nothing
+  where
+    rawFromAccounts = sortedAccountsForEntries tx.credits
+    rawToAccounts = sortedAccountsForEntries tx.debits
+    totals =
+        Map.fromListWith
+            (+)
+            [(entry.account, abs entry.amount.aquantity) | entry <- tx.debits]
+    sortedTotals = List.sortBy compareTotals (Map.toList totals)
+    compareTotals (leftAccount, leftTotal) (rightAccount, rightTotal)
+        | leftTotal == rightTotal =
+            compare (accountOrderLabel (accountLabel leftAccount)) (accountOrderLabel (accountLabel rightAccount))
+        | otherwise = compare rightTotal leftTotal
+
+-- * Core API
+
+presentationFor :: Hledger.Transaction -> TransactionPresentation
+presentationFor tx =
+    TransactionPresentation
+        { classification = classificationFor tx
+        , fromAccounts = fromAccountsFor tx
+        , toAccounts = toAccountsFor tx
+        , totalAmounts = aggregateAmounts selectedEntries
+        }
+  where
+    opening = isOpening tx
+    rawFromAccounts = sortedAccountsForEntries tx.credits
+    rawToAccounts = sortedAccountsForEntries tx.debits
+    tone = toneFromFlow rawFromAccounts rawToAccounts
+    selectedEntries
+        | opening = []
+        | otherwise = relevantEntries tone rawFromAccounts rawToAccounts tx.credits tx.debits
+
+-- * Internal (shared between domain functions)
+
 data Entry = Entry
     { account :: Account
     , amount :: Hledger.Amount
     }
     deriving (Eq)
-
-data FlowTone = Positive | Negative | Neutral
-    deriving (Eq, Show)
-
-presentationFor :: Hledger.Transaction -> TransactionPresentation
-presentationFor transaction =
-    TransactionPresentation
-        { classification = classification
-        , fromAccounts = fromAccounts
-        , toAccounts = toAccounts
-        , totalAmounts = aggregateAmounts selectedEntries
-        , openingAccountCount = if opening then Just (accountCount (fmap (.account) debits)) else Nothing
-        }
-  where
-    entries = postingEntries transaction.tpostings
-    debits = filter ((> 0) . (.amount.aquantity)) entries
-    credits = filter ((< 0) . (.amount.aquantity)) entries
-    rawFromAccounts = sortedAccountsForEntries credits
-    rawToAccounts = sortedAccountsForEntries debits
-    opening = isOpeningSetup credits debits
-    fromAccounts = if opening then ["opening"] else accountLabel <$> rawFromAccounts
-    toAccounts =
-        if opening
-            then accountLabel <$> rawToAccounts
-            else accountLabel <$> dominantToAccounts rawFromAccounts rawToAccounts debits
-    tone = toneFromFlow rawFromAccounts rawToAccounts
-    classification
-        | opening = OpeningBalance
-        | tone == Positive = TransactionIncome
-        | tone == Negative = TransactionExpense
-        | otherwise = TransactionTransfer
-    selectedEntries
-        | opening = []
-        | otherwise = relevantEntries tone rawFromAccounts rawToAccounts credits debits
 
 postingEntries :: [Hledger.Posting] -> [Entry]
 postingEntries =
@@ -114,6 +174,9 @@ postingEntries =
 sortedAccountsForEntries :: [Entry] -> [Account]
 sortedAccountsForEntries =
     sortedAccounts . fmap (.account)
+
+data FlowTone = Positive | Negative | Neutral
+    deriving (Eq, Show)
 
 toneFromFlow :: [Account] -> [Account] -> FlowTone
 toneFromFlow fromAccounts toAccounts
@@ -171,24 +234,3 @@ aggregateAmounts entries =
         Map.fromListWith
             (+)
             [(entry.amount.acommodity, abs entry.amount.aquantity) | entry <- entries]
-
-isOpeningSetup :: [Entry] -> [Entry] -> Bool
-isOpeningSetup credits debits =
-    any isEquity accounts
-        && not (any isIncomeOrExpenses accounts)
-        && not (null debits)
-        && any hasOpeningSource credits
-  where
-    accounts = (.account) <$> credits <> debits
-
-    hasOpeningSource entry =
-        any
-            (`Text.isInfixOf` Text.toLower (accountText entry.account))
-            [ "opening"
-            , "open"
-            , "balance"
-            , "balances"
-            , "conversion"
-            , "migration"
-            , "initial"
-            ]

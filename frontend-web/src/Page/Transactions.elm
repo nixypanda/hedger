@@ -1140,17 +1140,7 @@ phonePrimaryRow theme transaction =
 trailingSummary : Theme -> Transaction -> Element msg
 trailingSummary theme transaction =
     Element.column [ Element.alignRight, Element.spacing 2 ]
-        [ Element.el
-            [ Typography.rowAmount
-            , Font.semiBold
-            , Font.color theme.textPrimary
-            , Element.alignRight
-            , Element.width (Element.shrink |> Element.maximum 180)
-            , Typography.uiClass "ui-text-ellipsis"
-            , Typography.financeNumber
-            ]
-            (Element.text (primaryAmount transaction))
-        , Element.el [ Element.alignRight ]
+        [ Element.el [ Element.alignRight ]
             (Ui.financialBadge theme (classificationTone transaction.presentation.classification) (classificationLabel transaction))
         ]
 
@@ -1185,29 +1175,6 @@ classificationLabel transaction =
 
         _ ->
             "Transfer"
-
-
-primaryAmount : Transaction -> String
-primaryAmount transaction =
-    case transaction.presentation.classification of
-        "opening_balance" ->
-            let
-                count =
-                    Maybe.withDefault 0 transaction.presentation.openingAccountCount
-            in
-            String.fromInt count
-                ++ (if count == 1 then
-                        " account"
-
-                    else
-                        " accounts"
-                   )
-
-        _ ->
-            transaction.presentation.totalAmounts
-                |> List.head
-                |> Maybe.map (\amount -> Decimal.toString amount.quantity ++ " " ++ amount.commodity)
-                |> Maybe.withDefault ""
 
 
 postingPreviewRow : Theme -> Posting -> Element msg
@@ -1581,7 +1548,6 @@ sampleResponse =
                 , fromAccounts = [ "assets" ]
                 , toAccounts = [ "expenses" ]
                 , totalAmounts = [ { commodity = "INR", quantity = decimal "3000" } ]
-                , openingAccountCount = Nothing
                 }
           }
         ]
