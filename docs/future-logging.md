@@ -1,8 +1,10 @@
 # Future logging considerations
 
 Hedger currently targets a trusted homelab deployment. Release 1 therefore uses
-`wai-extra`'s stock `logStdout` request logger. It emits conventional access
-logs and avoids a project-specific logging abstraction.
+`wai-extra`'s stock `logStdout` request logger behind a narrow WAI redaction
+adapter. It emits conventional access logs while replacing the hledger `query`
+parameter value with `[REDACTED]` and avoids a project-specific logging
+abstraction.
 
 The `HEDGER_LOG_LEVEL`/`--log-level` configuration is retained for future
 application and journal-loading diagnostics, but it does not filter the stock

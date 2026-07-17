@@ -56,8 +56,13 @@ type Msg
     | Resized Int Int
     | BootstrapLoaded (Result ApiError Bootstrap)
     | RefreshBootstrap
-    | TransactionsLoaded (Result ApiError Api.Transaction.Response)
+    | TransactionsLoaded TransactionsPage.Request (Result ApiError Api.Transaction.Response)
     | RefreshTransactions
+    | EditTransactionQuery String
+    | ApplyTransactionQuery
+    | CancelTransactionQuery
+    | ClearTransactionQuery
+    | LoadMoreTransactions
     | SelectTransaction Api.Transaction.Transaction
     | BackToTransactions
     | ConfigLoaded Decode.Value
@@ -91,28 +96,30 @@ init flags url key =
 
             else
                 Cmd.none
+
+        initialRoute =
+            Route.fromUrl url
+
+        ( initialTransactions, initialTransactionsCommand ) =
+            if initialRoute == Transactions then
+                TransactionsPage.beginLoading TransactionsPage.init
+                    |> (\( transactions, request ) -> ( transactions, fetchTransactions request ))
+
+            else
+                ( TransactionsPage.init, Cmd.none )
     in
     ( { key = key
-      , route = Route.fromUrl url
+      , route = initialRoute
       , viewport = { width = flags.viewportWidth, height = flags.viewportHeight }
       , preferences = Preferences.current initialTheme
       , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
       , bootstrap = Loading Nothing
-      , transactions =
-            if Route.fromUrl url == Transactions then
-                TransactionsPage.beginLoading TransactionsPage.init
-
-            else
-                TransactionsPage.init
+      , transactions = initialTransactions
       }
     , Cmd.batch
         [ redirect
         , Api.getBootstrap BootstrapLoaded
-        , if Route.fromUrl url == Transactions then
-            Api.getTransactions TransactionsLoaded
-
-          else
-            Cmd.none
+        , initialTransactionsCommand
         , Ports.registerServiceWorker ()
         ]
     )
@@ -136,14 +143,19 @@ update msg model =
             let
                 route =
                     Route.fromUrl url
+
+                transactions =
+                    TransactionsPage.beginLoading model.transactions
             in
             if route == Transactions then
-                ( { model
-                    | route = route
-                    , transactions = TransactionsPage.beginLoading model.transactions
-                  }
-                , Api.getTransactions TransactionsLoaded
-                )
+                case transactions of
+                    ( nextTransactions, request ) ->
+                        ( { model
+                            | route = route
+                            , transactions = nextTransactions
+                          }
+                        , fetchTransactions request
+                        )
 
             else
                 ( { model | route = route }, Cmd.none )
@@ -164,13 +176,51 @@ update msg model =
             , Api.getBootstrap BootstrapLoaded
             )
 
-        TransactionsLoaded result ->
-            ( { model | transactions = TransactionsPage.receive result model.transactions }, Cmd.none )
+        TransactionsLoaded request result ->
+            ( { model | transactions = TransactionsPage.receive request result model.transactions }, Cmd.none )
 
         RefreshTransactions ->
-            ( { model | transactions = TransactionsPage.beginLoading model.transactions }
-            , Api.getTransactions TransactionsLoaded
+            let
+                ( transactions, request ) =
+                    TransactionsPage.beginLoading model.transactions
+            in
+            ( { model | transactions = transactions }
+            , fetchTransactions request
             )
+
+        EditTransactionQuery draft ->
+            ( { model | transactions = TransactionsPage.setDraft draft model.transactions }, Cmd.none )
+
+        ApplyTransactionQuery ->
+            let
+                ( transactions, request ) =
+                    TransactionsPage.applyDraft model.transactions
+            in
+            ( { model | transactions = transactions }
+            , fetchTransactions request
+            )
+
+        CancelTransactionQuery ->
+            ( { model | transactions = TransactionsPage.cancelDraft model.transactions }
+            , focus "transaction-query"
+            )
+
+        ClearTransactionQuery ->
+            let
+                ( transactions, request ) =
+                    TransactionsPage.clearQuery model.transactions
+            in
+            ( { model | transactions = transactions }
+            , fetchTransactions request
+            )
+
+        LoadMoreTransactions ->
+            case TransactionsPage.beginLoadingMore model.transactions of
+                Just ( transactions, request ) ->
+                    ( { model | transactions = transactions }, fetchTransactions request )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         SelectTransaction transaction ->
             ( { model | transactions = TransactionsPage.select transaction model.transactions }
@@ -223,6 +273,15 @@ update msg model =
 focus : String -> Cmd Msg
 focus elementId =
     Task.attempt (always NoOp) (Dom.focus elementId)
+
+
+fetchTransactions : TransactionsPage.Request -> Cmd Msg
+fetchTransactions request =
+    Api.getTransactions
+        { query = TransactionsPage.requestQuery request
+        , cursor = TransactionsPage.requestCursor request
+        }
+        (TransactionsLoaded request)
 
 
 subscriptions : Model -> Sub Msg
@@ -301,6 +360,11 @@ pageView theme model =
             , onRefresh = RefreshTransactions
             , onSelect = SelectTransaction
             , onBack = BackToTransactions
+            , onDraftChange = EditTransactionQuery
+            , onApply = ApplyTransactionQuery
+            , onCancel = CancelTransactionQuery
+            , onClear = ClearTransactionQuery
+            , onLoadMore = LoadMoreTransactions
             }
 
     else

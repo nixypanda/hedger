@@ -1,19 +1,24 @@
 module Main (main) where
 
+import Control.DeepSeq (NFData (rnf))
 import Control.Exception (evaluate)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Text qualified as Text
-import Hedger.Domain.Snapshot (Snapshot (transactions), loadSnapshot)
+import Hedger.Domain.Snapshot (Snapshot (transactions))
+import Hedger.Infrastructure.Hledger.SnapshotStore (loadSnapshot)
+import Hedger.Infrastructure.Hledger.TransactionQuery (TransactionPage (transactions), transactionPage)
 import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
 import Hedger.Interface.HTTP.Types (AmountDto (..), CommodityQuantityDto (..), CostDto (..), PostingDto (..), ResponseMetadata (..), TagDto (..), TransactionDto (..), TransactionPresentationDto (..), TransactionsResponse (..))
 import Hledger.Data.Types qualified as Hledger
-import Test.Tasty.Bench (bench, bgroup, defaultMain, env, nf, nfIO)
+import Test.Tasty.Bench (Benchmark, bench, bgroup, defaultMain, env, nf, nfIO)
 
 main :: IO ()
 main =
     defaultMain
         [ bench "snapshot/parse-shared-13" $ nfIO loadAndForceFixture
+        , queryBenchmarks "shared-13" "test/fixtures/shared.journal"
+        , queryBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
         , env loadTransactions $ \transactions ->
             bgroup
                 "transactions"
@@ -24,6 +29,20 @@ main =
                 ]
         ]
 
+newtype BenchSnapshot = BenchSnapshot Snapshot
+
+instance NFData BenchSnapshot where
+    rnf (BenchSnapshot snapshot) = rnf (sum (length . Hledger.tpostings <$> snapshot.transactions))
+
+queryBenchmarks :: String -> Text.Text -> Benchmark
+queryBenchmarks fixtureName fixturePath =
+    env (BenchSnapshot <$> loadFixtureAt fixturePath) $ \(BenchSnapshot snapshot) ->
+        bgroup
+            ("query/" <> fixtureName)
+            [ bench "account" $ nf (queryWeight snapshot) "acct:assets"
+            , bench "boolean" $ nf (queryWeight snapshot) "expr:'(acct:expenses OR desc:Salary)'"
+            ]
+
 loadAndForceFixture :: IO Int
 loadAndForceFixture = do
     result <- loadSnapshot "test/fixtures/shared.journal"
@@ -33,19 +52,33 @@ loadAndForceFixture = do
 
 loadTransactions :: IO [Hledger.Transaction]
 loadTransactions = do
-    result <- loadSnapshot "test/fixtures/shared.journal"
+    (.transactions) <$> loadFixture
+
+loadFixture :: IO Snapshot
+loadFixture = loadFixtureAt "test/fixtures/shared.journal"
+
+loadFixtureAt :: Text.Text -> IO Snapshot
+loadFixtureAt fixturePath = do
+    result <- loadSnapshot fixturePath
     case result of
         Left loadError -> fail (show loadError)
         Right snapshot -> do
             _ <- evaluate (sum (length . Hledger.tpostings <$> snapshot.transactions))
-            pure snapshot.transactions
+            pure snapshot
 
 responseFor :: [Hledger.Transaction] -> TransactionsResponse
 responseFor transactions =
     TransactionsResponse
         { metadata = ResponseMetadata{revision = "benchmark", freshness = "fresh", warnings = []}
         , transactions = toTransactions transactions
+        , nextCursor = Nothing
         }
+
+queryWeight :: Snapshot -> Text.Text -> Int
+queryWeight snapshot query =
+    case transactionPage snapshot (Just query) (Just "50") Nothing of
+        Left _ -> 0
+        Right page -> projectionWeight (toTransactions page.transactions)
 
 projectionWeight :: [TransactionDto] -> Int
 projectionWeight = sum . fmap transactionWeight

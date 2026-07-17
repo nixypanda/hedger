@@ -1,4 +1,4 @@
-module Api.Error exposing (ApiError, decoder, fromHttpError, message)
+module Api.Error exposing (ApiError, ErrorDetails, decoder, fromHttpError, message)
 
 import Http
 import Json.Decode as Decode exposing (Decoder)
@@ -8,16 +8,31 @@ type alias ApiError =
     { code : String
     , message : String
     , requestId : Maybe String
+    , details : Maybe ErrorDetails
+    }
+
+
+type alias ErrorDetails =
+    { reason : String
+    , position : Maybe Int
     }
 
 
 decoder : Decoder ApiError
 decoder =
     Decode.field "error" <|
-        Decode.map3 ApiError
+        Decode.map4 ApiError
             (Decode.field "code" Decode.string)
             (Decode.field "message" Decode.string)
             (Decode.maybe (Decode.field "requestId" Decode.string))
+            (Decode.maybe (Decode.field "details" detailsDecoder))
+
+
+detailsDecoder : Decoder ErrorDetails
+detailsDecoder =
+    Decode.map2 ErrorDetails
+        (Decode.field "reason" Decode.string)
+        (Decode.field "position" (Decode.nullable Decode.int))
 
 
 fromHttpError : Http.Error -> ApiError
@@ -41,14 +56,28 @@ fromHttpError error =
 
 message : ApiError -> String
 message error =
-    case error.requestId of
-        Just requestId ->
-            error.message ++ " (request " ++ requestId ++ ")"
+    let
+        detail =
+            case error.details of
+                Just details ->
+                    " "
+                        ++ details.reason
+                        ++ (details.position
+                                |> Maybe.map (\position -> " (at character " ++ String.fromInt position ++ ")")
+                                |> Maybe.withDefault ""
+                           )
 
-        Nothing ->
-            error.message
+                Nothing ->
+                    ""
+
+        request =
+            error.requestId
+                |> Maybe.map (\requestId -> " (request " ++ requestId ++ ")")
+                |> Maybe.withDefault ""
+    in
+    error.message ++ detail ++ request
 
 
 local : String -> String -> ApiError
 local code detail =
-    { code = code, message = detail, requestId = Nothing }
+    { code = code, message = detail, requestId = Nothing, details = Nothing }

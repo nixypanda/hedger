@@ -31,6 +31,7 @@ library
       Hedger.Domain.Snapshot
       Hedger.Domain.Transaction
       Hedger.Infrastructure.Hledger.SnapshotStore
+      Hedger.Infrastructure.Hledger.TransactionQuery
       Hedger.Interface.HTTP.API
       Hedger.Interface.HTTP.Errors
       Hedger.Interface.HTTP.Middleware
@@ -97,6 +98,7 @@ benchmark snapshot-bench
       aeson >=2.2 && <2.3
     , base >=4.18 && <5
     , bytestring >=0.11 && <0.13
+    , deepseq >=1.4 && <1.6
     , hedger-backend
     , hledger-lib >=1.52 && <1.53
     , tasty-bench >=0.4 && <0.5

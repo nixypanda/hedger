@@ -1,22 +1,27 @@
 module Main (main) where
 
-import Data.Aeson (Value, decode, eitherDecode)
+import Data.Aeson (Value (..), decode, eitherDecode)
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString qualified as ByteString
+import Data.ByteString.Char8 qualified as ByteString.Char8
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Either (isLeft, isRight)
 import Data.List qualified as List
 import Data.Maybe (isJust)
 import Data.Ord (Down (Down))
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TextEncoding
 import Data.Time (Day (ModifiedJulianDay), fromGregorian)
 import Hedgehog (forAll, property, (===))
 import Hedgehog qualified
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Hedger.Config (Config (..), LogLevel (Info), parseConfig)
+import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Snapshot (
     Snapshot (latestJournalDate, revision, transactions),
  )
+import Hedger.Domain.Snapshot qualified as Snapshot
 import Hedger.Domain.Transaction (newestFirst)
 import Hedger.Infrastructure.Hledger.SnapshotStore (
     SnapshotStore,
@@ -26,11 +31,14 @@ import Hedger.Infrastructure.Hledger.SnapshotStore (
     readLastReloadError,
     reloadSnapshot,
  )
+import Hedger.Infrastructure.Hledger.TransactionQuery (TransactionPage (..), maximumQueryLength, transactionPage)
+import Hedger.Interface.HTTP.Middleware (redactQueryString)
 import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
 import Hedger.Interface.HTTP.Types qualified as Types
 import Hedger.Runtime.Server (makeApplication, snapshotAvailable)
 import Hledger.Data.Types qualified as Hledger
-import Network.HTTP.Types (hContentType, methodGet, status200, status404, status503)
+import Network.HTTP.Types (hContentType, methodGet, status200, status400, status404, status503)
+import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Test (SResponse (simpleBody, simpleHeaders, simpleStatus), defaultRequest, request, runSession, setPath)
 import Test.Hspec
@@ -155,6 +163,52 @@ main = hspec $ do
                             fmap (.status) transaction.postings `shouldBe` ["cleared", "unmarked"]
                             fmap (fmap (.name) . (.tags)) transaction.postings `shouldBe` [["method"], []]
 
+    describe "hledger transaction queries" $ do
+        it "uses pinned hledger transaction matching for payee and note" $ do
+            result <- loadSnapshot "test/fixtures/shared.journal"
+            case result of
+                Left loadError -> expectationFailure (show loadError)
+                Right snapshot ->
+                    case snapshot.transactions of
+                        [] -> expectationFailure "The fixture needs a transaction template."
+                        template : _ -> do
+                            let synthetic = template{Hledger.tdescription = "Corner Shop | Weekly groceries"}
+                                syntheticSnapshot :: Snapshot
+                                syntheticSnapshot = snapshot{Snapshot.transactions = [synthetic]}
+                            fmap (length . (.transactions)) (transactionPage syntheticSnapshot (Just "payee:Corner") Nothing Nothing) `shouldBe` Right 1
+                            fmap (length . (.transactions)) (transactionPage syntheticSnapshot (Just "note:Weekly") Nothing Nothing) `shouldBe` Right 1
+
+        it "concatenates cursor pages without gaps or duplicates for generated limits" $ do
+            result <- loadSnapshot "test/fixtures/shared.journal"
+            case result of
+                Left loadError -> expectationFailure (show loadError)
+                Right snapshot -> Hedgehog.check (paginationProperty snapshot) `shouldReturn` True
+
+        it "binds cursors to query, revision, ordering, and relative-date reference" $ do
+            result <- loadSnapshot "test/fixtures/shared.journal"
+            case result of
+                Left loadError -> expectationFailure (show loadError)
+                Right snapshot ->
+                    case transactionPage snapshot (Just "date:thisyear") (Just "1") Nothing of
+                        Left pageError -> expectationFailure (show pageError)
+                        Right first -> case first.nextCursor of
+                            Nothing -> expectationFailure "The relative-date query should have another page."
+                            Just cursor -> do
+                                fmap (length . (.transactions)) (transactionPage snapshot (Just "date:thisyear") (Just "1") (Just cursor))
+                                    `shouldBe` Right 1
+                                transactionPage snapshot (Just "desc:Salary") (Just "1") (Just cursor)
+                                    `shouldSatisfy` isInvalidCursor
+                                transactionPage snapshot{revision = "md5:different"} (Just "date:thisyear") (Just "1") (Just cursor)
+                                    `shouldSatisfy` isInvalidCursor
+                                transactionPage snapshot{latestJournalDate = Just (fromGregorian 2025 4 2)} (Just "date:thisyear") (Just "1") (Just cursor)
+                                    `shouldSatisfy` isInvalidCursor
+                                transactionPage snapshot (Just "date:thisyear") (Just "1") (Just (cursor <> "tampered"))
+                                    `shouldSatisfy` isInvalidCursor
+
+        it "redacts only the hledger query from access-log query strings" $
+            redactQueryString "?query=acct%3Aassets&limit=25&cursor=opaque"
+                `shouldBe` "?query=%5BREDACTED%5D&limit=25&cursor=opaque"
+
         it "derives eLedger list classification and exact headline totals in Haskell" $ do
             result <- loadSnapshot "test/fixtures/shared.journal"
             case result of
@@ -199,6 +253,58 @@ main = hspec $ do
                     length value.transactions `shouldBe` 13
                     sum (length . (.postings) <$> value.transactions) `shouldBe` 27
                     value.transactions `shouldSatisfy` all (not . Text.null . (.description))
+                    value.nextCursor `shouldBe` Nothing
+            emptyQuery <- getQuery "?query=" availableApp >>= decodeTransactions
+            length emptyQuery.transactions `shouldBe` 13
+
+        it "applies representative hledger account, description, code, date, date2, status, commodity, amount, tag, negation, expr, any, and all queries" $ do
+            let cases =
+                    [ ("acct%3Aexpenses", 4)
+                    , ("desc%3ASalary", 2)
+                    , ("code%3AUTIL", 1)
+                    , ("date%3A2024", 2)
+                    , ("date2%3A2024-04-03", 1)
+                    , ("status%3A%2A", 1)
+                    , ("cur%3AAAPL", 1)
+                    , ("amt%3A%3E100000", 1)
+                    , ("tag%3Acategory%3Dhousehold", 1)
+                    , ("not%3Adesc%3ASalary", 11)
+                    , ("expr%3A%27%28desc%3ASalary%20OR%20code%3AUTIL%29%27", 3)
+                    , ("any%3Aacct%3Aexpenses", 4)
+                    , ("all%3Aacct%3Aassets", 3)
+                    ]
+            mapM_ (assertQueryCount availableApp) cases
+
+        it "returns stable safe parser details without echoing the query" $ do
+            response <- getQuery "?query=expr%3A%27%28acct%3Aprivate-secret%20OR%20desc%3ARent%27" availableApp
+            simpleStatus response `shouldBe` status400
+            LazyByteString.toStrict response.simpleBody `shouldSatisfy` (not . ByteString.Char8.isInfixOf "private-secret")
+            expected <- LazyByteString.readFile "test/golden/error-invalid-query.json"
+            json response `shouldBe` decode expected
+
+        it "rejects report options, invalid limits, and overlong queries with stable codes" $ do
+            unsupported <- getQuery "?query=inacct%3Aassets" availableApp
+            errorCode unsupported `shouldBe` Just "unsupported_query_option"
+            json unsupported
+                `shouldBe` decode "{\"error\":{\"code\":\"unsupported_query_option\",\"message\":\"The transaction query uses unsupported report options.\",\"requestId\":\"req_fixture_0001\",\"details\":{\"reason\":\"Unsupported report option(s): inacct:\",\"position\":null}}}"
+            mapM_
+                (\queryString -> getQuery queryString availableApp >>= (\response -> errorCode response `shouldBe` Just "invalid_limit"))
+                ["?limit=0", "?limit=201", "?limit=not-a-number"]
+            let longQuery = "?query=" <> ByteString.replicate (maximumQueryLength + 1) 97
+            overlong <- getQuery longQuery availableApp
+            errorCode overlong `shouldBe` Just "query_too_long"
+
+        it "returns opaque cursor pages and rejects query-conflicting cursors" $ do
+            firstResponse <- getQuery "?query=acct%3Aassets&limit=2" availableApp
+            first <- decodeTransactions firstResponse
+            length first.transactions `shouldBe` 2
+            cursor <- maybe (expectationFailure "Expected a continuation cursor." >> pure "") pure first.nextCursor
+            secondResponse <- getQuery ("?query=acct%3Aassets&limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor) availableApp
+            second <- decodeTransactions secondResponse
+            length second.transactions `shouldBe` 2
+            fmap (.description) first.transactions `shouldNotBe` fmap (.description) second.transactions
+            conflict <- getQuery ("?query=desc%3ASalary&limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor) availableApp
+            errorCode conflict `shouldBe` Just "invalid_cursor"
 
         it "marks retained transaction data stale after a failed reload" $ do
             store <- loadedStore
@@ -257,6 +363,40 @@ getWithRequestId path app =
         (request (setPath defaultRequest{Wai.requestMethod = methodGet, Wai.requestHeaders = [("X-Request-ID", "req_fixture_0001")]} path))
         app
 
+getQuery :: ByteString.ByteString -> Wai.Application -> IO SResponse
+getQuery queryString app =
+    runSession
+        ( request
+            ( (setPath defaultRequest "/api/v1/transactions")
+                { Wai.requestMethod = methodGet
+                , Wai.requestHeaders = [("X-Request-ID", "req_fixture_0001")]
+                , Wai.rawQueryString = queryString
+                , Wai.queryString = HTTP.parseQuery queryString
+                }
+            )
+        )
+        app
+
+decodeTransactions :: SResponse -> IO Types.TransactionsResponse
+decodeTransactions response = do
+    simpleStatus response `shouldBe` status200
+    case eitherDecode response.simpleBody of
+        Left decodeError -> expectationFailure decodeError >> fail decodeError
+        Right value -> pure value
+
+assertQueryCount :: Wai.Application -> (ByteString.ByteString, Int) -> IO ()
+assertQueryCount app (query, expectedCount) = do
+    response <- getQuery ("?query=" <> query) app
+    value <- decodeTransactions response
+    length value.transactions `shouldBe` expectedCount
+
+errorCode :: SResponse -> Maybe Text.Text
+errorCode response = do
+    Object envelope <- decode response.simpleBody
+    Object payload <- KeyMap.lookup "error" envelope
+    String code <- KeyMap.lookup "code" payload
+    pure code
+
 json :: SResponse -> Maybe Value
 json = decode . simpleBody
 
@@ -280,3 +420,20 @@ transactionKey =
     (,)
         <$> (ModifiedJulianDay <$> Gen.integral (Range.linear 40000 80000))
         <*> Gen.integral (Range.linear 0 100000)
+
+paginationProperty :: Snapshot -> Hedgehog.Property
+paginationProperty snapshot = property $ do
+    limit <- forAll (Gen.int (Range.linear 1 13))
+    let expected = fmap (.tdescription) (newestFirst snapshot.transactions)
+        actual = fmap (fmap (.tdescription)) (collectPages snapshot limit Nothing)
+    actual === Right expected
+
+collectPages :: Snapshot -> Int -> Maybe Text.Text -> Either AppError [Hledger.Transaction]
+collectPages snapshot limit cursor = do
+    page <- transactionPage snapshot Nothing (Just (Text.pack (show limit))) cursor
+    rest <- maybe (Right []) (collectPages snapshot limit . Just) page.nextCursor
+    pure (page.transactions <> rest)
+
+isInvalidCursor :: Either AppError value -> Bool
+isInvalidCursor (Left (InvalidCursor _)) = True
+isInvalidCursor _ = False

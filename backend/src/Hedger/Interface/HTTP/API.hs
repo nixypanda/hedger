@@ -23,7 +23,11 @@ type API =
         :> ( "health" :> "live" :> Get '[JSON] Health
                 :<|> "health" :> "ready" :> Get '[JSON] Health
                 :<|> "bootstrap" :> Get '[JSON] Bootstrap
-                :<|> "transactions" :> Get '[JSON] TransactionsResponse
+                :<|> "transactions"
+                    :> QueryParam "query" Text
+                    :> QueryParam "limit" Text
+                    :> QueryParam "cursor" Text
+                    :> Get '[JSON] TransactionsResponse
            )
 
 apiProxy :: Proxy API
@@ -37,7 +41,7 @@ server environment requestId =
     runAction (Health{status = "ok"} <$ liveness)
         :<|> runAction (Health{status = "ok"} <$ readiness)
         :<|> runAction (toBootstrap <$> bootstrap)
-        :<|> runAction (toTransactionsResponse <$> transactionList)
+        :<|> \query limit cursor -> runAction (toTransactionsResponse <$> transactionList query limit cursor)
   where
     effectiveRequestId = maybe "request-id-missing" id requestId
     runAction :: AppM value -> Handler value
@@ -69,6 +73,7 @@ toTransactionsResponse value =
     TransactionsResponse
         { metadata = toResponseMetadata value.metadata
         , transactions = toTransactions value.transactions
+        , nextCursor = value.nextCursor
         }
 
 toResponseMetadata :: SnapshotMetadata -> ResponseMetadata

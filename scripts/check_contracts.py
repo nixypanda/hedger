@@ -13,7 +13,12 @@ contract = json.loads(contract_path.read_text())
 assert contract["openapi"].startswith("3.1.")
 assert contract["servers"] == [{"url": "/api/v1"}]
 assert {"/health/live", "/health/ready", "/bootstrap", "/transactions"} <= set(contract["paths"])
-assert "parameters" not in contract["paths"]["/transactions"]["get"]
+transaction_operation = contract["paths"]["/transactions"]["get"]
+assert {parameter["name"] for parameter in transaction_operation["parameters"]} == {
+    "query",
+    "limit",
+    "cursor",
+}
 
 schemas = contract["components"]["schemas"]
 for path in contract["paths"].values():
@@ -29,7 +34,12 @@ goldens = {path.name: json.loads(path.read_text()) for path in golden_dir.glob("
 assert goldens["bootstrap.json"]["fiscalYearStartMonth"] == 4
 transactions = goldens["transactions.json"]
 assert len(transactions["transactions"]) == 13
+assert transactions["nextCursor"] is None
 assert transactions["metadata"]["revision"] == goldens["bootstrap.json"]["metadata"]["revision"]
 assert all("id" not in transaction and "sourceIndex" not in transaction for transaction in transactions["transactions"])
 error = goldens["error-journal-unavailable.json"]["error"]
 assert set(error) == {"code", "message", "requestId"}
+query_error = goldens["error-invalid-query.json"]["error"]
+assert query_error["code"] == "invalid_query"
+assert set(query_error["details"]) == {"reason", "position"}
+assert "private-secret" not in json.dumps(query_error)

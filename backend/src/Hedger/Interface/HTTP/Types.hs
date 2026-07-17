@@ -119,6 +119,7 @@ Aeson.deriveJSON Aeson.defaultOptions ''TransactionDto
 data TransactionsResponse = TransactionsResponse
     { metadata :: ResponseMetadata
     , transactions :: [TransactionDto]
+    , nextCursor :: Maybe Text
     }
     deriving (Eq, Show)
 

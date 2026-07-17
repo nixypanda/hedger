@@ -16,8 +16,10 @@ The final transaction-list contract is
 `GET /api/v1/transactions?query=...&limit=...&cursor=...`. The backend parses
 and evaluates the single `query` text value with the repository's pinned
 `hledger-lib` version. An absent or empty query matches all transactions.
-`limit` defaults to `50` and is capped at `200`; `cursor` is an opaque
-continuation token bound to the query and journal revision. There is no JSON
+`limit` defaults to `50`, has a minimum of `1`, and is capped at `200`; `cursor`
+is an opaque continuation token bound to the leading/trailing-whitespace-trimmed
+query, journal revision, newest-first ordering, and relative-date reference.
+Query text is limited to `2048` characters. There is no JSON
 request DTO for transaction queries. Successful responses remain JSON API
 responses.
 
@@ -32,8 +34,9 @@ frontend provides a text field with draft/apply/clear behavior, parser errors,
 and concise query-language help. Advanced relationships between posting
 criteria use hledger's own `expr:`, `any:`, and `all:` semantics.
 
-Relative date expressions use one backend-selected reference date that is
-reported in response metadata and retained by continuation cursors. Query
+Relative date expressions use the latest transaction date in the immutable
+journal snapshot (or `1970-01-01` for an empty journal) and that reference is
+retained by continuation cursors. Query
 options that alter report behavior rather than select transactions are rejected.
 Invalid queries return a stable validation error without logging or returning
 the complete query text. The server caps query length, clients URL-encode the

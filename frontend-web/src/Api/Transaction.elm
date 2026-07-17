@@ -17,6 +17,7 @@ import Json.Decode as Decode exposing (Decoder)
 type alias Response =
     { metadata : Metadata
     , transactions : List Transaction
+    , nextCursor : Maybe String
     }
 
 
@@ -79,9 +80,10 @@ type alias Tag =
 
 decoder : Decoder Response
 decoder =
-    Decode.map2 Response
+    Decode.map3 Response
         (Decode.field "metadata" Metadata.decoder)
         (Decode.field "transactions" (Decode.list transactionDecoder))
+        (Decode.field "nextCursor" (Decode.nullable Decode.string))
 
 
 transactionDecoder : Decoder Transaction

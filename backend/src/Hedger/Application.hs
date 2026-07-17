@@ -20,6 +20,7 @@ import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (JournalUnavailable))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.Hledger.SnapshotStore (SnapshotStore, readCurrentSnapshot, readLastReloadError)
+import Hedger.Infrastructure.Hledger.TransactionQuery qualified as TransactionQuery
 import Hledger.Data.Types qualified as Hledger
 
 data SnapshotMetadata = SnapshotMetadata
@@ -39,6 +40,7 @@ data BootstrapInfo = BootstrapInfo
 data TransactionList = TransactionList
     { metadata :: SnapshotMetadata
     , transactions :: [Hledger.Transaction]
+    , nextCursor :: Maybe Text
     }
 
 data Env = Env
@@ -71,14 +73,16 @@ bootstrap = do
             , metadata = responseMetadata
             }
 
-transactionList :: AppM TransactionList
-transactionList = do
+transactionList :: Maybe Text -> Maybe Text -> Maybe Text -> AppM TransactionList
+transactionList query limit cursor = do
     snapshot <- requireSnapshot
+    page <- either throwError pure (TransactionQuery.transactionPage snapshot query limit cursor)
     responseMetadata <- metadataFor snapshot
     pure
         TransactionList
             { metadata = responseMetadata
-            , transactions = snapshot.transactions
+            , transactions = page.transactions
+            , nextCursor = page.nextCursor
             }
 
 requireSnapshot :: AppM Snapshot

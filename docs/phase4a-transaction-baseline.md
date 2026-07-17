@@ -22,3 +22,23 @@ Reproduce the timing with:
 cd backend
 cabal bench --offline snapshot-bench --benchmark-options='--stdev 10 --timeout 5s --time-mode wall --hide-progress'
 ```
+
+## Phase 4B query baseline
+
+The Phase 4B benchmarks parse the hledger query, apply hledger transaction
+matching, order matches, take the first 50 complete transactions, and project
+their DTOs. Journal loading, parsing, finalization, and forcing happen in the
+`tasty-bench` environment before the timed action.
+
+| Fixture | Account query `acct:assets` | Boolean query `expr:'(acct:expenses OR desc:Salary)'` |
+| --- | ---: | ---: |
+| Shared fixture (13 transactions) | 64.3 µs ± 1.9 µs | 79.0 µs ± 4.6 µs |
+| `india-us-portfolio-large-50000.journal` (50,000 transactions) | 93.3 ms ± 7.6 ms | 115 ms ± 9.2 ms |
+
+These timings were measured on the same pinned environment and date described
+above. Reproduce an individual large-fixture case from `backend/` with, for
+example:
+
+```console
+cabal run snapshot-bench -- -p large-50000.account --hide-progress
+```

@@ -1,10 +1,11 @@
-module Api.Client exposing (getBootstrap, getTransactions)
+module Api.Client exposing (getBootstrap, getTransactions, transactionsUrl)
 
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
 import Api.Transaction as Transaction exposing (Response)
 import Http
 import Json.Decode as Decode
+import Url.Builder as UrlBuilder
 
 
 getBootstrap : (Result ApiError Bootstrap -> msg) -> Cmd msg
@@ -15,12 +16,29 @@ getBootstrap toMsg =
         }
 
 
-getTransactions : (Result ApiError Response -> msg) -> Cmd msg
-getTransactions toMsg =
+getTransactions : { query : String, cursor : Maybe String } -> (Result ApiError Response -> msg) -> Cmd msg
+getTransactions request toMsg =
     Http.get
-        { url = "/api/v1/transactions"
+        { url = transactionsUrl request
         , expect = expectApiJson toMsg Transaction.decoder
         }
+
+
+transactionsUrl : { query : String, cursor : Maybe String } -> String
+transactionsUrl request =
+    UrlBuilder.absolute [ "api", "v1", "transactions" ]
+        (List.concat
+            [ if String.isEmpty request.query then
+                []
+
+              else
+                [ UrlBuilder.string "query" request.query ]
+            , [ UrlBuilder.int "limit" 50 ]
+            , request.cursor
+                |> Maybe.map (UrlBuilder.string "cursor" >> List.singleton)
+                |> Maybe.withDefault []
+            ]
+        )
 
 
 expectApiJson : (Result ApiError value -> msg) -> Decode.Decoder value -> Http.Expect msg

@@ -50,10 +50,34 @@
     "/transactions": {
       "get": {
         "operationId": "getTransactions",
+        "description": "Returns complete transaction DTOs matching one hledger query. Empty query matches all. Relative dates are resolved against the snapshot's latest transaction date (1970-01-01 for an empty journal), and that reference is preserved by cursors.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "schema": { "type": "string", "maxLength": 2048 },
+            "description": "One URL-encoded hledger query-language expression. This value is redacted from access logs."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Opaque continuation cursor bound to query, revision, ordering, and relative-date reference."
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Every complete journal transaction, newest first",
+            "description": "One page of complete matching journal transactions, newest first",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TransactionsResponse" } } }
+          },
+          "400": {
+            "description": "Invalid query, limit, unsupported report option, or conflicting cursor",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
           },
           "503": {
             "description": "No usable journal snapshot is available",
@@ -178,10 +202,11 @@
       },
       "TransactionsResponse": {
         "type": "object",
-        "required": ["metadata", "transactions"],
+        "required": ["metadata", "transactions", "nextCursor"],
         "properties": {
           "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
-          "transactions": { "type": "array", "items": { "$ref": "#/components/schemas/Transaction" } }
+          "transactions": { "type": "array", "items": { "$ref": "#/components/schemas/Transaction" } },
+          "nextCursor": { "type": ["string", "null"] }
         },
         "additionalProperties": false
       },
@@ -195,7 +220,16 @@
             "properties": {
               "code": { "type": "string" },
               "message": { "type": "string" },
-              "requestId": { "type": "string" }
+              "requestId": { "type": "string" },
+              "details": {
+                "type": "object",
+                "required": ["reason", "position"],
+                "properties": {
+                  "reason": { "type": "string" },
+                  "position": { "type": ["integer", "null"], "minimum": 1 }
+                },
+                "additionalProperties": false
+              }
             },
             "additionalProperties": false
           }
