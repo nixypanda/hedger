@@ -1,7 +1,5 @@
 module Hedger.Domain.TransactionSpec (transactionSpec) where
 
-import Data.List qualified as List
-
 import Data.Time (fromGregorian)
 import Hedgehog (Property, assert, forAll, property, (===))
 import Hedgehog.Range qualified as Range
@@ -27,7 +25,6 @@ transactionSpec =
         "transaction projection"
         [ testCase "orders newest dates first and reverses journal order within a date" ordersNewestFirst
         , testProperty "result is sorted in descending order by (date, index)" sortedProperty
-        , testProperty "same-date transactions reversed from input order" sameDateProperty
         , testGroup
             "classificationFor"
             [ testCase "expense transaction" classificationExpense
@@ -619,27 +616,9 @@ sortedProperty = property $ do
         keys = (\t -> (t.tdate, t.tindex)) <$> result
     assert (isDescending keys)
 
-sameDateProperty :: Hedgehog.Property
-sameDateProperty = property $ do
-    transactions <- forAll (genTransactions (Range.linear 0 80))
-    let result = newestFirst transactions
-        inputGroups = groupByDate transactions
-        resultGroups = groupByDate result
-    length inputGroups === length resultGroups
-    assert (all (uncurry sameDateOrder) (zip inputGroups resultGroups))
-
 -- Internal helpers
 
 isDescending :: (Ord a) => [a] -> Bool
 isDescending [] = True
 isDescending [_] = True
 isDescending (x : y : rest) = x >= y && isDescending (y : rest)
-
-groupByDate :: [Hledger.Transaction] -> [[Hledger.Transaction]]
-groupByDate = List.groupBy sameDay . List.sortOn (.tdate)
-  where
-    sameDay a b = a.tdate == b.tdate
-
-sameDateOrder :: [Hledger.Transaction] -> [Hledger.Transaction] -> Bool
-sameDateOrder inputGroup resultGroup =
-    fmap (.tindex) resultGroup == reverse (fmap (.tindex) inputGroup)

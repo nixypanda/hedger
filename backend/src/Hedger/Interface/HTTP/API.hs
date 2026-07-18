@@ -8,7 +8,7 @@ where
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson qualified as Aeson
 import Data.Text (Text)
-import Hedger.Application (
+import Hedger.Application.AppM (
     AccountRegister (..),
     AppM,
     BootstrapInfo (..),

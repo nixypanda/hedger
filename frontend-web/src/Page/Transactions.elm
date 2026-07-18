@@ -16,7 +16,6 @@ module Page.Transactions exposing
     , requestCursor
     , requestQuery
     , retainedPageCount
-    , reviewFixtures
     , select
     , selectedTransaction
     , setDraft
@@ -1551,80 +1550,3 @@ amountText amount =
 amountsText : List Amount -> String
 amountsText =
     List.map amountText >> String.join ", "
-
-
-reviewFixtures : Theme -> Element Msg
-reviewFixtures theme =
-    let
-        sampleModel =
-            Model
-                { state =
-                    Showing
-                        (windowFromResponse
-                            (AppliedQuery "")
-                            sampleResponse
-                            OnePage
-                            (List.head sampleResponse.transactions)
-                        )
-                , draft = ""
-                , nextToken = 0
-                }
-    in
-    Element.column [ Element.width Element.fill, Element.spacing 20 ]
-        [ Typography.sectionTitle theme "Transactions · eLedger wide master/detail"
-        , Element.el [ Element.width Element.fill, Element.height (Element.px 720) ]
-            (view theme
-                { width = 1180, height = 720 }
-                sampleModel
-            )
-        , Typography.sectionTitle theme "Transactions · eLedger narrow list"
-        , Element.el [ Element.width (Element.px 360), Element.height (Element.px 680), Element.centerX ]
-            (view theme
-                { width = 360, height = 680 }
-                sampleModel
-            )
-        ]
-
-
-sampleResponse : Response
-sampleResponse =
-    { metadata = { revision = Just "review", freshness = Fresh, warnings = [] }
-    , transactions =
-        [ { primaryDate = "2024-04-02"
-          , secondaryDate = Just "2024-04-03"
-          , status = "cleared"
-          , code = Just "UTIL"
-          , description = "Utilities"
-          , comment = Just "Monthly household bills"
-          , tags = [ { name = "category", value = "household" } ]
-          , postings =
-                [ { account = "expenses:utilities"
-                  , status = "cleared"
-                  , comment = Just "Automatic payment"
-                  , tags = []
-                  , amounts = [ sampleAmount "3000" "INR" ]
-                  }
-                , { account = "assets:cash:checking"
-                  , status = "unmarked"
-                  , comment = Nothing
-                  , tags = []
-                  , amounts = [ sampleAmount "-3000" "INR" ]
-                  }
-                ]
-          , presentation =
-                { classification = "expense"
-                }
-          }
-        ]
-    , nextCursor = Nothing
-    }
-
-
-sampleAmount : String -> String -> Amount
-sampleAmount quantity commodity =
-    { commodity = commodity, quantity = decimal quantity, cost = Nothing }
-
-
-decimal : String -> Decimal.Decimal
-decimal value =
-    Decimal.fromString value |> Result.withDefault Decimal.zero

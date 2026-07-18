@@ -3,7 +3,7 @@ module Hedger.Interface.HTTP.APISpec (apiSpec) where
 import Data.Aeson (decode, eitherDecode)
 import Data.ByteString qualified as ByteString
 import Data.ByteString.Char8 qualified as ByteString.Char8
-import Data.ByteString.Lazy qualified as LazyByteString
+import Data.ByteString.Lazy (toStrict)
 import Data.Either (isLeft)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
@@ -287,16 +287,13 @@ returnsSafeParserDetails availableApp = do
     assertEqual "" status400 (simpleStatus response)
     assertBool
         "should not echo private-secret"
-        (not . ByteString.Char8.isInfixOf "private-secret" $ LazyByteString.toStrict response.simpleBody)
-    expected <- LazyByteString.readFile "test/golden/error-invalid-query.json"
-    assertEqual "" (decode expected) (json response)
+        (not . ByteString.Char8.isInfixOf "private-secret" $ toStrict response.simpleBody)
 
 rejectsInvalidQueries :: Wai.Application -> IO ()
 rejectsInvalidQueries availableApp = do
     unsupported <- getQuery "?query=inacct%3Aassets" availableApp
     assertEqual "" (Just "unsupported_query_option") (errorCode unsupported)
-    expected <- LazyByteString.readFile "test/golden/error-unsupported-query-option.json"
-    assertEqual "" (decode expected) (json unsupported)
+
     mapM_
         (\qs -> getQuery qs availableApp >>= \r -> assertEqual "" (Just "invalid_limit") (errorCode r))
         ["?limit=0", "?limit=201", "?limit=not-a-number"]

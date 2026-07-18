@@ -13,7 +13,6 @@ type Route
     | AccountValue String
     | Transactions
     | Settings
-    | Review
 
 
 parser : Parser (Route -> a) a
@@ -28,7 +27,6 @@ parser =
         , map Accounts (s "accounts")
         , map Transactions (s "transactions")
         , map Settings (s "settings")
-        , map Review (s "review")
         ]
 
 
@@ -78,6 +76,3 @@ toPath route =
 
         Settings ->
             "/settings"
-
-        Review ->
-            "/review"

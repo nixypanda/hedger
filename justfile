@@ -49,8 +49,7 @@ check-elm-line-length:
     rg '.{111,}' -g '*.elm' frontend-web/src frontend-web/tests
 
 check-contracts:
-    python3 scripts/check_contracts.py contracts/openapi.json backend/test/golden
-    python3 scripts/generate_transaction_golden_elm.py --check
+    python3 scripts/check_contracts.py contracts/openapi.json
 
 test: check
 

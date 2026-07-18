@@ -13,7 +13,6 @@ import Element.Font as Font
 import Html.Attributes
 import Json.Decode as Decode
 import Page
-import Page.Transactions as TransactionsPage
 import Ports
 import Preferences exposing (Preferences, ThemeMode(..))
 import Pwa
@@ -25,7 +24,6 @@ import Ui
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Url exposing (Url)
-import View.Charts as Charts
 import View.Shell as Shell
 
 
@@ -267,11 +265,7 @@ pageView theme model =
             pageTitle model.route
 
         subtitle =
-            if model.route == Review then
-                "Reusable visual fixtures for the application foundation."
-
-            else
-                "The application shell is ready; this financial screen arrives in a later phase."
+            "The application shell is ready; this financial screen arrives in a later phase."
 
         actions =
             if model.route == Settings then
@@ -308,12 +302,7 @@ pageView theme model =
                     }
             , Ui.pageContainer device <|
                 bootstrapStatus theme model.bootstrap
-                    :: (if model.route == Review then
-                            reviewGallery theme
-
-                        else
-                            placeholder theme model.route
-                       )
+                    :: placeholder theme model.route
             ]
 
 
@@ -419,33 +408,6 @@ placeholder theme route =
     ]
 
 
-reviewGallery : Theme -> List (Element Msg)
-reviewGallery theme =
-    [ Ui.card theme
-        [ Typography.sectionTitle theme "Controls and states"
-        , Element.wrappedRow [ Element.spacing 8 ]
-            [ Ui.primaryButton theme { label = "Primary", onPress = RefreshBootstrap }
-            , Ui.secondaryButton theme { label = "Secondary", onPress = RefreshBootstrap }
-            , Ui.statusBadge theme Ui.StatusSuccess "Fresh"
-            , Ui.statusBadge theme Ui.StatusWarning "Stale"
-            , Ui.statusBadge theme Ui.StatusDanger "Unavailable"
-            ]
-        ]
-    , Ui.card theme
-        [ Typography.sectionTitle theme "Prepared-series chart primitive"
-        , Charts.barChart theme
-            [ { label = "Apr", value = 42 }
-            , { label = "May", value = 68 }
-            , { label = "Jun", value = 51 }
-            , { label = "Jul", value = 84 }
-            ]
-        ]
-    , Ui.card theme
-        [ Element.map (\_ -> NoOp) (TransactionsPage.reviewFixtures theme)
-        ]
-    ]
-
-
 pageTitle : Route -> String
 pageTitle route =
     case route of
@@ -472,9 +434,6 @@ pageTitle route =
 
         Settings ->
             "Settings"
-
-        Review ->
-            "Review Gallery"
 
 
 focus : String -> Cmd Msg
