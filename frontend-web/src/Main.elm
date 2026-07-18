@@ -1,5 +1,6 @@
 module Main exposing (main)
 
+import Api.Account
 import Api.Bootstrap exposing (Bootstrap)
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
@@ -13,6 +14,8 @@ import Element exposing (Element)
 import Element.Font as Font
 import Html.Attributes
 import Json.Decode as Decode
+import Page.Account as AccountPage
+import Page.AccountRegister as AccountRegisterPage
 import Page.Transactions as TransactionsPage
 import Ports
 import Preferences exposing (Preferences, ThemeMode(..))
@@ -45,6 +48,7 @@ type alias Model =
     , preferences : Preferences
     , pwa : Pwa.Model
     , bootstrap : RemoteData Bootstrap
+    , accounts : AccountPage.Model
     , transactions : TransactionsPage.Model
     }
 
@@ -55,6 +59,12 @@ type Msg
     | UrlChanged Url
     | Resized Int Int
     | BootstrapLoaded (Result ApiError Bootstrap)
+    | AccountsLoaded (Result ApiError Api.Account.Response)
+    | ToggleAccount String
+    | OpenAccount String
+    | OpenAccountValue String
+    | CloseAccountValue
+    | BackToAccounts
     | RefreshBootstrap
     | TransactionsLoaded TransactionsPage.Request (Result ApiError Api.Transaction.Response)
     | RefreshTransactions
@@ -105,6 +115,13 @@ init flags url key =
 
             else
                 ( TransactionsPage.init, Cmd.none )
+
+        ( initialAccounts, initialAccountsCommand ) =
+            if initialRoute == Accounts then
+                ( AccountPage.init, Api.getAccounts Nothing AccountsLoaded )
+
+            else
+                ( AccountPage.init, Cmd.none )
     in
     ( { key = key
       , route = initialRoute
@@ -112,12 +129,14 @@ init flags url key =
       , preferences = Preferences.current initialTheme
       , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
       , bootstrap = Loading Nothing
+      , accounts = initialAccounts
       , transactions = initialTransactions
       }
     , Cmd.batch
         [ redirect
         , Api.getBootstrap BootstrapLoaded
         , initialTransactionsCommand
+        , initialAccountsCommand
         , Ports.registerServiceWorker ()
         ]
     )
@@ -155,6 +174,12 @@ update msg model =
                         , fetchTransactions request
                         )
 
+            else if route == Accounts then
+                ( { model | route = route }, Api.getAccounts Nothing AccountsLoaded )
+
+            else if isAccountValueRoute route then
+                ( { model | route = route }, Api.getAccounts Nothing AccountsLoaded )
+
             else
                 ( { model | route = route }, Cmd.none )
 
@@ -168,6 +193,28 @@ update msg model =
 
                 Err error ->
                     ( { model | bootstrap = Failure error (RemoteData.value model.bootstrap) }, Cmd.none )
+
+        AccountsLoaded result ->
+            ( { model | accounts = AccountPage.receive result model.accounts }, Cmd.none )
+
+        ToggleAccount path ->
+            ( { model | accounts = AccountPage.toggle path model.accounts }, Cmd.none )
+
+        OpenAccount path ->
+            ( model, Nav.pushUrl model.key (Route.toPath (Account path)) )
+
+        OpenAccountValue path ->
+            if Ui.isSmall (Element.classifyDevice model.viewport) then
+                ( model, Nav.pushUrl model.key (Route.toPath (AccountValue path)) )
+
+            else
+                ( { model | accounts = AccountPage.selectValue path model.accounts }, Cmd.none )
+
+        CloseAccountValue ->
+            ( { model | accounts = AccountPage.clearValue model.accounts }, Cmd.none )
+
+        BackToAccounts ->
+            ( model, Nav.pushUrl model.key (Route.toPath Accounts) )
 
         RefreshBootstrap ->
             ( { model | bootstrap = RemoteData.beginLoading model.bootstrap }
@@ -349,27 +396,45 @@ pageView theme model =
             , onLoadMore = LoadMoreTransactions
             }
 
-    else
-        Element.column
-            [ Element.width Element.fill
-            , Element.htmlAttribute (Html.Attributes.class "page-scroll")
-            ]
-            [ Ui.pageHeaderBand theme device <|
-                Ui.pageHeader theme
-                    { leading = Nothing
-                    , title = Typography.pageTitle theme title
-                    , subtitle = Just subtitle
-                    , actions = actions
-                    }
-            , Ui.pageContainer device <|
-                bootstrapStatus theme model.bootstrap
-                    :: (if model.route == Review then
-                            reviewGallery theme
+    else if model.route == Accounts then
+        AccountPage.view theme
+            model.viewport
+            { onToggle = ToggleAccount
+            , onOpen = OpenAccount
+            , onValue = OpenAccountValue
+            , onCloseValue = CloseAccountValue
+            }
+            model.accounts
 
-                        else
-                            placeholder theme model.route
-                       )
-            ]
+    else
+        case model.route of
+            AccountValue accountName ->
+                AccountPage.valueView theme device accountName BackToAccounts model.accounts
+
+            Account accountName ->
+                AccountRegisterPage.view theme device accountName
+
+            _ ->
+                Element.column
+                    [ Element.width Element.fill
+                    , Element.htmlAttribute (Html.Attributes.class "page-scroll")
+                    ]
+                    [ Ui.pageHeaderBand theme device <|
+                        Ui.pageHeader theme
+                            { leading = Nothing
+                            , title = Typography.pageTitle theme title
+                            , subtitle = Just subtitle
+                            , actions = actions
+                            }
+                    , Ui.pageContainer device <|
+                        bootstrapStatus theme model.bootstrap
+                            :: (if model.route == Review then
+                                    reviewGallery theme
+
+                                else
+                                    placeholder theme model.route
+                               )
+                    ]
 
 
 bootstrapStatus : Theme -> RemoteData Bootstrap -> Element Msg
@@ -494,6 +559,12 @@ pageTitle route =
         Accounts ->
             "Accounts"
 
+        Account accountName ->
+            accountName
+
+        AccountValue accountName ->
+            accountName ++ " value"
+
         Transactions ->
             "Transactions"
 
@@ -502,3 +573,13 @@ pageTitle route =
 
         Review ->
             "Review Gallery"
+
+
+isAccountValueRoute : Route -> Bool
+isAccountValueRoute route =
+    case route of
+        AccountValue _ ->
+            True
+
+        _ ->
+            False

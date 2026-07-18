@@ -52,7 +52,7 @@ test: check
 # Run the Phase 2 server against the synthetic fixture.
 [working-directory("backend")]
 serve:
-    cabal run hedger-server -- --journal ../examples/india-us-portfolio-2023-2025.journal 
+    cabal run hedger-server -- --journal ../examples/india-us-portfolio-2023-2025.journal --display-commodity INR
 
 [working-directory("frontend-web")]
 start-frontend:

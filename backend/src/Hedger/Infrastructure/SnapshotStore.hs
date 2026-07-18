@@ -9,6 +9,7 @@ module Hedger.Infrastructure.SnapshotStore (
 )
 where
 
+import Control.Applicative ((<|>))
 import Control.Exception (SomeAsyncException, SomeException, displayException, fromException, tryJust)
 import Crypto.Hash.MD5 qualified as MD5
 import Data.ByteString qualified as ByteString
@@ -18,6 +19,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
 import Data.Word (Word8)
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Read qualified as Hledger
 import Numeric (showHex)
@@ -59,13 +61,17 @@ loadSnapshot configuredPath = do
         journalResult <- either (Left . JournalReadFailed . Text.pack . displayException) Right readResult
         loadedJournal <- either (Left . JournalReadFailed . Text.pack) Right journalResult
         let records = loadedJournal.jtxns
+            postings = concatMap Hledger.tpostings records
         pure
             Snapshot
                 { journal = loadedJournal
                 , transactions = records
+                , accountTree = HledgerAccount.accountFromPostings postingDate postings
                 , latestJournalDate = maximumMaybe (Hledger.tdate <$> records)
                 , revision = journalRevision loadedJournal
                 }
+  where
+    postingDate posting = posting.pdate <|> (Hledger.tdate <$> posting.ptransaction)
 
 readJournal :: Text -> IO (Either SomeException (Either String Hledger.Journal))
 readJournal configuredPath = tryJust synchronousException $ do

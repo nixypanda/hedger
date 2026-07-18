@@ -13,7 +13,11 @@ import Hedger.Infrastructure.SnapshotStore (
     reloadSnapshot,
  )
 import Hedger.Interface.HTTP.Types (
+    AccountNodeDto (..),
+    AccountValuationDto (..),
+    AccountsTreeResponse (..),
     Bootstrap (..),
+    CommodityQuantity (..),
     ResponseMetadata (..),
     TransactionDto (..),
     TransactionsResponse (..),
@@ -43,6 +47,9 @@ apiSpec = withResource setup teardown $ \getApps ->
         [ testCase "serves live, ready, and bootstrap from the fixture" $ do
             (availableApp, _) <- getApps
             servesHealthAndBootstrap availableApp
+        , testCase "serves the hledger-derived account tree" $ do
+            (availableApp, _) <- getApps
+            servesAccountTree availableApp
         , testCase "serves the complete transaction shape and shared response metadata" $ do
             (availableApp, _) <- getApps
             servesTransactionShape availableApp
@@ -114,6 +121,51 @@ servesTransactionShape availableApp = do
             assertEqual "" Nothing value.nextCursor
     emptyQuery <- getQuery "?query=" availableApp >>= decodeTransactions
     assertEqual "" 13 (length emptyQuery.transactions)
+
+servesAccountTree :: Wai.Application -> IO ()
+servesAccountTree availableApp = do
+    response <- get "/api/v1/accounts/tree" availableApp
+    assertEqual "" status200 (simpleStatus response)
+    case eitherDecode response.simpleBody :: Either String AccountsTreeResponse of
+        Left decodeError -> assertFailure decodeError
+        Right value -> do
+            assertEqual "" "fresh" value.metadata.freshness
+            assertEqual "" 5 (length value.accounts)
+            case findAccount "assets" value.accounts of
+                Nothing -> assertFailure "assets account was not returned"
+                Just assets -> do
+                    assertEqual "" (Just "asset") assets.accountType
+                    assertBool "assets should have children" assets.hasChildren
+                    assertBool "assets should expose subtree balances" (not (null assets.subtreeBalances))
+                    assertEqual "" "INR" value.displayCommodity
+                    assertEqual "" "INR" assets.valuation.commodity
+                    assertEqual "" "partial" assets.valuation.completeness
+                    assertBool "assets valuation should retain the target commodity" (any ((== "INR") . (.commodity)) assets.valuation.subtreeBalances)
+                    assertBool "assets should contain cash" (findAccount "assets:cash" assets.children /= Nothing)
+    usdResponse <- get "/api/v1/accounts/tree?commodity=USD" availableApp
+    case eitherDecode usdResponse.simpleBody :: Either String AccountsTreeResponse of
+        Left decodeError -> assertFailure decodeError
+        Right value -> do
+            assertEqual "" "USD" value.displayCommodity
+            case findAccountDeep "assets:investments:stocks" value.accounts of
+                Nothing -> assertFailure "stocks account was not returned"
+                Just stocks -> assertBool "stocks valuation should contain USD" (any ((== "USD") . (.commodity)) stocks.valuation.subtreeBalances)
+
+findAccount :: Text.Text -> [AccountNodeDto] -> Maybe AccountNodeDto
+findAccount wanted = foldr (\account result -> if account.path == wanted then Just account else result) Nothing
+
+findAccountDeep :: Text.Text -> [AccountNodeDto] -> Maybe AccountNodeDto
+findAccountDeep wanted = foldr find Nothing
+  where
+    find account result =
+        if account.path == wanted
+            then
+                Just account
+            else
+                findAccountDeep wanted account.children `orElse` result
+
+    orElse (Just account) _ = Just account
+    orElse Nothing result = result
 
 appliesHledgerQueries :: Wai.Application -> IO ()
 appliesHledgerQueries availableApp = do

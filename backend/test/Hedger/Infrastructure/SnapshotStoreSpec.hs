@@ -13,6 +13,7 @@ import Hedger.Infrastructure.SnapshotStore (
     reloadSnapshot,
  )
 import Hedger.TestHelpers (loadedStore)
+import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Types qualified as Hledger
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
@@ -45,6 +46,10 @@ parsesSharedJournal = do
             assertEqual "" 27 (sum (length . Hledger.tpostings <$> snapshot.transactions))
             assertEqual "" (Just (fromGregorian 2024 4 2)) snapshot.latestJournalDate
             assertBool "revision should start with md5:" (Text.isPrefixOf "md5:" snapshot.revision)
+            assertEqual
+                "account tree should contain hledger's root and posting-derived accounts"
+                ["root", "assets", "assets:cash", "assets:cash:checking"]
+                (take 4 (Hledger.aname <$> HledgerAccount.flattenAccounts snapshot.accountTree))
 
 keepsSnapshotOnFailedReload :: IO ()
 keepsSnapshotOnFailedReload = do

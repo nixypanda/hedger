@@ -181,7 +181,15 @@ navItem : Config msg -> Destination -> Element msg
 navItem config destination =
     let
         active =
-            config.route == destination.route
+            case ( config.route, destination.route ) of
+                ( Account _, Accounts ) ->
+                    True
+
+                ( AccountValue _, Accounts ) ->
+                    True
+
+                _ ->
+                    config.route == destination.route
 
         foreground =
             if active then
@@ -230,7 +238,15 @@ tabItem : Config msg -> Destination -> Element msg
 tabItem config destination =
     let
         active =
-            config.route == destination.route
+            case ( config.route, destination.route ) of
+                ( Account _, Accounts ) ->
+                    True
+
+                ( AccountValue _, Accounts ) ->
+                    True
+
+                _ ->
+                    config.route == destination.route
 
         foreground =
             if active then

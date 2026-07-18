@@ -10,10 +10,10 @@ import Hledger.Data.Types qualified as Hledger
 data Snapshot = Snapshot
     { journal :: Hledger.Journal
     , transactions :: [Hledger.Transaction]
+    , accountTree :: Hledger.Account Hledger.BalanceData
     , latestJournalDate :: Maybe Day
     , revision :: Text
     }
-    deriving (Eq)
 
 instance Show Snapshot where
     show snapshot = "Snapshot{revision=" <> show snapshot.revision <> "}"

@@ -38,6 +38,7 @@ library
       Hedger.Infrastructure.Internal.Cursor
       Hedger.Infrastructure.SnapshotStore
       Hedger.Interface.HTTP.API
+      Hedger.Interface.HTTP.AccountMapper
       Hedger.Interface.HTTP.Errors
       Hedger.Interface.HTTP.Middleware
       Hedger.Interface.HTTP.TransactionMapper

@@ -14,6 +14,7 @@ import Hedger.Application (
     Env,
     SnapshotMetadata (..),
     TransactionList (..),
+    accountsTree,
     bootstrap,
     liveness,
     readiness,
@@ -21,9 +22,11 @@ import Hedger.Application (
     transactionList,
  )
 import Hedger.Domain.Error (AppError)
+import Hedger.Interface.HTTP.AccountMapper (toAccountsTree)
 import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
 import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
 import Hedger.Interface.HTTP.Types (
+    AccountsTreeResponse,
     Bootstrap (..),
     Health (..),
     ResponseMetadata (..),
@@ -36,14 +39,16 @@ type API =
     "api"
         :> "v1"
         :> Header "X-Request-ID" Text
-        :> ( "health" :> "live" :> Get '[JSON] Health
-                :<|> "health" :> "ready" :> Get '[JSON] Health
-                :<|> "bootstrap" :> Get '[JSON] Bootstrap
-                :<|> "transactions"
-                    :> QueryParam "query" Text
-                    :> QueryParam "limit" Text
-                    :> QueryParam "cursor" Text
-                    :> Get '[JSON] TransactionsResponse
+        :> ( ("health" :> "live" :> Get '[JSON] Health)
+                :<|> ("health" :> "ready" :> Get '[JSON] Health)
+                :<|> ("bootstrap" :> Get '[JSON] Bootstrap)
+                :<|> ("accounts" :> "tree" :> QueryParam "commodity" Text :> Get '[JSON] AccountsTreeResponse)
+                :<|> ( "transactions"
+                        :> QueryParam "query" Text
+                        :> QueryParam "limit" Text
+                        :> QueryParam "cursor" Text
+                        :> Get '[JSON] TransactionsResponse
+                     )
            )
 
 apiProxy :: Proxy API
@@ -57,6 +62,7 @@ server environment requestId =
     runAction (Health{status = "ok"} <$ liveness)
         :<|> runAction (Health{status = "ok"} <$ readiness)
         :<|> runAction (toBootstrap <$> bootstrap)
+        :<|> (\commodity -> runAction (toAccountsTree <$> accountsTree commodity))
         :<|> \query limit cursor ->
             runAction (toTransactionsResponse <$> transactionList query limit cursor)
   where

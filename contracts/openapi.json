@@ -85,6 +85,31 @@
           }
         }
       }
+    },
+    "/accounts/tree": {
+      "get": {
+        "operationId": "getAccountsTree",
+        "description": "Returns the complete hledger-derived account hierarchy with raw balances and an optional hledger market valuation. Direct balances exclude child accounts; subtree balances include descendants. The commodity query parameter defaults to the configured display commodity.",
+        "parameters": [
+          {
+            "name": "commodity",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "minLength": 1 },
+            "description": "Commodity for the hledger valuation projection. Raw balances are always returned unchanged."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The complete account hierarchy",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountsTreeResponse" } } }
+          },
+          "503": {
+            "description": "No usable journal snapshot is available",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -207,6 +232,43 @@
           "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
           "transactions": { "type": "array", "items": { "$ref": "#/components/schemas/Transaction" } },
           "nextCursor": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "AccountNode": {
+        "type": "object",
+        "required": ["path", "name", "accountType", "hasChildren", "directBalances", "subtreeBalances", "valuation", "children"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "accountType": { "type": ["string", "null"] },
+          "hasChildren": { "type": "boolean" },
+          "directBalances": { "type": "array", "items": { "$ref": "#/components/schemas/CommodityQuantity" } },
+          "subtreeBalances": { "type": "array", "items": { "$ref": "#/components/schemas/CommodityQuantity" } },
+          "valuation": { "$ref": "#/components/schemas/AccountValuation" },
+          "children": { "type": "array", "items": { "$ref": "#/components/schemas/AccountNode" } }
+        },
+        "additionalProperties": false
+      },
+      "AccountValuation": {
+        "type": "object",
+        "required": ["asOf", "commodity", "directBalances", "subtreeBalances", "completeness"],
+        "properties": {
+          "asOf": { "type": "string", "format": "date" },
+          "commodity": { "type": "string", "minLength": 1 },
+          "directBalances": { "type": "array", "items": { "$ref": "#/components/schemas/CommodityQuantity" } },
+          "subtreeBalances": { "type": "array", "items": { "$ref": "#/components/schemas/CommodityQuantity" } },
+          "completeness": { "type": "string", "enum": ["complete", "partial", "unavailable"] }
+        },
+        "additionalProperties": false
+      },
+      "AccountsTreeResponse": {
+        "type": "object",
+        "required": ["metadata", "displayCommodity", "accounts"],
+        "properties": {
+          "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
+          "displayCommodity": { "type": "string", "minLength": 1 },
+          "accounts": { "type": "array", "items": { "$ref": "#/components/schemas/AccountNode" } }
         },
         "additionalProperties": false
       },

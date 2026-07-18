@@ -79,3 +79,30 @@ An account register returns postings owned by the exact account only. Account
 filters match the selected account and all descendants. Multiple include
 filters use OR; a transaction is excluded when any posting matches an excluded
 subtree.
+
+## Account tree, Phase 5A
+
+Phase 5A exposes only `GET /api/v1/accounts/tree`. The response is built from
+the account hierarchy and balances provided by the pinned `hledger-lib`
+version, then mapped into Hedger-owned DTOs. Hedger must not expose raw
+`hledger-lib` account/report types as JSON.
+
+Each account node contains its exact path and leaf name, an inferred account
+type when available, direct/exclusive balances, subtree/inclusive balances,
+child nodes, and completeness. Direct balances exclude descendants;
+subtree balances include them. The frontend uses the supplied values and does
+not aggregate account balances itself.
+
+Phase 5A deliberately does not add account autocomplete, a separate account
+detail endpoint, or register behavior. Selecting an account is a frontend route
+to a temporary register placeholder. The real exact-account register is Phase
+5B.
+
+The account-tree endpoint now accepts an optional `commodity` query parameter.
+It defaults to the configured display commodity. Raw `directBalances` and
+`subtreeBalances` are always returned unchanged. Each node also contains a
+`valuation` projection produced by hledger's dated market valuation API,
+including the requested commodity, valuation date, converted balances, and a
+`complete`, `partial`, or `unavailable` status. Unconverted commodities remain
+in the valuation projection so the frontend can choose between raw and valued
+views without losing information.

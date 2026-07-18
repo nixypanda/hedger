@@ -1,5 +1,6 @@
-module Api.Client exposing (getBootstrap, getTransactions, transactionsUrl)
+module Api.Client exposing (getAccounts, getBootstrap, getTransactions, transactionsUrl)
 
+import Api.Account as Account exposing (Response)
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
 import Api.Transaction as Transaction exposing (Response)
@@ -14,6 +15,23 @@ getBootstrap toMsg =
         { url = "/api/v1/bootstrap"
         , expect = expectApiJson toMsg Bootstrap.decoder
         }
+
+
+getAccounts : Maybe String -> (Result ApiError Account.Response -> msg) -> Cmd msg
+getAccounts commodity toMsg =
+    Http.get
+        { url = accountsUrl commodity
+        , expect = expectApiJson toMsg Account.decoder
+        }
+
+
+accountsUrl : Maybe String -> String
+accountsUrl commodity =
+    UrlBuilder.absolute [ "api", "v1", "accounts", "tree" ]
+        (commodity
+            |> Maybe.map (UrlBuilder.string "commodity" >> List.singleton)
+            |> Maybe.withDefault []
+        )
 
 
 getTransactions : { query : String, cursor : Maybe String } -> (Result ApiError Response -> msg) -> Cmd msg

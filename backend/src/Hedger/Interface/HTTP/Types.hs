@@ -1,7 +1,11 @@
 module Hedger.Interface.HTTP.Types (
     AmountDto (..),
+    AccountNodeDto (..),
+    AccountValuationDto (..),
+    AccountsTreeResponse (..),
     Bootstrap (..),
     CostDto (..),
+    CommodityQuantity (..),
     Health (..),
     PostingDto (..),
     ResponseMetadata (..),
@@ -110,3 +114,45 @@ data TransactionsResponse = TransactionsResponse
     deriving (Eq, Show)
 
 Aeson.deriveJSON Aeson.defaultOptions ''TransactionsResponse
+
+data CommodityQuantity = CommodityQuantity
+    { commodity :: Text
+    , quantity :: Text
+    }
+    deriving (Eq, Show)
+
+Aeson.deriveJSON Aeson.defaultOptions ''CommodityQuantity
+
+data AccountValuationDto = AccountValuationDto
+    { asOf :: Day
+    , commodity :: Text
+    , directBalances :: [CommodityQuantity]
+    , subtreeBalances :: [CommodityQuantity]
+    , completeness :: Text
+    }
+    deriving (Eq, Show)
+
+Aeson.deriveJSON Aeson.defaultOptions ''AccountValuationDto
+
+data AccountNodeDto = AccountNodeDto
+    { path :: Text
+    , name :: Text
+    , accountType :: Maybe Text
+    , hasChildren :: Bool
+    , directBalances :: [CommodityQuantity]
+    , subtreeBalances :: [CommodityQuantity]
+    , valuation :: AccountValuationDto
+    , children :: [AccountNodeDto]
+    }
+    deriving (Eq, Show)
+
+Aeson.deriveJSON Aeson.defaultOptions ''AccountNodeDto
+
+data AccountsTreeResponse = AccountsTreeResponse
+    { metadata :: ResponseMetadata
+    , displayCommodity :: Text
+    , accounts :: [AccountNodeDto]
+    }
+    deriving (Eq, Show)
+
+Aeson.deriveJSON Aeson.defaultOptions ''AccountsTreeResponse

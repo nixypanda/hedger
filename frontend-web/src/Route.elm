@@ -1,7 +1,7 @@
 module Route exposing (Route(..), fromUrl, parser, toPath)
 
 import Url exposing (Url)
-import Url.Parser exposing (Parser, map, oneOf, s, top)
+import Url.Parser exposing ((</>), Parser, map, oneOf, s, string, top)
 
 
 type Route
@@ -9,6 +9,8 @@ type Route
     | Investments
     | Cashflow
     | Accounts
+    | Account String
+    | AccountValue String
     | Transactions
     | Settings
     | Review
@@ -21,6 +23,8 @@ parser =
         , map NetWorth (s "net-worth")
         , map Investments (s "investments")
         , map Cashflow (s "cashflow")
+        , map AccountValue (s "accounts" </> string </> s "value")
+        , map Account (s "accounts" </> string)
         , map Accounts (s "accounts")
         , map Transactions (s "transactions")
         , map Settings (s "settings")
@@ -48,6 +52,12 @@ toPath route =
 
         Accounts ->
             "/accounts"
+
+        Account accountName ->
+            "/accounts/" ++ Url.percentEncode accountName
+
+        AccountValue accountName ->
+            "/accounts/" ++ Url.percentEncode accountName ++ "/value"
 
         Transactions ->
             "/transactions"

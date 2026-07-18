@@ -1,10 +1,12 @@
 module Hedger.Application.AppM (
     AppM,
+    AccountsTree (..),
     BootstrapInfo (..),
     Env (..),
     SnapshotMetadata (..),
     TransactionList (..),
     bootstrap,
+    accountsTree,
     liveness,
     readiness,
     runAppM,
@@ -15,7 +17,10 @@ where
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (Day, fromGregorian)
 import Hedger.Application.TransactionQuery qualified as TransactionQuery
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (JournalUnavailable))
@@ -34,6 +39,14 @@ data BootstrapInfo = BootstrapInfo
     , appName :: Text
     , fiscalYearStartMonth :: Int
     , metadata :: SnapshotMetadata
+    }
+
+data AccountsTree = AccountsTree
+    { metadata :: SnapshotMetadata
+    , tree :: Hledger.Account Hledger.BalanceData
+    , journal :: Hledger.Journal
+    , displayCommodity :: Text
+    , valuationDate :: Day
     }
 
 data TransactionList = TransactionList
@@ -71,6 +84,20 @@ bootstrap = do
             , metadata = responseMetadata
             }
 
+accountsTree :: Maybe Text -> AppM AccountsTree
+accountsTree requestedCommodity = do
+    snapshot <- requireSnapshot
+    configuredCommodity <- asks (.config.defaultDisplayCommodity)
+    responseMetadata <- metadataFor snapshot
+    pure
+        AccountsTree
+            { metadata = responseMetadata
+            , tree = snapshot.accountTree
+            , journal = snapshot.journal
+            , displayCommodity = fromMaybe configuredCommodity (nonEmpty requestedCommodity)
+            , valuationDate = fromMaybe (fromGregorian 1970 1 1) snapshot.latestJournalDate
+            }
+
 transactionList :: Maybe Text -> Maybe Text -> Maybe Text -> AppM TransactionList
 transactionList query limit cursor = do
     snapshot <- requireSnapshot
@@ -105,3 +132,8 @@ metadataFor snapshot = do
                     (const ["The latest journal reload failed; the last usable snapshot is shown."])
                     reloadError
             }
+
+nonEmpty :: Maybe Text -> Maybe Text
+nonEmpty value = do
+    text <- value
+    if Text.null text then Nothing else Just text
