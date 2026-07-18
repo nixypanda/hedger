@@ -17,7 +17,6 @@ module Page.AccountRegister exposing
     )
 
 import Api.Error as ApiError exposing (ApiError)
-import Api.Metadata as Metadata exposing (Freshness)
 import Api.Register exposing (Completeness(..), Entry, Quantity, Response, Value)
 import Element exposing (Device, Element)
 import Element.Background as Background
@@ -25,12 +24,14 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
+import Lib.Time as TimeExtra
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import View.States as States
 
 
 type alias Model =
@@ -352,7 +353,7 @@ content theme device config =
 registerContent : Theme -> Device -> ViewConfig msg -> Response -> Element msg
 registerContent theme device config response =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
-        [ freshnessNotice theme response
+        [ States.freshnessBanner theme response.metadata.freshness
         , if List.isEmpty response.entries then
             Ui.card theme [ Ui.emptyState theme "No register entries match this date range." ]
 
@@ -360,25 +361,6 @@ registerContent theme device config response =
             registerRows theme device config response.displayCommodity response.entries
         , paging theme config response
         ]
-
-
-freshnessNotice : Theme -> Response -> Element msg
-freshnessNotice theme response =
-    case response.metadata.freshness of
-        Metadata.Fresh ->
-            Element.none
-
-        Metadata.Refreshing ->
-            Ui.statusBadge theme Ui.StatusPrimary "Refreshing register"
-
-        Metadata.Stale ->
-            Ui.statusBadge theme Ui.StatusWarning "Showing a stale journal snapshot"
-
-        Metadata.Partial ->
-            Ui.statusBadge theme Ui.StatusWarning "Register data is partial"
-
-        Metadata.Unavailable ->
-            Ui.errorBanner theme "Register data is unavailable."
 
 
 paging : Theme -> ViewConfig msg -> Response -> Element msg
@@ -398,7 +380,7 @@ paging theme config response =
 registerRows : Theme -> Device -> ViewConfig msg -> String -> List Entry -> Element msg
 registerRows theme device config commodity entries =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
-        (List.map (monthSection theme device config commodity) (groupMonths entries))
+        (List.map (monthSection theme device config commodity) (TimeExtra.groupByKey .date entries))
 
 
 monthSection : Theme -> Device -> ViewConfig msg -> String -> ( String, List Entry ) -> Element msg
@@ -409,29 +391,6 @@ monthSection theme device config commodity ( month, entries ) =
             (Typography.subsectionTitle theme month)
             :: List.map (entryRow theme device config commodity) entries
         )
-
-
-groupMonths : List Entry -> List ( String, List Entry )
-groupMonths entries =
-    List.foldr
-        (\entry groups ->
-            let
-                month =
-                    String.left 7 entry.date
-            in
-            case groups of
-                ( current, grouped ) :: rest ->
-                    if current == month then
-                        ( current, entry :: grouped ) :: rest
-
-                    else
-                        ( month, [ entry ] ) :: groups
-
-                [] ->
-                    [ ( month, [ entry ] ) ]
-        )
-        []
-        entries
 
 
 entryRow : Theme -> Device -> ViewConfig msg -> String -> Entry -> Element msg
@@ -599,7 +558,7 @@ valueDetails theme commodity label value =
     Element.column [ Element.width Element.fill, Element.spacing 8 ]
         [ Typography.subsectionTitle theme label
         , Element.text (displayValue commodity value) |> Element.el [ Font.size 22, Font.semiBold ]
-        , completenessBadge theme value.completeness
+        , States.registerCompletenessBadge theme value.completeness
         , Typography.mutedCaption theme "Raw amounts included"
         , Element.column [ Element.width Element.fill, Element.spacing 8 ] (List.map (rawRow theme) value.raw)
         , if value.completeness == Partial then
@@ -614,19 +573,6 @@ valueDetails theme commodity label value =
 emptyValue : Value
 emptyValue =
     { raw = [], display = [], completeness = Unavailable }
-
-
-completenessBadge : Theme -> Completeness -> Element msg
-completenessBadge theme completeness =
-    case completeness of
-        Complete ->
-            Ui.statusBadge theme Ui.StatusSuccess "Complete valuation"
-
-        Partial ->
-            Ui.statusBadge theme Ui.StatusWarning "Partial valuation"
-
-        Unavailable ->
-            Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
 
 
 rawRow : Theme -> Quantity -> Element msg

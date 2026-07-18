@@ -9,6 +9,7 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
+import Lib.Time as TimeExtra
 import RemoteData exposing (RemoteData(..))
 import Set exposing (Set)
 import State.Viewport exposing (Viewport)
@@ -18,6 +19,8 @@ import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
+import View.Formatting as Formatting
+import View.States as States
 
 
 type Model
@@ -213,24 +216,9 @@ content theme device actions model =
 stateCard : Theme -> Freshness -> Element msg -> Element msg
 stateCard theme freshness tree =
     Ui.card theme
-        ((case freshness of
-            Fresh ->
-                []
-
-            Stale ->
-                [ Ui.statusBadge theme Ui.StatusWarning "Stale snapshot" ]
-
-            Refreshing ->
-                [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing" ]
-
-            Partial ->
-                [ Ui.statusBadge theme Ui.StatusWarning "Partial data" ]
-
-            Unavailable ->
-                [ Ui.statusBadge theme Ui.StatusDanger "Unavailable" ]
-         )
-            ++ [ tree ]
-        )
+        [ States.freshnessBanner theme freshness
+        , tree
+        ]
 
 
 accountTree :
@@ -393,7 +381,7 @@ balanceText theme valuation symbolCount =
             (Element.text
                 (case amount of
                     Just value ->
-                        formatBalance value
+                        Formatting.formatBalance value
 
                     Nothing ->
                         "—"
@@ -413,86 +401,6 @@ balanceText theme valuation symbolCount =
         ]
 
 
-formatBalance : { commodity : String, quantity : String } -> String
-formatBalance balance =
-    case String.toFloat balance.quantity of
-        Just quantity ->
-            formatAmountDisplay
-                (commodityDisplaySymbol balance.commodity)
-                quantity
-
-        Nothing ->
-            commodityDisplaySymbol balance.commodity ++ " " ++ balance.quantity
-
-
-formatAmountDisplay : String -> Float -> String
-formatAmountDisplay symbol amount =
-    let
-        absoluteAmount =
-            abs amount
-
-        sign =
-            if amount < 0 then
-                "-"
-
-            else
-                ""
-
-        ( value, suffix ) =
-            compactValue symbol absoluteAmount
-    in
-    sign ++ symbol ++ value ++ suffix
-
-
-compactValue : String -> Float -> ( String, String )
-compactValue commodity amount =
-    if commodity == "₹" && amount >= 10000000 then
-        ( roundedString (amount / 10000000) 1, "Cr" )
-
-    else if commodity == "₹" && amount >= 100000 then
-        ( roundedString (amount / 100000) 1, "L" )
-
-    else if amount >= 1000000000 then
-        ( roundedString (amount / 1000000000) 1, "B" )
-
-    else if amount >= 1000000 then
-        ( roundedString (amount / 1000000) 1, "M" )
-
-    else if amount >= 1000 then
-        ( roundedString (amount / 1000) 1, "K" )
-
-    else
-        ( roundedString amount 2, "" )
-
-
-roundedString : Float -> Int -> String
-roundedString value decimals =
-    let
-        factor =
-            10 ^ decimals
-
-        rounded =
-            toFloat (round (value * toFloat factor)) / toFloat factor
-
-        raw =
-            String.fromFloat rounded
-    in
-    if String.endsWith ".0" raw then
-        String.dropRight 2 raw
-
-    else
-        raw
-
-
-formatDate : Api.Account.Date -> String
-formatDate (Api.Account.Date date) =
-    String.fromInt date.year
-        ++ "-"
-        ++ String.padLeft 2 '0' (String.fromInt date.month)
-        ++ "-"
-        ++ String.padLeft 2 '0' (String.fromInt date.day)
-
-
 hasMultipleCommodities : List { commodity : String, quantity : String } -> Bool
 hasMultipleCommodities balances =
     case balances of
@@ -509,43 +417,6 @@ commodityCount balances =
         |> List.map .commodity
         |> Set.fromList
         |> Set.size
-
-
-commodityDisplaySymbol : String -> String
-commodityDisplaySymbol commodity =
-    case commodity of
-        "USD" ->
-            "$"
-
-        "INR" ->
-            "₹"
-
-        "EUR" ->
-            "€"
-
-        "GBP" ->
-            "£"
-
-        "JPY" ->
-            "¥"
-
-        "CNY" ->
-            "¥"
-
-        "BTC" ->
-            "₿"
-
-        "CAD" ->
-            "CA$"
-
-        "AUD" ->
-            "AU$"
-
-        "CHF" ->
-            "Fr"
-
-        _ ->
-            commodity
 
 
 valueView : Theme -> Device -> String -> msg -> Model -> Element msg
@@ -614,7 +485,13 @@ valuePanel theme path response =
             , Typography.subsectionTitle theme "Balances included"
             , Element.column [ Element.width Element.fill, Element.spacing 8 ]
                 (List.map (detailBalance theme) account.subtreeBalances)
-            , Element.text ("Valued as of " ++ formatDate account.valuation.asOf)
+            , Element.text
+                (let
+                    (Api.Account.Date date) =
+                        account.valuation.asOf
+                 in
+                 "Valued as of " ++ TimeExtra.formatDate date
+                )
                 |> Element.el [ Font.size 12, Font.color theme.textMuted ]
             ]
 
@@ -652,7 +529,7 @@ formatQuantity : { commodity : String, quantity : String } -> String
 formatQuantity balance =
     case String.toFloat balance.quantity of
         Just quantity ->
-            formatAmountDisplay (commodityDisplaySymbol balance.commodity) quantity
+            Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol balance.commodity) quantity
 
         Nothing ->
             balance.quantity ++ " " ++ balance.commodity

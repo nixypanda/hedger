@@ -31,6 +31,7 @@ import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
+import Lib.Time as TimeExtra
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
@@ -1078,7 +1079,7 @@ transactionsList theme device onSelect selected transactions =
         , Element.spacing 12
         , Element.htmlAttribute (Html.Attributes.id "transaction-list")
         ]
-        (List.map (monthSection theme device onSelect selected) (monthGroups transactions))
+        (List.map (monthSection theme device onSelect selected) (TimeExtra.groupByKey .primaryDate transactions))
 
 
 monthSection :
@@ -1091,7 +1092,7 @@ monthSection :
 monthSection theme device onSelect selected ( month, transactions ) =
     Element.column [ Element.width Element.fill, Element.spacing 4 ]
         (Element.el [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
-            (Typography.subsectionTitle theme (monthLabel month))
+            (Typography.subsectionTitle theme (TimeExtra.monthLabel month))
             :: List.map (transactionRow theme device onSelect selected) transactions
         )
 
@@ -1483,94 +1484,6 @@ amountText amount =
 amountsText : List Amount -> String
 amountsText =
     List.map amountText >> String.join ", "
-
-
-monthGroups : List Transaction -> List ( String, List Transaction )
-monthGroups transactions =
-    case transactions of
-        [] ->
-            []
-
-        first :: _ ->
-            let
-                key =
-                    String.left 7 first.primaryDate
-
-                ( matching, remaining ) =
-                    splitMonth key transactions
-            in
-            ( key, matching ) :: monthGroups remaining
-
-
-splitMonth : String -> List Transaction -> ( List Transaction, List Transaction )
-splitMonth key transactions =
-    case transactions of
-        [] ->
-            ( [], [] )
-
-        first :: rest ->
-            if String.left 7 first.primaryDate == key then
-                let
-                    ( matching, remaining ) =
-                        splitMonth key rest
-                in
-                ( first :: matching, remaining )
-
-            else
-                ( [], transactions )
-
-
-monthLabel : String -> String
-monthLabel value =
-    case String.split "-" value of
-        [ year, month ] ->
-            monthName month ++ " " ++ year
-
-        _ ->
-            value
-
-
-monthName : String -> String
-monthName month =
-    case month of
-        "01" ->
-            "January"
-
-        "02" ->
-            "February"
-
-        "03" ->
-            "March"
-
-        "04" ->
-            "April"
-
-        "05" ->
-            "May"
-
-        "06" ->
-            "June"
-
-        "07" ->
-            "July"
-
-        "08" ->
-            "August"
-
-        "09" ->
-            "September"
-
-        "10" ->
-            "October"
-
-        "11" ->
-            "November"
-
-        "12" ->
-            "December"
-
-        _ ->
-            month
 
 
 reviewFixtures : Theme -> msg -> Element msg
