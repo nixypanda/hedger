@@ -30,7 +30,7 @@ suite =
                                 |> List.map .costType
                             )
                         )
-                    |> Expect.equal (Ok ( 19, 47, [ "total", "unit" ] ))
+                    |> Expect.equal (Ok ( 13, 27, [ "total", "unit" ] ))
         , test "initial load has no stale data" <|
             \_ ->
                 let

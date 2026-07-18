@@ -8,11 +8,14 @@ module Hedger.Interface.HTTP.Types (
     CommodityQuantity (..),
     Health (..),
     PostingDto (..),
+    RegisterEntryDto (..),
+    RegisterValueDto (..),
     ResponseMetadata (..),
     TagDto (..),
     TransactionDto (..),
     TransactionPresentationDto (..),
     TransactionsResponse (..),
+    AccountRegisterResponse (..),
 )
 where
 
@@ -122,6 +125,36 @@ data CommodityQuantity = CommodityQuantity
     deriving (Eq, Show)
 
 Aeson.deriveJSON Aeson.defaultOptions ''CommodityQuantity
+
+data RegisterValueDto = RegisterValueDto
+    { raw :: [CommodityQuantity]
+    , display :: [CommodityQuantity]
+    , completeness :: Text
+    }
+    deriving (Eq, Show)
+
+Aeson.deriveJSON Aeson.defaultOptions ''RegisterValueDto
+
+data RegisterEntryDto = RegisterEntryDto
+    { date :: Day
+    , description :: Text
+    , account :: Text
+    , amount :: RegisterValueDto
+    , balance :: RegisterValueDto
+    }
+    deriving (Eq, Show)
+
+Aeson.deriveJSON Aeson.defaultOptions ''RegisterEntryDto
+
+data AccountRegisterResponse = AccountRegisterResponse
+    { metadata :: ResponseMetadata
+    , displayCommodity :: Text
+    , entries :: [RegisterEntryDto]
+    , nextCursor :: Maybe Text
+    }
+    deriving (Eq, Show)
+
+Aeson.deriveJSON Aeson.defaultOptions ''AccountRegisterResponse
 
 data AccountValuationDto = AccountValuationDto
     { asOf :: Day

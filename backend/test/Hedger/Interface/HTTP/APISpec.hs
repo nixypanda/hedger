@@ -7,17 +7,22 @@ import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Either (isLeft)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
+import Data.Time (fromGregorian)
 import Hedger.Application.TransactionQuery (maximumQueryLength)
+import Hedger.Infrastructure.Internal.Cursor (encodeRegisterCursor)
 import Hedger.Infrastructure.SnapshotStore (
     newSnapshotStore,
     reloadSnapshot,
  )
 import Hedger.Interface.HTTP.Types (
     AccountNodeDto (..),
+    AccountRegisterResponse (..),
     AccountValuationDto (..),
     AccountsTreeResponse (..),
     Bootstrap (..),
     CommodityQuantity (..),
+    RegisterEntryDto (..),
+    RegisterValueDto (..),
     ResponseMetadata (..),
     TransactionDto (..),
     TransactionsResponse (..),
@@ -35,8 +40,9 @@ import Hedger.TestHelpers (
     loadedStore,
  )
 import Network.HTTP.Types (hContentType, status200, status400, status404, status503)
+import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
-import Network.Wai.Test (SResponse (..))
+import Network.Wai.Test (SResponse (..), defaultRequest, request, runSession, setPath)
 import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
@@ -53,6 +59,12 @@ apiSpec = withResource setup teardown $ \getApps ->
         , testCase "serves the complete transaction shape and shared response metadata" $ do
             (availableApp, _) <- getApps
             servesTransactionShape availableApp
+        , testCase "serves chronological, valued account-register rows" $ do
+            (availableApp, _) <- getApps
+            servesAccountRegister availableApp
+        , testCase "filters, paginates, and binds account-register cursors" $ do
+            (availableApp, _) <- getApps
+            filtersAndPaginatesAccountRegister availableApp
         , testCase "applies hledger account, description, code, date, status, amount, tag queries" $ do
             (availableApp, _) <- getApps
             appliesHledgerQueries availableApp
@@ -151,6 +163,89 @@ servesAccountTree availableApp = do
                 Nothing -> assertFailure "stocks account was not returned"
                 Just stocks -> assertBool "stocks valuation should contain USD" (any ((== "USD") . (.commodity)) stocks.valuation.subtreeBalances)
 
+servesAccountRegister :: Wai.Application -> IO ()
+servesAccountRegister availableApp = do
+    leaf <- getRegister "/api/v1/accounts/assets:cash:checking/register?limit=3" availableApp >>= decodeRegister
+    assertEqual "" [fromGregorian 2023 3 31, fromGregorian 2023 4 3, fromGregorian 2023 4 5] (fmap (.date) leaf.entries)
+    firstLeaf <- firstEntry "leaf register" leaf.entries
+    assertEqual "" "Opening balances" firstLeaf.description
+    assertEqual "" "assets:cash:checking" firstLeaf.account
+    assertEqual "" "INR" leaf.displayCommodity
+    assertEqual "" "100000" (firstQuantity firstLeaf.amount.raw)
+    assertEqual "" "100000" (firstQuantity firstLeaf.balance.raw)
+    usd <- getRegister "/api/v1/accounts/assets:cash:usd/register" availableApp >>= decodeRegister
+    firstUsd <- firstEntry "USD register" usd.entries
+    assertEqual "" "8200" (firstQuantity firstUsd.amount.display)
+    parent <- getRegister "/api/v1/accounts/assets:cash/register" availableApp >>= decodeRegister
+    case findEntry "Cash transfer" parent.entries of
+        Nothing -> assertFailure "cash transfer was not returned for the parent account"
+        Just entry -> assertEqual "" "assets:cash:wallet, assets:cash:checking" entry.account
+    case findEntry "Opening unpriced balance" parent.entries of
+        Nothing -> assertFailure "JPY opening row was not returned"
+        Just entry -> assertEqual "" "partial" entry.balance.completeness
+
+filtersAndPaginatesAccountRegister :: Wai.Application -> IO ()
+filtersAndPaginatesAccountRegister availableApp = do
+    filtered <- getRegister "/api/v1/accounts/assets:cash:checking/register?from=2024-04-01&to=2024-04-02" availableApp >>= decodeRegister
+    assertEqual "" [fromGregorian 2024 4 1, fromGregorian 2024 4 2] (fmap (.date) filtered.entries)
+    first <- getRegister "/api/v1/accounts/assets:cash:checking/register?limit=2" availableApp >>= decodeRegister
+    cursor <- case first.nextCursor of
+        Nothing -> assertFailure "expected a register continuation cursor" >> pure ""
+        Just value -> pure value
+    second <- getRegister ("/api/v1/accounts/assets:cash:checking/register?limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor) availableApp >>= decodeRegister
+    assertEqual "" 2 (length second.entries)
+    firstSecondPage <- firstEntry "second register page" second.entries
+    assertEqual "" "147500" (firstQuantity firstSecondPage.balance.raw)
+    mapM_
+        (\path -> getRegister path availableApp >>= \response -> assertEqual "" (Just "invalid_cursor") (errorCode response))
+        [ "/api/v1/accounts/assets:cash:wallet/register?limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor
+        , "/api/v1/accounts/assets:cash:checking/register?commodity=USD&limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor
+        , "/api/v1/accounts/assets:cash:checking/register?from=2024-01-01&limit=2&cursor=" <> TextEncoding.encodeUtf8 cursor
+        , "/api/v1/accounts/assets:cash:checking/register?limit=2&cursor=" <> TextEncoding.encodeUtf8 (encodeRegisterCursor "other-revision" "assets:cash:checking" "INR" Nothing Nothing 2)
+        ]
+    mapM_
+        (\(path, expectedCode) -> getRegister path availableApp >>= \response -> assertEqual "" (Just expectedCode) (errorCode response))
+        [ ("/api/v1/accounts/assets:cash:checking/register?from=invalid", "invalid_date")
+        , ("/api/v1/accounts/assets:cash:checking/register?from=2024-04-02&to=2024-04-01", "invalid_date_range")
+        , ("/api/v1/accounts/assets:cash:checking/register?limit=201", "invalid_limit")
+        ]
+
+getRegister :: ByteString.ByteString -> Wai.Application -> IO SResponse
+getRegister path app =
+    runSession
+        ( request
+            ( (setPath defaultRequest pathOnly)
+                { Wai.requestMethod = "GET"
+                , Wai.requestHeaders = [("X-Request-ID", "req_fixture_0001")]
+                , Wai.rawQueryString = queryString
+                , Wai.queryString = HTTP.parseQuery queryString
+                }
+            )
+        )
+        app
+  where
+    (pathOnly, queryString) = ByteString.break (== 63) path
+
+decodeRegister :: SResponse -> IO AccountRegisterResponse
+decodeRegister response = do
+    assertEqual "" status200 (simpleStatus response)
+    case eitherDecode response.simpleBody of
+        Left decodeError -> assertFailure decodeError
+        Right value -> pure value
+
+findEntry :: Text.Text -> [RegisterEntryDto] -> Maybe RegisterEntryDto
+findEntry description = foldr (\entry result -> if entry.description == description then Just entry else result) Nothing
+
+firstEntry :: String -> [RegisterEntryDto] -> IO RegisterEntryDto
+firstEntry label entries = case entries of
+    entry : _ -> pure entry
+    [] -> assertFailure ("expected an entry in the " <> label) >> pure (error "unreachable")
+
+firstQuantity :: [CommodityQuantity] -> Text.Text
+firstQuantity values = case values of
+    amount : _ -> amount.quantity
+    [] -> ""
+
 findAccount :: Text.Text -> [AccountNodeDto] -> Maybe AccountNodeDto
 findAccount wanted = foldr (\account result -> if account.path == wanted then Just account else result) Nothing
 
@@ -240,6 +335,9 @@ marksStaleAfterFailedReload = do
             assertEqual "" "stale" value.metadata.freshness
             assertBool "should have warnings" (not . null $ value.metadata.warnings)
             assertEqual "" 13 (length value.transactions)
+    registerResponse <- getRegister "/api/v1/accounts/assets:cash:checking/register" (makeApplication configuration store)
+    register <- decodeRegister registerResponse
+    assertEqual "" "stale" register.metadata.freshness
 
 reportsUnavailableSnapshot :: Wai.Application -> IO ()
 reportsUnavailableSnapshot unavailableApp = do

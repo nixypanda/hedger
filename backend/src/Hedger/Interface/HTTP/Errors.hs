@@ -46,6 +46,8 @@ appErrorStatus (InvalidQuery _ _) = HTTP.status400
 appErrorStatus (UnsupportedQueryOption _) = HTTP.status400
 appErrorStatus (InvalidCursor _) = HTTP.status400
 appErrorStatus (InvalidLimit _ _) = HTTP.status400
+appErrorStatus InvalidDate = HTTP.status400
+appErrorStatus InvalidDateRange = HTTP.status400
 appErrorStatus (QueryTooLong _) = HTTP.status400
 appErrorStatus InternalError = HTTP.status500
 
@@ -67,6 +69,8 @@ toEnvelope requestIdentifier appError =
     errorCode (UnsupportedQueryOption _) = "unsupported_query_option"
     errorCode (InvalidCursor _) = "invalid_cursor"
     errorCode (InvalidLimit _ _) = "invalid_limit"
+    errorCode InvalidDate = "invalid_date"
+    errorCode InvalidDateRange = "invalid_date_range"
     errorCode (QueryTooLong _) = "query_too_long"
     errorCode InternalError = "internal_error"
 
@@ -77,6 +81,8 @@ toEnvelope requestIdentifier appError =
     errorMessage (InvalidCursor detail) = detail
     errorMessage (InvalidLimit lowerBound upperBound) =
         "The limit must be between " <> showText lowerBound <> " and " <> showText upperBound <> "."
+    errorMessage InvalidDate = "Dates must use ISO-8601 YYYY-MM-DD format."
+    errorMessage InvalidDateRange = "The from date must not be after the to date."
     errorMessage (QueryTooLong upperBound) =
         "The query must not exceed " <> showText upperBound <> " characters."
     errorMessage InternalError = "An unexpected server error occurred."

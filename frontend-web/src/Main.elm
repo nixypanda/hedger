@@ -5,6 +5,7 @@ import Api.Bootstrap exposing (Bootstrap)
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..))
+import Api.Register
 import Api.Transaction
 import Browser
 import Browser.Dom as Dom
@@ -50,6 +51,7 @@ type alias Model =
     , bootstrap : RemoteData Bootstrap
     , accounts : AccountPage.Model
     , transactions : TransactionsPage.Model
+    , accountRegister : AccountRegisterPage.Model
     }
 
 
@@ -73,6 +75,13 @@ type Msg
     | LoadMoreTransactions
     | SelectTransaction Api.Transaction.Transaction
     | BackToTransactions
+    | AccountRegisterLoaded AccountRegisterPage.Request (Result ApiError Api.Register.Response)
+    | RefreshAccountRegister
+    | EditRegisterFrom String
+    | EditRegisterTo String
+    | LoadMoreRegister
+    | SelectRegisterDetail Api.Register.Entry
+    | CloseRegisterDetail
     | ConfigLoaded Decode.Value
     | ToggleTheme
     | PwaMsg Pwa.Msg
@@ -122,6 +131,15 @@ init flags url key =
 
             else
                 ( AccountPage.init, Cmd.none )
+
+        ( initialRegister, initialRegisterCommand ) =
+            case initialRoute of
+                Account accountName ->
+                    AccountRegisterPage.beginLoading accountName AccountRegisterPage.init
+                        |> (\( register, request ) -> ( register, fetchAccountRegister request ))
+
+                _ ->
+                    ( AccountRegisterPage.init, Cmd.none )
     in
     ( { key = key
       , route = initialRoute
@@ -131,12 +149,14 @@ init flags url key =
       , bootstrap = Loading Nothing
       , accounts = initialAccounts
       , transactions = initialTransactions
+      , accountRegister = initialRegister
       }
     , Cmd.batch
         [ redirect
         , Api.getBootstrap BootstrapLoaded
         , initialTransactionsCommand
         , initialAccountsCommand
+        , initialRegisterCommand
         , Ports.registerServiceWorker ()
         ]
     )
@@ -181,7 +201,16 @@ update msg model =
                 ( { model | route = route }, Api.getAccounts Nothing AccountsLoaded )
 
             else
-                ( { model | route = route }, Cmd.none )
+                case route of
+                    Account accountName ->
+                        let
+                            ( accountRegister, request ) =
+                                AccountRegisterPage.beginLoading accountName model.accountRegister
+                        in
+                        ( { model | route = route, accountRegister = accountRegister }, fetchAccountRegister request )
+
+                    _ ->
+                        ( { model | route = route }, Cmd.none )
 
         Resized width height ->
             ( { model | viewport = { width = width, height = height } }, Cmd.none )
@@ -267,6 +296,50 @@ update msg model =
             , focus "transaction-list"
             )
 
+        AccountRegisterLoaded request result ->
+            ( { model | accountRegister = AccountRegisterPage.receive request result model.accountRegister }, Cmd.none )
+
+        RefreshAccountRegister ->
+            let
+                ( accountRegister, request ) =
+                    AccountRegisterPage.beginLoading model.accountRegister.account model.accountRegister
+            in
+            ( { model | accountRegister = accountRegister }, fetchAccountRegister request )
+
+        EditRegisterFrom value ->
+            let
+                changed =
+                    AccountRegisterPage.setFrom value model.accountRegister
+
+                ( accountRegister, request ) =
+                    AccountRegisterPage.beginLoading changed.account changed
+            in
+            ( { model | accountRegister = accountRegister }, fetchAccountRegister request )
+
+        EditRegisterTo value ->
+            let
+                changed =
+                    AccountRegisterPage.setTo value model.accountRegister
+
+                ( accountRegister, request ) =
+                    AccountRegisterPage.beginLoading changed.account changed
+            in
+            ( { model | accountRegister = accountRegister }, fetchAccountRegister request )
+
+        LoadMoreRegister ->
+            case AccountRegisterPage.beginLoadingMore model.accountRegister of
+                Just ( accountRegister, request ) ->
+                    ( { model | accountRegister = accountRegister }, fetchAccountRegister request )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        SelectRegisterDetail entry ->
+            ( { model | accountRegister = AccountRegisterPage.selectDetail entry model.accountRegister }, Cmd.none )
+
+        CloseRegisterDetail ->
+            ( { model | accountRegister = AccountRegisterPage.clearDetail model.accountRegister }, Cmd.none )
+
         ConfigLoaded value ->
             case Decode.decodeValue Preferences.decoder value of
                 Ok preferences ->
@@ -313,6 +386,18 @@ fetchTransactions request =
         , cursor = TransactionsPage.requestCursor request
         }
         (TransactionsLoaded request)
+
+
+fetchAccountRegister : AccountRegisterPage.Request -> Cmd Msg
+fetchAccountRegister request =
+    Api.getAccountRegister
+        { account = AccountRegisterPage.requestAccount request
+        , commodity = Nothing
+        , from = AccountRegisterPage.requestFrom request
+        , to = AccountRegisterPage.requestTo request
+        , cursor = AccountRegisterPage.requestCursor request
+        }
+        (AccountRegisterLoaded request)
 
 
 subscriptions : Model -> Sub Msg
@@ -412,7 +497,17 @@ pageView theme model =
                 AccountPage.valueView theme device accountName BackToAccounts model.accounts
 
             Account accountName ->
-                AccountRegisterPage.view theme device accountName
+                AccountRegisterPage.view theme
+                    model.viewport
+                    { model = model.accountRegister
+                    , onBack = BackToAccounts
+                    , onFromChange = EditRegisterFrom
+                    , onToChange = EditRegisterTo
+                    , onRefresh = RefreshAccountRegister
+                    , onLoadMore = LoadMoreRegister
+                    , onDetail = SelectRegisterDetail
+                    , onCloseDetail = CloseRegisterDetail
+                    }
 
             _ ->
                 Element.column

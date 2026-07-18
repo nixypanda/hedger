@@ -35,7 +35,21 @@ parser =
 fromUrl : Url -> Route
 fromUrl url =
     Url.Parser.parse parser url
+        |> Maybe.map decodeAccountRoute
         |> Maybe.withDefault NetWorth
+
+
+decodeAccountRoute : Route -> Route
+decodeAccountRoute route =
+    case route of
+        Account accountName ->
+            Account (Url.percentDecode accountName |> Maybe.withDefault accountName)
+
+        AccountValue accountName ->
+            AccountValue (Url.percentDecode accountName |> Maybe.withDefault accountName)
+
+        _ ->
+            route
 
 
 toPath : Route -> String

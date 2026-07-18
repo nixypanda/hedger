@@ -1,12 +1,15 @@
 module Hedger.Application.AppM (
     AppM,
     AccountsTree (..),
+    AccountRegister (..),
     BootstrapInfo (..),
     Env (..),
     SnapshotMetadata (..),
+    RegisterRequest (..),
     TransactionList (..),
     bootstrap,
     accountsTree,
+    accountRegister,
     liveness,
     readiness,
     runAppM,
@@ -21,6 +24,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, fromGregorian)
+import Hedger.Application.AccountRegisterQuery qualified as AccountRegisterQuery
 import Hedger.Application.TransactionQuery qualified as TransactionQuery
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (JournalUnavailable))
@@ -52,6 +56,22 @@ data AccountsTree = AccountsTree
 data TransactionList = TransactionList
     { metadata :: SnapshotMetadata
     , transactions :: [Hledger.Transaction]
+    , nextCursor :: Maybe Text
+    }
+
+data RegisterRequest = RegisterRequest
+    { account :: Text
+    , commodity :: Maybe Text
+    , from :: Maybe Text
+    , to :: Maybe Text
+    , limit :: Maybe Text
+    , cursor :: Maybe Text
+    }
+
+data AccountRegister = AccountRegister
+    { metadata :: SnapshotMetadata
+    , displayCommodity :: Text
+    , entries :: [AccountRegisterQuery.RegisterEntry]
     , nextCursor :: Maybe Text
     }
 
@@ -107,6 +127,30 @@ transactionList query limit cursor = do
         TransactionList
             { metadata = responseMetadata
             , transactions = page.transactions
+            , nextCursor = page.nextCursor
+            }
+
+accountRegister :: RegisterRequest -> AppM AccountRegister
+accountRegister request = do
+    snapshot <- requireSnapshot
+    configuredCommodity <- asks (.config.defaultDisplayCommodity)
+    let resolvedCommodity = fromMaybe configuredCommodity (nonEmpty request.commodity)
+    page <-
+        either throwError pure $
+            AccountRegisterQuery.registerPage
+                snapshot
+                request.account
+                resolvedCommodity
+                request.from
+                request.to
+                request.limit
+                request.cursor
+    responseMetadata <- metadataFor snapshot
+    pure
+        AccountRegister
+            { metadata = responseMetadata
+            , displayCommodity = resolvedCommodity
+            , entries = page.entries
             , nextCursor = page.nextCursor
             }
 

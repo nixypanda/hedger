@@ -30,10 +30,10 @@ suite =
             ]
         , test "root and visible routes parse" <|
             \_ ->
-                [ "/", "/net-worth", "/investments", "/cashflow", "/accounts", "/transactions", "/settings" ]
+                [ "/", "/net-worth", "/investments", "/cashflow", "/accounts", "/accounts/Assets%3ACash", "/transactions", "/settings" ]
                     |> List.filterMap (\path -> Url.fromString ("https://hedger.test" ++ path))
                     |> List.map Route.fromUrl
-                    |> Expect.equal [ NetWorth, NetWorth, Investments, Cashflow, Accounts, Transactions, Settings ]
+                    |> Expect.equal [ NetWorth, NetWorth, Investments, Cashflow, Accounts, Account "Assets:Cash", Transactions, Settings ]
         , test "loading preserves stale content" <|
             \_ ->
                 Success 42

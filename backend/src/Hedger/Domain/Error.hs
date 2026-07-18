@@ -12,6 +12,8 @@ data AppError
     | UnsupportedQueryOption Text
     | InvalidCursor Text
     | InvalidLimit Int Int
+    | InvalidDate
+    | InvalidDateRange
     | QueryTooLong Int
     | InternalError
     deriving (Eq, Show)

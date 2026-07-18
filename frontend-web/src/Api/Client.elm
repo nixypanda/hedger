@@ -1,8 +1,9 @@
-module Api.Client exposing (getAccounts, getBootstrap, getTransactions, transactionsUrl)
+module Api.Client exposing (getAccountRegister, getAccounts, getBootstrap, getTransactions, transactionsUrl)
 
 import Api.Account as Account exposing (Response)
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
+import Api.Register as Register
 import Api.Transaction as Transaction exposing (Response)
 import Http
 import Json.Decode as Decode
@@ -40,6 +41,49 @@ getTransactions request toMsg =
         { url = transactionsUrl request
         , expect = expectApiJson toMsg Transaction.decoder
         }
+
+
+getAccountRegister :
+    { account : String
+    , commodity : Maybe String
+    , from : Maybe String
+    , to : Maybe String
+    , cursor : Maybe String
+    }
+    -> (Result ApiError Register.Response -> msg)
+    -> Cmd msg
+getAccountRegister request toMsg =
+    Http.get
+        { url = accountRegisterUrl request
+        , expect = expectApiJson toMsg Register.decoder
+        }
+
+
+accountRegisterUrl :
+    { account : String
+    , commodity : Maybe String
+    , from : Maybe String
+    , to : Maybe String
+    , cursor : Maybe String
+    }
+    -> String
+accountRegisterUrl request =
+    UrlBuilder.absolute [ "api", "v1", "accounts", request.account, "register" ]
+        (List.concat
+            [ [ UrlBuilder.int "limit" 50 ]
+            , optionalQuery "commodity" request.commodity
+            , optionalQuery "from" request.from
+            , optionalQuery "to" request.to
+            , optionalQuery "cursor" request.cursor
+            ]
+        )
+
+
+optionalQuery : String -> Maybe String -> List UrlBuilder.QueryParameter
+optionalQuery name value =
+    value
+        |> Maybe.map (UrlBuilder.string name >> List.singleton)
+        |> Maybe.withDefault []
 
 
 transactionsUrl : { query : String, cursor : Maybe String } -> String

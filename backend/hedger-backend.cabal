@@ -26,6 +26,7 @@ library
   import:               language-settings
   exposed-modules:
       Hedger.Application
+      Hedger.Application.AccountRegisterQuery
       Hedger.Application.AppM
       Hedger.Application.TransactionQuery
       Hedger.Config
@@ -39,6 +40,7 @@ library
       Hedger.Infrastructure.SnapshotStore
       Hedger.Interface.HTTP.API
       Hedger.Interface.HTTP.AccountMapper
+      Hedger.Interface.HTTP.RegisterMapper
       Hedger.Interface.HTTP.Errors
       Hedger.Interface.HTTP.Middleware
       Hedger.Interface.HTTP.TransactionMapper
