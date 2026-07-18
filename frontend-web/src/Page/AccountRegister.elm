@@ -1,9 +1,12 @@
 module Page.AccountRegister exposing
     ( Model
+    , Msg(..)
+    , OutMsg(..)
     , Request
     , beginLoading
     , beginLoadingMore
     , clearDetail
+    , fetch
     , init
     , receive
     , requestAccount
@@ -13,9 +16,11 @@ module Page.AccountRegister exposing
     , selectDetail
     , setFrom
     , setTo
+    , update
     , view
     )
 
+import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Register exposing (Completeness(..), Entry, Quantity, Response, Value)
 import Element exposing (Device, Element)
@@ -26,6 +31,7 @@ import Element.Input as Input
 import Html.Attributes
 import Lib.Time as TimeExtra
 import RemoteData exposing (RemoteData(..))
+import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
@@ -60,16 +66,20 @@ type alias Request =
     }
 
 
-type alias ViewConfig msg =
-    { model : Model
-    , onBack : msg
-    , onFromChange : String -> msg
-    , onToChange : String -> msg
-    , onRefresh : msg
-    , onLoadMore : msg
-    , onDetail : Entry -> msg
-    , onCloseDetail : msg
-    }
+type Msg
+    = BackToAccounts
+    | FromChange String
+    | ToChange String
+    | Refresh
+    | LoadMore
+    | SelectDetail Entry
+    | CloseDetail
+    | Loaded Request (Result ApiError Response)
+
+
+type OutMsg
+    = NoOutMsg
+    | Navigate Route
 
 
 init : Model
@@ -83,6 +93,74 @@ init =
     , loadingMore = False
     , detail = NoDetail
     }
+
+
+update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
+update msg model =
+    case msg of
+        BackToAccounts ->
+            ( model, Cmd.none, Navigate Accounts )
+
+        FromChange value ->
+            let
+                changed =
+                    setFrom value model
+
+                ( nextModel, request ) =
+                    beginLoading changed.account changed
+            in
+            ( nextModel, fetchAccountRegister request, NoOutMsg )
+
+        ToChange value ->
+            let
+                changed =
+                    setTo value model
+
+                ( nextModel, request ) =
+                    beginLoading changed.account changed
+            in
+            ( nextModel, fetchAccountRegister request, NoOutMsg )
+
+        Refresh ->
+            let
+                ( nextModel, request ) =
+                    beginLoading model.account model
+            in
+            ( nextModel, fetchAccountRegister request, NoOutMsg )
+
+        LoadMore ->
+            case beginLoadingMore model of
+                Just ( nextModel, request ) ->
+                    ( nextModel, fetchAccountRegister request, NoOutMsg )
+
+                Nothing ->
+                    ( model, Cmd.none, NoOutMsg )
+
+        SelectDetail entry ->
+            ( selectDetail entry model, Cmd.none, NoOutMsg )
+
+        CloseDetail ->
+            ( clearDetail model, Cmd.none, NoOutMsg )
+
+        Loaded request result ->
+            ( receive request result model, Cmd.none, NoOutMsg )
+
+
+fetchAccountRegister : Request -> Cmd Msg
+fetchAccountRegister request =
+    Api.getAccountRegister
+        { account = requestAccount request
+        , commodity = Nothing
+        , from = requestFrom request
+        , to = requestTo request
+        , cursor = requestCursor request
+        }
+        (Loaded request)
+
+
+fetch : Request -> Cmd Msg
+fetch =
+    fetchAccountRegister
 
 
 beginLoading : String -> Model -> ( Model, Request )
@@ -217,22 +295,22 @@ blankToNothing value =
         Just value
 
 
-view : Theme -> Viewport -> ViewConfig msg -> Element msg
-view theme viewport config =
+view : Theme -> Viewport -> Model -> Element Msg
+view theme viewport model =
     let
         device =
             Element.classifyDevice viewport
 
         commodity =
-            config.model.remote
+            model.remote
                 |> RemoteData.value
                 |> Maybe.map .displayCommodity
                 |> Maybe.withDefault ""
     in
     if viewport.width >= 1000 then
-        case config.model.detail of
+        case model.detail of
             NoDetail ->
-                listPage theme device config
+                listPage theme device model
 
             detail ->
                 Element.row [ Element.width Element.fill, Element.height Element.fill, Element.clip ]
@@ -241,26 +319,26 @@ view theme viewport config =
                         , Element.height Element.fill
                         , Element.scrollbarY
                         ]
-                        (listPage theme device config)
+                        (listPage theme device model)
                     , Element.el
                         [ Element.width (Element.fillPortion 3)
                         , Element.height Element.fill
                         , Element.scrollbarY
                         ]
-                        (detailPage theme device config.onCloseDetail commodity detail)
+                        (detailPage theme device CloseDetail commodity detail)
                     ]
 
     else
-        case config.model.detail of
+        case model.detail of
             NoDetail ->
-                listPage theme device config
+                listPage theme device model
 
             detail ->
-                detailPage theme device config.onCloseDetail commodity detail
+                detailPage theme device CloseDetail commodity detail
 
 
-listPage : Theme -> Device -> ViewConfig msg -> Element msg
-listPage theme device config =
+listPage : Theme -> Device -> Model -> Element Msg
+listPage theme device model =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -269,32 +347,32 @@ listPage theme device config =
         , Element.htmlAttribute (Html.Attributes.class "page-scroll account-register-page")
         ]
         [ Ui.pageHeaderBand theme device <|
-            registerHeader theme device config
-        , Ui.pageContainer device [ filters theme config, content theme device config ]
+            registerHeader theme device model
+        , Ui.pageContainer device [ filters theme model, content theme device model ]
         ]
 
 
-registerHeader : Theme -> Device -> ViewConfig msg -> Element msg
-registerHeader theme device config =
+registerHeader : Theme -> Device -> Model -> Element Msg
+registerHeader theme device model =
     if Ui.isSmall device then
         Element.column [ Element.width Element.fill, Element.spacing 16, Typography.minWidthZero ]
             [ Element.row [ Element.width Element.fill, Element.spacing 8 ]
-                [ Ui.ghostButton theme { label = "← Accounts", onPress = config.onBack }
+                [ Ui.ghostButton theme { label = "← Accounts", onPress = BackToAccounts }
                 , Element.el [ Element.alignRight ]
-                    (Ui.ghostButton theme { label = "Refresh", onPress = config.onRefresh })
+                    (Ui.ghostButton theme { label = "Refresh", onPress = Refresh })
                 ]
             , Element.column [ Element.width Element.fill, Element.spacing 8, Typography.minWidthZero ]
-                [ Typography.pageTitle theme (breakAccountPath config.model.account)
+                [ Typography.pageTitle theme (breakAccountPath model.account)
                 , Typography.mutedParagraph theme "Account register"
                 ]
             ]
 
     else
         Ui.pageHeader theme
-            { leading = Just (Ui.ghostButton theme { label = "← Accounts", onPress = config.onBack })
-            , title = Typography.pageTitle theme config.model.account
+            { leading = Just (Ui.ghostButton theme { label = "← Accounts", onPress = BackToAccounts })
+            , title = Typography.pageTitle theme model.account
             , subtitle = Just "Account register"
-            , actions = [ Ui.ghostButton theme { label = "Refresh", onPress = config.onRefresh } ]
+            , actions = [ Ui.ghostButton theme { label = "Refresh", onPress = Refresh } ]
             }
 
 
@@ -303,25 +381,25 @@ breakAccountPath =
     String.replace ":" ":\u{200B}"
 
 
-filters : Theme -> ViewConfig msg -> Element msg
-filters theme config =
+filters : Theme -> Model -> Element Msg
+filters theme model =
     Ui.card theme
         [ Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
             [ Element.el [ Element.width (Element.fill |> Element.maximum 220) ] <|
                 Ui.dateInput theme
                     { label = "From"
-                    , value = config.model.from
-                    , onChange = config.onFromChange
+                    , value = model.from
+                    , onChange = FromChange
                     }
             , Element.el [ Element.width (Element.fill |> Element.maximum 220) ] <|
-                Ui.dateInput theme { label = "To", value = config.model.to, onChange = config.onToChange }
+                Ui.dateInput theme { label = "To", value = model.to, onChange = ToChange }
             ]
         ]
 
 
-content : Theme -> Device -> ViewConfig msg -> Element msg
-content theme device config =
-    case config.model.remote of
+content : Theme -> Device -> Model -> Element Msg
+content theme device model =
+    case model.remote of
         NotAsked ->
             Ui.card theme [ Ui.loading theme "Loading register…" ]
 
@@ -329,10 +407,10 @@ content theme device config =
             Ui.card theme [ Ui.skeletonLoading theme ]
 
         Loading (Just response) ->
-            registerContent theme device config response
+            registerContent theme device model response
 
         Success response ->
-            registerContent theme device config response
+            registerContent theme device model response
 
         Failure error stale ->
             case stale of
@@ -340,7 +418,7 @@ content theme device config =
                     Element.column [ Element.width Element.fill, Element.spacing 12 ]
                         [ Ui.errorBanner theme
                             ("Refresh failed; showing stale register: " ++ ApiError.message error)
-                        , registerContent theme device config response
+                        , registerContent theme device model response
                         ]
 
                 Nothing ->
@@ -350,51 +428,51 @@ content theme device config =
                         ]
 
 
-registerContent : Theme -> Device -> ViewConfig msg -> Response -> Element msg
-registerContent theme device config response =
+registerContent : Theme -> Device -> Model -> Response -> Element Msg
+registerContent theme device model response =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
         [ States.freshnessBanner theme response.metadata.freshness
         , if List.isEmpty response.entries then
             Ui.card theme [ Ui.emptyState theme "No register entries match this date range." ]
 
           else
-            registerRows theme device config response.displayCommodity response.entries
-        , paging theme config response
+            registerRows theme device model response.displayCommodity response.entries
+        , paging theme model response
         ]
 
 
-paging : Theme -> ViewConfig msg -> Response -> Element msg
-paging theme config response =
-    if config.model.loadingMore then
+paging : Theme -> Model -> Response -> Element Msg
+paging theme model response =
+    if model.loadingMore then
         Ui.loading theme "Loading more entries…"
 
     else
         case response.nextCursor of
             Just _ ->
-                Ui.secondaryButton theme { label = "Load more", onPress = config.onLoadMore }
+                Ui.secondaryButton theme { label = "Load more", onPress = LoadMore }
 
             Nothing ->
                 Typography.mutedCaption theme "All matching entries are loaded."
 
 
-registerRows : Theme -> Device -> ViewConfig msg -> String -> List Entry -> Element msg
-registerRows theme device config commodity entries =
+registerRows : Theme -> Device -> Model -> String -> List Entry -> Element Msg
+registerRows theme device model commodity entries =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
-        (List.map (monthSection theme device config commodity) (TimeExtra.groupByKey .date entries))
+        (List.map (monthSection theme device model commodity) (TimeExtra.groupByKey .date entries))
 
 
-monthSection : Theme -> Device -> ViewConfig msg -> String -> ( String, List Entry ) -> Element msg
-monthSection theme device config commodity ( month, entries ) =
+monthSection : Theme -> Device -> Model -> String -> ( String, List Entry ) -> Element Msg
+monthSection theme device model commodity ( month, entries ) =
     Element.column [ Element.width Element.fill, Element.spacing 4 ]
         (Element.el
             [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
             (Typography.subsectionTitle theme month)
-            :: List.map (entryRow theme device config commodity) entries
+            :: List.map (entryRow theme device model commodity) entries
         )
 
 
-entryRow : Theme -> Device -> ViewConfig msg -> String -> Entry -> Element msg
-entryRow theme device config commodity entry =
+entryRow : Theme -> Device -> Model -> String -> Entry -> Element Msg
+entryRow theme device model commodity entry =
     let
         amount =
             valueDisplay theme device commodity True entry.amount
@@ -466,7 +544,7 @@ entryRow theme device config commodity entry =
     in
     if hasDetails then
         Input.button [ Element.width Element.fill, Element.padding 0 ]
-            { onPress = Just (config.onDetail entry), label = rowContent }
+            { onPress = Just (SelectDetail entry), label = rowContent }
 
     else
         rowContent
@@ -517,7 +595,7 @@ formatQuantity quantity =
     quantity.quantity ++ " " ++ quantity.commodity
 
 
-detailPage : Theme -> Device -> msg -> String -> Detail -> Element msg
+detailPage : Theme -> Device -> Msg -> String -> Detail -> Element Msg
 detailPage theme device onClose commodity detail =
     let
         entry =

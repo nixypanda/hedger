@@ -1,5 +1,7 @@
 module Page.Transactions exposing
     ( Model
+    , Msg(..)
+    , OutMsg(..)
     , Request
     , Status(..)
     , appliedQuery
@@ -8,6 +10,7 @@ module Page.Transactions exposing
     , beginLoadingMore
     , clearSelection
     , draftQuery
+    , fetch
     , init
     , receive
     , requestCursor
@@ -18,10 +21,12 @@ module Page.Transactions exposing
     , selectedTransaction
     , setDraft
     , status
+    , update
     , view
     , visibleResponse
     )
 
+import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..), Metadata)
 import Api.Transaction exposing (Amount, Posting, Response, Tag, Transaction)
@@ -131,15 +136,18 @@ type Status
     | LoadMoreFailureStatus
 
 
-type alias ViewConfig msg =
-    { model : Model
-    , onRefresh : msg
-    , onSelect : Transaction -> msg
-    , onBack : msg
-    , onDraftChange : String -> msg
-    , onApply : msg
-    , onLoadMore : msg
-    }
+type Msg
+    = Refresh
+    | DraftChanged String
+    | ApplyDraft
+    | LoadMore
+    | Select Transaction
+    | Back
+    | Loaded Request (Result ApiError Response)
+
+
+type OutMsg
+    = NoOutMsg
 
 
 init : Model
@@ -149,6 +157,70 @@ init =
         , draft = ""
         , nextToken = 0
         }
+
+
+update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
+update msg (Model data) =
+    case msg of
+        Refresh ->
+            let
+                ( nextModel, request ) =
+                    beginLoading (Model data)
+            in
+            case nextModel of
+                Model nextData ->
+                    ( Model nextData, fetchTransactions request, NoOutMsg )
+
+        DraftChanged draft ->
+            ( Model { data | draft = draft }, Cmd.none, NoOutMsg )
+
+        ApplyDraft ->
+            let
+                ( nextModel, request ) =
+                    applyDraft (Model data)
+            in
+            case nextModel of
+                Model nextData ->
+                    ( Model nextData, fetchTransactions request, NoOutMsg )
+
+        LoadMore ->
+            case beginLoadingMore (Model data) of
+                Just ( nextModel, request ) ->
+                    case nextModel of
+                        Model nextData ->
+                            ( Model nextData, fetchTransactions request, NoOutMsg )
+
+                Nothing ->
+                    ( Model data, Cmd.none, NoOutMsg )
+
+        Select transaction ->
+            ( Model { data | state = mapWindow (selectInWindow transaction) data.state }
+            , Cmd.none
+            , NoOutMsg
+            )
+
+        Back ->
+            ( Model { data | state = mapWindow clearWindowSelection data.state }
+            , Cmd.none
+            , NoOutMsg
+            )
+
+        Loaded request result ->
+            ( receive request result (Model data), Cmd.none, NoOutMsg )
+
+
+fetchTransactions : Request -> Cmd Msg
+fetchTransactions request =
+    Api.getTransactions
+        { query = requestQuery request
+        , cursor = requestCursor request
+        }
+        (Loaded request)
+
+
+fetch : Request -> Cmd Msg
+fetch =
+    fetchTransactions
 
 
 pageSize : Int
@@ -729,18 +801,18 @@ canBeginLoadingMore (Model data) =
 view :
     Theme
     -> Viewport
-    -> ViewConfig msg
-    -> Element msg
-view theme viewport config =
+    -> Model
+    -> Element Msg
+view theme viewport model =
     let
         device =
             Element.classifyDevice viewport
 
         response =
-            visibleResponse config.model
+            visibleResponse model
 
         currentSelection =
-            selectedTransaction config.model
+            selectedTransaction model
 
         wideSelected =
             viewport.width >= 1000 && currentSelection /= Nothing
@@ -748,29 +820,29 @@ view theme viewport config =
     if wideSelected then
         case ( response, currentSelection ) of
             ( Just current, Just selected ) ->
-                wideLayout theme device config current selected
+                wideLayout theme device model current selected
 
             _ ->
-                listPage theme device config
+                listPage theme device model
 
     else if currentSelection /= Nothing && Ui.isSmall device then
         case currentSelection of
             Just selected ->
-                detailPage theme device (Just config.onBack) selected
+                detailPage theme device (Just Back) selected
 
             Nothing ->
-                listPage theme device config
+                listPage theme device model
 
     else
-        listPage theme device config
+        listPage theme device model
 
 
 listPage :
     Theme
     -> Device
-    -> ViewConfig msg
-    -> Element msg
-listPage theme device config =
+    -> Model
+    -> Element Msg
+listPage theme device model =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -778,10 +850,10 @@ listPage theme device config =
         , Element.scrollbarY
         , Element.htmlAttribute (Html.Attributes.class "page-scroll transactions-page")
         ]
-        [ transactionsHeader theme device config.onRefresh
+        [ transactionsHeader theme device
         , Ui.pageContainer device
-            [ queryPanel theme config
-            , remoteContent theme device config
+            [ queryPanel theme model
+            , remoteContent theme device model
             ]
         ]
 
@@ -789,11 +861,11 @@ listPage theme device config =
 wideLayout :
     Theme
     -> Device
-    -> ViewConfig msg
+    -> Model
     -> Response
     -> Transaction
-    -> Element msg
-wideLayout theme device config response selected =
+    -> Element Msg
+wideLayout theme device model response selected =
     Element.row
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -807,17 +879,16 @@ wideLayout theme device config response selected =
             , Background.color theme.pageBg
             , Element.htmlAttribute (Html.Attributes.class "transactions-master-pane transactions-page")
             ]
-            [ transactionsHeader theme device config.onRefresh
+            [ transactionsHeader theme device
             , Ui.pageContainer device
-                [ queryPanel theme config
-                , remoteNotice theme (remoteData config.model) response
+                [ queryPanel theme model
+                , remoteNotice theme (remoteData model) response
                 , transactionCount theme response.transactions
                 , transactionsList theme
                     device
-                    config.onSelect
-                    (selectedTransaction config.model)
+                    (selectedTransaction model)
                     response.transactions
-                , pagingControls theme config response
+                , pagingControls theme model response
                 ]
             ]
         , Element.el
@@ -826,23 +897,23 @@ wideLayout theme device config response selected =
             , Element.scrollbarY
             , Element.htmlAttribute (Html.Attributes.class "transactions-detail-pane")
             ]
-            (detailPage theme device (Just config.onBack) selected)
+            (detailPage theme device (Just Back) selected)
         ]
 
 
-transactionsHeader : Theme -> Device -> msg -> Element msg
-transactionsHeader theme device onRefresh =
+transactionsHeader : Theme -> Device -> Element Msg
+transactionsHeader theme device =
     Ui.pageHeaderBand theme device <|
         Ui.pageHeader theme
             { leading = Nothing
             , title = Typography.pageTitle theme "Transactions"
             , subtitle = Just "Browse your ledger activity"
-            , actions = [ Ui.ghostButton theme { label = "Refresh", onPress = onRefresh } ]
+            , actions = [ Ui.ghostButton theme { label = "Refresh", onPress = Refresh } ]
             }
 
 
-queryPanel : Theme -> ViewConfig msg -> Element msg
-queryPanel theme config =
+queryPanel : Theme -> Model -> Element Msg
+queryPanel theme model =
     Ui.card theme
         [ Element.row
             [ Element.width Element.fill
@@ -850,8 +921,8 @@ queryPanel theme config =
             ]
             [ Ui.searchInput theme
                 { label = "hledger query"
-                , text = draftQuery config.model
-                , onChange = config.onDraftChange
+                , text = draftQuery model
+                , onChange = DraftChanged
                 , extraAttrs =
                     [ Element.htmlAttribute (Html.Attributes.id "transaction-query")
                     , Element.htmlAttribute (Html.Attributes.attribute "autocomplete" "off")
@@ -861,9 +932,9 @@ queryPanel theme config =
                         )
                     ]
                 }
-            , Ui.primaryButton theme { label = "Apply", onPress = config.onApply }
+            , Ui.primaryButton theme { label = "Apply", onPress = ApplyDraft }
             ]
-        , case queryError (remoteData config.model) of
+        , case queryError (remoteData model) of
             Just error ->
                 Element.el
                     [ Element.width Element.fill
@@ -888,8 +959,8 @@ queryPanel theme config =
                     (\example ->
                         Ui.chip theme
                             { label = example
-                            , selected = draftQuery config.model == example
-                            , onClick = Just (config.onDraftChange example)
+                            , selected = draftQuery model == example
+                            , onClick = Just (DraftChanged example)
                             }
                     )
                     [ "acct:expenses"
@@ -922,10 +993,10 @@ queryError remote =
 remoteContent :
     Theme
     -> Device
-    -> ViewConfig msg
-    -> Element msg
-remoteContent theme device config =
-    case remoteData config.model of
+    -> Model
+    -> Element Msg
+remoteContent theme device model =
+    case remoteData model of
         NotAsked ->
             Ui.card theme [ Ui.loading theme "Loading transactions…" ]
 
@@ -933,18 +1004,18 @@ remoteContent theme device config =
             Ui.card theme [ Ui.skeletonLoading theme ]
 
         Loading (Just response) ->
-            transactionContent theme device config response
+            transactionContent theme device model response
 
         Success response ->
-            transactionContent theme device config response
+            transactionContent theme device model response
 
         Failure error stale ->
             case stale of
                 Just response ->
-                    transactionContent theme device config response
+                    transactionContent theme device model response
 
                 Nothing ->
-                    if queryError (remoteData config.model) /= Nothing then
+                    if queryError (remoteData model) /= Nothing then
                         Ui.card theme
                             [ Typography.mutedParagraph theme
                                 "Correct the query above, then apply it again."
@@ -960,31 +1031,30 @@ remoteContent theme device config =
 transactionContent :
     Theme
     -> Device
-    -> ViewConfig msg
+    -> Model
     -> Response
-    -> Element msg
-transactionContent theme device config response =
+    -> Element Msg
+transactionContent theme device model response =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
-        [ remoteNotice theme (remoteData config.model) response
+        [ remoteNotice theme (remoteData model) response
         , transactionCount theme response.transactions
         , if List.isEmpty response.transactions then
-            noMatches theme config
+            noMatches theme model
 
           else
             transactionsList theme
                 device
-                config.onSelect
-                (selectedTransaction config.model)
+                (selectedTransaction model)
                 response.transactions
-        , pagingControls theme config response
+        , pagingControls theme model response
         ]
 
 
-noMatches : Theme -> ViewConfig msg -> Element msg
-noMatches theme config =
+noMatches : Theme -> Model -> Element Msg
+noMatches theme model =
     Ui.card theme
         [ Typography.mutedParagraph theme
-            (if String.isEmpty (appliedQuery config.model) then
+            (if String.isEmpty (appliedQuery model) then
                 "No transactions are available."
 
              else
@@ -994,34 +1064,34 @@ noMatches theme config =
         ]
 
 
-pagingControls : Theme -> ViewConfig msg -> Response -> Element msg
-pagingControls theme config response =
+pagingControls : Theme -> Model -> Response -> Element Msg
+pagingControls theme model response =
     Element.column
         [ Element.width Element.fill
         , Element.spacing 8
         , Element.htmlAttribute (Html.Attributes.id "transaction-list-end")
         ]
-        [ case loadMoreError config.model of
+        [ case loadMoreError model of
             Just error ->
                 Ui.errorBanner theme ("Could not load more transactions: " ++ ApiError.message error)
 
             Nothing ->
                 Element.none
-        , if status config.model == LoadingMoreStatus then
+        , if status model == LoadingMoreStatus then
             Ui.loading theme "Loading more transactions…"
 
           else
             case response.nextCursor of
                 Just _ ->
-                    if canBeginLoadingMore config.model then
-                        Ui.secondaryButton theme { label = "Load more", onPress = config.onLoadMore }
+                    if canBeginLoadingMore model then
+                        Ui.secondaryButton theme { label = "Load more", onPress = LoadMore }
 
                     else
                         Typography.mutedCaption theme "Finish refreshing before loading more."
 
                 Nothing ->
                     Typography.mutedCaption theme "All matching transactions are loaded."
-        , if retainedPageCount config.model == 5 && response.nextCursor /= Nothing then
+        , if retainedPageCount model == 5 && response.nextCursor /= Nothing then
             Typography.mutedCaption theme
                 ("Keeping a bounded window of "
                     ++ "5"
@@ -1069,42 +1139,39 @@ transactionCount theme transactions =
 transactionsList :
     Theme
     -> Device
-    -> (Transaction -> msg)
     -> Maybe Transaction
     -> List Transaction
-    -> Element msg
-transactionsList theme device onSelect selected transactions =
+    -> Element Msg
+transactionsList theme device selected transactions =
     Element.column
         [ Element.width Element.fill
         , Element.spacing 12
         , Element.htmlAttribute (Html.Attributes.id "transaction-list")
         ]
-        (List.map (monthSection theme device onSelect selected) (TimeExtra.groupByKey .primaryDate transactions))
+        (List.map (monthSection theme device selected) (TimeExtra.groupByKey .primaryDate transactions))
 
 
 monthSection :
     Theme
     -> Device
-    -> (Transaction -> msg)
     -> Maybe Transaction
     -> ( String, List Transaction )
-    -> Element msg
-monthSection theme device onSelect selected ( month, transactions ) =
+    -> Element Msg
+monthSection theme device selected ( month, transactions ) =
     Element.column [ Element.width Element.fill, Element.spacing 4 ]
         (Element.el [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
             (Typography.subsectionTitle theme (TimeExtra.monthLabel month))
-            :: List.map (transactionRow theme device onSelect selected) transactions
+            :: List.map (transactionRow theme device selected) transactions
         )
 
 
 transactionRow :
     Theme
     -> Device
-    -> (Transaction -> msg)
     -> Maybe Transaction
     -> Transaction
-    -> Element msg
-transactionRow theme device onSelect selected transaction =
+    -> Element Msg
+transactionRow theme device selected transaction =
     let
         rowContent =
             Element.column
@@ -1133,7 +1200,7 @@ transactionRow theme device onSelect selected transaction =
                 ]
     in
     Input.button [ Element.width Element.fill, Element.padding 0 ]
-        { onPress = Just (onSelect transaction), label = rowContent }
+        { onPress = Just (Select transaction), label = rowContent }
 
 
 desktopPrimaryRow : Theme -> Transaction -> Element msg
@@ -1283,7 +1350,7 @@ postingPreviewRow theme posting =
         ]
 
 
-detailPage : Theme -> Device -> Maybe msg -> Transaction -> Element msg
+detailPage : Theme -> Device -> Maybe Msg -> Transaction -> Element Msg
 detailPage theme device onBack transaction =
     Element.column
         [ Element.width Element.fill
@@ -1486,53 +1553,35 @@ amountsText =
     List.map amountText >> String.join ", "
 
 
-reviewFixtures : Theme -> msg -> Element msg
-reviewFixtures theme message =
+reviewFixtures : Theme -> Element Msg
+reviewFixtures theme =
+    let
+        sampleModel =
+            Model
+                { state =
+                    Showing
+                        (windowFromResponse
+                            (AppliedQuery "")
+                            sampleResponse
+                            OnePage
+                            (List.head sampleResponse.transactions)
+                        )
+                , draft = ""
+                , nextToken = 0
+                }
+    in
     Element.column [ Element.width Element.fill, Element.spacing 20 ]
         [ Typography.sectionTitle theme "Transactions · eLedger wide master/detail"
         , Element.el [ Element.width Element.fill, Element.height (Element.px 720) ]
             (view theme
                 { width = 1180, height = 720 }
-                { model =
-                    Model
-                        { state =
-                            Showing
-                                (windowFromResponse
-                                    (AppliedQuery "")
-                                    sampleResponse
-                                    OnePage
-                                    (List.head sampleResponse.transactions)
-                                )
-                        , draft = ""
-                        , nextToken = 0
-                        }
-                , onRefresh = message
-                , onSelect = always message
-                , onBack = message
-                , onDraftChange = always message
-                , onApply = message
-                , onLoadMore = message
-                }
+                sampleModel
             )
         , Typography.sectionTitle theme "Transactions · eLedger narrow list"
         , Element.el [ Element.width (Element.px 360), Element.height (Element.px 680), Element.centerX ]
             (view theme
                 { width = 360, height = 680 }
-                { model =
-                    Model
-                        { state =
-                            Showing
-                                (windowFromResponse (AppliedQuery "") sampleResponse OnePage Nothing)
-                        , draft = ""
-                        , nextToken = 0
-                        }
-                , onRefresh = message
-                , onSelect = always message
-                , onBack = message
-                , onDraftChange = always message
-                , onApply = message
-                , onLoadMore = message
-                }
+                sampleModel
             )
         ]
 

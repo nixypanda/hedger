@@ -1,6 +1,21 @@
-module Page.Account exposing (Model, Msg(..), clearValue, init, receive, selectValue, toggle, valueView, view)
+module Page.Account exposing
+    ( Model
+    , Msg(..)
+    , OutMsg(..)
+    , clearValue
+    , fetchAccounts
+    , init
+    , initWithValueSelected
+    , receive
+    , selectValue
+    , toggle
+    , update
+    , valueView
+    , view
+    )
 
 import Api.Account exposing (AccountNode(..), Response)
+import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..))
 import Element exposing (Device, Element)
@@ -11,6 +26,7 @@ import Element.Input as Input
 import Html.Attributes
 import Lib.Time as TimeExtra
 import RemoteData exposing (RemoteData(..))
+import Route exposing (Route(..))
 import Set exposing (Set)
 import State.Viewport exposing (Viewport)
 import String
@@ -32,7 +48,21 @@ type Model
 
 
 type Msg
-    = Toggle String
+    = ToggleAccount String
+    | OpenAccount String
+    | OpenAccountValue String
+    | CloseAccountValue
+    | BackToAccounts
+    | Receive (Result ApiError Response)
+
+
+type OutMsg
+    = NoOutMsg
+    | Navigate Route
+
+
+type alias UpdateProps =
+    { viewport : Viewport }
 
 
 init : Model
@@ -42,6 +72,46 @@ init =
         , expanded = Set.empty
         , selectedValue = Nothing
         }
+
+
+initWithValueSelected : String -> Model
+initWithValueSelected accountName =
+    Model
+        { remote = NotAsked
+        , expanded = Set.empty
+        , selectedValue = Just accountName
+        }
+
+
+fetchAccounts : Cmd Msg
+fetchAccounts =
+    Api.getAccounts Nothing Receive
+
+
+update : UpdateProps -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
+update props msg (Model model) =
+    case msg of
+        ToggleAccount path ->
+            ( toggle path (Model model), Cmd.none, NoOutMsg )
+
+        OpenAccount path ->
+            ( Model model, Cmd.none, Navigate (Account path) )
+
+        OpenAccountValue path ->
+            if Ui.isSmall (Element.classifyDevice props.viewport) then
+                ( Model model, Cmd.none, Navigate (AccountValue path) )
+
+            else
+                ( selectValue path (Model model), Cmd.none, NoOutMsg )
+
+        CloseAccountValue ->
+            ( clearValue (Model model), Cmd.none, NoOutMsg )
+
+        BackToAccounts ->
+            ( clearValue (Model model), Cmd.none, Navigate Accounts )
+
+        Receive result ->
+            ( receive result (Model model), Cmd.none, NoOutMsg )
 
 
 receive : Result ApiError Response -> Model -> Model
@@ -84,15 +154,9 @@ clearValue (Model model) =
 view :
     Theme
     -> Viewport
-    ->
-        { onToggle : String -> msg
-        , onOpen : String -> msg
-        , onValue : String -> msg
-        , onCloseValue : msg
-        }
     -> Model
-    -> Element msg
-view theme viewport actions (Model model) =
+    -> Element Msg
+view theme viewport (Model model) =
     let
         device =
             Element.classifyDevice viewport
@@ -110,7 +174,7 @@ view theme viewport actions (Model model) =
                         , subtitle = Nothing
                         , actions = []
                         }
-                , Ui.pageContainer device [ content theme device actions model ]
+                , Ui.pageContainer device [ content theme device model ]
                 ]
 
         wideSelected =
@@ -119,7 +183,7 @@ view theme viewport actions (Model model) =
     if wideSelected then
         case ( model.selectedValue, RemoteData.value model.remote ) of
             ( Just path, Just response ) ->
-                wideLayout theme device actions page path response
+                wideLayout theme device page path response
 
             _ ->
                 page
@@ -131,17 +195,11 @@ view theme viewport actions (Model model) =
 wideLayout :
     Theme
     -> Device
-    ->
-        { onToggle : String -> msg
-        , onOpen : String -> msg
-        , onValue : String -> msg
-        , onCloseValue : msg
-        }
-    -> Element msg
+    -> Element Msg
     -> String
     -> Response
-    -> Element msg
-wideLayout theme device actions page path response =
+    -> Element Msg
+wideLayout theme device page path response =
     Element.row
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -159,7 +217,7 @@ wideLayout theme device actions page path response =
             , Element.height Element.fill
             , Element.scrollbarY
             ]
-            (accountDetailPage theme device (Just actions.onCloseValue) path response)
+            (accountDetailPage theme device (Just BackToAccounts) path response)
         ]
 
 
@@ -167,18 +225,12 @@ content :
     Theme
     -> Device
     ->
-        { onToggle : String -> msg
-        , onOpen : String -> msg
-        , onValue : String -> msg
-        , onCloseValue : msg
-        }
-    ->
         { remote : RemoteData Response
         , expanded : Set String
         , selectedValue : Maybe String
         }
-    -> Element msg
-content theme device actions model =
+    -> Element Msg
+content theme device model =
     case model.remote of
         NotAsked ->
             Ui.loading theme "Loading accounts…"
@@ -189,13 +241,13 @@ content theme device actions model =
         Loading (Just response) ->
             Ui.card theme
                 [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing accounts"
-                , accountTree theme actions model.expanded response.accounts
+                , accountTree theme model.expanded response.accounts
                 ]
 
         Success response ->
             stateCard theme
                 response.metadata.freshness
-                (accountTree theme actions model.expanded response.accounts)
+                (accountTree theme model.expanded response.accounts)
 
         Failure error stale ->
             case stale of
@@ -203,7 +255,7 @@ content theme device actions model =
                     Ui.card theme
                         [ Ui.errorBanner theme
                             ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
-                        , accountTree theme actions model.expanded response.accounts
+                        , accountTree theme model.expanded response.accounts
                         ]
 
                 Nothing ->
@@ -223,37 +275,25 @@ stateCard theme freshness tree =
 
 accountTree :
     Theme
-    ->
-        { onToggle : String -> msg
-        , onOpen : String -> msg
-        , onValue : String -> msg
-        , onCloseValue : msg
-        }
     -> Set String
     -> List AccountNode
-    -> Element msg
-accountTree theme actions expanded accounts =
+    -> Element Msg
+accountTree theme expanded accounts =
     if List.isEmpty accounts then
         Ui.emptyState theme "No accounts were found in the journal."
 
     else
         Element.column [ Element.width Element.fill, Element.spacing 8 ]
-            (List.map (accountRow theme actions expanded 0) accounts)
+            (List.map (accountRow theme expanded 0) accounts)
 
 
 accountRow :
     Theme
-    ->
-        { onToggle : String -> msg
-        , onOpen : String -> msg
-        , onValue : String -> msg
-        , onCloseValue : msg
-        }
     -> Set String
     -> Int
     -> AccountNode
-    -> Element msg
-accountRow theme actions expanded depth (AccountNode account) =
+    -> Element Msg
+accountRow theme expanded depth (AccountNode account) =
     let
         isExpanded =
             Set.member account.path expanded
@@ -265,7 +305,7 @@ accountRow theme actions expanded depth (AccountNode account) =
                     , Element.height (Element.px 28)
                     , Element.centerY
                     ]
-                    { onPress = Just (actions.onToggle account.path)
+                    { onPress = Just (ToggleAccount account.path)
                     , label =
                         Icon.view
                             { icon =
@@ -289,7 +329,7 @@ accountRow theme actions expanded depth (AccountNode account) =
                     , Element.alignRight
                     , Font.color theme.textPrimary
                     ]
-                    { onPress = Just (actions.onValue account.path)
+                    { onPress = Just (OpenAccountValue account.path)
                     , label =
                         balanceText theme
                             account.valuation
@@ -307,10 +347,10 @@ accountRow theme actions expanded depth (AccountNode account) =
                 { onPress =
                     Just
                         (if account.hasChildren then
-                            actions.onToggle account.path
+                            ToggleAccount account.path
 
                          else
-                            actions.onOpen account.path
+                            OpenAccount account.path
                         )
                 , label =
                     Element.row [ Element.width Element.fill, Element.spacing 8 ]
@@ -350,7 +390,7 @@ accountRow theme actions expanded depth (AccountNode account) =
     Element.column [ Element.width Element.fill, Element.spacing 6 ]
         (row
             :: (if isExpanded then
-                    List.map (accountRow theme actions expanded (depth + 1)) account.children
+                    List.map (accountRow theme expanded (depth + 1)) account.children
 
                 else
                     []
@@ -419,11 +459,11 @@ commodityCount balances =
         |> Set.size
 
 
-valueView : Theme -> Device -> String -> msg -> Model -> Element msg
-valueView theme device path onBack (Model model) =
+valueView : Theme -> Device -> String -> Model -> Element Msg
+valueView theme device path (Model model) =
     case RemoteData.value model.remote of
         Just response ->
-            accountDetailPage theme device (Just onBack) path response
+            accountDetailPage theme device (Just BackToAccounts) path response
 
         Nothing ->
             Element.column
@@ -434,12 +474,12 @@ valueView theme device path onBack (Model model) =
                 , Element.htmlAttribute (Html.Attributes.class "page-scroll account-detail-page")
                 ]
                 [ Ui.pageHeaderBand theme device <|
-                    accountDetailHeader theme device (Just onBack)
+                    accountDetailHeader theme device (Just BackToAccounts)
                 , Ui.pageContainer device [ Ui.card theme [ Ui.loading theme "Loading account value…" ] ]
                 ]
 
 
-accountDetailPage : Theme -> Device -> Maybe msg -> String -> Response -> Element msg
+accountDetailPage : Theme -> Device -> Maybe Msg -> String -> Response -> Element Msg
 accountDetailPage theme device onBack path response =
     Element.column
         [ Element.width Element.fill
@@ -454,7 +494,7 @@ accountDetailPage theme device onBack path response =
         ]
 
 
-accountDetailHeader : Theme -> Device -> Maybe msg -> Element msg
+accountDetailHeader : Theme -> Device -> Maybe Msg -> Element Msg
 accountDetailHeader theme _ onBack =
     Element.row [ Element.width Element.fill, Element.spacing 8 ]
         [ case onBack of
@@ -467,7 +507,7 @@ accountDetailHeader theme _ onBack =
         ]
 
 
-valuePanel : Theme -> String -> Response -> List (Element msg)
+valuePanel : Theme -> String -> Response -> List (Element Msg)
 valuePanel theme path response =
     case findAccount path response.accounts of
         Nothing ->
