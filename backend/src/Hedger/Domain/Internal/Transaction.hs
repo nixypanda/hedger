@@ -18,6 +18,7 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Ord (Down (Down))
 import Data.Text qualified as Text
+
 import Hledger.Data.Amount qualified as Hledger
 import Hledger.Data.Types qualified as Hledger
 
@@ -34,12 +35,12 @@ data TransactionClassification
     | TransactionExpense
     | TransactionTransfer
     | Unclassified
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 data TransactionPresentation = TransactionPresentation
     { classification :: TransactionClassification
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 newestFirst :: [Hledger.Transaction] -> [Hledger.Transaction]
 newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex))

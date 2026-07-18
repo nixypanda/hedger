@@ -75,7 +75,10 @@ suite =
             \_ ->
                 Decode.decodeString ApiError.decoder
                     """
-                    {"error":{"code":"journal_unavailable","message":"No snapshot","requestId":"req-1"}}
+                    {"errorPayload":{"code":"journal_unavailable",
+                    "message":"No snapshot",
+                    "requestId":"req-1",
+                    "details":null}}
                     """
                     |> Result.map .code
                     |> Expect.equal (Ok "journal_unavailable")

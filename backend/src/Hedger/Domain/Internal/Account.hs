@@ -18,6 +18,7 @@ where
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
+
 import Hledger.Data.AccountName (accountNameInferType)
 import Hledger.Data.Types (AccountName, AccountType (..))
 
@@ -25,7 +26,7 @@ data AccountInfo = AccountInfo
     { aname :: AccountName
     , atype :: Maybe AccountType
     }
-    deriving (Eq, Ord, Show)
+    deriving stock (Eq, Ord, Show)
 
 accountInfo :: AccountName -> AccountInfo
 accountInfo name =

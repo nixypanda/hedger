@@ -1,8 +1,9 @@
 module Hedger.ConfigSpec (configSpec) where
 
-import Hedger.Config (Config (..), parseConfig)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
+
+import Hedger.Config (Config (..), parseConfig)
 
 configSpec :: TestTree
 configSpec =

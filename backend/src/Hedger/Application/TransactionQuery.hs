@@ -1,8 +1,6 @@
 module Hedger.Application.TransactionQuery (
+    TransactionPageRequest (..),
     TransactionPage (..),
-    defaultPageLimit,
-    maximumPageLimit,
-    maximumQueryLength,
     transactionPage,
 )
 where
@@ -13,58 +11,63 @@ import Data.Ord (Down (Down))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, fromGregorian)
-import Hedger.Domain.Error (AppError (..))
-import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.Internal.Cursor (decodeCursor, encodeCursor)
+import Text.Read (readMaybe)
+
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Query qualified as Hledger
-import Text.Read (readMaybe)
+
+import Hedger.Application.Internal.Cursor (decodeTransactionCursor, encodeTransactionCursor)
+import Hedger.Domain.Error (AppError (..))
+import Hedger.Domain.Snapshot (Snapshot (..))
+
+data TransactionPageRequest = TransactionPageRequest
+    { query :: Maybe Text
+    , limit :: Int
+    , cursor :: Maybe Text
+    }
 
 data TransactionPage = TransactionPage
     { transactions :: [Hledger.Transaction]
     , nextCursor :: Maybe Text
     }
-    deriving (Show)
+    deriving stock (Show)
 
-defaultPageLimit :: Int
-defaultPageLimit = 50
-
-maximumPageLimit :: Int
-maximumPageLimit = 200
-
-maximumQueryLength :: Int
-maximumQueryLength = 2048
-
-transactionPage :: Snapshot -> Maybe Text -> Maybe Text -> Maybe Text -> Either AppError TransactionPage
-transactionPage snapshot suppliedQuery suppliedLimit suppliedCursor = do
-    limit <- parseLimit suppliedLimit
-    let canonicalQuery = Text.strip (maybe "" id suppliedQuery)
+transactionPage :: Snapshot -> TransactionPageRequest -> Either AppError TransactionPage
+transactionPage snapshot request = do
+    let canonicalQuery = Text.strip (maybe "" id request.query)
         referenceDate = maybe emptyJournalReferenceDate id snapshot.latestJournalDate
     if Text.length canonicalQuery > maximumQueryLength
         then Left (QueryTooLong maximumQueryLength)
         else pure ()
     parsedQuery <- parseHledgerQuery referenceDate canonicalQuery
-    offset <- maybe (Right 0) (decodeCursor snapshot.revision canonicalQuery referenceDate) suppliedCursor
+    offset <-
+        maybe
+            (Right 0)
+            (decodeTransactionCursor snapshot.revision canonicalQuery referenceDate)
+            request.cursor
     let ordered = List.sortOn (\tx -> (Down tx.tdate, Down tx.tindex)) snapshot.transactions
         matching = filter (Hledger.matchesTransaction parsedQuery) ordered
     if offset > length matching
         then Left (InvalidCursor "The cursor position is no longer valid.")
         else do
             let remaining = drop offset matching
-                page = take limit remaining
+                page = take request.limit remaining
                 followingOffset = offset + length page
                 cursor =
-                    if length remaining > limit
-                        then Just (encodeCursor snapshot.revision canonicalQuery referenceDate followingOffset)
+                    if length remaining > request.limit
+                        then
+                            Just
+                                ( encodeTransactionCursor
+                                    snapshot.revision
+                                    canonicalQuery
+                                    referenceDate
+                                    followingOffset
+                                )
                         else Nothing
             pure TransactionPage{transactions = page, nextCursor = cursor}
 
-parseLimit :: Maybe Text -> Either AppError Int
-parseLimit Nothing = Right defaultPageLimit
-parseLimit (Just raw) =
-    case readMaybe (Text.unpack raw) of
-        Just value | value >= 1 && value <= maximumPageLimit -> Right value
-        _ -> Left (InvalidLimit defaultPageLimit maximumPageLimit)
+maximumQueryLength :: Int
+maximumQueryLength = 2048
 
 parseHledgerQuery :: Day -> Text -> Either AppError Hledger.Query
 parseHledgerQuery _ "" = Right Hledger.Any

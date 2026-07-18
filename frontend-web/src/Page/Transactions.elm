@@ -29,7 +29,9 @@ import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..), Metadata)
 import Api.Transaction exposing (Amount, Posting, Response, Tag, Transaction)
+import Data.Date as Date
 import Data.Decimal as Decimal
+import Data.Status as Status
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Font as Font
@@ -1147,7 +1149,10 @@ transactionsList theme device selected transactions =
         , Element.spacing 12
         , Element.htmlAttribute (Html.Attributes.id "transaction-list")
         ]
-        (List.map (monthSection theme device selected) (TimeExtra.groupByKey .primaryDate transactions))
+        (List.map
+            (monthSection theme device selected)
+            (TimeExtra.groupByKey (Date.toString << .primaryDate) transactions)
+        )
 
 
 monthSection :
@@ -1206,7 +1211,7 @@ desktopPrimaryRow : Theme -> Transaction -> Element msg
 desktopPrimaryRow theme transaction =
     Element.row [ Element.width Element.fill, Element.spacing 8 ]
         [ Element.el [ Typography.rowDate, Font.color theme.textMuted, Element.width (Element.px 90) ]
-            (Element.text transaction.primaryDate)
+            (Element.text (Date.toString transaction.primaryDate))
         , Element.el
             [ Typography.rowTitle
             , Font.semiBold
@@ -1223,7 +1228,9 @@ desktopPrimaryRow theme transaction =
 phonePrimaryRow : Theme -> Transaction -> Element msg
 phonePrimaryRow theme transaction =
     Element.column [ Element.width Element.fill, Element.spacing 3 ]
-        [ Element.el [ Typography.rowDate, Font.color theme.textMuted ] (Element.text transaction.primaryDate)
+        [ Element.el
+            [ Typography.rowDate, Font.color theme.textMuted ]
+            (Element.text (Date.toString transaction.primaryDate))
         , Element.row [ Element.width Element.fill, Element.spacing 8 ]
             [ Element.paragraph
                 [ Typography.rowTitle
@@ -1378,9 +1385,9 @@ transactionDetail theme transaction =
     Element.column [ Element.width Element.fill, Element.spacing 16 ]
         [ Ui.card theme
             (List.concat
-                [ [ detailRow theme "Date" transaction.primaryDate ]
-                , maybeDetailRow theme "Secondary date" transaction.secondaryDate
-                , [ detailRow theme "Status" (statusLabel transaction.status) ]
+                [ [ detailRow theme "Date" (Date.toString transaction.primaryDate) ]
+                , maybeDetailRow theme "Secondary date" (Maybe.map Date.toString transaction.secondaryDate)
+                , [ detailRow theme "Status" (Status.toString transaction.status) ]
                 , maybeDetailRow theme "Code" transaction.code
                 , [ detailRow theme "Description" transaction.description ]
                 , maybeDetailRow theme "Comment" transaction.comment
@@ -1463,7 +1470,7 @@ postingDetailRow theme posting =
                     [ Typography.detailValue, Font.color theme.textMedium ]
                     ":"
                     posting.account
-                 , Typography.mutedCaption theme (statusLabel posting.status)
+                 , Typography.mutedCaption theme (Status.toString posting.status)
                  ]
                     ++ maybeCaption theme posting.comment
                     ++ (if List.isEmpty posting.tags then
@@ -1527,19 +1534,6 @@ maybeCaption theme value =
 tagsText : List Tag -> String
 tagsText =
     List.map (\tag -> tag.name ++ ": " ++ tag.value) >> String.join ", "
-
-
-statusLabel : String -> String
-statusLabel rawStatus =
-    case rawStatus of
-        "cleared" ->
-            "Cleared"
-
-        "pending" ->
-            "Pending"
-
-        _ ->
-            "Unmarked"
 
 
 amountText : Amount -> String

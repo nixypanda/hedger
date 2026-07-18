@@ -4,6 +4,9 @@ import Data.Either (isLeft, isRight)
 import Data.Maybe (isJust)
 import Data.Text qualified as Text
 import Data.Time (fromGregorian)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
+
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
     loadSnapshot,
@@ -15,8 +18,6 @@ import Hedger.Infrastructure.SnapshotStore (
 import Hedger.TestHelpers (loadedStore)
 import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Types qualified as Hledger
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 snapshotStoreSpec :: TestTree
 snapshotStoreSpec =

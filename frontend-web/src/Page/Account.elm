@@ -18,6 +18,9 @@ import Api.Account exposing (AccountNode(..), Response)
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..))
+import Data.AccountType as AccountType
+import Data.Date as Date
+import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Border as Border
@@ -361,7 +364,11 @@ accountRow theme expanded depth (AccountNode account) =
                             }
                         , Element.column [ Element.width Element.fill, Element.spacing 2 ]
                             [ Element.text account.name
-                            , Element.text (account.accountType |> Maybe.withDefault "account")
+                            , Element.text
+                                (account.accountType
+                                    |> Maybe.map AccountType.toString
+                                    |> Maybe.withDefault "account"
+                                )
                                 |> Element.el [ Font.size 12, Font.color theme.textMuted ]
                             ]
                         ]
@@ -441,20 +448,20 @@ balanceText theme valuation symbolCount =
         ]
 
 
-hasMultipleCommodities : List { commodity : String, quantity : String } -> Bool
+hasMultipleCommodities : List Quantity -> Bool
 hasMultipleCommodities balances =
     case balances of
         first :: rest ->
-            List.any (\balance -> balance.commodity /= first.commodity) rest
+            List.any (\balance -> Quantity.commodity balance /= Quantity.commodity first) rest
 
         [] ->
             False
 
 
-commodityCount : List { commodity : String, quantity : String } -> Int
+commodityCount : List Quantity -> Int
 commodityCount balances =
     balances
-        |> List.map .commodity
+        |> List.map Quantity.commodity
         |> Set.fromList
         |> Set.size
 
@@ -516,7 +523,11 @@ valuePanel theme path response =
         Just (AccountNode account) ->
             [ Element.column [ Element.width Element.fill, Element.spacing 4 ]
                 [ Typography.sectionTitle theme account.name
-                , Element.text (account.accountType |> Maybe.withDefault "account")
+                , Element.text
+                    (account.accountType
+                        |> Maybe.map AccountType.toString
+                        |> Maybe.withDefault "account"
+                    )
                     |> Element.el [ Font.size 12, Font.color theme.textMuted ]
                 ]
             , balanceText theme account.valuation Nothing
@@ -527,7 +538,7 @@ valuePanel theme path response =
                 (List.map (detailBalance theme) account.subtreeBalances)
             , Element.text
                 (let
-                    (Api.Account.Date date) =
+                    (Date.Date date) =
                         account.valuation.asOf
                  in
                  "Valued as of " ++ TimeExtra.formatDate date
@@ -549,7 +560,7 @@ completenessBadge theme completeness =
             Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
 
 
-detailBalance : Theme -> { commodity : String, quantity : String } -> Element msg
+detailBalance : Theme -> Quantity -> Element msg
 detailBalance theme balance =
     Element.row
         [ Element.width Element.fill
@@ -558,21 +569,16 @@ detailBalance theme balance =
         , Border.rounded 6
         , Element.spacing 8
         ]
-        [ Element.text balance.commodity
+        [ Element.text (Quantity.commodity balance)
             |> Element.el [ Element.width (Element.fillPortion 1), Font.color theme.textMedium ]
         , Element.text (formatQuantity balance)
             |> Element.el [ Element.alignRight, Font.semiBold, Font.color theme.textPrimary ]
         ]
 
 
-formatQuantity : { commodity : String, quantity : String } -> String
+formatQuantity : Quantity -> String
 formatQuantity balance =
-    case String.toFloat balance.quantity of
-        Just quantity ->
-            Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol balance.commodity) quantity
-
-        Nothing ->
-            balance.quantity ++ " " ++ balance.commodity
+    Formatting.formatBalance balance
 
 
 findAccount : String -> List AccountNode -> Maybe AccountNode

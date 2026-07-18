@@ -22,7 +22,10 @@ module Page.AccountRegister exposing
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Register exposing (Completeness(..), Entry, Quantity, Response, Value)
+import Api.Register exposing (Completeness(..), Entry, Response, Value)
+import Data.Date as Date
+import Data.Decimal as Decimal
+import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Border as Border
@@ -458,7 +461,10 @@ paging theme model response =
 registerRows : Theme -> Device -> Model -> String -> List Entry -> Element Msg
 registerRows theme device model commodity entries =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
-        (List.map (monthSection theme device model commodity) (TimeExtra.groupByKey .date entries))
+        (List.map
+            (monthSection theme device model commodity)
+            (TimeExtra.groupByKey (Date.toString << .date) entries)
+        )
 
 
 monthSection : Theme -> Device -> Model -> String -> ( String, List Entry ) -> Element Msg
@@ -504,7 +510,8 @@ entryRow theme device model commodity entry =
             Element.column (Ui.rowSurfaceAttrs theme False ++ [ Element.spacing 8 ])
                 [ if Ui.isSmall device then
                     Element.column [ Element.width Element.fill, Element.spacing 8 ]
-                        [ Element.text entry.date |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+                        [ Element.text (Date.toString entry.date)
+                            |> Element.el [ Font.size 12, Font.color theme.textMuted ]
                         , Element.row
                             [ Element.width Element.fill
                             , Element.spacing 8
@@ -533,7 +540,7 @@ entryRow theme device model commodity entry =
 
                   else
                     Element.row [ Element.width Element.fill, Element.spacing 12, Typography.minWidthZero ]
-                        [ Element.text entry.date
+                        [ Element.text (Date.toString entry.date)
                             |> Element.el [ Element.width (Element.px 92), Font.color theme.textMuted ]
                         , description
                         , Element.el [ Element.width (Element.px 150), Typography.minWidthZero ] amount
@@ -592,7 +599,7 @@ displayValue commodity value =
 
 formatQuantity : Quantity -> String
 formatQuantity quantity =
-    quantity.quantity ++ " " ++ quantity.commodity
+    Decimal.toString (Quantity.quantity quantity) ++ " " ++ Quantity.commodity quantity
 
 
 detailPage : Theme -> Device -> Msg -> String -> Detail -> Element Msg
@@ -604,7 +611,12 @@ detailPage theme device onClose commodity detail =
                     selected
 
                 NoDetail ->
-                    { date = "", description = "", account = "", amount = emptyValue, balance = emptyValue }
+                    { date = Date.Date { year = 1, month = 1, day = 1 }
+                    , description = ""
+                    , account = ""
+                    , amount = emptyValue
+                    , balance = emptyValue
+                    }
     in
     Element.column
         [ Element.width Element.fill
@@ -621,7 +633,7 @@ detailPage theme device onClose commodity detail =
         , Ui.pageContainer device
             [ Ui.card theme
                 [ Typography.sectionTitle theme entry.description
-                , Element.text (entry.date ++ " · " ++ entry.account)
+                , Element.text (Date.toString entry.date ++ " · " ++ entry.account)
                     |> Element.el [ Font.size 12, Font.color theme.textMuted ]
                 , valueDetails theme commodity "Movement" entry.amount
                 , Ui.hairline theme
@@ -661,7 +673,7 @@ rawRow theme quantity =
         , Background.color theme.inputFill
         , Border.rounded 6
         ]
-        [ Element.text quantity.commodity
+        [ Element.text (Quantity.commodity quantity)
             |> Element.el [ Element.width Element.fill, Font.color theme.textMedium ]
-        , Element.text quantity.quantity |> Element.el [ Font.semiBold ]
+        , Element.text (Decimal.toString (Quantity.quantity quantity)) |> Element.el [ Font.semiBold ]
         ]

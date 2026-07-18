@@ -8,16 +8,16 @@ import Data.Text qualified as Text
 import Hedger.Application.TransactionQuery (TransactionPage (transactions), transactionPage)
 import Hedger.Domain.Snapshot (Snapshot (transactions))
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
-import Hedger.Interface.HTTP.TransactionMapper (toTransactions)
-import Hedger.Interface.HTTP.Types (
+import Hedger.Interface.HTTP.Common (ResponseMetadata (..))
+import Hedger.Interface.HTTP.Transactions (
     AmountDto (..),
     CostDto (..),
     PostingDto (..),
-    ResponseMetadata (..),
     TagDto (..),
     TransactionDto (..),
     TransactionPresentationDto (..),
     TransactionsResponse (..),
+    toTransactions,
  )
 import Hledger.Data.Types qualified as Hledger
 import Test.Tasty.Bench (Benchmark, bench, bgroup, defaultMain, env, nf, nfIO)

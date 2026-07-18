@@ -1,8 +1,70 @@
 module Hedger.Domain.Account (
     AccountInfo (..),
+    ValuationContext,
+    ValuationCompleteness (..),
+    ValuedBalances (..),
     accountInfo,
     accountLabel,
+    mkValuationContext,
+    valueBalances,
 )
 where
 
+import Data.Text (Text)
+import Data.Time (Day)
+
+import Hledger.Data.Amount qualified as HledgerAmount
+import Hledger.Data.Journal qualified as HledgerJournal
+import Hledger.Data.Types qualified as Hledger
+import Hledger.Data.Valuation qualified as HledgerValuation
+
 import Hedger.Domain.Internal.Account
+
+data ValuationCompleteness
+    = Complete
+    | Partial
+    | Unavailable
+    deriving stock (Eq, Show)
+
+data ValuedBalances = ValuedBalances
+    { directBalance :: Hledger.MixedAmount
+    , subtreeBalance :: Hledger.MixedAmount
+    , completeness :: ValuationCompleteness
+    }
+
+data ValuationContext = ValuationContext
+    { targetCommodity :: Text
+    , valueAtDate :: Hledger.MixedAmount -> Hledger.MixedAmount
+    }
+
+mkValuationContext :: Hledger.Journal -> Text -> Day -> ValuationContext
+mkValuationContext journal targetCommodity valuationDate =
+    ValuationContext
+        { targetCommodity
+        , valueAtDate =
+            HledgerValuation.mixedAmountValueAtDate
+                (HledgerValuation.journalPriceOracle False journal)
+                (HledgerJournal.journalCommodityStyles journal)
+                (Just targetCommodity)
+                valuationDate
+        }
+
+valueBalances :: ValuationContext -> Hledger.MixedAmount -> Hledger.MixedAmount -> ValuedBalances
+valueBalances context direct subtree =
+    ValuedBalances
+        { directBalance = valuedDirect
+        , subtreeBalance = valuedSubtree
+        , completeness = valuationCompleteness context.targetCommodity valuedDirect valuedSubtree
+        }
+  where
+    valuedDirect = context.valueAtDate direct
+    valuedSubtree = context.valueAtDate subtree
+
+valuationCompleteness :: Text -> Hledger.MixedAmount -> Hledger.MixedAmount -> ValuationCompleteness
+valuationCompleteness target direct subtree
+    | all isTarget projected = Complete
+    | any isTarget projected = Partial
+    | otherwise = Unavailable
+  where
+    projected = HledgerAmount.amountsRaw direct <> HledgerAmount.amountsRaw subtree
+    isTarget amount = amount.acommodity == target

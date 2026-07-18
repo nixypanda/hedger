@@ -4,6 +4,8 @@ import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..), Metadata)
 import Api.Transaction as Transaction exposing (Response)
+import Data.Date as Date
+import Data.Status as Status
 import Expect
 import Json.Decode as Decode
 import Page.Transactions as Page
@@ -255,7 +257,7 @@ suite =
             \_ ->
                 Decode.decodeString ApiError.decoder
                     """
-                    {"error":{"code":"invalid_query",
+                    {"errorPayload":{"code":"invalid_query",
                     "message":"The query is invalid.",
                     "requestId":"request-1",
                     "details":{"reason":"expected a closing parenthesis",
@@ -462,16 +464,16 @@ sampleResponse : String -> Response
 sampleResponse revision =
     { metadata = metadata revision
     , transactions =
-        [ { primaryDate = "2024-04-02"
+        [ { primaryDate = Date.Date { year = 2024, month = 4, day = 2 }
           , secondaryDate = Nothing
-          , status = "unmarked"
+          , status = Status.Unmarked
           , code = Nothing
           , description = "Utilities"
           , comment = Nothing
           , tags = []
           , postings =
                 [ { account = "expenses:utilities"
-                  , status = "unmarked"
+                  , status = Status.Unmarked
                   , comment = Nothing
                   , tags = []
                   , amounts = []

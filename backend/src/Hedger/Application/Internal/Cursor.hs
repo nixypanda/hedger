@@ -1,6 +1,6 @@
-module Hedger.Infrastructure.Internal.Cursor (
-    encodeCursor,
-    decodeCursor,
+module Hedger.Application.Internal.Cursor (
+    encodeTransactionCursor,
+    decodeTransactionCursor,
     encodeRegisterCursor,
     decodeRegisterCursor,
 )
@@ -13,12 +13,15 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
 import Data.Time (Day)
 import Data.Word (Word8)
-import Hedger.Domain.Error (AppError (..))
 import Numeric (showHex)
 import Text.Read (readMaybe)
 
-encodeCursor :: Text -> Text -> Day -> Int -> Text
-encodeCursor revision query referenceDate offset =
+import Hedger.Domain.Error (AppError (..))
+
+-- Transaction
+
+encodeTransactionCursor :: Text -> Text -> Day -> Int -> Text
+encodeTransactionCursor revision query referenceDate offset =
     payload <> "." <> fingerprint ("cursor-check-v1:" <> payload)
   where
     payload =
@@ -32,8 +35,8 @@ encodeCursor revision query referenceDate offset =
             , fingerprint ordering
             ]
 
-decodeCursor :: Text -> Text -> Day -> Text -> Either AppError Int
-decodeCursor revision query referenceDate cursor =
+decodeTransactionCursor :: Text -> Text -> Day -> Text -> Either AppError Int
+decodeTransactionCursor revision query referenceDate cursor =
     case Text.splitOn "." cursor of
         [version, offsetText, cursorReference, queryHash, revisionHash, orderingHash, checksum]
             | version /= "v1" -> invalid "The cursor version is not supported."
@@ -72,6 +75,8 @@ decodeCursor revision query referenceDate cursor =
 ordering :: Text
 ordering = "transaction-date-and-source-position-desc-v1"
 
+-- Register
+
 encodeRegisterCursor :: Text -> Text -> Text -> Maybe Day -> Maybe Day -> Int -> Text
 encodeRegisterCursor revision account commodity start end offset =
     payload <> "." <> fingerprint ("register-cursor-check-v1:" <> payload)
@@ -92,17 +97,48 @@ encodeRegisterCursor revision account commodity start end offset =
 decodeRegisterCursor :: Text -> Text -> Text -> Maybe Day -> Maybe Day -> Text -> Either AppError Int
 decodeRegisterCursor revision account commodity start end cursor =
     case Text.splitOn "." cursor of
-        [version, offsetText, revisionHash, accountHash, commodityHash, startHash, endHash, orderingHash, checksum]
-            | version /= "register-v1" -> invalid "The cursor version is not supported."
-            | checksum /= fingerprint ("register-cursor-check-v1:" <> payload) -> invalid "The cursor is malformed."
-            | revisionHash /= fingerprint revision -> invalid "The cursor was created for a different journal revision."
-            | accountHash /= fingerprint account -> invalid "The cursor was created for a different account."
-            | commodityHash /= fingerprint commodity -> invalid "The cursor was created for a different commodity."
-            | startHash /= fingerprint (canonicalDay start) || endHash /= fingerprint (canonicalDay end) -> invalid "The cursor was created for a different date range."
-            | orderingHash /= fingerprint registerOrdering -> invalid "The cursor ordering is not supported."
-            | otherwise -> maybe (invalid "The cursor position is malformed.") validateOffset (readMaybe (Text.unpack offsetText))
-          where
-            payload = Text.intercalate "." [version, offsetText, revisionHash, accountHash, commodityHash, startHash, endHash, orderingHash]
+        [ version
+            , offsetText
+            , revisionHash
+            , accountHash
+            , commodityHash
+            , startHash
+            , endHash
+            , orderingHash
+            , checksum
+            ]
+                | version /= "register-v1" -> invalid "The cursor version is not supported."
+                | checksum /= fingerprint ("register-cursor-check-v1:" <> payload) ->
+                    invalid "The cursor is malformed."
+                | revisionHash /= fingerprint revision ->
+                    invalid "The cursor was created for a different journal revision."
+                | accountHash /= fingerprint account ->
+                    invalid "The cursor was created for a different account."
+                | commodityHash /= fingerprint commodity ->
+                    invalid "The cursor was created for a different commodity."
+                | startHash /= fingerprint (canonicalDay start)
+                    || endHash /= fingerprint (canonicalDay end) ->
+                    invalid "The cursor was created for a different date range."
+                | orderingHash /= fingerprint registerOrdering ->
+                    invalid "The cursor ordering is not supported."
+                | otherwise ->
+                    maybe
+                        (invalid "The cursor position is malformed.")
+                        validateOffset
+                        (readMaybe (Text.unpack offsetText))
+              where
+                payload =
+                    Text.intercalate
+                        "."
+                        [ version
+                        , offsetText
+                        , revisionHash
+                        , accountHash
+                        , commodityHash
+                        , startHash
+                        , endHash
+                        , orderingHash
+                        ]
         _ -> invalid "The cursor is malformed."
   where
     validateOffset offset
@@ -115,6 +151,8 @@ canonicalDay = maybe "" (Text.pack . show)
 
 registerOrdering :: Text
 registerOrdering = "account-register-date-and-source-position-asc-v1"
+
+-- Fingerprinting
 
 fingerprint :: Text -> Text
 fingerprint = hexEncode . MD5.hash . TextEncoding.encodeUtf8

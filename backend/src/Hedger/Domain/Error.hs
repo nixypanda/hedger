@@ -16,4 +16,4 @@ data AppError
     | InvalidDateRange
     | QueryTooLong Int
     | InternalError
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)

@@ -6,6 +6,9 @@ module View.Formatting exposing
     , roundedString
     )
 
+import Data.Decimal as Decimal
+import Data.Quantity as Quantity exposing (Quantity)
+
 
 commodityDisplaySymbol : String -> String
 commodityDisplaySymbol commodity =
@@ -44,16 +47,23 @@ commodityDisplaySymbol commodity =
             commodity
 
 
-formatBalance : { commodity : String, quantity : String } -> String
+formatBalance : Quantity -> String
 formatBalance balance =
-    case String.toFloat balance.quantity of
+    let
+        quantityStr =
+            Decimal.toString (Quantity.quantity balance)
+
+        quantityFloat =
+            String.toFloat quantityStr
+    in
+    case quantityFloat of
         Just quantity ->
             formatAmountDisplay
-                (commodityDisplaySymbol balance.commodity)
+                (commodityDisplaySymbol (Quantity.commodity balance))
                 quantity
 
         Nothing ->
-            commodityDisplaySymbol balance.commodity ++ " " ++ balance.quantity
+            commodityDisplaySymbol (Quantity.commodity balance) ++ " " ++ quantityStr
 
 
 formatAmountDisplay : String -> Float -> String

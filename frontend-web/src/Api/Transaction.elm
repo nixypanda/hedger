@@ -10,7 +10,9 @@ module Api.Transaction exposing
     )
 
 import Api.Metadata as Metadata exposing (Metadata)
+import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
+import Data.Status as Status exposing (Status)
 import Json.Decode as Decode exposing (Decoder)
 
 
@@ -22,9 +24,9 @@ type alias Response =
 
 
 type alias Transaction =
-    { primaryDate : String
-    , secondaryDate : Maybe String
-    , status : String
+    { primaryDate : Date
+    , secondaryDate : Maybe Date
+    , status : Status
     , code : Maybe String
     , description : String
     , comment : Maybe String
@@ -36,7 +38,7 @@ type alias Transaction =
 
 type alias Posting =
     { account : String
-    , status : String
+    , status : Status
     , comment : Maybe String
     , tags : List Tag
     , amounts : List Amount
@@ -92,9 +94,9 @@ transactionDecoder =
                     postings
                     presentation
             )
-            (Decode.field "primaryDate" Decode.string)
-            (Decode.field "secondaryDate" (Decode.nullable Decode.string))
-            (Decode.field "status" Decode.string)
+            (Decode.field "primaryDate" Date.decoder)
+            (Decode.field "secondaryDate" (Decode.nullable Date.decoder))
+            (Decode.field "status" Status.decoder)
             (Decode.field "code" (Decode.nullable Decode.string))
             (Decode.field "description" Decode.string)
             (Decode.field "comment" (Decode.nullable Decode.string))
@@ -114,7 +116,7 @@ postingDecoder : Decoder Posting
 postingDecoder =
     Decode.map5 Posting
         (Decode.field "account" Decode.string)
-        (Decode.field "status" Decode.string)
+        (Decode.field "status" Status.decoder)
         (Decode.field "comment" (Decode.nullable Decode.string))
         (Decode.field "tags" (Decode.list tagDecoder))
         (Decode.field "amounts" (Decode.list amountDecoder))
@@ -124,7 +126,7 @@ amountDecoder : Decoder Amount
 amountDecoder =
     Decode.map3 Amount
         (Decode.field "commodity" Decode.string)
-        (Decode.field "quantity" decimalDecoder)
+        (Decode.field "quantity" Decimal.decoder)
         (Decode.field "cost" (Decode.nullable costDecoder))
 
 
@@ -133,7 +135,7 @@ costDecoder =
     Decode.map3 Cost
         (Decode.field "costType" Decode.string)
         (Decode.field "commodity" Decode.string)
-        (Decode.field "quantity" decimalDecoder)
+        (Decode.field "quantity" Decimal.decoder)
 
 
 tagDecoder : Decoder Tag
@@ -141,17 +143,3 @@ tagDecoder =
     Decode.map2 Tag
         (Decode.field "name" Decode.string)
         (Decode.field "value" Decode.string)
-
-
-decimalDecoder : Decoder Decimal
-decimalDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\value ->
-                case Decimal.fromString value of
-                    Ok decimal ->
-                        Decode.succeed decimal
-
-                    Err _ ->
-                        Decode.fail "Expected a plain decimal string."
-            )

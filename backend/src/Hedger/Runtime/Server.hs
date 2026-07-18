@@ -9,16 +9,6 @@ import Control.Monad (void)
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Hedger.Application (Env (..))
-import Hedger.Config (Config (..))
-import Hedger.Infrastructure.SnapshotStore (
-    SnapshotStore,
-    loadSnapshot,
-    newSnapshotStore,
-    reloadSnapshot,
- )
-import Hedger.Interface.HTTP.API (application)
-import Hedger.Interface.HTTP.Middleware (redactQueryForLogging, requestContextMiddleware)
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp (
     defaultSettings,
@@ -30,6 +20,17 @@ import Network.Wai.Handler.Warp (
  )
 import Network.Wai.Middleware.RequestLogger qualified as RequestLogger
 import System.Posix.Signals (Handler (Catch), installHandler, sigHUP, sigTERM)
+
+import Hedger.Application.AppM (Env (..))
+import Hedger.Config (Config (..))
+import Hedger.Infrastructure.SnapshotStore (
+    SnapshotStore,
+    loadSnapshot,
+    newSnapshotStore,
+    reloadSnapshot,
+ )
+import Hedger.Interface.HTTP.API (application)
+import Hedger.Interface.HTTP.Middleware (redactQueryForLogging, requestContextMiddleware)
 
 makeApplication :: Config -> SnapshotStore -> Application
 makeApplication configuration store =

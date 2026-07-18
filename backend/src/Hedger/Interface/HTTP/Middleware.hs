@@ -13,11 +13,12 @@ import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as LazyText
 import Data.Text.Lazy.Builder qualified as TextBuilder
 import Data.Text.Lazy.Builder.Int qualified as TextBuilder
-import Hedger.Domain.Error (AppError (..))
-import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import System.IO.Unsafe (unsafePerformIO)
+
+import Hedger.Domain.Error (AppError (..))
+import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
 
 requestContextMiddleware :: Wai.Middleware
 requestContextMiddleware app request respond = do

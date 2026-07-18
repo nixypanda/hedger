@@ -15,7 +15,7 @@ import System.Environment qualified as Environment
 import Text.Read qualified as Read
 
 data LogLevel = Debug | Info | Warn | Error
-    deriving (Eq, Ord, Show)
+    deriving stock (Eq, Ord, Show)
 
 data Config = Config
     { journalPath :: Text
@@ -26,7 +26,7 @@ data Config = Config
     , logLevel :: LogLevel
     , publicBaseUrl :: Maybe Text
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 data CliOptions = CliOptions
     { cliJournalPath :: Maybe Text

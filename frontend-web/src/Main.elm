@@ -91,7 +91,13 @@ init flags url key =
             Route.fromUrl url
 
         ( pageModel, pageCmd, _ ) =
-            Page.init (pageContext initialRoute { width = flags.viewportWidth, height = flags.viewportHeight } (Preferences.theme (Preferences.current initialTheme))) Nothing
+            Page.init
+                (pageContext
+                    initialRoute
+                    { width = flags.viewportWidth, height = flags.viewportHeight }
+                    (Preferences.theme (Preferences.current initialTheme))
+                )
+                Nothing
     in
     ( { key = key
       , route = initialRoute
@@ -138,7 +144,9 @@ update msg model =
                     Route.fromUrl url
 
                 ( pageModel, pageCmd, outMsg ) =
-                    Page.init (pageContext route model.viewport (Preferences.theme model.preferences)) (Just model.page)
+                    Page.init
+                        (pageContext route model.viewport (Preferences.theme model.preferences))
+                        (Just model.page)
 
                 ( finalModel, outCmd ) =
                     applyPageOutMsg outMsg { model | route = route, page = pageModel }
@@ -196,7 +204,10 @@ update msg model =
         GotPageMsg pageMsg ->
             let
                 ( pageModel, pageCmd, outMsg ) =
-                    Page.update (pageContext model.route model.viewport (Preferences.theme model.preferences)) pageMsg model.page
+                    Page.update
+                        (pageContext model.route model.viewport (Preferences.theme model.preferences))
+                        pageMsg
+                        model.page
 
                 ( finalModel, outCmd ) =
                     applyPageOutMsg outMsg { model | page = pageModel }

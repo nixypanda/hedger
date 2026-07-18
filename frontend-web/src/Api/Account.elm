@@ -1,21 +1,10 @@
-module Api.Account exposing (AccountNode(..), Completeness(..), Date(..), Response, Valuation, decoder)
+module Api.Account exposing (AccountNode(..), Completeness(..), Response, Valuation, decoder)
 
 import Api.Metadata as Metadata exposing (Metadata)
+import Data.AccountType as AccountType exposing (AccountType)
+import Data.Date as Date exposing (Date)
+import Data.Quantity as Quantity exposing (Quantity)
 import Json.Decode as Decode exposing (Decoder)
-
-
-type alias Quantity =
-    { commodity : String
-    , quantity : String
-    }
-
-
-type Date
-    = Date
-        { year : Int
-        , month : Int
-        , day : Int
-        }
 
 
 type Completeness
@@ -28,7 +17,7 @@ type AccountNode
     = AccountNode
         { path : String
         , name : String
-        , accountType : Maybe String
+        , accountType : Maybe AccountType
         , hasChildren : Bool
         , directBalances : List Quantity
         , subtreeBalances : List Quantity
@@ -78,93 +67,22 @@ accountDecoder =
         )
         (Decode.field "path" Decode.string)
         (Decode.field "name" Decode.string)
-        (Decode.field "accountType" (Decode.nullable Decode.string))
+        (Decode.field "accountType" (Decode.nullable AccountType.decoder))
         (Decode.field "hasChildren" Decode.bool)
-        (Decode.field "directBalances" (Decode.list quantityDecoder))
-        (Decode.field "subtreeBalances" (Decode.list quantityDecoder))
+        (Decode.field "directBalances" (Decode.list Quantity.decoder))
+        (Decode.field "subtreeBalances" (Decode.list Quantity.decoder))
         (Decode.field "valuation" valuationDecoder)
         (Decode.field "children" (Decode.list (Decode.lazy (\_ -> accountDecoder))))
-
-
-quantityDecoder : Decoder Quantity
-quantityDecoder =
-    Decode.map2 Quantity
-        (Decode.field "commodity" Decode.string)
-        (Decode.field "quantity" Decode.string)
 
 
 valuationDecoder : Decoder Valuation
 valuationDecoder =
     Decode.map5 Valuation
-        (Decode.field "asOf" dateDecoder)
+        (Decode.field "asOf" Date.decoder)
         (Decode.field "commodity" Decode.string)
-        (Decode.field "directBalances" (Decode.list quantityDecoder))
-        (Decode.field "subtreeBalances" (Decode.list quantityDecoder))
+        (Decode.field "directBalances" (Decode.list Quantity.decoder))
+        (Decode.field "subtreeBalances" (Decode.list Quantity.decoder))
         (Decode.field "completeness" completenessDecoder)
-
-
-dateDecoder : Decoder Date
-dateDecoder =
-    Decode.string
-        |> Decode.andThen parseDate
-
-
-parseDate : String -> Decoder Date
-parseDate value =
-    case String.split "-" value of
-        [ yearText, monthText, dayText ] ->
-            case ( String.toInt yearText, String.toInt monthText, String.toInt dayText ) of
-                ( Just year, Just month, Just day ) ->
-                    if
-                        String.length yearText
-                            == 4
-                            && String.length monthText
-                            == 2
-                            && String.length dayText
-                            == 2
-                            && validDate year month day
-                    then
-                        Decode.succeed (Date { year = year, month = month, day = day })
-
-                    else
-                        Decode.fail "Expected a valid ISO date."
-
-                _ ->
-                    Decode.fail "Expected a valid ISO date."
-
-        _ ->
-            Decode.fail "Expected a valid ISO date."
-
-
-validDate : Int -> Int -> Int -> Bool
-validDate year month day =
-    month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth year month
-
-
-daysInMonth : Int -> Int -> Int
-daysInMonth year month =
-    case month of
-        2 ->
-            if modBy 400 year == 0 || (modBy 4 year == 0 && modBy 100 year /= 0) then
-                29
-
-            else
-                28
-
-        4 ->
-            30
-
-        6 ->
-            30
-
-        9 ->
-            30
-
-        11 ->
-            30
-
-        _ ->
-            31
 
 
 completenessDecoder : Decoder Completeness

@@ -7,12 +7,13 @@ module Hedger.Interface.HTTP.Errors (
 )
 where
 
-import Data.Aeson qualified as Aeson
-import Data.Aeson.TH qualified as Aeson
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Hedger.Domain.Error (AppError (..))
+import GHC.Generics (Generic)
 import Network.HTTP.Types qualified as HTTP
+
+import Hedger.Domain.Error (AppError (..))
 
 data ErrorPayload = ErrorPayload
     { code :: Text
@@ -20,24 +21,21 @@ data ErrorPayload = ErrorPayload
     , requestId :: Text
     , details :: Maybe ValidationDetails
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (ToJSON, FromJSON)
 
 data ValidationDetails = ValidationDetails
     { reason :: Text
     , position :: Maybe Int
     }
-    deriving (Eq, Show)
-
-Aeson.deriveJSON Aeson.defaultOptions ''ValidationDetails
-
-Aeson.deriveJSON Aeson.defaultOptions{Aeson.omitNothingFields = True} ''ErrorPayload
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (ToJSON, FromJSON)
 
 data ErrorEnvelope = ErrorEnvelope
     { errorPayload :: ErrorPayload
     }
-    deriving (Eq, Show)
-
-Aeson.deriveJSON Aeson.defaultOptions{Aeson.fieldLabelModifier = const "error"} ''ErrorEnvelope
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (ToJSON, FromJSON)
 
 appErrorStatus :: AppError -> HTTP.Status
 appErrorStatus JournalUnavailable = HTTP.status503

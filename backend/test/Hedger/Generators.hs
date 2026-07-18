@@ -8,6 +8,7 @@ import Data.Time (Day (ModifiedJulianDay))
 import Hedgehog (Gen)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
+
 import Hledger.Data.Amount (mixed, num)
 import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)

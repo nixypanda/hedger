@@ -18,15 +18,17 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
 import Data.Word (Word8)
-import Hedger.Domain.Snapshot (Snapshot (..))
-import Hledger.Data.Account qualified as HledgerAccount
-import Hledger.Data.Types qualified as Hledger
-import Hledger.Read qualified as Hledger
 import Numeric (showHex)
 import System.Directory qualified as Directory
 
+import Hledger.Data.Account qualified as HledgerAccount
+import Hledger.Data.Types qualified as Hledger
+import Hledger.Read qualified as Hledger
+
+import Hedger.Domain.Snapshot (Snapshot (..))
+
 newtype SnapshotLoadError = JournalReadFailed Text
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 data SnapshotState = SnapshotState
     { currentSnapshot :: Maybe Snapshot

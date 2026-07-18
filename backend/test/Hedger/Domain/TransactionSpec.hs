@@ -1,8 +1,17 @@
 module Hedger.Domain.TransactionSpec (transactionSpec) where
 
 import Data.Time (fromGregorian)
-import Hedgehog (Property, assert, forAll, property, (===))
+import Hedgehog (Property, assert, forAll, property)
 import Hedgehog.Range qualified as Range
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (Assertion, assertEqual, testCase)
+import Test.Tasty.Hedgehog (testProperty)
+
+import Hledger.Data.Amount (mixed, num)
+import Hledger.Data.Posting (nullposting)
+import Hledger.Data.Transaction (nulltransaction)
+import Hledger.Data.Types qualified as Hledger
+
 import Hedger.Domain.Internal.Transaction (
     TransactionClassification (..),
     classificationFor,
@@ -11,13 +20,6 @@ import Hedger.Domain.Internal.Transaction (
     newestFirst,
  )
 import Hedger.Generators (genTransactions)
-import Hledger.Data.Amount (mixed, num)
-import Hledger.Data.Posting (nullposting)
-import Hledger.Data.Transaction (nulltransaction)
-import Hledger.Data.Types qualified as Hledger
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (Assertion, assertEqual, testCase)
-import Test.Tasty.Hedgehog (testProperty)
 
 transactionSpec :: TestTree
 transactionSpec =

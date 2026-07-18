@@ -2,10 +2,11 @@ module Hedger.SyntheticTransactions (
     mkSnapshot,
 ) where
 
-import Hedger.Domain.Snapshot (Snapshot (..))
 import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Journal (nulljournal)
 import Hledger.Data.Types qualified as Hledger
+
+import Hedger.Domain.Snapshot (Snapshot (..))
 
 mkSnapshot :: [Hledger.Transaction] -> Snapshot
 mkSnapshot txns =

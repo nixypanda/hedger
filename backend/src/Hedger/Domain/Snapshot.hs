@@ -5,6 +5,7 @@ where
 
 import Data.Text (Text)
 import Data.Time (Day)
+
 import Hledger.Data.Types qualified as Hledger
 
 data Snapshot = Snapshot

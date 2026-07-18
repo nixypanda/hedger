@@ -1,13 +1,9 @@
-module Api.Register exposing (Completeness(..), Entry, Quantity, Response, Value, decoder)
+module Api.Register exposing (Completeness(..), Entry, Response, Value, decoder)
 
 import Api.Metadata as Metadata exposing (Metadata)
+import Data.Date as Date exposing (Date)
+import Data.Quantity as Quantity exposing (Quantity)
 import Json.Decode as Decode exposing (Decoder)
-
-
-type alias Quantity =
-    { commodity : String
-    , quantity : String
-    }
 
 
 type Completeness
@@ -24,7 +20,7 @@ type alias Value =
 
 
 type alias Entry =
-    { date : String
+    { date : Date
     , description : String
     , account : String
     , amount : Value
@@ -52,7 +48,7 @@ decoder =
 entryDecoder : Decoder Entry
 entryDecoder =
     Decode.map5 Entry
-        (Decode.field "date" Decode.string)
+        (Decode.field "date" Date.decoder)
         (Decode.field "description" Decode.string)
         (Decode.field "account" Decode.string)
         (Decode.field "amount" valueDecoder)
@@ -62,16 +58,9 @@ entryDecoder =
 valueDecoder : Decoder Value
 valueDecoder =
     Decode.map3 Value
-        (Decode.field "raw" (Decode.list quantityDecoder))
-        (Decode.field "display" (Decode.list quantityDecoder))
+        (Decode.field "raw" (Decode.list Quantity.decoder))
+        (Decode.field "display" (Decode.list Quantity.decoder))
         (Decode.field "completeness" completenessDecoder)
-
-
-quantityDecoder : Decoder Quantity
-quantityDecoder =
-    Decode.map2 Quantity
-        (Decode.field "commodity" Decode.string)
-        (Decode.field "quantity" Decode.string)
 
 
 completenessDecoder : Decoder Completeness
