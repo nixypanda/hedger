@@ -36,12 +36,17 @@ check-backend-tests:
 check-cabal:
     cabal check
 
-check-frontend:
-    elm-format frontend-web/src frontend-web/tests --validate
+check-frontend: check-elm-format check-elm-line-length
     cd frontend-web && elm make src/Main.elm --output=/dev/null
     cd frontend-web && elm-test
     python3 scripts/check_elm_project.py frontend-web/elm.json
     python3 scripts/check_frontend_assets.py
+
+check-elm-format:
+    elm-format frontend-web/src frontend-web/tests --validate
+
+check-elm-line-length:
+    rg '.{111,}' -g '*.elm' frontend-web/src frontend-web/tests
 
 check-contracts:
     python3 scripts/check_contracts.py contracts/openapi.json backend/test/golden

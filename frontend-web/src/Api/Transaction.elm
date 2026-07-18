@@ -82,7 +82,15 @@ transactionDecoder =
         (\partial presentation -> partial presentation)
         (Decode.map8
             (\primaryDate secondaryDate status code description comment tags postings presentation ->
-                Transaction primaryDate secondaryDate status code description comment tags postings presentation
+                Transaction primaryDate
+                    secondaryDate
+                    status
+                    code
+                    description
+                    comment
+                    tags
+                    postings
+                    presentation
             )
             (Decode.field "primaryDate" Decode.string)
             (Decode.field "secondaryDate" (Decode.nullable Decode.string))

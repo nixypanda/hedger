@@ -6,7 +6,13 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
-import Pwa exposing (InstallHintState(..), InstallPromptState(..), InstallationState(..), ServiceWorkerState(..))
+import Pwa
+    exposing
+        ( InstallHintState(..)
+        , InstallPromptState(..)
+        , InstallationState(..)
+        , ServiceWorkerState(..)
+        )
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui

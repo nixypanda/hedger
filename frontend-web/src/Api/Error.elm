@@ -63,7 +63,10 @@ message error =
                     " "
                         ++ details.reason
                         ++ (details.position
-                                |> Maybe.map (\position -> " (at character " ++ String.fromInt position ++ ")")
+                                |> Maybe.map
+                                    (\position ->
+                                        " (at character " ++ String.fromInt position ++ ")"
+                                    )
                                 |> Maybe.withDefault ""
                            )
 

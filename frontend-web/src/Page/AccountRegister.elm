@@ -94,7 +94,11 @@ beginLoading account model =
             else
                 model.remote
     in
-    issue account (Just (blankToNothing model.from)) (Just (blankToNothing model.to)) Nothing { model | account = account, remote = resetRemote, detail = NoDetail, loadingMore = False }
+    issue account
+        (Just (blankToNothing model.from))
+        (Just (blankToNothing model.to))
+        Nothing
+        { model | account = account, remote = resetRemote, detail = NoDetail, loadingMore = False }
 
 
 beginLoadingMore : Model -> Maybe ( Model, Request )
@@ -104,7 +108,11 @@ beginLoadingMore model =
             response.nextCursor
                 |> Maybe.map
                     (\cursor ->
-                        issue model.account (Just (blankToNothing model.from)) (Just (blankToNothing model.to)) (Just cursor) { model | loadingMore = True }
+                        issue model.account
+                            (Just (blankToNothing model.from))
+                            (Just (blankToNothing model.to))
+                            (Just cursor)
+                            { model | loadingMore = True }
                     )
 
         _ ->
@@ -227,8 +235,18 @@ view theme viewport config =
 
             detail ->
                 Element.row [ Element.width Element.fill, Element.height Element.fill, Element.clip ]
-                    [ Element.el [ Element.width (Element.fillPortion 2), Element.height Element.fill, Element.scrollbarY ] (listPage theme device config)
-                    , Element.el [ Element.width (Element.fillPortion 3), Element.height Element.fill, Element.scrollbarY ] (detailPage theme device config.onCloseDetail commodity detail)
+                    [ Element.el
+                        [ Element.width (Element.fillPortion 2)
+                        , Element.height Element.fill
+                        , Element.scrollbarY
+                        ]
+                        (listPage theme device config)
+                    , Element.el
+                        [ Element.width (Element.fillPortion 3)
+                        , Element.height Element.fill
+                        , Element.scrollbarY
+                        ]
+                        (detailPage theme device config.onCloseDetail commodity detail)
                     ]
 
     else
@@ -243,7 +261,12 @@ view theme viewport config =
 listPage : Theme -> Device -> ViewConfig msg -> Element msg
 listPage theme device config =
     Element.column
-        [ Element.width Element.fill, Element.height Element.fill, Element.scrollbarY, Background.color theme.pageBg, Element.htmlAttribute (Html.Attributes.class "page-scroll account-register-page") ]
+        [ Element.width Element.fill
+        , Element.height Element.fill
+        , Element.scrollbarY
+        , Background.color theme.pageBg
+        , Element.htmlAttribute (Html.Attributes.class "page-scroll account-register-page")
+        ]
         [ Ui.pageHeaderBand theme device <|
             registerHeader theme device config
         , Ui.pageContainer device [ filters theme config, content theme device config ]
@@ -256,7 +279,8 @@ registerHeader theme device config =
         Element.column [ Element.width Element.fill, Element.spacing 16, Typography.minWidthZero ]
             [ Element.row [ Element.width Element.fill, Element.spacing 8 ]
                 [ Ui.ghostButton theme { label = "← Accounts", onPress = config.onBack }
-                , Element.el [ Element.alignRight ] (Ui.ghostButton theme { label = "Refresh", onPress = config.onRefresh })
+                , Element.el [ Element.alignRight ]
+                    (Ui.ghostButton theme { label = "Refresh", onPress = config.onRefresh })
                 ]
             , Element.column [ Element.width Element.fill, Element.spacing 8, Typography.minWidthZero ]
                 [ Typography.pageTitle theme (breakAccountPath config.model.account)
@@ -283,7 +307,11 @@ filters theme config =
     Ui.card theme
         [ Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
             [ Element.el [ Element.width (Element.fill |> Element.maximum 220) ] <|
-                Ui.dateInput theme { label = "From", value = config.model.from, onChange = config.onFromChange }
+                Ui.dateInput theme
+                    { label = "From"
+                    , value = config.model.from
+                    , onChange = config.onFromChange
+                    }
             , Element.el [ Element.width (Element.fill |> Element.maximum 220) ] <|
                 Ui.dateInput theme { label = "To", value = config.model.to, onChange = config.onToChange }
             ]
@@ -309,12 +337,16 @@ content theme device config =
             case stale of
                 Just response ->
                     Element.column [ Element.width Element.fill, Element.spacing 12 ]
-                        [ Ui.errorBanner theme ("Refresh failed; showing stale register: " ++ ApiError.message error)
+                        [ Ui.errorBanner theme
+                            ("Refresh failed; showing stale register: " ++ ApiError.message error)
                         , registerContent theme device config response
                         ]
 
                 Nothing ->
-                    Ui.card theme [ Ui.errorBanner theme ("Register failed to load: " ++ ApiError.message error) ]
+                    Ui.card theme
+                        [ Ui.errorBanner theme
+                            ("Register failed to load: " ++ ApiError.message error)
+                        ]
 
 
 registerContent : Theme -> Device -> ViewConfig msg -> Response -> Element msg
@@ -372,7 +404,9 @@ registerRows theme device config commodity entries =
 monthSection : Theme -> Device -> ViewConfig msg -> String -> ( String, List Entry ) -> Element msg
 monthSection theme device config commodity ( month, entries ) =
     Element.column [ Element.width Element.fill, Element.spacing 4 ]
-        (Element.el [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ] (Typography.subsectionTitle theme month)
+        (Element.el
+            [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
+            (Typography.subsectionTitle theme month)
             :: List.map (entryRow theme device config commodity) entries
         )
 
@@ -410,7 +444,11 @@ entryRow theme device config commodity entry =
             valueDisplay theme device commodity False entry.balance
 
         description =
-            Element.column [ Element.width (Element.fillPortion 3), Element.spacing 3, Typography.minWidthZero ]
+            Element.column
+                [ Element.width (Element.fillPortion 3)
+                , Element.spacing 3
+                , Typography.minWidthZero
+                ]
                 [ Ui.truncatedText device entry.description
                 , Element.text entry.account |> Element.el [ Font.size 12, Font.color theme.textMuted ]
                 ]
@@ -430,19 +468,36 @@ entryRow theme device config commodity entry =
                 [ if Ui.isSmall device then
                     Element.column [ Element.width Element.fill, Element.spacing 8 ]
                         [ Element.text entry.date |> Element.el [ Font.size 12, Font.color theme.textMuted ]
-                        , Element.row [ Element.width Element.fill, Element.spacing 8, Typography.minWidthZero ]
+                        , Element.row
+                            [ Element.width Element.fill
+                            , Element.spacing 8
+                            , Typography.minWidthZero
+                            ]
                             [ description
                             , chevron
                             ]
-                        , Element.row [ Element.width Element.fill, Element.spacing 12, Typography.minWidthZero ]
-                            [ Element.el [ Element.width (Element.fillPortion 1), Typography.minWidthZero ] amount
-                            , Element.el [ Element.width (Element.fillPortion 1), Typography.minWidthZero ] balance
+                        , Element.row
+                            [ Element.width Element.fill
+                            , Element.spacing 12
+                            , Typography.minWidthZero
+                            ]
+                            [ Element.el
+                                [ Element.width (Element.fillPortion 1)
+                                , Typography.minWidthZero
+                                ]
+                                amount
+                            , Element.el
+                                [ Element.width (Element.fillPortion 1)
+                                , Typography.minWidthZero
+                                ]
+                                balance
                             ]
                         ]
 
                   else
                     Element.row [ Element.width Element.fill, Element.spacing 12, Typography.minWidthZero ]
-                        [ Element.text entry.date |> Element.el [ Element.width (Element.px 92), Font.color theme.textMuted ]
+                        [ Element.text entry.date
+                            |> Element.el [ Element.width (Element.px 92), Font.color theme.textMuted ]
                         , description
                         , Element.el [ Element.width (Element.px 150), Typography.minWidthZero ] amount
                         , Element.el [ Element.width (Element.px 150), Typography.minWidthZero ] balance
@@ -514,12 +569,23 @@ detailPage theme device onClose commodity detail =
                 NoDetail ->
                     { date = "", description = "", account = "", amount = emptyValue, balance = emptyValue }
     in
-    Element.column [ Element.width Element.fill, Element.height Element.fill, Element.scrollbarY, Background.color theme.pageBg, Element.htmlAttribute (Html.Attributes.class "page-scroll register-detail-page") ]
-        [ Ui.pageHeaderBand theme device <| Element.row [ Element.width Element.fill, Element.spacing 8 ] [ Ui.ghostButton theme { label = "← Back", onPress = onClose }, Typography.sectionTitle theme "Details" ]
+    Element.column
+        [ Element.width Element.fill
+        , Element.height Element.fill
+        , Element.scrollbarY
+        , Background.color theme.pageBg
+        , Element.htmlAttribute (Html.Attributes.class "page-scroll register-detail-page")
+        ]
+        [ Ui.pageHeaderBand theme device <|
+            Element.row [ Element.width Element.fill, Element.spacing 8 ]
+                [ Ui.ghostButton theme { label = "← Back", onPress = onClose }
+                , Typography.sectionTitle theme "Details"
+                ]
         , Ui.pageContainer device
             [ Ui.card theme
                 [ Typography.sectionTitle theme entry.description
-                , Element.text (entry.date ++ " · " ++ entry.account) |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+                , Element.text (entry.date ++ " · " ++ entry.account)
+                    |> Element.el [ Font.size 12, Font.color theme.textMuted ]
                 , valueDetails theme commodity "Movement" entry.amount
                 , Ui.hairline theme
                 , valueDetails theme commodity "Balance" entry.balance
@@ -537,7 +603,8 @@ valueDetails theme commodity label value =
         , Typography.mutedCaption theme "Raw amounts included"
         , Element.column [ Element.width Element.fill, Element.spacing 8 ] (List.map (rawRow theme) value.raw)
         , if value.completeness == Partial then
-            Typography.mutedParagraph theme "The displayed total excludes the listed unconvertible commodity amounts."
+            Typography.mutedParagraph theme
+                "The displayed total excludes the listed unconvertible commodity amounts."
 
           else
             Element.none
@@ -564,7 +631,13 @@ completenessBadge theme completeness =
 
 rawRow : Theme -> Quantity -> Element msg
 rawRow theme quantity =
-    Element.row [ Element.width Element.fill, Element.paddingXY 10 8, Background.color theme.inputFill, Border.rounded 6 ]
-        [ Element.text quantity.commodity |> Element.el [ Element.width Element.fill, Font.color theme.textMedium ]
+    Element.row
+        [ Element.width Element.fill
+        , Element.paddingXY 10 8
+        , Background.color theme.inputFill
+        , Border.rounded 6
+        ]
+        [ Element.text quantity.commodity
+            |> Element.el [ Element.width Element.fill, Font.color theme.textMedium ]
         , Element.text quantity.quantity |> Element.el [ Font.semiBold ]
         ]

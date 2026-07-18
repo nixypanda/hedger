@@ -72,4 +72,50 @@ sampleResponse =
 
 fixture : String
 fixture =
-    """{"metadata":{"revision":"revision-a","freshness":"fresh","warnings":[]},"displayCommodity":"INR","entries":[{"date":"2025-01-01","description":"Salary","account":"Assets:Cash","amount":{"raw":[{"commodity":"INR","quantity":"100"}],"display":[{"commodity":"INR","quantity":"100"}],"completeness":"complete"},"balance":{"raw":[{"commodity":"INR","quantity":"100"}],"display":[{"commodity":"INR","quantity":"100"}],"completeness":"complete"}},{"date":"2025-01-02","description":"Converted USD purchase","account":"Assets:Cash, Expenses:Travel","amount":{"raw":[{"commodity":"USD","quantity":"-10"}],"display":[{"commodity":"INR","quantity":"-830"}],"completeness":"complete"},"balance":{"raw":[{"commodity":"INR","quantity":"100"},{"commodity":"JPY","quantity":"1000"}],"display":[{"commodity":"INR","quantity":"-730"},{"commodity":"JPY","quantity":"1000"}],"completeness":"partial"}}],"nextCursor":"page-2"}"""
+    """{
+  "metadata": {
+    "revision": "revision-a",
+    "freshness": "fresh",
+    "warnings": []
+  },
+  "displayCommodity": "INR",
+  "entries": [
+    {
+      "date": "2025-01-01",
+      "description": "Salary",
+      "account": "Assets:Cash",
+      "amount": {
+        "raw": [ { "commodity": "INR", "quantity": "100" } ],
+        "display": [ { "commodity": "INR", "quantity": "100" } ],
+        "completeness": "complete"
+      },
+      "balance": {
+        "raw": [ { "commodity": "INR", "quantity": "100" } ],
+        "display": [ { "commodity": "INR", "quantity": "100" } ],
+        "completeness": "complete"
+      }
+    },
+    {
+      "date": "2025-01-02",
+      "description": "Converted USD purchase",
+      "account": "Assets:Cash, Expenses:Travel",
+      "amount": {
+        "raw": [ { "commodity": "USD", "quantity": "-10" } ],
+        "display": [ { "commodity": "INR", "quantity": "-830" } ],
+        "completeness": "complete"
+      },
+      "balance": {
+        "raw": [
+          { "commodity": "INR", "quantity": "100" },
+          { "commodity": "JPY", "quantity": "1000" }
+        ],
+        "display": [
+          { "commodity": "INR", "quantity": "-730" },
+          { "commodity": "JPY", "quantity": "1000" }
+        ],
+        "completeness": "partial"
+      }
+    }
+  ],
+  "nextCursor": "page-2"
+}"""

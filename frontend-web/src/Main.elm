@@ -207,7 +207,9 @@ update msg model =
                             ( accountRegister, request ) =
                                 AccountRegisterPage.beginLoading accountName model.accountRegister
                         in
-                        ( { model | route = route, accountRegister = accountRegister }, fetchAccountRegister request )
+                        ( { model | route = route, accountRegister = accountRegister }
+                        , fetchAccountRegister request
+                        )
 
                     _ ->
                         ( { model | route = route }, Cmd.none )
@@ -251,7 +253,11 @@ update msg model =
             )
 
         TransactionsLoaded request result ->
-            ( { model | transactions = TransactionsPage.receive request result model.transactions }, Cmd.none )
+            ( { model
+                | transactions = TransactionsPage.receive request result model.transactions
+              }
+            , Cmd.none
+            )
 
         RefreshTransactions ->
             let
@@ -297,7 +303,12 @@ update msg model =
             )
 
         AccountRegisterLoaded request result ->
-            ( { model | accountRegister = AccountRegisterPage.receive request result model.accountRegister }, Cmd.none )
+            ( { model
+                | accountRegister =
+                    AccountRegisterPage.receive request result model.accountRegister
+              }
+            , Cmd.none
+            )
 
         RefreshAccountRegister ->
             let
@@ -335,10 +346,18 @@ update msg model =
                     ( model, Cmd.none )
 
         SelectRegisterDetail entry ->
-            ( { model | accountRegister = AccountRegisterPage.selectDetail entry model.accountRegister }, Cmd.none )
+            ( { model
+                | accountRegister = AccountRegisterPage.selectDetail entry model.accountRegister
+              }
+            , Cmd.none
+            )
 
         CloseRegisterDetail ->
-            ( { model | accountRegister = AccountRegisterPage.clearDetail model.accountRegister }, Cmd.none )
+            ( { model
+                | accountRegister = AccountRegisterPage.clearDetail model.accountRegister
+              }
+            , Cmd.none
+            )
 
         ConfigLoaded value ->
             case Decode.decodeValue Preferences.decoder value of
@@ -606,7 +625,9 @@ placeholder theme route =
         [ Typography.sectionTitle theme (pageTitle route ++ " placeholder")
         , Element.paragraph [ Font.color theme.textMedium ]
             [ Element.text
-                "Loading, success, empty, stale, partial, unavailable, and failed states use shared primitives here before endpoint-specific UI is added."
+                ("Loading, success, empty, stale, partial, unavailable, and failed states use shared "
+                    ++ "primitives here before endpoint-specific UI is added."
+                )
             ]
         , Ui.emptyState theme "No screen data is requested during Phase 3."
         ]

@@ -115,7 +115,15 @@ parseDate value =
         [ yearText, monthText, dayText ] ->
             case ( String.toInt yearText, String.toInt monthText, String.toInt dayText ) of
                 ( Just year, Just month, Just day ) ->
-                    if String.length yearText == 4 && String.length monthText == 2 && String.length dayText == 2 && validDate year month day then
+                    if
+                        String.length yearText
+                            == 4
+                            && String.length monthText
+                            == 2
+                            && String.length dayText
+                            == 2
+                            && validDate year month day
+                    then
                         Decode.succeed (Date { year = year, month = month, day = day })
 
                     else

@@ -224,7 +224,9 @@ receive request result (Model data) =
                             Ok response ->
                                 Model
                                     { data
-                                        | state = Showing (windowFromResponse applied response OnePage Nothing)
+                                        | state =
+                                            Showing
+                                                (windowFromResponse applied response OnePage Nothing)
                                     }
 
                             Err error ->
@@ -272,7 +274,10 @@ receive request result (Model data) =
                                 let
                                     nextWindow =
                                         if revisionChanged window page then
-                                            windowFromResponse (windowAppliedQuery window) page OnePage Nothing
+                                            windowFromResponse (windowAppliedQuery window)
+                                                page
+                                                OnePage
+                                                Nothing
 
                                         else
                                             appendPage window page
@@ -806,7 +811,11 @@ wideLayout theme device config response selected =
                 [ queryPanel theme config
                 , remoteNotice theme (remoteData config.model) response
                 , transactionCount theme response.transactions
-                , transactionsList theme device config.onSelect (selectedTransaction config.model) response.transactions
+                , transactionsList theme
+                    device
+                    config.onSelect
+                    (selectedTransaction config.model)
+                    response.transactions
                 , pagingControls theme config response
                 ]
             ]
@@ -845,7 +854,10 @@ queryPanel theme config =
                 , extraAttrs =
                     [ Element.htmlAttribute (Html.Attributes.id "transaction-query")
                     , Element.htmlAttribute (Html.Attributes.attribute "autocomplete" "off")
-                    , Element.htmlAttribute (Html.Attributes.attribute "aria-describedby" "transaction-query-help transaction-query-error")
+                    , Element.htmlAttribute
+                        (Html.Attributes.attribute "aria-describedby"
+                            "transaction-query-help transaction-query-error"
+                        )
                     ]
                 }
             , Ui.primaryButton theme { label = "Apply", onPress = config.onApply }
@@ -863,7 +875,11 @@ queryPanel theme config =
                 Element.none
         , Element.el [ Element.htmlAttribute (Html.Attributes.id "transaction-query-help") ]
             (Typography.mutedParagraph theme
-                "Type an hledger query below. Terms separated by spaces combine with AND. Prefix terms with acct:, desc:, date:, amt:, cur:, payee:, note:, status:, real:, tag:, or depth: to filter by field. Use not:, any:, all:, and expr: for boolean logic."
+                ("Type an hledger query below. Terms separated by spaces combine with AND. "
+                    ++ "Prefix terms with acct:, desc:, date:, amt:, cur:, payee:, note:, status:, "
+                    ++ "real:, tag:, or depth: to filter by field. Use not:, any:, all:, and expr: "
+                    ++ "for boolean logic."
+                )
             )
         , Element.wrappedRow [ Element.width Element.fill, Element.spacing 8 ]
             (Typography.mutedCaption theme "Examples:"
@@ -929,10 +945,15 @@ remoteContent theme device config =
                 Nothing ->
                     if queryError (remoteData config.model) /= Nothing then
                         Ui.card theme
-                            [ Typography.mutedParagraph theme "Correct the query above, then apply it again." ]
+                            [ Typography.mutedParagraph theme
+                                "Correct the query above, then apply it again."
+                            ]
 
                     else
-                        Ui.card theme [ Ui.errorBanner theme ("Transactions failed to load: " ++ ApiError.message error) ]
+                        Ui.card theme
+                            [ Ui.errorBanner theme
+                                ("Transactions failed to load: " ++ ApiError.message error)
+                            ]
 
 
 transactionContent :
@@ -949,7 +970,11 @@ transactionContent theme device config response =
             noMatches theme config
 
           else
-            transactionsList theme device config.onSelect (selectedTransaction config.model) response.transactions
+            transactionsList theme
+                device
+                config.onSelect
+                (selectedTransaction config.model)
+                response.transactions
         , pagingControls theme config response
         ]
 
@@ -962,7 +987,8 @@ noMatches theme config =
                 "No transactions are available."
 
              else
-                "No transactions match the applied query. Edit it above and apply again to see all transactions."
+                "No transactions match the applied query. "
+                    ++ "Edit it above and apply again to see all transactions."
             )
         ]
 
@@ -1013,7 +1039,8 @@ remoteNotice theme remote response =
             Ui.statusBadge theme Ui.StatusPrimary "Refreshing transactions"
 
         Failure error _ ->
-            Ui.errorBanner theme ("Refresh failed; showing stale transactions: " ++ ApiError.message error)
+            Ui.errorBanner theme
+                ("Refresh failed; showing stale transactions: " ++ ApiError.message error)
 
         _ ->
             case response.metadata.freshness of
@@ -1038,7 +1065,13 @@ transactionCount theme transactions =
     Typography.mutedBody theme (String.fromInt (List.length transactions) ++ " transactions")
 
 
-transactionsList : Theme -> Device -> (Transaction -> msg) -> Maybe Transaction -> List Transaction -> Element msg
+transactionsList :
+    Theme
+    -> Device
+    -> (Transaction -> msg)
+    -> Maybe Transaction
+    -> List Transaction
+    -> Element msg
 transactionsList theme device onSelect selected transactions =
     Element.column
         [ Element.width Element.fill
@@ -1048,7 +1081,13 @@ transactionsList theme device onSelect selected transactions =
         (List.map (monthSection theme device onSelect selected) (monthGroups transactions))
 
 
-monthSection : Theme -> Device -> (Transaction -> msg) -> Maybe Transaction -> ( String, List Transaction ) -> Element msg
+monthSection :
+    Theme
+    -> Device
+    -> (Transaction -> msg)
+    -> Maybe Transaction
+    -> ( String, List Transaction )
+    -> Element msg
 monthSection theme device onSelect selected ( month, transactions ) =
     Element.column [ Element.width Element.fill, Element.spacing 4 ]
         (Element.el [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
@@ -1057,7 +1096,13 @@ monthSection theme device onSelect selected ( month, transactions ) =
         )
 
 
-transactionRow : Theme -> Device -> (Transaction -> msg) -> Maybe Transaction -> Transaction -> Element msg
+transactionRow :
+    Theme
+    -> Device
+    -> (Transaction -> msg)
+    -> Maybe Transaction
+    -> Transaction
+    -> Element msg
 transactionRow theme device onSelect selected transaction =
     let
         rowContent =
@@ -1136,7 +1181,10 @@ trailingSummary theme transaction =
         _ ->
             Element.column [ Element.alignRight, Element.spacing 2 ]
                 [ Element.el [ Element.alignRight ]
-                    (Ui.financialBadge theme (classificationTone transaction.presentation.classification) (classificationLabel transaction))
+                    (Ui.financialBadge theme
+                        (classificationTone transaction.presentation.classification)
+                        (classificationLabel transaction)
+                    )
                 ]
 
 
@@ -1208,7 +1256,11 @@ classificationLabel transaction =
 postingPreviewRow : Theme -> Posting -> Element msg
 postingPreviewRow theme posting =
     Element.row [ Element.width Element.fill, Element.spacing 4 ]
-        [ Icon.view { icon = AccountPresentation.iconForAccountName posting.account, size = 14, color = theme.textMuted }
+        [ Icon.view
+            { icon = AccountPresentation.iconForAccountName posting.account
+            , size = 14
+            , color = theme.textMuted
+            }
         , Element.paragraph
             [ Typography.rowMetadata
             , Font.color theme.textMuted
@@ -1279,7 +1331,8 @@ transactionDetail theme transaction =
                     [ Typography.mutedParagraph theme "No postings" ]
 
                 else
-                    List.intersperse (Ui.hairline theme) (List.map (postingDetailRow theme) transaction.postings)
+                    List.intersperse (Ui.hairline theme)
+                        (List.map (postingDetailRow theme) transaction.postings)
             , footer = Nothing
             }
         ]
@@ -1287,7 +1340,12 @@ transactionDetail theme transaction =
 
 detailRow : Theme -> String -> String -> Element msg
 detailRow theme label value =
-    Element.row [ Element.width Element.fill, Element.spacing 16, Element.alignTop, Typography.minWidthZero ]
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing 16
+        , Element.alignTop
+        , Typography.minWidthZero
+        ]
         [ Element.el
             [ Element.width (Element.px 112)
             , Typography.detailLabel
@@ -1315,11 +1373,29 @@ maybeDetailRow theme label value =
 
 postingDetailRow : Theme -> Posting -> Element msg
 postingDetailRow theme posting =
-    Element.row [ Element.width Element.fill, Element.spacing 12, Element.paddingXY 0 10, Element.alignTop, Typography.minWidthZero ]
-        [ Element.row [ Element.width Element.fill, Element.spacing 8, Element.alignTop, Typography.minWidthZero ]
-            [ Icon.view { icon = AccountPresentation.iconForAccountName posting.account, size = 16, color = theme.textMedium }
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing 12
+        , Element.paddingXY 0 10
+        , Element.alignTop
+        , Typography.minWidthZero
+        ]
+        [ Element.row
+            [ Element.width Element.fill
+            , Element.spacing 8
+            , Element.alignTop
+            , Typography.minWidthZero
+            ]
+            [ Icon.view
+                { icon = AccountPresentation.iconForAccountName posting.account
+                , size = 16
+                , color = theme.textMedium
+                }
             , Element.column [ Element.width Element.fill, Element.spacing 4 ]
-                ([ Typography.naturalWrapText [ Typography.detailValue, Font.color theme.textMedium ] ":" posting.account
+                ([ Typography.naturalWrapText
+                    [ Typography.detailValue, Font.color theme.textMedium ]
+                    ":"
+                    posting.account
                  , Typography.mutedCaption theme (statusLabel posting.status)
                  ]
                     ++ maybeCaption theme posting.comment
@@ -1331,7 +1407,13 @@ postingDetailRow theme posting =
                        )
                 )
             ]
-        , Element.column [ Element.width Element.shrink, Element.spacing 4, Element.alignRight, Element.alignTop, Font.alignRight ]
+        , Element.column
+            [ Element.width Element.shrink
+            , Element.spacing 4
+            , Element.alignRight
+            , Element.alignTop
+            , Font.alignRight
+            ]
             (List.map (postingAmountLine theme) posting.amounts)
         ]
 

@@ -78,7 +78,17 @@ clearValue (Model model) =
     Model { model | selectedValue = Nothing }
 
 
-view : Theme -> Viewport -> { onToggle : String -> msg, onOpen : String -> msg, onValue : String -> msg, onCloseValue : msg } -> Model -> Element msg
+view :
+    Theme
+    -> Viewport
+    ->
+        { onToggle : String -> msg
+        , onOpen : String -> msg
+        , onValue : String -> msg
+        , onCloseValue : msg
+        }
+    -> Model
+    -> Element msg
 view theme viewport actions (Model model) =
     let
         device =
@@ -115,7 +125,19 @@ view theme viewport actions (Model model) =
         page
 
 
-wideLayout : Theme -> Device -> { onToggle : String -> msg, onOpen : String -> msg, onValue : String -> msg, onCloseValue : msg } -> Element msg -> String -> Response -> Element msg
+wideLayout :
+    Theme
+    -> Device
+    ->
+        { onToggle : String -> msg
+        , onOpen : String -> msg
+        , onValue : String -> msg
+        , onCloseValue : msg
+        }
+    -> Element msg
+    -> String
+    -> Response
+    -> Element msg
 wideLayout theme device actions page path response =
     Element.row
         [ Element.width Element.fill
@@ -138,7 +160,21 @@ wideLayout theme device actions page path response =
         ]
 
 
-content : Theme -> Device -> { onToggle : String -> msg, onOpen : String -> msg, onValue : String -> msg, onCloseValue : msg } -> { remote : RemoteData Response, expanded : Set String, selectedValue : Maybe String } -> Element msg
+content :
+    Theme
+    -> Device
+    ->
+        { onToggle : String -> msg
+        , onOpen : String -> msg
+        , onValue : String -> msg
+        , onCloseValue : msg
+        }
+    ->
+        { remote : RemoteData Response
+        , expanded : Set String
+        , selectedValue : Maybe String
+        }
+    -> Element msg
 content theme device actions model =
     case model.remote of
         NotAsked ->
@@ -154,18 +190,24 @@ content theme device actions model =
                 ]
 
         Success response ->
-            stateCard theme response.metadata.freshness (accountTree theme actions model.expanded response.accounts)
+            stateCard theme
+                response.metadata.freshness
+                (accountTree theme actions model.expanded response.accounts)
 
         Failure error stale ->
             case stale of
                 Just response ->
                     Ui.card theme
-                        [ Ui.errorBanner theme ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
+                        [ Ui.errorBanner theme
+                            ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
                         , accountTree theme actions model.expanded response.accounts
                         ]
 
                 Nothing ->
-                    Ui.card theme [ Ui.errorBanner theme ("Accounts failed to load: " ++ ApiError.message error) ]
+                    Ui.card theme
+                        [ Ui.errorBanner theme
+                            ("Accounts failed to load: " ++ ApiError.message error)
+                        ]
 
 
 stateCard : Theme -> Freshness -> Element msg -> Element msg
@@ -191,7 +233,17 @@ stateCard theme freshness tree =
         )
 
 
-accountTree : Theme -> { onToggle : String -> msg, onOpen : String -> msg, onValue : String -> msg, onCloseValue : msg } -> Set String -> List AccountNode -> Element msg
+accountTree :
+    Theme
+    ->
+        { onToggle : String -> msg
+        , onOpen : String -> msg
+        , onValue : String -> msg
+        , onCloseValue : msg
+        }
+    -> Set String
+    -> List AccountNode
+    -> Element msg
 accountTree theme actions expanded accounts =
     if List.isEmpty accounts then
         Ui.emptyState theme "No accounts were found in the journal."
@@ -201,7 +253,18 @@ accountTree theme actions expanded accounts =
             (List.map (accountRow theme actions expanded 0) accounts)
 
 
-accountRow : Theme -> { onToggle : String -> msg, onOpen : String -> msg, onValue : String -> msg, onCloseValue : msg } -> Set String -> Int -> AccountNode -> Element msg
+accountRow :
+    Theme
+    ->
+        { onToggle : String -> msg
+        , onOpen : String -> msg
+        , onValue : String -> msg
+        , onCloseValue : msg
+        }
+    -> Set String
+    -> Int
+    -> AccountNode
+    -> Element msg
 accountRow theme actions expanded depth (AccountNode account) =
     let
         isExpanded =
@@ -239,7 +302,10 @@ accountRow theme actions expanded depth (AccountNode account) =
                     , Font.color theme.textPrimary
                     ]
                     { onPress = Just (actions.onValue account.path)
-                    , label = balanceText theme account.valuation (Just (commodityCount account.subtreeBalances))
+                    , label =
+                        balanceText theme
+                            account.valuation
+                            (Just (commodityCount account.subtreeBalances))
                     }
 
             else
@@ -286,7 +352,11 @@ accountRow theme actions expanded depth (AccountNode account) =
                 [ Element.el [ Element.width (Element.px (depth * 20)) ] Element.none
                 , toggleButton
                 , accountAction
-                , Element.el [ Element.width (Element.fillPortion 1), Element.alignRight ] valueAction
+                , Element.el
+                    [ Element.width (Element.fillPortion 1)
+                    , Element.alignRight
+                    ]
+                    valueAction
                 ]
     in
     Element.column [ Element.width Element.fill, Element.spacing 6 ]

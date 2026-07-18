@@ -228,7 +228,14 @@ suite =
                                 Page.init
                 in
                 Page.visibleResponse model
-                    |> Maybe.map (\response -> ( List.length response.transactions, response.transactions |> List.head |> Maybe.map .description ))
+                    |> Maybe.map
+                        (\response ->
+                            ( List.length response.transactions
+                            , response.transactions
+                                |> List.head
+                                |> Maybe.map .description
+                            )
+                        )
                     |> (\window -> ( window, Page.retainedPageCount model ))
                     |> Expect.equal ( Just ( 250, Just "Transaction 51" ), 5 )
         , test "a revision change while paging replaces the window and clears selection" <|
@@ -248,10 +255,20 @@ suite =
         , test "query errors decode their safe reason and position" <|
             \_ ->
                 Decode.decodeString ApiError.decoder
-                    """{"error":{"code":"invalid_query","message":"The query is invalid.","requestId":"request-1","details":{"reason":"expected a closing parenthesis","position":14}}}"""
+                    """
+                    {"error":{"code":"invalid_query",
+                    "message":"The query is invalid.",
+                    "requestId":"request-1",
+                    "details":{"reason":"expected a closing parenthesis",
+                    "position":14}}}
+                    """
                     |> Result.map ApiError.message
                     |> Expect.equal
-                        (Ok "The query is invalid. expected a closing parenthesis (at character 14) (request request-1)")
+                        (Ok
+                            ("The query is invalid. expected a closing parenthesis"
+                                ++ " (at character 14) (request request-1)"
+                            )
+                        )
         , test "a query error preserves the applied draft for correction" <|
             \_ ->
                 let
@@ -405,7 +422,11 @@ suite =
                     , cursor = Just "page+/="
                     }
                     |> Expect.equal
-                        "/api/v1/transactions?query=acct%3Afood%20%26%20caf%C3%A9&limit=50&cursor=page%2B%2F%3D"
+                        ("/api/v1/transactions"
+                            ++ "?query=acct%3Afood%20%26%20caf%C3%A9"
+                            ++ "&limit=50"
+                            ++ "&cursor=page%2B%2F%3D"
+                        )
         ]
 
 

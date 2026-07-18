@@ -30,10 +30,27 @@ suite =
             ]
         , test "root and visible routes parse" <|
             \_ ->
-                [ "/", "/net-worth", "/investments", "/cashflow", "/accounts", "/accounts/Assets%3ACash", "/transactions", "/settings" ]
+                [ "/"
+                , "/net-worth"
+                , "/investments"
+                , "/cashflow"
+                , "/accounts"
+                , "/accounts/Assets%3ACash"
+                , "/transactions"
+                , "/settings"
+                ]
                     |> List.filterMap (\path -> Url.fromString ("https://hedger.test" ++ path))
                     |> List.map Route.fromUrl
-                    |> Expect.equal [ NetWorth, NetWorth, Investments, Cashflow, Accounts, Account "Assets:Cash", Transactions, Settings ]
+                    |> Expect.equal
+                        [ NetWorth
+                        , NetWorth
+                        , Investments
+                        , Cashflow
+                        , Accounts
+                        , Account "Assets:Cash"
+                        , Transactions
+                        , Settings
+                        ]
         , test "loading preserves stale content" <|
             \_ ->
                 Success 42
@@ -57,7 +74,9 @@ suite =
         , test "stable API error envelope decodes" <|
             \_ ->
                 Decode.decodeString ApiError.decoder
-                    "{\"error\":{\"code\":\"journal_unavailable\",\"message\":\"No snapshot\",\"requestId\":\"req-1\"}}"
+                    """
+                    {"error":{"code":"journal_unavailable","message":"No snapshot","requestId":"req-1"}}
+                    """
                     |> Result.map .code
                     |> Expect.equal (Ok "journal_unavailable")
         ]
