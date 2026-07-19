@@ -39,6 +39,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
 import Lib.Time as TimeExtra
+import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
@@ -168,6 +169,7 @@ type Msg
     = Refresh
     | DraftChanged String
     | ApplyDraft
+    | ClearDraft
     | LoadMore
     | Select Transaction
     | Back
@@ -197,6 +199,18 @@ update msg (Model data) =
             let
                 ( nextModel, request ) =
                     applyDraft (Model data)
+            in
+            case nextModel of
+                Model nextData ->
+                    ( Model nextData, fetchTransactions request, NoOutMsg )
+
+        ClearDraft ->
+            let
+                cleared =
+                    { data | draft = DraftQuery "" }
+
+                ( nextModel, request ) =
+                    applyDraft (Model cleared)
             in
             case nextModel of
                 Model nextData ->
@@ -895,7 +909,7 @@ listPage theme device model =
         ]
         [ transactionsHeader theme device
         , Ui.pageContainer device
-            [ queryPanel theme model
+            [ queryPanel theme device model
             , remoteContent theme device model
             ]
         ]
@@ -924,7 +938,7 @@ wideLayout theme device model response selected =
             ]
             [ transactionsHeader theme device
             , Ui.pageContainer device
-                [ queryPanel theme model
+                [ queryPanel theme device model
                 , remoteNotice theme (remoteData model) response
                 , transactionCount theme response.transactions
                 , transactionsList theme
@@ -955,70 +969,33 @@ transactionsHeader theme device =
             }
 
 
-queryPanel : Theme -> Model -> Element Msg
-queryPanel theme model =
-    Ui.card theme
-        [ Ui.fieldLabel theme "hledger query"
-        , Element.row
-            [ Element.width Element.fill
-            , Element.spacing 8
-            , Element.centerY
+queryPanel : Theme -> Device -> Model -> Element Msg
+queryPanel theme device model =
+    QueryPanel.view
+        { theme = theme
+        , device = device
+        , draftQuery = draftQuery model
+        , onDraftChanged = DraftChanged
+        , onApply = ApplyDraft
+        , onClear = ClearDraft
+        , queryError = queryError (remoteData model)
+        , helpText =
+            "Type an hledger query below. Terms separated by spaces combine with AND. "
+                ++ "Prefix terms with acct:, desc:, date:, amt:, cur:, payee:, note:, status:, "
+                ++ "real:, tag:, or depth: to filter by field. Use not:, any:, all:, and expr: "
+                ++ "for boolean logic."
+        , examples =
+            [ "acct:expenses"
+            , "desc:grocery"
+            , "date:2024-01-01..2024-01-31"
+            , "cur:EUR"
+            , "amt:'>50'"
+            , "status:*"
+            , "not:status:cleared"
+            , "expr:'acct:food AND amt:>20'"
             ]
-            [ Ui.searchInputInline theme
-                { label = "hledger query"
-                , text = draftQuery model
-                , onChange = DraftChanged
-                , extraAttrs =
-                    [ Element.htmlAttribute (Html.Attributes.id "transaction-query")
-                    , Element.htmlAttribute (Html.Attributes.attribute "autocomplete" "off")
-                    , Element.htmlAttribute
-                        (Html.Attributes.attribute "aria-describedby"
-                            "transaction-query-help transaction-query-error"
-                        )
-                    ]
-                }
-            , Ui.primaryButton theme { label = "Apply", onPress = ApplyDraft }
-            ]
-        , case queryError (remoteData model) of
-            Just error ->
-                Element.el
-                    [ Element.width Element.fill
-                    , Element.htmlAttribute (Html.Attributes.id "transaction-query-error")
-                    , Element.htmlAttribute (Html.Attributes.attribute "role" "alert")
-                    ]
-                    (Ui.errorBanner theme (ApiError.message error))
-
-            Nothing ->
-                Element.none
-        , Element.el [ Element.htmlAttribute (Html.Attributes.id "transaction-query-help") ]
-            (Typography.mutedParagraph theme
-                ("Type an hledger query below. Terms separated by spaces combine with AND. "
-                    ++ "Prefix terms with acct:, desc:, date:, amt:, cur:, payee:, note:, status:, "
-                    ++ "real:, tag:, or depth: to filter by field. Use not:, any:, all:, and expr: "
-                    ++ "for boolean logic."
-                )
-            )
-        , Element.wrappedRow [ Element.width Element.fill, Element.spacing 8 ]
-            (Typography.mutedCaption theme "Examples:"
-                :: List.map
-                    (\example ->
-                        Ui.chip theme
-                            { label = example
-                            , selected = draftQuery model == example
-                            , onClick = Just (DraftChanged example)
-                            }
-                    )
-                    [ "acct:expenses"
-                    , "desc:grocery"
-                    , "date:2024-01-01..2024-01-31"
-                    , "cur:EUR"
-                    , "amt:'>50'"
-                    , "status:*"
-                    , "not:status:cleared"
-                    , "expr:'acct:food AND amt:>20'"
-                    ]
-            )
-        ]
+        , baseId = "transaction-query"
+        }
 
 
 queryError : RemoteData Response -> Maybe ApiError

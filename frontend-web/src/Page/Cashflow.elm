@@ -8,6 +8,7 @@ import Element exposing (Device, Element)
 import Element.Background as Background
 import Html.Attributes
 import Page.Shared.Analysis as Analysis
+import Page.Shared.QueryPanel as QueryPanel
 import Page.Transactions as Transactions
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
@@ -274,64 +275,28 @@ dashboard theme viewport device data =
                     ]
                 }
         , Ui.pageContainer device
-            (queryPanel theme data
+            (queryPanel theme device data
                 :: dashboardContent theme viewport data
             )
         ]
 
 
-queryPanel : Theme -> ModelData -> Element Msg
-queryPanel theme data =
-    Ui.card theme
-        [ Element.column [ Element.width Element.fill, Element.spacing 8 ]
-            [ Ui.searchInput theme
-                { label = "hledger query"
-                , text = data.draftQuery
-                , onChange = DraftChanged
-                , extraAttrs =
-                    [ Element.htmlAttribute (Html.Attributes.id "cashflow-query")
-                    , Element.htmlAttribute (Html.Attributes.attribute "autocomplete" "off")
-                    , Element.htmlAttribute
-                        (Html.Attributes.attribute
-                            "aria-describedby"
-                            "cashflow-query-help cashflow-query-error"
-                        )
-                    ]
-                }
-            , Element.row [ Element.alignRight, Element.spacing 8 ]
-                [ Ui.secondaryButton theme { label = "Clear", onPress = ClearQuery }
-                , Ui.primaryButton theme { label = "Apply", onPress = ApplyQuery }
-                ]
-            ]
-        , queryError data.response
-            |> Maybe.map
-                (ApiError.message
-                    >> Ui.errorBanner theme
-                    >> Element.el
-                        [ Element.width Element.fill
-                        , Element.htmlAttribute (Html.Attributes.id "cashflow-query-error")
-                        , Element.htmlAttribute (Html.Attributes.attribute "role" "alert")
-                        ]
-                )
-            |> Maybe.withDefault Element.none
-        , Element.el [ Element.htmlAttribute (Html.Attributes.id "cashflow-query-help") ] <|
-            Typography.mutedParagraph theme
-                ("Filter this entire dashboard with an hledger query. Category, timeline, "
-                    ++ "and activity results always use the same applied filter."
-                )
-        , Element.wrappedRow [ Element.width Element.fill, Element.spacing 8 ]
-            (Typography.mutedCaption theme "Examples:"
-                :: List.map
-                    (\example ->
-                        Ui.chip theme
-                            { label = example
-                            , selected = data.draftQuery == example
-                            , onClick = Just (DraftChanged example)
-                            }
-                    )
-                    [ "acct:expenses", "desc:grocery", "date:2026-01-01..2026-07-31", "cur:INR", "status:*" ]
-            )
-        ]
+queryPanel : Theme -> Device -> ModelData -> Element Msg
+queryPanel theme device data =
+    QueryPanel.view
+        { theme = theme
+        , device = device
+        , draftQuery = data.draftQuery
+        , onDraftChanged = DraftChanged
+        , onApply = ApplyQuery
+        , onClear = ClearQuery
+        , queryError = queryError data.response
+        , helpText =
+            "Filter this entire dashboard with an hledger query. Category, timeline, "
+                ++ "and activity results always use the same applied filter."
+        , examples = [ "acct:expenses", "desc:grocery", "date:2026-01-01..2026-07-31", "cur:INR", "status:*" ]
+        , baseId = "cashflow-query"
+        }
 
 
 dashboardContent : Theme -> Viewport -> ModelData -> List (Element Msg)
