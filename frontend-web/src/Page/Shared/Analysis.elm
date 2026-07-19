@@ -4,10 +4,8 @@ module Page.Shared.Analysis exposing
     , Effect(..)
     , Model
     , Msg(..)
-    , Report
     , Side(..)
     , SideConfig
-    , Timeline(..)
     , controlsView
     , init
     , queryChanged
@@ -18,14 +16,13 @@ module Page.Shared.Analysis exposing
     , view
     )
 
-import Api.Analytics as Analytics exposing (ActivityRange(..), Granularity(..))
-import Api.Error as ApiError
+import Api.Analytics as Analytics exposing (ActivityRange(..), Granularity(..), Report, Timeline(..))
+import Api.Error exposing (ApiError)
 import Api.Transaction exposing (Transaction)
 import Data.Calendar as Calendar
-import Data.Date as Date
+import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..), Period(..))
 import Element exposing (Device, Element)
 import Element.Font as Font
-import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Responsive as Responsive
@@ -44,40 +41,38 @@ type Model
 
 type alias ModelData =
     { granularity : Granularity
-    , selectedTimeline : Maybe String
+    , depth : Depth
+    , selectedTimeline : Maybe Period
     , timeline : List Analytics.TimelinePoint
     , positive : SideState
     , negative : SideState
     , mode : Mode
-    , fiscalYearStartMonth : Int
+    , fiscalYearStartMonth : FiscalYearStartMonth
     }
 
 
 type alias SideState =
-    { period : Maybe String
-    , depth : Depth
-    , calendarMonth : Maybe CalendarMonth
-    , activity : RemoteData Analytics.ActivityResponse
+    { period : Maybe Period
+    , calendarMonth : Maybe Month
+    , activity : ActivityState
     , otherExpanded : Bool
     }
 
 
-type Depth
-    = Depth Int
-
-
-type CalendarMonth
-    = CalendarMonth String
+type ActivityState
+    = ActivityNotRequested
+    | ActivityLoading (Maybe Analytics.ActivityResponse)
+    | ActivityReady Analytics.ActivityResponse
+    | ActivityFailed ApiError (Maybe Analytics.ActivityResponse)
 
 
 type Mode
-    = Exploring Selection
+    = Exploring (Maybe Selection)
     | ViewingTransaction Selection Transaction
 
 
 type Selection
-    = NoSelection
-    | SelectedBucket Side Analytics.ActivityBucket
+    = Selection Side Analytics.ActivityBucket
 
 
 type Side
@@ -92,7 +87,8 @@ type alias Context =
 
 
 type alias Config =
-    { timelineTitle : String
+    { timelineSectionTitle : String
+    , timelineTitle : String
     , netLabel : String
     , positive : SideConfig
     , negative : SideConfig
@@ -109,39 +105,25 @@ type alias SideConfig =
     }
 
 
-type alias Report =
-    { displayCommodity : String
-    , timeline : Timeline
-    , positiveBreakdown : Analytics.CategoryBreakdown
-    , negativeBreakdown : Analytics.CategoryBreakdown
-    , warnings : List String
-    }
-
-
-type Timeline
-    = TimelineAvailable (List Analytics.TimelinePoint)
-    | TimelineUnavailable String (List Analytics.TimelinePoint)
-
-
 init : Model
 init =
     Model
         { granularity = Monthly
+        , depth = Depth 2
         , selectedTimeline = Nothing
         , timeline = []
         , positive = initialSide
         , negative = initialSide
-        , mode = Exploring NoSelection
-        , fiscalYearStartMonth = 4
+        , mode = Exploring Nothing
+        , fiscalYearStartMonth = FiscalYearStartMonth 4
         }
 
 
 initialSide : SideState
 initialSide =
     { period = Nothing
-    , depth = Depth 2
     , calendarMonth = Nothing
-    , activity = NotAsked
+    , activity = ActivityNotRequested
     , otherExpanded = False
     }
 
@@ -154,10 +136,10 @@ type Msg
     = GranularitySelected Granularity
     | TimelineSelected String
     | BreakdownPeriodChanged Side Int
-    | DepthSelected Side Int
+    | DepthSelected Int
     | OtherToggled Side
     | CalendarPeriodChanged Side Int
-    | ActivityLoaded Side (Result ApiError.ApiError Analytics.ActivityResponse)
+    | ActivityLoaded Side (Result ApiError Analytics.ActivityResponse)
     | BucketSelected Side Analytics.ActivityBucket
     | TransactionSelected Transaction
     | Back
@@ -179,30 +161,30 @@ update context msg (Model data) =
                         , selectedTimeline = Nothing
                         , positive = resetSideForGranularity data.positive
                         , negative = resetSideForGranularity data.negative
-                        , mode = Exploring NoSelection
+                        , mode = Exploring Nothing
                     }
             in
             withReportAndActivities context next
 
         TimelineSelected period ->
-            if String.isEmpty period then
-                ( Model data, [] )
+            case ( periodFromString data.granularity period, pointFor data.timeline period ) of
+                ( Just selectedPeriod, Just point ) ->
+                    let
+                        selectedMonth =
+                            Just (Time.monthFromDate point.startDate)
 
-            else
-                let
-                    selectedMonth =
-                        pointFor data.timeline period
-                            |> Maybe.map (.startDate >> Date.toString >> String.left 7 >> CalendarMonth)
+                        next =
+                            { data
+                                | selectedTimeline = Just selectedPeriod
+                                , positive = selectPeriod selectedPeriod selectedMonth data.positive
+                                , negative = selectPeriod selectedPeriod selectedMonth data.negative
+                                , mode = Exploring Nothing
+                            }
+                    in
+                    withReport context next
 
-                    next =
-                        { data
-                            | selectedTimeline = Just period
-                            , positive = selectPeriod period selectedMonth data.positive
-                            , negative = selectPeriod period selectedMonth data.negative
-                            , mode = Exploring NoSelection
-                        }
-                in
-                withReport context next
+                _ ->
+                    ( Model data, [] )
 
         BreakdownPeriodChanged side offset ->
             let
@@ -211,24 +193,18 @@ update context msg (Model data) =
 
                 nextSide =
                     { sideState
-                        | period = Maybe.map (Calendar.shiftPeriod data.granularity offset) sideState.period
+                        | period = Maybe.map (shiftPeriod data.granularity offset) sideState.period
                     }
             in
             withReport context (setSide side nextSide data)
 
-        DepthSelected side requestedDepth ->
-            if requestedDepth < 1 then
-                ( Model data, [] )
+        DepthSelected requestedDepth ->
+            case Time.depthFromInt requestedDepth of
+                Nothing ->
+                    ( Model data, [] )
 
-            else
-                let
-                    sideState =
-                        sideFor side data
-
-                    next =
-                        setSide side { sideState | depth = Depth requestedDepth } data
-                in
-                withReport context next
+                Just depth ->
+                    withReportAndActivities context { data | depth = depth }
 
         OtherToggled side ->
             let
@@ -245,7 +221,7 @@ update context msg (Model data) =
                 Nothing ->
                     ( Model data, [] )
 
-                Just (CalendarMonth currentMonth) ->
+                Just currentMonth ->
                     let
                         distance =
                             if activityRange data.granularity == MonthActivity then
@@ -259,13 +235,12 @@ update context msg (Model data) =
 
                         nextSide =
                             { sideState
-                                | calendarMonth =
-                                    Just (CalendarMonth (Calendar.shiftMonth distance currentMonth))
-                                , activity = RemoteData.beginLoading sideState.activity
+                                | calendarMonth = Just (Time.shiftMonth distance currentMonth)
+                                , activity = beginActivityLoading sideState.activity
                             }
 
                         next =
-                            setSide side nextSide { data | mode = Exploring NoSelection }
+                            setSide side nextSide { data | mode = Exploring Nothing }
                     in
                     ( Model next, activityEffect context side next |> maybeToList )
 
@@ -277,10 +252,10 @@ update context msg (Model data) =
                 remote =
                     case result of
                         Ok response ->
-                            Success response
+                            ActivityReady response
 
                         Err error ->
-                            Failure error (RemoteData.value previous)
+                            ActivityFailed error (activityValue previous)
 
                 sideState =
                     sideFor side data
@@ -288,7 +263,7 @@ update context msg (Model data) =
                 fiscalYearStartMonth =
                     result
                         |> Result.toMaybe
-                        |> Maybe.map .fiscalYearStartMonth
+                        |> Maybe.andThen (Time.fiscalYearStartMonthFromInt << .fiscalYearStartMonth)
                         |> Maybe.withDefault data.fiscalYearStartMonth
             in
             ( Model
@@ -306,20 +281,25 @@ update context msg (Model data) =
 
                 nextSelection =
                     case selection of
-                        SelectedBucket selectedSide selectedBucket ->
+                        Just (Selection selectedSide selectedBucket) ->
                             if selectedSide == side && selectedBucket.key == bucket.key then
-                                NoSelection
+                                Nothing
 
                             else
-                                SelectedBucket side bucket
+                                Just (Selection side bucket)
 
-                        NoSelection ->
-                            SelectedBucket side bucket
+                        Nothing ->
+                            Just (Selection side bucket)
             in
             ( Model { data | mode = Exploring nextSelection }, [] )
 
         TransactionSelected selectedTransaction ->
-            ( Model { data | mode = ViewingTransaction (selectionFor data.mode) selectedTransaction }, [] )
+            case selectionFor data.mode of
+                Nothing ->
+                    ( Model data, [] )
+
+                Just selection ->
+                    ( Model { data | mode = ViewingTransaction selection selectedTransaction }, [] )
 
         Back ->
             ( Model { data | mode = Exploring (selectionFor data.mode) }, [] )
@@ -336,7 +316,7 @@ queryChanged context (Model data) =
                 | selectedTimeline = Nothing
                 , positive = resetSide data.positive
                 , negative = resetSide data.negative
-                , mode = Exploring NoSelection
+                , mode = Exploring Nothing
             }
     in
     withReport context next
@@ -349,18 +329,18 @@ reportLoaded context report (Model data) =
             timelinePoints report.timeline
 
         selectedTimeline =
-            syncedPeriod data.selectedTimeline points
+            syncedPeriod data.selectedTimeline points data.granularity
 
         selectedMonth =
             selectedTimeline
-                |> Maybe.andThen (pointFor points)
+                |> Maybe.andThen (Time.periodToString >> pointFor points)
                 |> orElse (List.reverse points |> List.head)
-                |> Maybe.map (.startDate >> Date.toString >> String.left 7 >> CalendarMonth)
-                |> orElse (Just (CalendarMonth "1970-01"))
+                |> Maybe.map (.startDate >> Time.monthFromDate)
+                |> orElse (Just (Month { year = 1970, month = 1 }))
 
         updateSide breakdown sideState =
             { sideState
-                | period = Just breakdown.period
+                | period = periodFromString data.granularity breakdown.period
                 , calendarMonth = sideState.calendarMonth |> orElse selectedMonth
             }
 
@@ -380,10 +360,10 @@ reportRequest query (Model data) =
     { query = query
     , granularity = data.granularity
     , displayCommodity = Nothing
-    , positivePeriod = data.positive.period
-    , negativePeriod = data.negative.period
-    , positiveDepth = depthValue data.positive.depth
-    , negativeDepth = depthValue data.negative.depth
+    , positivePeriod = Maybe.map Time.periodToString data.positive.period
+    , negativePeriod = Maybe.map Time.periodToString data.negative.period
+    , positiveDepth = Time.depthValue data.depth
+    , negativeDepth = Time.depthValue data.depth
     }
 
 
@@ -412,19 +392,21 @@ activityEffect context side data =
     in
     sideState.calendarMonth
         |> Maybe.map
-            (\(CalendarMonth month) ->
+            (\month ->
                 FetchActivity side
                     { kind = (sideConfigFor side context.config).activityKind
                     , range = activityRange data.granularity
                     , period =
                         if activityRange data.granularity == MonthActivity then
-                            month
+                            Time.monthToString month
 
                         else
-                            Calendar.fiscalPeriodForMonth data.fiscalYearStartMonth month
+                            Calendar.fiscalPeriodForMonth
+                                (Time.fiscalYearStartMonthValue data.fiscalYearStartMonth)
+                                (Time.monthToString month)
                     , query = context.query
                     , displayCommodity = Nothing
-                    , depth = depthValue sideState.depth
+                    , depth = Time.depthValue data.depth
                     }
             )
 
@@ -451,11 +433,24 @@ view theme viewport config report (Model data) =
             max 320 (Responsive.usableContentWidth viewport device - 40)
     in
     Element.column [ Element.width Element.fill, Element.spacing 16 ]
-        [ timelineView theme chartWidth config report data
+        [ Typography.sectionTitle theme config.timelineSectionTitle
+        , timelineView theme chartWidth config report data
         , AnalyticsView.warningList theme report.warnings
+        , compositionHeader theme data.depth
         , breakdownsView theme device config report data
-        , Typography.sectionTitle theme "Activity"
         , activityViews theme device config report data
+        ]
+
+
+compositionHeader : Theme -> Depth -> Element Msg
+compositionHeader theme depth =
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
+        [ Element.el [ Element.width Element.fill ]
+            (Typography.sectionTitle theme "Composition and activity")
+        , Element.row [ Element.spacing 10 ]
+            [ Typography.mutedBody theme "Account depth"
+            , AnalyticsView.depthControl theme (Time.depthValue depth) DepthSelected
+            ]
         ]
 
 
@@ -464,11 +459,11 @@ timelineView theme chartWidth config report data =
     case report.timeline of
         TimelineAvailable points ->
             Ui.card theme
-                [ Typography.sectionTitle theme config.timelineTitle
+                [ Typography.subsectionTitle theme config.timelineTitle
                 , AnalyticsView.timelineChart theme
                     { commodity = report.displayCommodity
                     , points = points
-                    , selected = data.selectedTimeline
+                    , selected = Maybe.map Time.periodToString data.selectedTimeline
                     , onSelect = TimelineSelected
                     , availableWidth = chartWidth
                     , positiveLabel = config.positive.label
@@ -520,8 +515,6 @@ categoryView theme config side commodity breakdown sideState =
         , commodity = commodity
         , breakdown = breakdown
         , palette = config.palette
-        , depth = depthValue sideState.depth
-        , onDepth = DepthSelected side
         , onPrevious = BreakdownPeriodChanged side -1
         , onNext = BreakdownPeriodChanged side 1
         , otherExpanded = sideState.otherExpanded
@@ -545,8 +538,8 @@ activityView theme granularity config side commodity data =
 
         month =
             sideState.calendarMonth
-                |> Maybe.map (\(CalendarMonth value) -> value)
-                |> Maybe.withDefault ""
+                |> Maybe.map Time.monthToString
+                |> Maybe.withDefault "1970-01"
     in
     case granularity of
         Monthly ->
@@ -555,7 +548,7 @@ activityView theme granularity config side commodity data =
                 , period = month
                 , commodity = commodity
                 , tone = config.tone
-                , response = RemoteData.value sideState.activity
+                , response = activityValue sideState.activity
                 , selectedBucket = selectedBucketFor side data.mode
                 , onPrevious = CalendarPeriodChanged side -1
                 , onNext = CalendarPeriodChanged side 1
@@ -566,10 +559,13 @@ activityView theme granularity config side commodity data =
         Yearly ->
             AnalyticsView.activityYear theme
                 { title = config.yearActivityTitle
-                , period = Calendar.fiscalPeriodForMonth data.fiscalYearStartMonth month
+                , period =
+                    Calendar.fiscalPeriodForMonth
+                        (Time.fiscalYearStartMonthValue data.fiscalYearStartMonth)
+                        month
                 , commodity = commodity
                 , tone = config.tone
-                , response = RemoteData.value sideState.activity
+                , response = activityValue sideState.activity
                 , onPrevious = CalendarPeriodChanged side -1
                 , onNext = CalendarPeriodChanged side 1
                 }
@@ -589,11 +585,11 @@ resetSideForGranularity : SideState -> SideState
 resetSideForGranularity sideState =
     { sideState
         | period = Nothing
-        , activity = RemoteData.beginLoading sideState.activity
+        , activity = beginActivityLoading sideState.activity
     }
 
 
-selectPeriod : String -> Maybe CalendarMonth -> SideState -> SideState
+selectPeriod : Period -> Maybe Month -> SideState -> SideState
 selectPeriod period selectedMonth sideState =
     { sideState
         | period = Just period
@@ -641,33 +637,49 @@ sideConfigFor side config =
             config.negative
 
 
-selectionFor : Mode -> Selection
+selectionFor : Mode -> Maybe Selection
 selectionFor mode =
     case mode of
         Exploring selection ->
             selection
 
         ViewingTransaction selection _ ->
-            selection
+            Just selection
 
 
 selectedBucketFor : Side -> Mode -> Maybe Analytics.ActivityBucket
 selectedBucketFor side mode =
     case selectionFor mode of
-        SelectedBucket selectedSide bucket ->
+        Just (Selection selectedSide bucket) ->
             if selectedSide == side then
                 Just bucket
 
             else
                 Nothing
 
-        NoSelection ->
+        Nothing ->
             Nothing
 
 
-depthValue : Depth -> Int
-depthValue (Depth value) =
-    value
+activityValue : ActivityState -> Maybe Analytics.ActivityResponse
+activityValue activity =
+    case activity of
+        ActivityNotRequested ->
+            Nothing
+
+        ActivityLoading stale ->
+            stale
+
+        ActivityReady response ->
+            Just response
+
+        ActivityFailed _ stale ->
+            stale
+
+
+beginActivityLoading : ActivityState -> ActivityState
+beginActivityLoading activity =
+    ActivityLoading (activityValue activity)
 
 
 timelinePoints : Timeline -> List Analytics.TimelinePoint
@@ -700,23 +712,65 @@ maybeToList maybeValue =
             []
 
 
-syncedPeriod : Maybe String -> List { point | period : String } -> Maybe String
-syncedPeriod requested points =
+syncedPeriod : Maybe Period -> List { point | period : String } -> Granularity -> Maybe Period
+syncedPeriod requested points granularity =
     case requested of
         Just period ->
-            if List.any (.period >> (==) period) points then
+            if List.any (periodMatches granularity period) points then
                 Just period
 
             else
-                List.reverse points |> List.head |> Maybe.map .period
+                latestPeriod granularity points
 
         Nothing ->
-            List.reverse points |> List.head |> Maybe.map .period
+            latestPeriod granularity points
+
+
+latestPeriod : Granularity -> List { point | period : String } -> Maybe Period
+latestPeriod granularity points =
+    List.reverse points
+        |> List.filterMap (.period >> periodFromString granularity)
+        |> List.head
+
+
+periodMatches : Granularity -> Period -> { point | period : String } -> Bool
+periodMatches granularity period point =
+    periodFromString granularity point.period == Just period
+
+
+shiftPeriod : Granularity -> Int -> Period -> Period
+shiftPeriod granularity offset period =
+    case ( granularity, period ) of
+        ( Monthly, MonthPeriod month ) ->
+            MonthPeriod (Time.shiftMonth offset month)
+
+        ( Yearly, YearPeriod year ) ->
+            YearPeriod (year + offset)
+
+        ( Monthly, YearPeriod year ) ->
+            YearPeriod year
+
+        ( Yearly, MonthPeriod month ) ->
+            MonthPeriod month
 
 
 pointFor : List Analytics.TimelinePoint -> String -> Maybe Analytics.TimelinePoint
 pointFor points period =
     List.filter (.period >> (==) period) points |> List.head
+
+
+periodFromString : Granularity -> String -> Maybe Period
+periodFromString granularity value =
+    case granularity of
+        Monthly ->
+            Time.monthFromString value |> Maybe.map MonthPeriod
+
+        Yearly ->
+            if String.length value == 4 && String.all Char.isDigit value then
+                String.toInt value |> Maybe.map YearPeriod
+
+            else
+                Nothing
 
 
 responsiveGrid : Device -> List (Element msg) -> Element msg

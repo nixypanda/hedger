@@ -1,7 +1,8 @@
-module Data.Quantity exposing (Quantity, commodity, decoder, quantity)
+module Data.Quantity exposing (Quantity, commodity, commodityCount, decoder, hasMultipleCommodities, quantity)
 
 import Data.Decimal as Decimal exposing (Decimal)
-import Json.Decode as Decode exposing (Decoder)
+import Json.Decode as Decode
+import Set
 
 
 type alias Quantity =
@@ -18,6 +19,24 @@ commodity q =
 quantity : Quantity -> Decimal
 quantity q =
     q.quantity
+
+
+hasMultipleCommodities : List Quantity -> Bool
+hasMultipleCommodities balances =
+    case balances of
+        first :: rest ->
+            List.any (\balance -> commodity balance /= commodity first) rest
+
+        [] ->
+            False
+
+
+commodityCount : List Quantity -> Int
+commodityCount balances =
+    balances
+        |> List.map commodity
+        |> Set.fromList
+        |> Set.size
 
 
 decoder : Decode.Decoder Quantity

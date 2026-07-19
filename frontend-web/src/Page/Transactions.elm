@@ -46,6 +46,7 @@ import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
+import View.Transaction as TransactionView
 
 
 
@@ -58,17 +59,17 @@ type Model
 
 type alias ModelData =
     { state : State
-    , draft : String
-    , nextToken : Int
+    , draft : DraftQuery
+    , nextRequestId : RequestId
     }
 
 
 type State
     = Dormant
-    | InitialLoading AppliedQuery Token
+    | InitialLoading AppliedQuery RequestId
     | InitialFailure AppliedQuery ApiError
     | Showing Window
-    | RefreshingWindow Window Token
+    | RefreshingWindow Window RequestId
     | RefreshFailedWindow Window ApiError
     | LoadingMoreWindow Window NextAttempt
     | LoadMoreFailedWindow Window NextAttempt ApiError
@@ -78,12 +79,20 @@ type AppliedQuery
     = AppliedQuery String
 
 
-type Token
-    = Token Int
+type DraftQuery
+    = DraftQuery String
+
+
+type RequestId
+    = RequestId Int
+
+
+type Cursor
+    = Cursor String
 
 
 type NextAttempt
-    = NextAttempt Token String
+    = NextAttempt RequestId Cursor
 
 
 type Window
@@ -94,7 +103,7 @@ type alias WindowData =
     { applied : AppliedQuery
     , metadata : Metadata
     , rows : Rows
-    , nextCursor : Maybe String
+    , nextCursor : Maybe Cursor
     , retainedPages : RetainedPages
     }
 
@@ -122,12 +131,12 @@ type FirstRequest
 
 
 type NextRequest
-    = NextRequest RequestBase String
+    = NextRequest RequestBase Cursor
 
 
 type alias RequestBase =
-    { token : Token
-    , query : String
+    { requestId : RequestId
+    , query : AppliedQuery
     }
 
 
@@ -146,8 +155,8 @@ init : Model
 init =
     Model
         { state = Dormant
-        , draft = ""
-        , nextToken = 0
+        , draft = DraftQuery ""
+        , nextRequestId = RequestId 0
         }
 
 
@@ -182,7 +191,7 @@ update msg (Model data) =
                     ( Model nextData, fetchTransactions request, NoOutMsg )
 
         DraftChanged draft ->
-            ( Model { data | draft = draft }, Cmd.none, NoOutMsg )
+            ( Model { data | draft = DraftQuery draft }, Cmd.none, NoOutMsg )
 
         ApplyDraft ->
             let
@@ -275,20 +284,20 @@ beginLoadingMore (Model data) =
 
 setDraft : String -> Model -> Model
 setDraft draft (Model data) =
-    Model { data | draft = draft }
+    Model { data | draft = DraftQuery draft }
 
 
 applyDraft : Model -> ( Model, Request )
 applyDraft (Model data) =
     let
         query =
-            String.trim data.draft
+            String.trim (draftQueryText data.draft)
 
         applied =
             AppliedQuery query
 
         appliedData =
-            { data | draft = query }
+            { data | draft = DraftQuery query }
 
         ( nextData, token, request ) =
             issueFirstRequest applied appliedData
@@ -398,50 +407,50 @@ revisionChanged window current =
     (windowResponse window).metadata.revision /= current.metadata.revision
 
 
-issueFirstRequest : AppliedQuery -> ModelData -> ( ModelData, Token, FirstRequest )
+issueFirstRequest : AppliedQuery -> ModelData -> ( ModelData, RequestId, FirstRequest )
 issueFirstRequest applied data =
     let
-        nextToken =
-            data.nextToken + 1
+        nextRequestId =
+            incrementRequestId data.nextRequestId
 
-        token =
-            Token nextToken
+        requestId =
+            nextRequestId
     in
-    ( { data | nextToken = nextToken }
-    , token
-    , FirstRequest { token = token, query = appliedQueryText applied }
+    ( { data | nextRequestId = nextRequestId }
+    , requestId
+    , FirstRequest { requestId = requestId, query = applied }
     )
 
 
-issueNextRequest : AppliedQuery -> String -> ModelData -> ( ModelData, NextAttempt, NextRequest )
+issueNextRequest : AppliedQuery -> Cursor -> ModelData -> ( ModelData, NextAttempt, NextRequest )
 issueNextRequest applied cursor data =
     let
-        nextToken =
-            data.nextToken + 1
+        nextRequestId =
+            incrementRequestId data.nextRequestId
 
-        token =
-            Token nextToken
+        requestId =
+            nextRequestId
 
         attempt =
-            NextAttempt token cursor
+            NextAttempt requestId cursor
     in
-    ( { data | nextToken = nextToken }
+    ( { data | nextRequestId = nextRequestId }
     , attempt
-    , NextRequest { token = token, query = appliedQueryText applied } cursor
+    , NextRequest { requestId = requestId, query = applied } cursor
     )
 
 
-matchesFirstRequest : FirstRequest -> AppliedQuery -> Token -> Bool
-matchesFirstRequest (FirstRequest request) applied token =
-    request.token == token && request.query == appliedQueryText applied
+matchesFirstRequest : FirstRequest -> AppliedQuery -> RequestId -> Bool
+matchesFirstRequest (FirstRequest request) applied requestId =
+    request.requestId == requestId && request.query == applied
 
 
 matchesNextRequest : NextRequest -> AppliedQuery -> NextAttempt -> Bool
-matchesNextRequest (NextRequest request cursor) applied (NextAttempt token activeCursor) =
-    request.token
-        == token
+matchesNextRequest (NextRequest request cursor) applied (NextAttempt requestId activeCursor) =
+    request.requestId
+        == requestId
         && request.query
-        == appliedQueryText applied
+        == applied
         && cursor
         == activeCursor
 
@@ -450,10 +459,10 @@ requestQuery : Request -> String
 requestQuery request =
     case request of
         FirstPageRequest (FirstRequest first) ->
-            first.query
+            appliedQueryText first.query
 
         NextPageRequest (NextRequest next _) ->
-            next.query
+            appliedQueryText next.query
 
 
 requestCursor : Request -> Maybe String
@@ -463,7 +472,7 @@ requestCursor request =
             Nothing
 
         NextPageRequest (NextRequest _ cursor) ->
-            Just cursor
+            Just (cursorText cursor)
 
 
 visibleWindow : State -> Maybe Window
@@ -488,14 +497,14 @@ visibleWindow state =
             Nothing
 
 
-loadMoreCandidate : State -> Maybe ( Window, String )
+loadMoreCandidate : State -> Maybe ( Window, Cursor )
 loadMoreCandidate state =
     case state of
         Showing window ->
-            windowResponse window |> .nextCursor |> Maybe.map (Tuple.pair window)
+            windowNextCursor window |> Maybe.map (Tuple.pair window)
 
         RefreshFailedWindow window _ ->
-            windowResponse window |> .nextCursor |> Maybe.map (Tuple.pair window)
+            windowNextCursor window |> Maybe.map (Tuple.pair window)
 
         LoadMoreFailedWindow window (NextAttempt _ cursor) _ ->
             Just ( window, cursor )
@@ -504,11 +513,16 @@ loadMoreCandidate state =
             Nothing
 
 
+windowNextCursor : Window -> Maybe Cursor
+windowNextCursor (Window window) =
+    window.nextCursor
+
+
 windowResponse : Window -> Response
 windowResponse (Window window) =
     { metadata = window.metadata
     , transactions = rowsToList window.rows
-    , nextCursor = window.nextCursor
+    , nextCursor = Maybe.map cursorText window.nextCursor
     }
 
 
@@ -518,7 +532,7 @@ windowFromResponse applied response pages selected =
         { applied = applied
         , metadata = response.metadata
         , rows = rowsWithSelection selected response.transactions
-        , nextCursor = response.nextCursor
+        , nextCursor = Maybe.map Cursor response.nextCursor
         , retainedPages = pages
         }
 
@@ -541,7 +555,7 @@ appendPage (Window current) page =
         { applied = current.applied
         , metadata = page.metadata
         , rows = rowsWithSelection (selectedRow current.rows) retainedTransactions
-        , nextCursor = page.nextCursor
+        , nextCursor = Maybe.map Cursor page.nextCursor
         , retainedPages = advancePages current.retainedPages
         }
 
@@ -688,7 +702,7 @@ remoteData (Model data) =
 
 draftQuery : Model -> String
 draftQuery (Model data) =
-    data.draft
+    draftQueryText data.draft
 
 
 appliedQuery : Model -> String
@@ -727,6 +741,21 @@ stateAppliedQuery state =
 appliedQueryText : AppliedQuery -> String
 appliedQueryText (AppliedQuery query) =
     query
+
+
+draftQueryText : DraftQuery -> String
+draftQueryText (DraftQuery query) =
+    query
+
+
+cursorText : Cursor -> String
+cursorText (Cursor cursor) =
+    cursor
+
+
+incrementRequestId : RequestId -> RequestId
+incrementRequestId (RequestId requestId) =
+    RequestId (requestId + 1)
 
 
 selectedTransaction : Model -> Maybe Transaction
@@ -994,7 +1023,7 @@ queryError : RemoteData Response -> Maybe ApiError
 queryError remote =
     case remote of
         Failure error _ ->
-            if List.member error.code [ "invalid_query", "unsupported_query_option", "query_too_long" ] then
+            if ApiError.isQueryError error then
                 Just error
 
             else
@@ -1269,75 +1298,10 @@ trailingSummary theme transaction =
             Element.column [ Element.alignRight, Element.spacing 2 ]
                 [ Element.el [ Element.alignRight ]
                     (Ui.financialBadge theme
-                        (classificationTone transaction.presentation.classification)
-                        (classificationLabel transaction)
+                        (TransactionView.classificationTone transaction.presentation.classification)
+                        (TransactionView.classificationLabel transaction)
                     )
                 ]
-
-
-classificationTone : String -> Ui.FinancialTone
-classificationTone classification =
-    case classification of
-        "income" ->
-            Ui.FinancialIncome
-
-        "expense" ->
-            Ui.FinancialExpense
-
-        "opening_balance" ->
-            Ui.FinancialEquity
-
-        "borrowing" ->
-            Ui.FinancialBorrowing
-
-        "repayment" ->
-            Ui.FinancialRepayment
-
-        "asset_acquisition" ->
-            Ui.FinancialAsset
-
-        "asset_disposal" ->
-            Ui.FinancialAsset
-
-        "asset_reallocation" ->
-            Ui.FinancialAsset
-
-        _ ->
-            Ui.FinancialNeutral
-
-
-classificationLabel : Transaction -> String
-classificationLabel transaction =
-    case transaction.presentation.classification of
-        "income" ->
-            "Income"
-
-        "expense" ->
-            "Expense"
-
-        "opening_balance" ->
-            "Opening balance"
-
-        "borrowing" ->
-            "Borrowing"
-
-        "repayment" ->
-            "Repayment"
-
-        "asset_acquisition" ->
-            "Asset acquisition"
-
-        "asset_disposal" ->
-            "Asset disposal"
-
-        "asset_reallocation" ->
-            "Asset reallocation"
-
-        "unclassified" ->
-            "Unclassified"
-
-        _ ->
-            "Transfer"
 
 
 postingPreviewRow : Theme -> Posting -> Element msg

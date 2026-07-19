@@ -5,6 +5,7 @@ module View.Analytics exposing
     , activityTransactions
     , activityYear
     , categoryCard
+    , depthControl
     , kpiCard
     , performanceChart
     , timelineChart
@@ -833,8 +834,6 @@ categoryCard :
         , commodity : String
         , breakdown : CategoryBreakdown
         , palette : Palette
-        , depth : Int
-        , onDepth : Int -> msg
         , onPrevious : msg
         , onNext : msg
         , otherExpanded : Bool
@@ -844,21 +843,14 @@ categoryCard :
 categoryCard theme config =
     Ui.cardWith [ Element.width (Element.fillPortion 1), Element.alignTop ]
         theme
-        [ Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
-            [ Typography.sectionTitle theme config.title
-            , Ui.periodNavigation theme
+        [ Typography.subsectionTitle theme config.title
+        , Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
+            [ Ui.periodNavigation theme
                 { label = Element.el [ Font.semiBold ] (Element.text (periodName config.breakdown.period))
                 , onPrevious = config.onPrevious
                 , onLatest = Nothing
                 , onNext = config.onNext
                 }
-            , Element.el [ Element.width Element.fill ]
-                (Element.el
-                    [ Element.alignRight
-                    , Element.htmlAttribute (Attr.title "Depth")
-                    ]
-                    (depthControl theme config.depth config.onDepth)
-                )
             ]
         , if List.isEmpty config.breakdown.items then
             Ui.emptyState theme "No categories for this period"
@@ -1121,7 +1113,7 @@ activityMonth theme config =
     Ui.cardWith [ Element.width (Element.fillPortion 1), Element.alignTop ]
         theme
         [ Element.row [ Element.width Element.fill ]
-            [ Typography.sectionTitle theme config.title
+            [ Typography.subsectionTitle theme config.title
             , Ui.periodNavigation theme
                 { label = Element.el [ Font.semiBold ] (Element.text (periodName config.period))
                 , onPrevious = config.onPrevious
@@ -1144,20 +1136,16 @@ activityMonth theme config =
                 [ "S", "M", "T", "W", "T", "F", "S" ]
             )
         , Element.column [ Element.width Element.fill ] rows
-        , activityTransactionList theme
-            (config.selectedBucket
-                |> Maybe.map (\bucket -> "Transactions · " ++ bucket.key)
-                |> Maybe.withDefault ("Transactions · " ++ periodName config.period)
-            )
-            (config.selectedBucket
-                |> Maybe.map .transactions
-                |> Maybe.withDefault
-                    (config.response
-                        |> Maybe.map (.buckets >> List.concatMap .transactions)
-                        |> Maybe.withDefault []
-                    )
-            )
-            config.onTransaction
+        , case config.selectedBucket of
+            Nothing ->
+                Element.el [ Element.width Element.fill, Element.paddingXY 0 12 ]
+                    (Typography.mutedCaption theme "Select a day to see details")
+
+            Just bucket ->
+                activityTransactionList theme
+                    ("Transactions · " ++ bucket.key)
+                    bucket.transactions
+                    config.onTransaction
         ]
 
 
@@ -1400,13 +1388,17 @@ activityTransactionList theme title transactions onSelect =
                 (List.intersperse (Ui.hairline theme)
                     (List.map
                         (\transaction ->
-                            Input.button [ Element.width Element.fill, Element.paddingXY 0 8 ]
+                            Input.button [ Element.width Element.fill, Element.paddingXY 0 14 ]
                                 { onPress = Just (onSelect transaction)
                                 , label =
-                                    Element.row [ Element.width Element.fill, Element.spacing 10 ]
-                                        [ Element.el [ Font.color theme.textMuted ]
+                                    Element.row [ Element.width Element.fill, Element.spacing 14 ]
+                                        [ Element.el [ Font.color theme.textMuted, Font.size 15 ]
                                             (Element.text (Date.toString transaction.primaryDate))
-                                        , Element.el [ Element.width Element.fill, Typography.minWidthZero ]
+                                        , Element.el
+                                            [ Element.width Element.fill
+                                            , Typography.minWidthZero
+                                            , Font.size 15
+                                            ]
                                             (Element.text transaction.description)
                                         , Element.text "›"
                                         ]
@@ -1434,7 +1426,7 @@ activityYear theme config =
     Ui.cardWith [ Element.width (Element.fillPortion 1), Element.alignTop ]
         theme
         [ Element.row [ Element.width Element.fill ]
-            [ Typography.sectionTitle theme config.title
+            [ Typography.subsectionTitle theme config.title
             , Ui.periodNavigation theme
                 { label =
                     Element.el [ Font.semiBold ]

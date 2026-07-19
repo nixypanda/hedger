@@ -1,4 +1,13 @@
-module Api.Account exposing (AccountNode(..), Completeness(..), Response, Valuation, decoder)
+module Api.Account exposing
+    ( AccountNode(..)
+    , AccountPath
+    , Completeness(..)
+    , Response
+    , Valuation
+    , accountPath
+    , accountPathToString
+    , decoder
+    )
 
 import Api.Metadata as Metadata exposing (Metadata)
 import Data.AccountType as AccountType exposing (AccountType)
@@ -13,12 +22,25 @@ type Completeness
     | Unavailable
 
 
+type AccountPath
+    = AccountPath String
+
+
+accountPath : String -> AccountPath
+accountPath value =
+    AccountPath value
+
+
+accountPathToString : AccountPath -> String
+accountPathToString (AccountPath value) =
+    value
+
+
 type AccountNode
     = AccountNode
-        { path : String
+        { path : AccountPath
         , name : String
         , accountType : Maybe AccountType
-        , hasChildren : Bool
         , directBalances : List Quantity
         , subtreeBalances : List Quantity
         , valuation : Valuation
@@ -52,13 +74,12 @@ decoder =
 
 accountDecoder : Decoder AccountNode
 accountDecoder =
-    Decode.map8
-        (\path name accountType hasChildren directBalances subtreeBalances valuation children ->
+    Decode.map7
+        (\path name accountType directBalances subtreeBalances valuation children ->
             AccountNode
-                { path = path
+                { path = accountPath path
                 , name = name
                 , accountType = accountType
-                , hasChildren = hasChildren
                 , directBalances = directBalances
                 , subtreeBalances = subtreeBalances
                 , valuation = valuation
@@ -68,7 +89,6 @@ accountDecoder =
         (Decode.field "path" Decode.string)
         (Decode.field "name" Decode.string)
         (Decode.field "accountType" (Decode.nullable AccountType.decoder))
-        (Decode.field "hasChildren" Decode.bool)
         (Decode.field "directBalances" (Decode.list Quantity.decoder))
         (Decode.field "subtreeBalances" (Decode.list Quantity.decoder))
         (Decode.field "valuation" valuationDecoder)

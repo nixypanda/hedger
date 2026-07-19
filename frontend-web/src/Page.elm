@@ -79,13 +79,13 @@ init context maybeExistingModel =
             )
 
         ( Accounts, Just (AccountsPage existingModel) ) ->
-            ( AccountsPage existingModel
+            ( AccountsPage (AccountPage.beginLoading existingModel)
             , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
             , NoOutMsg
             )
 
         ( Accounts, _ ) ->
-            ( AccountsPage AccountPage.init
+            ( AccountsPage (AccountPage.beginLoading AccountPage.init)
             , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
             , NoOutMsg
             )
@@ -111,13 +111,13 @@ init context maybeExistingModel =
             )
 
         ( AccountValue _, Just (AccountsPage existingModel) ) ->
-            ( AccountsPage existingModel
+            ( AccountsPage (AccountPage.beginLoading existingModel)
             , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
             , NoOutMsg
             )
 
         ( AccountValue accountName, _ ) ->
-            ( AccountsPage (AccountPage.initWithValueSelected accountName)
+            ( AccountsPage (AccountPage.beginLoading (AccountPage.initWithValueSelected accountName))
             , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
             , NoOutMsg
             )

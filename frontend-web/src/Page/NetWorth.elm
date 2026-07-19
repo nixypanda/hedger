@@ -2,7 +2,7 @@ module Page.NetWorth exposing (Model, Msg(..), init, update, view)
 
 import Api.Analytics as Analytics
 import Api.Client as Api
-import Api.Error as ApiError
+import Api.Error as ApiError exposing (ApiError)
 import Api.Transaction exposing (Transaction)
 import Element exposing (Device, Element)
 import Element.Background as Background
@@ -54,7 +54,7 @@ init =
 
 type Msg
     = Refresh
-    | ResponseLoaded (Result ApiError.ApiError Analytics.NetWorthResponse)
+    | ResponseLoaded (Result ApiError Analytics.NetWorthResponse)
     | AnalysisMsg Analysis.Msg
     | PerformanceSelected String
 
@@ -133,7 +133,8 @@ analysisContext =
 
 analysisConfig : Analysis.Config
 analysisConfig =
-    { timelineTitle = "Assets and liabilities"
+    { timelineSectionTitle = "Balance over time"
+    , timelineTitle = "Assets and liabilities"
     , netLabel = "Net worth"
     , positive =
         { label = "Assets"
@@ -154,10 +155,10 @@ analysisConfig =
     }
 
 
-analysisReport : Analytics.NetWorthResponse -> Analysis.Report
+analysisReport : Analytics.NetWorthResponse -> Analytics.Report
 analysisReport response =
     { displayCommodity = response.displayCommodity
-    , timeline = Analysis.TimelineAvailable response.timeline
+    , timeline = Analytics.TimelineAvailable response.timeline
     , positiveBreakdown = response.assetsBreakdown
     , negativeBreakdown = response.liabilitiesBreakdown
     , warnings = response.warnings
@@ -250,15 +251,14 @@ dashboard theme viewport device data =
                 , title = Typography.pageTitle theme "Net Worth"
                 , subtitle = Just "Assets, liabilities, performance, and activity"
                 , actions =
-                    [ Ui.iconButton device
+                    [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
+                    , Ui.iconButton device
                         theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
         , Ui.pageContainer device
-            (Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                :: dashboardContent theme viewport device data
-            )
+            (dashboardContent theme viewport device data)
         ]
 
 
@@ -307,11 +307,10 @@ dashboardContent theme viewport device data =
                     , decreaseIsPositive = True
                     }
                 ]
-            , Element.map AnalysisMsg
-                (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
+            , Typography.sectionTitle theme "Performance"
             , Ui.card theme
                 [ Element.row [ Element.width Element.fill ]
-                    [ Typography.sectionTitle theme "Net Investment vs Net Worth"
+                    [ Typography.subsectionTitle theme "Net Investment vs Net Worth"
                     , if response.incompletePeriods > 0 then
                         Ui.statusBadge theme
                             Ui.StatusWarning
@@ -334,6 +333,8 @@ dashboardContent theme viewport device data =
                     , ( theme.negative, "Loss" )
                     ]
                 ]
+            , Element.map AnalysisMsg
+                (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
             ]
 
 

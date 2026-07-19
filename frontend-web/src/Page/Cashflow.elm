@@ -2,7 +2,7 @@ module Page.Cashflow exposing (Model, Msg(..), init, update, view)
 
 import Api.Analytics as Analytics
 import Api.Client as Api
-import Api.Error as ApiError
+import Api.Error as ApiError exposing (ApiError)
 import Api.Transaction exposing (Transaction)
 import Element exposing (Device, Element)
 import Element.Background as Background
@@ -57,7 +57,7 @@ type Msg
     | DraftChanged String
     | ApplyQuery
     | ClearQuery
-    | ResponseLoaded (Result ApiError.ApiError Analytics.CashflowResponse)
+    | ResponseLoaded (Result ApiError Analytics.CashflowResponse)
     | AnalysisMsg Analysis.Msg
 
 
@@ -140,7 +140,8 @@ analysisContext query =
 
 analysisConfig : Analysis.Config
 analysisConfig =
-    { timelineTitle = "Income and expenses"
+    { timelineSectionTitle = "Cash flow over time"
+    , timelineTitle = "Income and expenses"
     , netLabel = "Net"
     , positive =
         { label = "Income"
@@ -161,15 +162,15 @@ analysisConfig =
     }
 
 
-analysisReport : Analytics.CashflowResponse -> Analysis.Report
+analysisReport : Analytics.CashflowResponse -> Analytics.Report
 analysisReport response =
     { displayCommodity = response.displayCommodity
     , timeline =
         if response.timelineAvailable then
-            Analysis.TimelineAvailable response.timeline
+            Analytics.TimelineAvailable response.timeline
 
         else
-            Analysis.TimelineUnavailable
+            Analytics.TimelineUnavailable
                 ("Cashflow is unavailable because at least one participating amount "
                     ++ "cannot be converted to the display commodity."
                 )
@@ -266,14 +267,14 @@ dashboard theme viewport device data =
                 , title = Typography.pageTitle theme "Cashflow"
                 , subtitle = Just "Income, expenses, categories, and daily activity"
                 , actions =
-                    [ Ui.iconButton device
+                    [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
+                    , Ui.iconButton device
                         theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
         , Ui.pageContainer device
-            (Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                :: queryPanel theme data
+            (queryPanel theme data
                 :: dashboardContent theme viewport data
             )
         ]
@@ -379,11 +380,11 @@ remoteNotice theme remote response =
         ]
 
 
-queryError : RemoteData value -> Maybe ApiError.ApiError
+queryError : RemoteData value -> Maybe ApiError
 queryError remote =
     case remote of
         Failure error _ ->
-            if List.member error.code [ "invalid_query", "unsupported_query_option", "query_too_long" ] then
+            if ApiError.isQueryError error then
                 Just error
 
             else

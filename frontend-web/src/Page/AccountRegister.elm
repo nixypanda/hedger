@@ -18,6 +18,7 @@ module Page.AccountRegister exposing
     , setTo
     , update
     , view
+    , visibleResponse
     )
 
 import Api.Client as Api
@@ -33,7 +34,6 @@ import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
 import Lib.Time as TimeExtra
-import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui
@@ -47,43 +47,78 @@ import View.States as States
 -- MODEL
 
 
-type alias Model =
-    { remote : RemoteData Response
+type Model
+    = Model ModelData
+
+
+type alias ModelData =
+    { state : State
     , account : String
     , from : String
     , to : String
     , nextToken : Int
-    , pending : Maybe Request
-    , loadingMore : Bool
-    , detail : Detail
     }
 
 
-type Detail
-    = NoDetail
-    | Detail Entry
+type State
+    = NotStarted
+    | Loading Filters Int
+    | LoadFailed Filters ApiError
+    | Showing Window
+    | Refreshing Window Int
+    | RefreshFailed Window ApiError
+    | LoadingMore Window NextRequest
+    | LoadMoreFailed Window NextRequest ApiError
 
 
-type alias Request =
+type alias Window =
+    { filters : Filters
+    , response : Response
+    , selection : Selection
+    }
+
+
+type Selection
+    = NoSelection
+    | Selected Entry
+
+
+type alias Filters =
+    { from : Maybe String
+    , to : Maybe String
+    }
+
+
+type Request
+    = InitialRequest RequestData
+    | RefreshRequest RequestData
+    | NextPageRequest NextRequest
+
+
+type alias RequestData =
     { token : Int
     , account : String
-    , from : Maybe String
-    , to : Maybe String
-    , cursor : Maybe String
+    , filters : Filters
+    }
+
+
+type alias NextRequest =
+    { token : Int
+    , account : String
+    , filters : Filters
+    , cursor : String
     }
 
 
 init : Model
 init =
-    { remote = NotAsked
-    , account = ""
-    , from = ""
-    , to = ""
-    , nextToken = 0
-    , pending = Nothing
-    , loadingMore = False
-    , detail = NoDetail
-    }
+    Model
+        { state = NotStarted
+        , account = ""
+        , from = ""
+        , to = ""
+        , nextToken = 0
+        }
 
 
 
@@ -107,54 +142,54 @@ type OutMsg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
-update msg model =
+update msg (Model data) =
     case msg of
         BackToAccounts ->
-            ( model, Cmd.none, Navigate Accounts )
+            ( Model data, Cmd.none, Navigate Accounts )
 
         FromChange value ->
             let
                 changed =
-                    setFrom value model
+                    setFrom value (Model data)
 
                 ( nextModel, request ) =
-                    beginLoading changed.account changed
+                    beginLoading (modelAccount changed) changed
             in
             ( nextModel, fetchAccountRegister request, NoOutMsg )
 
         ToChange value ->
             let
                 changed =
-                    setTo value model
+                    setTo value (Model data)
 
                 ( nextModel, request ) =
-                    beginLoading changed.account changed
+                    beginLoading (modelAccount changed) changed
             in
             ( nextModel, fetchAccountRegister request, NoOutMsg )
 
         Refresh ->
             let
                 ( nextModel, request ) =
-                    beginLoading model.account model
+                    beginLoading data.account (Model data)
             in
             ( nextModel, fetchAccountRegister request, NoOutMsg )
 
         LoadMore ->
-            case beginLoadingMore model of
+            case beginLoadingMore (Model data) of
                 Just ( nextModel, request ) ->
                     ( nextModel, fetchAccountRegister request, NoOutMsg )
 
                 Nothing ->
-                    ( model, Cmd.none, NoOutMsg )
+                    ( Model data, Cmd.none, NoOutMsg )
 
         SelectDetail entry ->
-            ( selectDetail entry model, Cmd.none, NoOutMsg )
+            ( selectDetail entry (Model data), Cmd.none, NoOutMsg )
 
         CloseDetail ->
-            ( clearDetail model, Cmd.none, NoOutMsg )
+            ( clearDetail (Model data), Cmd.none, NoOutMsg )
 
         Loaded request result ->
-            ( receive request result model, Cmd.none, NoOutMsg )
+            ( receive request result (Model data), Cmd.none, NoOutMsg )
 
 
 fetchAccountRegister : Request -> Cmd Msg
@@ -175,126 +210,297 @@ fetch =
 
 
 beginLoading : String -> Model -> ( Model, Request )
-beginLoading account model =
+beginLoading account (Model data) =
     let
-        resetRemote =
-            if account /= model.account then
-                NotAsked
+        appliedFilters =
+            currentFilters data
+
+        requestData =
+            { token = data.nextToken + 1
+            , account = account
+            , filters = appliedFilters
+            }
+
+        request =
+            if hasWindowFor data account then
+                RefreshRequest requestData
 
             else
-                model.remote
+                InitialRequest requestData
+
+        state =
+            case currentWindow data of
+                Just window ->
+                    if hasWindowFor data account then
+                        Refreshing { window | selection = NoSelection } requestData.token
+
+                    else
+                        Loading appliedFilters requestData.token
+
+                _ ->
+                    Loading appliedFilters requestData.token
     in
-    issue account
-        (Just (blankToNothing model.from))
-        (Just (blankToNothing model.to))
-        Nothing
-        { model | account = account, remote = resetRemote, detail = NoDetail, loadingMore = False }
+    ( Model
+        { data
+            | state = state
+            , account = account
+            , nextToken = requestData.token
+        }
+    , request
+    )
 
 
 beginLoadingMore : Model -> Maybe ( Model, Request )
-beginLoadingMore model =
-    case ( RemoteData.value model.remote, model.pending, model.loadingMore ) of
-        ( Just response, Nothing, False ) ->
-            response.nextCursor
-                |> Maybe.map
-                    (\cursor ->
-                        issue model.account
-                            (Just (blankToNothing model.from))
-                            (Just (blankToNothing model.to))
-                            (Just cursor)
-                            { model | loadingMore = True }
-                    )
+beginLoadingMore (Model data) =
+    case data.state of
+        Showing window ->
+            nextRequest data window
+
+        RefreshFailed window _ ->
+            nextRequest data window
+
+        LoadMoreFailed window request _ ->
+            nextRequestFrom data window request.cursor
 
         _ ->
             Nothing
 
 
-issue : String -> Maybe (Maybe String) -> Maybe (Maybe String) -> Maybe String -> Model -> ( Model, Request )
-issue account maybeFrom maybeTo cursor model =
+nextRequest : ModelData -> Window -> Maybe ( Model, Request )
+nextRequest data window =
+    case window.response.nextCursor of
+        Just cursor ->
+            nextRequestFrom data window cursor
+
+        Nothing ->
+            Nothing
+
+
+nextRequestFrom : ModelData -> Window -> String -> Maybe ( Model, Request )
+nextRequestFrom data window cursor =
     let
-        request =
-            { token = model.nextToken + 1
-            , account = account
-            , from = Maybe.withDefault Nothing maybeFrom
-            , to = Maybe.withDefault Nothing maybeTo
+        requestData =
+            { token = data.nextToken + 1
+            , account = data.account
+            , filters = window.filters
             , cursor = cursor
             }
 
-        remote =
-            if cursor == Nothing then
-                RemoteData.beginLoading model.remote
-
-            else
-                model.remote
+        request =
+            NextPageRequest requestData
     in
-    ( { model | nextToken = request.token, pending = Just request, remote = remote }, request )
+    Just
+        ( Model
+            { data
+                | state = LoadingMore { window | selection = NoSelection } requestData
+                , nextToken = requestData.token
+            }
+        , request
+        )
 
 
 receive : Request -> Result ApiError Response -> Model -> Model
-receive request result model =
-    if model.pending /= Just request then
-        model
+receive request result (Model data) =
+    if not (requestIsActive request data.state) then
+        Model data
 
     else
-        case result of
-            Ok response ->
-                let
-                    merged =
-                        case ( request.cursor, RemoteData.value model.remote ) of
-                            ( Just _, Just current ) ->
-                                { response | entries = current.entries ++ response.entries }
+        case ( request, result ) of
+            ( InitialRequest requestData, Ok response ) ->
+                Model { data | state = Showing (newWindow requestData.filters response) }
 
-                            _ ->
-                                response
-                in
-                { model | remote = Success merged, pending = Nothing, loadingMore = False }
+            ( RefreshRequest requestData, Ok response ) ->
+                Model { data | state = Showing (newWindow requestData.filters response) }
 
-            Err error ->
-                { model
-                    | remote = Failure error (RemoteData.value model.remote)
-                    , pending = Nothing
-                    , loadingMore = False
-                }
+            ( NextPageRequest activeNextRequest, Ok response ) ->
+                case data.state of
+                    LoadingMore window _ ->
+                        Model
+                            { data
+                                | state =
+                                    Showing
+                                        { window
+                                            | response = appendResponse window.response response
+                                        }
+                            }
+
+                    _ ->
+                        Model data
+
+            ( InitialRequest requestData, Err error ) ->
+                Model { data | state = LoadFailed requestData.filters error }
+
+            ( RefreshRequest _, Err error ) ->
+                case data.state of
+                    Refreshing window _ ->
+                        Model { data | state = RefreshFailed window error }
+
+                    _ ->
+                        Model data
+
+            ( NextPageRequest activeNextRequest, Err error ) ->
+                case data.state of
+                    LoadingMore window _ ->
+                        Model { data | state = LoadMoreFailed window activeNextRequest error }
+
+                    _ ->
+                        Model data
+
+
+requestIsActive : Request -> State -> Bool
+requestIsActive request state =
+    case ( request, state ) of
+        ( InitialRequest requestData, Loading _ token ) ->
+            requestData.token == token
+
+        ( RefreshRequest requestData, Refreshing _ token ) ->
+            requestData.token == token
+
+        ( NextPageRequest requestData, LoadingMore _ activeRequest ) ->
+            requestData.token == activeRequest.token
+
+        _ ->
+            False
+
+
+newWindow : Filters -> Response -> Window
+newWindow appliedFilters response =
+    { filters = appliedFilters
+    , response = response
+    , selection = NoSelection
+    }
+
+
+appendResponse : Response -> Response -> Response
+appendResponse current next =
+    { next | entries = current.entries ++ next.entries }
+
+
+currentFilters : ModelData -> Filters
+currentFilters data =
+    { from = blankToNothing data.from
+    , to = blankToNothing data.to
+    }
+
+
+currentWindow : ModelData -> Maybe Window
+currentWindow data =
+    case data.state of
+        Showing window ->
+            Just window
+
+        Refreshing window _ ->
+            Just window
+
+        RefreshFailed window _ ->
+            Just window
+
+        LoadingMore window _ ->
+            Just window
+
+        LoadMoreFailed window _ _ ->
+            Just window
+
+        _ ->
+            Nothing
+
+
+hasWindowFor : ModelData -> String -> Bool
+hasWindowFor data account =
+    data.account == account && currentWindow data /= Nothing
 
 
 setFrom : String -> Model -> Model
-setFrom value model =
-    { model | from = value }
+setFrom value (Model data) =
+    Model { data | from = value }
 
 
 setTo : String -> Model -> Model
-setTo value model =
-    { model | to = value }
+setTo value (Model data) =
+    Model { data | to = value }
 
 
 selectDetail : Entry -> Model -> Model
-selectDetail entry model =
-    { model | detail = Detail entry }
+selectDetail entry (Model data) =
+    Model { data | state = mapWindow (selectInWindow entry) data.state }
 
 
 clearDetail : Model -> Model
-clearDetail model =
-    { model | detail = NoDetail }
+clearDetail (Model data) =
+    Model { data | state = mapWindow (\window -> { window | selection = NoSelection }) data.state }
+
+
+mapWindow : (Window -> Window) -> State -> State
+mapWindow transform state =
+    case state of
+        Showing window ->
+            Showing (transform window)
+
+        Refreshing window token ->
+            Refreshing (transform window) token
+
+        RefreshFailed window error ->
+            RefreshFailed (transform window) error
+
+        LoadingMore window request ->
+            LoadingMore (transform window) request
+
+        LoadMoreFailed window request error ->
+            LoadMoreFailed (transform window) request error
+
+        _ ->
+            state
+
+
+selectInWindow : Entry -> Window -> Window
+selectInWindow entry window =
+    { window | selection = Selected entry }
 
 
 requestAccount : Request -> String
-requestAccount =
-    .account
+requestAccount request =
+    case request of
+        InitialRequest data ->
+            data.account
+
+        RefreshRequest data ->
+            data.account
+
+        NextPageRequest data ->
+            data.account
+
+
+requestFilters : Request -> Filters
+requestFilters request =
+    case request of
+        InitialRequest data ->
+            data.filters
+
+        RefreshRequest data ->
+            data.filters
+
+        NextPageRequest data ->
+            data.filters
 
 
 requestFrom : Request -> Maybe String
-requestFrom =
-    .from
+requestFrom request =
+    (requestFilters request).from
 
 
 requestTo : Request -> Maybe String
-requestTo =
-    .to
+requestTo request =
+    (requestFilters request).to
 
 
 requestCursor : Request -> Maybe String
-requestCursor =
-    .cursor
+requestCursor request =
+    case request of
+        NextPageRequest data ->
+            Just data.cursor
+
+        _ ->
+            Nothing
 
 
 blankToNothing : String -> Maybe String
@@ -306,50 +512,141 @@ blankToNothing value =
         Just value
 
 
+modelAccount : Model -> String
+modelAccount (Model data) =
+    data.account
+
+
+modelFilters : Model -> ( String, String )
+modelFilters (Model data) =
+    ( data.from, data.to )
+
+
+visibleResponse : Model -> Maybe Response
+visibleResponse (Model data) =
+    responseFor data.state
+
+
 
 -- VIEW
 
 
 view : Theme -> Viewport -> Model -> Element Msg
-view theme viewport model =
+view theme viewport (Model data) =
     let
         device =
             Element.classifyDevice viewport
 
         commodity =
-            model.remote
-                |> RemoteData.value
+            responseFor data.state
                 |> Maybe.map .displayCommodity
                 |> Maybe.withDefault ""
+
+        selection =
+            selectionFor data.state
     in
     if viewport.width >= 1000 then
-        case model.detail of
+        case selection of
             NoDetail ->
-                listPage theme device model
+                listPage theme device (Model data)
 
-            detail ->
+            DetailShown entry ->
                 Element.row [ Element.width Element.fill, Element.height Element.fill, Element.clip ]
                     [ Element.el
                         [ Element.width (Element.fillPortion 2)
                         , Element.height Element.fill
                         , Element.scrollbarY
                         ]
-                        (listPage theme device model)
+                        (listPage theme device (Model data))
                     , Element.el
                         [ Element.width (Element.fillPortion 3)
                         , Element.height Element.fill
                         , Element.scrollbarY
                         ]
-                        (detailPage theme device CloseDetail commodity detail)
+                        (detailPage theme device CloseDetail commodity entry)
                     ]
 
     else
-        case model.detail of
+        case selection of
             NoDetail ->
-                listPage theme device model
+                listPage theme device (Model data)
 
-            detail ->
-                detailPage theme device CloseDetail commodity detail
+            DetailShown entry ->
+                detailPage theme device CloseDetail commodity entry
+
+
+type ViewSelection
+    = NoDetail
+    | DetailShown Entry
+
+
+selectionFor : State -> ViewSelection
+selectionFor state =
+    case selectionIn state of
+        Just entry ->
+            DetailShown entry
+
+        Nothing ->
+            NoDetail
+
+
+selectionIn : State -> Maybe Entry
+selectionIn state =
+    case state of
+        Showing window ->
+            selectedEntry window.selection
+
+        Refreshing window _ ->
+            selectedEntry window.selection
+
+        RefreshFailed window _ ->
+            selectedEntry window.selection
+
+        LoadingMore window _ ->
+            selectedEntry window.selection
+
+        LoadMoreFailed window _ _ ->
+            selectedEntry window.selection
+
+        _ ->
+            Nothing
+
+
+selectedEntry : Selection -> Maybe Entry
+selectedEntry selection =
+    case selection of
+        NoSelection ->
+            Nothing
+
+        Selected entry ->
+            Just entry
+
+
+responseFor : State -> Maybe Response
+responseFor state =
+    currentWindowFromState state |> Maybe.map .response
+
+
+currentWindowFromState : State -> Maybe Window
+currentWindowFromState state =
+    case state of
+        Showing window ->
+            Just window
+
+        Refreshing window _ ->
+            Just window
+
+        RefreshFailed window _ ->
+            Just window
+
+        LoadingMore window _ ->
+            Just window
+
+        LoadMoreFailed window _ _ ->
+            Just window
+
+        _ ->
+            Nothing
 
 
 listPage : Theme -> Device -> Model -> Element Msg
@@ -369,6 +666,10 @@ listPage theme device model =
 
 registerHeader : Theme -> Device -> Model -> Element Msg
 registerHeader theme device model =
+    let
+        account =
+            modelAccount model
+    in
     if Ui.isSmall device then
         Element.column [ Element.width Element.fill, Element.spacing 16, Typography.minWidthZero ]
             [ Element.row [ Element.width Element.fill, Element.spacing 8 ]
@@ -377,7 +678,7 @@ registerHeader theme device model =
                     (Ui.ghostButton theme { label = "Refresh", onPress = Refresh })
                 ]
             , Element.column [ Element.width Element.fill, Element.spacing 8, Typography.minWidthZero ]
-                [ Typography.pageTitle theme (breakAccountPath model.account)
+                [ Typography.pageTitle theme (breakAccountPath account)
                 , Typography.mutedParagraph theme "Account register"
                 ]
             ]
@@ -385,7 +686,7 @@ registerHeader theme device model =
     else
         Ui.pageHeader theme
             { leading = Just (Ui.ghostButton theme { label = "← Accounts", onPress = BackToAccounts })
-            , title = Typography.pageTitle theme model.account
+            , title = Typography.pageTitle theme account
             , subtitle = Just "Account register"
             , actions = [ Ui.ghostButton theme { label = "Refresh", onPress = Refresh } ]
             }
@@ -398,49 +699,61 @@ breakAccountPath =
 
 filters : Theme -> Model -> Element Msg
 filters theme model =
+    let
+        ( from, to ) =
+            modelFilters model
+    in
     Ui.card theme
         [ Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
             [ Element.el [ Element.width (Element.fill |> Element.maximum 220) ] <|
                 Ui.dateInput theme
                     { label = "From"
-                    , value = model.from
+                    , value = from
                     , onChange = FromChange
                     }
             , Element.el [ Element.width (Element.fill |> Element.maximum 220) ] <|
-                Ui.dateInput theme { label = "To", value = model.to, onChange = ToChange }
+                Ui.dateInput theme { label = "To", value = to, onChange = ToChange }
             ]
         ]
 
 
 content : Theme -> Device -> Model -> Element Msg
-content theme device model =
-    case model.remote of
-        NotAsked ->
+content theme device (Model data) =
+    case data.state of
+        NotStarted ->
             Ui.card theme [ Ui.loading theme "Loading register…" ]
 
-        Loading Nothing ->
+        Loading _ _ ->
             Ui.card theme [ Ui.skeletonLoading theme ]
 
-        Loading (Just response) ->
-            registerContent theme device model response
+        LoadFailed _ error ->
+            Ui.card theme
+                [ Ui.errorBanner theme
+                    ("Register failed to load: " ++ ApiError.message error)
+                ]
 
-        Success response ->
-            registerContent theme device model response
+        Showing window ->
+            registerContent theme device (Model data) window.response
 
-        Failure error stale ->
-            case stale of
-                Just response ->
-                    Element.column [ Element.width Element.fill, Element.spacing 12 ]
-                        [ Ui.errorBanner theme
-                            ("Refresh failed; showing stale register: " ++ ApiError.message error)
-                        , registerContent theme device model response
-                        ]
+        Refreshing window _ ->
+            registerContent theme device (Model data) window.response
 
-                Nothing ->
-                    Ui.card theme
-                        [ Ui.errorBanner theme
-                            ("Register failed to load: " ++ ApiError.message error)
-                        ]
+        RefreshFailed window error ->
+            Element.column [ Element.width Element.fill, Element.spacing 12 ]
+                [ Ui.errorBanner theme
+                    ("Refresh failed; showing stale register: " ++ ApiError.message error)
+                , registerContent theme device (Model data) window.response
+                ]
+
+        LoadingMore window _ ->
+            registerContent theme device (Model data) window.response
+
+        LoadMoreFailed window _ error ->
+            Element.column [ Element.width Element.fill, Element.spacing 12 ]
+                [ Ui.errorBanner theme
+                    ("Loading more entries failed: " ++ ApiError.message error)
+                , registerContent theme device (Model data) window.response
+                ]
 
 
 registerContent : Theme -> Device -> Model -> Response -> Element Msg
@@ -457,8 +770,8 @@ registerContent theme device model response =
 
 
 paging : Theme -> Model -> Response -> Element Msg
-paging theme model response =
-    if model.loadingMore then
+paging theme (Model data) response =
+    if isLoadingMore data.state then
         Ui.loading theme "Loading more entries…"
 
     else
@@ -468,6 +781,16 @@ paging theme model response =
 
             Nothing ->
                 Typography.mutedCaption theme "All matching entries are loaded."
+
+
+isLoadingMore : State -> Bool
+isLoadingMore state =
+    case state of
+        LoadingMore _ _ ->
+            True
+
+        _ ->
+            False
 
 
 registerRows : Theme -> Device -> Model -> String -> List Entry -> Element Msg
@@ -614,22 +937,8 @@ formatQuantity quantity =
     Decimal.toString (Quantity.quantity quantity) ++ " " ++ Quantity.commodity quantity
 
 
-detailPage : Theme -> Device -> Msg -> String -> Detail -> Element Msg
-detailPage theme device onClose commodity detail =
-    let
-        entry =
-            case detail of
-                Detail selected ->
-                    selected
-
-                NoDetail ->
-                    { date = Date.Date { year = 1, month = 1, day = 1 }
-                    , description = ""
-                    , account = ""
-                    , amount = emptyValue
-                    , balance = emptyValue
-                    }
-    in
+detailPage : Theme -> Device -> Msg -> String -> Entry -> Element Msg
+detailPage theme device onClose commodity entry =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill

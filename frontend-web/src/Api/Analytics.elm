@@ -12,6 +12,8 @@ module Api.Analytics exposing
     , Kpi
     , NetWorthResponse
     , PerformancePoint
+    , Report
+    , Timeline(..)
     , TimelinePoint
     , activityDecoder
     , activityRequestEncoder
@@ -156,6 +158,20 @@ type alias ActivityResponse =
     , period : String
     , fiscalYearStartMonth : Int
     , buckets : List ActivityBucket
+    , warnings : List String
+    }
+
+
+type Timeline
+    = TimelineAvailable (List TimelinePoint)
+    | TimelineUnavailable String (List TimelinePoint)
+
+
+type alias Report =
+    { displayCommodity : String
+    , timeline : Timeline
+    , positiveBreakdown : CategoryBreakdown
+    , negativeBreakdown : CategoryBreakdown
     , warnings : List String
     }
 

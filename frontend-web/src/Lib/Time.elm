@@ -64,10 +64,10 @@ monthName : String -> String
 monthName month =
     case month of
         "01" ->
-            "January"
+            "Jan"
 
         "02" ->
-            "February"
+            "Feb"
 
         "03" ->
             "March"
@@ -85,19 +85,19 @@ monthName month =
             "July"
 
         "08" ->
-            "August"
+            "Aug"
 
         "09" ->
-            "September"
+            "Sept"
 
         "10" ->
-            "October"
+            "Oct"
 
         "11" ->
-            "November"
+            "Nov"
 
         "12" ->
-            "December"
+            "Dec"
 
         _ ->
             month

@@ -1,4 +1,4 @@
-module Api.Error exposing (ApiError, ErrorDetails, decoder, fromHttpError, message)
+module Api.Error exposing (ApiError, ErrorDetails, decoder, fromHttpError, isQueryError, message)
 
 import Http
 import Json.Decode as Decode exposing (Decoder)
@@ -84,3 +84,8 @@ message error =
 local : String -> String -> ApiError
 local code detail =
     { code = code, message = detail, requestId = Nothing, details = Nothing }
+
+
+isQueryError : ApiError -> Bool
+isQueryError error =
+    List.member error.code [ "invalid_query", "unsupported_query_option", "query_too_long" ]

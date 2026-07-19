@@ -2,6 +2,7 @@ module Page.Account exposing
     ( Model
     , Msg(..)
     , OutMsg(..)
+    , beginLoading
     , clearValue
     , fetchAccounts
     , init
@@ -14,7 +15,7 @@ module Page.Account exposing
     , view
     )
 
-import Api.Account exposing (AccountNode(..), Response)
+import Api.Account as Account exposing (AccountNode(..), AccountPath, Response)
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..))
@@ -28,7 +29,6 @@ import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
 import Lib.Time as TimeExtra
-import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import Set exposing (Set)
 import State.Viewport exposing (Viewport)
@@ -48,27 +48,63 @@ import View.States as States
 
 type Model
     = Model
-        { remote : RemoteData Response
+        { accounts : AccountsState
         , expanded : Set String
-        , selectedValue : Maybe String
+        , detail : DetailState
         }
+
+
+type AccountsState
+    = NotRequested
+    | Loading
+    | Loaded Response
+    | Refreshing Response
+    | Failed ApiError
+    | FailedWithStale ApiError Response
+
+
+type DetailState
+    = NoDetail
+    | WaitingForAccount AccountPath
+    | ShowingAccount AccountNode
+    | AccountUnavailable AccountPath
 
 
 init : Model
 init =
     Model
-        { remote = NotAsked
+        { accounts = NotRequested
         , expanded = Set.empty
-        , selectedValue = Nothing
+        , detail = NoDetail
         }
 
 
 initWithValueSelected : String -> Model
 initWithValueSelected accountName =
     Model
-        { remote = NotAsked
+        { accounts = Loading
         , expanded = Set.empty
-        , selectedValue = Just accountName
+        , detail = WaitingForAccount (Account.accountPath accountName)
+        }
+
+
+beginLoading : Model -> Model
+beginLoading (Model model) =
+    Model
+        { model
+            | accounts =
+                case model.accounts of
+                    Loaded response ->
+                        Refreshing response
+
+                    Refreshing response ->
+                        Refreshing response
+
+                    FailedWithStale _ response ->
+                        Refreshing response
+
+                    _ ->
+                        Loading
         }
 
 
@@ -77,9 +113,9 @@ initWithValueSelected accountName =
 
 
 type Msg
-    = ToggleAccount String
-    | OpenAccount String
-    | OpenAccountValue String
+    = ToggleAccount AccountPath
+    | OpenAccount AccountPath
+    | OpenAccountValue AccountPath
     | CloseAccountValue
     | BackToAccounts
     | Receive (Result ApiError Response)
@@ -106,11 +142,11 @@ update props msg (Model model) =
             ( toggle path (Model model), Cmd.none, NoOutMsg )
 
         OpenAccount path ->
-            ( Model model, Cmd.none, Navigate (Account path) )
+            ( Model model, Cmd.none, Navigate (Account (Account.accountPathToString path)) )
 
         OpenAccountValue path ->
             if Ui.isSmall (Element.classifyDevice props.viewport) then
-                ( Model model, Cmd.none, Navigate (AccountValue path) )
+                ( Model model, Cmd.none, Navigate (AccountValue (Account.accountPathToString path)) )
 
             else
                 ( selectValue path (Model model), Cmd.none, NoOutMsg )
@@ -129,37 +165,91 @@ receive : Result ApiError Response -> Model -> Model
 receive result (Model model) =
     Model
         { model
-            | remote =
+            | accounts =
                 case result of
                     Ok response ->
-                        Success response
+                        Loaded response
 
                     Err error ->
-                        Failure error (RemoteData.value model.remote)
+                        case model.accounts of
+                            Loaded response ->
+                                FailedWithStale error response
+
+                            Refreshing response ->
+                                FailedWithStale error response
+
+                            FailedWithStale _ response ->
+                                FailedWithStale error response
+
+                            _ ->
+                                Failed error
+            , detail =
+                case result of
+                    Ok response ->
+                        resolveDetail response model.detail
+
+                    Err _ ->
+                        model.detail
         }
 
 
-toggle : String -> Model -> Model
+resolveDetail : Response -> DetailState -> DetailState
+resolveDetail response detail =
+    case detail of
+        WaitingForAccount path ->
+            findAccount path response.accounts
+                |> Maybe.map ShowingAccount
+                |> Maybe.withDefault (AccountUnavailable path)
+
+        ShowingAccount (AccountNode account) ->
+            findAccount account.path response.accounts
+                |> Maybe.map ShowingAccount
+                |> Maybe.withDefault (AccountUnavailable account.path)
+
+        AccountUnavailable path ->
+            case findAccount path response.accounts of
+                Just account ->
+                    ShowingAccount account
+
+                Nothing ->
+                    AccountUnavailable path
+
+        NoDetail ->
+            NoDetail
+
+
+toggle : AccountPath -> Model -> Model
 toggle path (Model model) =
     Model
         { model
             | expanded =
-                if Set.member path model.expanded then
-                    Set.remove path model.expanded
+                if Set.member (Account.accountPathToString path) model.expanded then
+                    Set.remove (Account.accountPathToString path) model.expanded
 
                 else
-                    Set.insert path model.expanded
+                    Set.insert (Account.accountPathToString path) model.expanded
         }
 
 
-selectValue : String -> Model -> Model
+selectValue : AccountPath -> Model -> Model
 selectValue path (Model model) =
-    Model { model | selectedValue = Just path }
+    Model
+        { model
+            | detail =
+                case model.accounts of
+                    Loaded response ->
+                        findAccount path response.accounts
+                            |> Maybe.map ShowingAccount
+                            |> Maybe.withDefault (AccountUnavailable path)
+
+                    _ ->
+                        WaitingForAccount path
+        }
 
 
 clearValue : Model -> Model
 clearValue (Model model) =
-    Model { model | selectedValue = Nothing }
+    Model { model | detail = NoDetail }
 
 
 
@@ -193,12 +283,12 @@ view theme viewport (Model model) =
                 ]
 
         wideSelected =
-            viewport.width >= 1000 && model.selectedValue /= Nothing
+            viewport.width >= 1000 && detailAccount model.detail /= Nothing
     in
     if wideSelected then
-        case ( model.selectedValue, RemoteData.value model.remote ) of
-            ( Just path, Just response ) ->
-                wideLayout theme device page path response
+        case detailAccount model.detail of
+            Just account ->
+                wideLayout theme device page account
 
             _ ->
                 page
@@ -211,10 +301,9 @@ wideLayout :
     Theme
     -> Device
     -> Element Msg
-    -> String
-    -> Response
+    -> AccountNode
     -> Element Msg
-wideLayout theme device page path response =
+wideLayout theme device page account =
     Element.row
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -232,7 +321,7 @@ wideLayout theme device page path response =
             , Element.height Element.fill
             , Element.scrollbarY
             ]
-            (accountDetailPage theme device (Just BackToAccounts) path response)
+            (accountDetailPage theme device (Just BackToAccounts) account)
         ]
 
 
@@ -240,44 +329,42 @@ content :
     Theme
     -> Device
     ->
-        { remote : RemoteData Response
+        { accounts : AccountsState
         , expanded : Set String
-        , selectedValue : Maybe String
+        , detail : DetailState
         }
     -> Element Msg
 content theme device model =
-    case model.remote of
-        NotAsked ->
+    case model.accounts of
+        NotRequested ->
             Ui.loading theme "Loading accounts…"
 
-        Loading Nothing ->
+        Loading ->
             Ui.card theme [ Ui.skeletonLoading theme ]
 
-        Loading (Just response) ->
+        Refreshing response ->
             Ui.card theme
                 [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing accounts"
                 , accountTree theme model.expanded response.accounts
                 ]
 
-        Success response ->
+        Loaded response ->
             stateCard theme
                 response.metadata.freshness
                 (accountTree theme model.expanded response.accounts)
 
-        Failure error stale ->
-            case stale of
-                Just response ->
-                    Ui.card theme
-                        [ Ui.errorBanner theme
-                            ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
-                        , accountTree theme model.expanded response.accounts
-                        ]
+        FailedWithStale error response ->
+            Ui.card theme
+                [ Ui.errorBanner theme
+                    ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
+                , accountTree theme model.expanded response.accounts
+                ]
 
-                Nothing ->
-                    Ui.card theme
-                        [ Ui.errorBanner theme
-                            ("Accounts failed to load: " ++ ApiError.message error)
-                        ]
+        Failed error ->
+            Ui.card theme
+                [ Ui.errorBanner theme
+                    ("Accounts failed to load: " ++ ApiError.message error)
+                ]
 
 
 stateCard : Theme -> Freshness -> Element msg -> Element msg
@@ -311,10 +398,10 @@ accountRow :
 accountRow theme expanded depth (AccountNode account) =
     let
         isExpanded =
-            Set.member account.path expanded
+            Set.member (Account.accountPathToString account.path) expanded
 
         toggleButton =
-            if account.hasChildren then
+            if not (List.isEmpty account.children) then
                 Input.button
                     [ Element.width (Element.px 28)
                     , Element.height (Element.px 28)
@@ -338,7 +425,7 @@ accountRow theme expanded depth (AccountNode account) =
                 Element.el [ Element.width (Element.px 28) ] Element.none
 
         valueAction =
-            if hasMultipleCommodities account.subtreeBalances then
+            if Quantity.hasMultipleCommodities account.subtreeBalances then
                 Input.button
                     [ Element.width Element.fill
                     , Element.alignRight
@@ -348,7 +435,7 @@ accountRow theme expanded depth (AccountNode account) =
                     , label =
                         balanceText theme
                             account.valuation
-                            (Just (commodityCount account.subtreeBalances))
+                            (Just (Quantity.commodityCount account.subtreeBalances))
                     }
 
             else
@@ -361,7 +448,7 @@ accountRow theme expanded depth (AccountNode account) =
                 ]
                 { onPress =
                     Just
-                        (if account.hasChildren then
+                        (if not (List.isEmpty account.children) then
                             ToggleAccount account.path
 
                          else
@@ -370,7 +457,9 @@ accountRow theme expanded depth (AccountNode account) =
                 , label =
                     Element.row [ Element.width Element.fill, Element.spacing 8 ]
                         [ Icon.view
-                            { icon = AccountPresentation.iconForAccountName account.path
+                            { icon =
+                                AccountPresentation.iconForAccountName
+                                    (Account.accountPathToString account.path)
                             , size = 18
                             , color = theme.primary
                             }
@@ -417,7 +506,7 @@ accountRow theme expanded depth (AccountNode account) =
         )
 
 
-balanceText : Theme -> Api.Account.Valuation -> Maybe Int -> Element msg
+balanceText : Theme -> Account.Valuation -> Maybe Int -> Element msg
 balanceText theme valuation symbolCount =
     let
         amount =
@@ -460,31 +549,19 @@ balanceText theme valuation symbolCount =
         ]
 
 
-hasMultipleCommodities : List Quantity -> Bool
-hasMultipleCommodities balances =
-    case balances of
-        first :: rest ->
-            List.any (\balance -> Quantity.commodity balance /= Quantity.commodity first) rest
-
-        [] ->
-            False
-
-
-commodityCount : List Quantity -> Int
-commodityCount balances =
-    balances
-        |> List.map Quantity.commodity
-        |> Set.fromList
-        |> Set.size
-
-
 valueView : Theme -> Device -> String -> Model -> Element Msg
 valueView theme device path (Model model) =
-    case RemoteData.value model.remote of
-        Just response ->
-            accountDetailPage theme device (Just BackToAccounts) path response
+    case model.accounts of
+        Loaded response ->
+            detailForPath theme device path response
 
-        Nothing ->
+        Refreshing response ->
+            detailForPath theme device path response
+
+        FailedWithStale _ response ->
+            detailForPath theme device path response
+
+        _ ->
             Element.column
                 [ Element.width Element.fill
                 , Element.height Element.fill
@@ -498,8 +575,8 @@ valueView theme device path (Model model) =
                 ]
 
 
-accountDetailPage : Theme -> Device -> Maybe Msg -> String -> Response -> Element Msg
-accountDetailPage theme device onBack path response =
+accountDetailPage : Theme -> Device -> Maybe Msg -> AccountNode -> Element Msg
+accountDetailPage theme device onBack account =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -509,7 +586,7 @@ accountDetailPage theme device onBack path response =
         ]
         [ Ui.pageHeaderBand theme device <|
             accountDetailHeader theme device onBack
-        , Ui.pageContainer device [ Ui.card theme (valuePanel theme path response) ]
+        , Ui.pageContainer device [ Ui.card theme (valuePanel theme account) ]
         ]
 
 
@@ -526,49 +603,77 @@ accountDetailHeader theme _ onBack =
         ]
 
 
-valuePanel : Theme -> String -> Response -> List (Element Msg)
-valuePanel theme path response =
-    case findAccount path response.accounts of
+valuePanel : Theme -> AccountNode -> List (Element Msg)
+valuePanel theme (AccountNode account) =
+    [ Element.column [ Element.width Element.fill, Element.spacing 4 ]
+        [ Typography.sectionTitle theme account.name
+        , Element.text
+            (account.accountType
+                |> Maybe.map AccountType.toString
+                |> Maybe.withDefault "account"
+            )
+            |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+        ]
+    , balanceText theme account.valuation Nothing
+    , completenessBadge theme account.valuation.completeness
+    , Ui.hairline theme
+    , Typography.subsectionTitle theme "Balances included"
+    , Element.column [ Element.width Element.fill, Element.spacing 8 ]
+        (List.map (detailBalance theme) account.subtreeBalances)
+    , Element.text
+        (let
+            (Date.Date date) =
+                account.valuation.asOf
+         in
+         "Valued as of " ++ TimeExtra.formatDate date
+        )
+        |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+    ]
+
+
+detailForPath : Theme -> Device -> String -> Response -> Element Msg
+detailForPath theme device path response =
+    case findAccount (Account.accountPath path) response.accounts of
+        Just account ->
+            accountDetailPage theme device (Just BackToAccounts) account
+
         Nothing ->
-            [ Ui.errorBanner theme "That account is no longer present in the current snapshot." ]
-
-        Just (AccountNode account) ->
-            [ Element.column [ Element.width Element.fill, Element.spacing 4 ]
-                [ Typography.sectionTitle theme account.name
-                , Element.text
-                    (account.accountType
-                        |> Maybe.map AccountType.toString
-                        |> Maybe.withDefault "account"
-                    )
-                    |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+            Element.column
+                [ Element.width Element.fill
+                , Element.height Element.fill
+                , Background.color theme.pageBg
+                , Element.scrollbarY
+                , Element.htmlAttribute (Html.Attributes.class "page-scroll account-detail-page")
                 ]
-            , balanceText theme account.valuation Nothing
-            , completenessBadge theme account.valuation.completeness
-            , Ui.hairline theme
-            , Typography.subsectionTitle theme "Balances included"
-            , Element.column [ Element.width Element.fill, Element.spacing 8 ]
-                (List.map (detailBalance theme) account.subtreeBalances)
-            , Element.text
-                (let
-                    (Date.Date date) =
-                        account.valuation.asOf
-                 in
-                 "Valued as of " ++ TimeExtra.formatDate date
-                )
-                |> Element.el [ Font.size 12, Font.color theme.textMuted ]
-            ]
+                [ Ui.pageHeaderBand theme device <|
+                    accountDetailHeader theme device (Just BackToAccounts)
+                , Ui.pageContainer device
+                    [ Ui.card theme
+                        [ Ui.errorBanner theme "That account is no longer present in the current snapshot." ]
+                    ]
+                ]
 
 
-completenessBadge : Theme -> Api.Account.Completeness -> Element msg
+detailAccount : DetailState -> Maybe AccountNode
+detailAccount detail =
+    case detail of
+        ShowingAccount account ->
+            Just account
+
+        _ ->
+            Nothing
+
+
+completenessBadge : Theme -> Account.Completeness -> Element msg
 completenessBadge theme completeness =
     case completeness of
-        Api.Account.Complete ->
+        Account.Complete ->
             Ui.statusBadge theme Ui.StatusSuccess "Complete valuation"
 
-        Api.Account.Partial ->
+        Account.Partial ->
             Ui.statusBadge theme Ui.StatusWarning "Partial valuation"
 
-        Api.Account.Unavailable ->
+        Account.Unavailable ->
             Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
 
 
@@ -593,7 +698,7 @@ formatQuantity balance =
     Formatting.formatBalance balance
 
 
-findAccount : String -> List AccountNode -> Maybe AccountNode
+findAccount : AccountPath -> List AccountNode -> Maybe AccountNode
 findAccount path nodes =
     case nodes of
         [] ->

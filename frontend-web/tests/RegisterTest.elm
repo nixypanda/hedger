@@ -5,7 +5,6 @@ import Api.Register as Register
 import Expect
 import Json.Decode as Decode
 import Page.AccountRegister as Page
-import RemoteData
 import Test exposing (Test, describe, test)
 
 
@@ -49,13 +48,13 @@ suite =
                 in
                 Page.receive first (Ok sampleResponse) refreshing
                     |> Page.receive current (Ok { sampleResponse | entries = [] })
-                    |> .remote
-                    |> (\remote ->
-                            case remote of
-                                RemoteData.Success response ->
-                                    Expect.equal [] response.entries
+                    |> Page.visibleResponse
+                    |> (\response ->
+                            case response of
+                                Just visible ->
+                                    Expect.equal [] visible.entries
 
-                                _ ->
+                                Nothing ->
                                     Expect.fail "Expected the active response to win."
                        )
         ]
