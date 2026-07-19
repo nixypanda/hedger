@@ -49,6 +49,7 @@ module Ui exposing
     , rowSurfaceAttrs
     , scrimOverlay
     , searchInput
+    , searchInputInline
     , secondaryButton
     , section
     , segmentedControl
@@ -598,6 +599,24 @@ searchInput theme config =
         , text = config.text
         , placeholder = Nothing
         , label = Input.labelAbove [] (fieldLabel theme config.label)
+        }
+
+
+searchInputInline :
+    Theme
+    ->
+        { label : String
+        , text : String
+        , onChange : String -> msg
+        , extraAttrs : List (Attribute msg)
+        }
+    -> Element msg
+searchInputInline theme config =
+    Input.text (inputAttrs theme ++ config.extraAttrs)
+        { onChange = config.onChange
+        , text = config.text
+        , placeholder = Nothing
+        , label = Input.labelHidden config.label
         }
 
 

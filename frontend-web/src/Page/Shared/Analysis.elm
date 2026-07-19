@@ -42,7 +42,8 @@ type Model
 type alias ModelData =
     { granularity : Granularity
     , depth : Depth
-    , selectedTimeline : Maybe Period
+    , period : Maybe Period
+    , calendarMonth : Maybe Month
     , timeline : List Analytics.TimelinePoint
     , positive : SideState
     , negative : SideState
@@ -52,9 +53,7 @@ type alias ModelData =
 
 
 type alias SideState =
-    { period : Maybe Period
-    , calendarMonth : Maybe Month
-    , activity : ActivityState
+    { activity : ActivityState
     , otherExpanded : Bool
     }
 
@@ -110,7 +109,8 @@ init =
     Model
         { granularity = Monthly
         , depth = Depth 2
-        , selectedTimeline = Nothing
+        , period = Nothing
+        , calendarMonth = Nothing
         , timeline = []
         , positive = initialSide
         , negative = initialSide
@@ -121,9 +121,7 @@ init =
 
 initialSide : SideState
 initialSide =
-    { period = Nothing
-    , calendarMonth = Nothing
-    , activity = ActivityNotRequested
+    { activity = ActivityNotRequested
     , otherExpanded = False
     }
 
@@ -135,10 +133,10 @@ initialSide =
 type Msg
     = GranularitySelected Granularity
     | TimelineSelected String
-    | BreakdownPeriodChanged Side Int
+    | PeriodChanged Int
+    | LatestPeriodSelected
     | DepthSelected Int
     | OtherToggled Side
-    | CalendarPeriodChanged Side Int
     | ActivityLoaded Side (Result ApiError Analytics.ActivityResponse)
     | BucketSelected Side Analytics.ActivityBucket
     | TransactionSelected Transaction
@@ -158,9 +156,10 @@ update context msg (Model data) =
                 next =
                     { data
                         | granularity = granularity
-                        , selectedTimeline = Nothing
-                        , positive = resetSideForGranularity data.positive
-                        , negative = resetSideForGranularity data.negative
+                        , period = Nothing
+                        , calendarMonth = Nothing
+                        , positive = beginSideLoading data.positive
+                        , negative = beginSideLoading data.negative
                         , mode = Exploring Nothing
                     }
             in
@@ -174,29 +173,49 @@ update context msg (Model data) =
                             Just (Time.monthFromDate point.startDate)
 
                         next =
-                            { data
-                                | selectedTimeline = Just selectedPeriod
-                                , positive = selectPeriod selectedPeriod selectedMonth data.positive
-                                , negative = selectPeriod selectedPeriod selectedMonth data.negative
-                                , mode = Exploring Nothing
-                            }
+                            selectPeriod selectedPeriod selectedMonth data
                     in
-                    withReport context next
+                    withReportAndActivities context next
 
                 _ ->
                     ( Model data, [] )
 
-        BreakdownPeriodChanged side offset ->
-            let
-                sideState =
-                    sideFor side data
+        PeriodChanged offset ->
+            case ( data.period, data.calendarMonth ) of
+                ( Just currentPeriod, Just currentMonth ) ->
+                    let
+                        monthDistance =
+                            if data.granularity == Monthly then
+                                offset
 
-                nextSide =
-                    { sideState
-                        | period = Maybe.map (shiftPeriod data.granularity offset) sideState.period
-                    }
-            in
-            withReport context (setSide side nextSide data)
+                            else
+                                offset * 12
+
+                        next =
+                            selectPeriod
+                                (shiftPeriod data.granularity offset currentPeriod)
+                                (Just (Time.shiftMonth monthDistance currentMonth))
+                                data
+                    in
+                    withReportAndActivities context next
+
+                _ ->
+                    ( Model data, [] )
+
+        LatestPeriodSelected ->
+            case List.reverse data.timeline |> List.head of
+                Nothing ->
+                    ( Model data, [] )
+
+                Just point ->
+                    case periodFromString data.granularity point.period of
+                        Nothing ->
+                            ( Model data, [] )
+
+                        Just latest ->
+                            data
+                                |> selectPeriod latest (Just (Time.monthFromDate point.startDate))
+                                |> withReportAndActivities context
 
         DepthSelected requestedDepth ->
             case Time.depthFromInt requestedDepth of
@@ -215,34 +234,6 @@ update context msg (Model data) =
                     setSide side { sideState | otherExpanded = not sideState.otherExpanded } data
             in
             ( Model next, [] )
-
-        CalendarPeriodChanged side offset ->
-            case (sideFor side data).calendarMonth of
-                Nothing ->
-                    ( Model data, [] )
-
-                Just currentMonth ->
-                    let
-                        distance =
-                            if activityRange data.granularity == MonthActivity then
-                                offset
-
-                            else
-                                offset * 12
-
-                        sideState =
-                            sideFor side data
-
-                        nextSide =
-                            { sideState
-                                | calendarMonth = Just (Time.shiftMonth distance currentMonth)
-                                , activity = beginActivityLoading sideState.activity
-                            }
-
-                        next =
-                            setSide side nextSide { data | mode = Exploring Nothing }
-                    in
-                    ( Model next, activityEffect context side next |> maybeToList )
 
         ActivityLoaded side result ->
             let
@@ -308,14 +299,12 @@ update context msg (Model data) =
 queryChanged : Context -> Model -> ( Model, List Effect )
 queryChanged context (Model data) =
     let
-        resetSide sideState =
-            { sideState | period = Nothing }
-
         next =
             { data
-                | selectedTimeline = Nothing
-                , positive = resetSide data.positive
-                , negative = resetSide data.negative
+                | period = Nothing
+                , calendarMonth = Nothing
+                , positive = beginSideLoading data.positive
+                , negative = beginSideLoading data.negative
                 , mode = Exploring Nothing
             }
     in
@@ -328,28 +317,31 @@ reportLoaded context report (Model data) =
         points =
             timelinePoints report.timeline
 
-        selectedTimeline =
-            syncedPeriod data.selectedTimeline points data.granularity
+        period =
+            syncedPeriod data.period points data.granularity
 
-        selectedMonth =
-            selectedTimeline
+        pointMonth =
+            period
                 |> Maybe.andThen (Time.periodToString >> pointFor points)
-                |> orElse (List.reverse points |> List.head)
                 |> Maybe.map (.startDate >> Time.monthFromDate)
-                |> orElse (Just (Month { year = 1970, month = 1 }))
 
-        updateSide breakdown sideState =
-            { sideState
-                | period = periodFromString data.granularity breakdown.period
-                , calendarMonth = sideState.calendarMonth |> orElse selectedMonth
-            }
+        requestedMonth =
+            if period == data.period then
+                data.calendarMonth
+
+            else
+                Nothing
+
+        calendarMonth =
+            requestedMonth
+                |> orElse pointMonth
+                |> orElse (Just (Month { year = 1970, month = 1 }))
 
         next =
             { data
                 | timeline = points
-                , selectedTimeline = selectedTimeline
-                , positive = updateSide report.positiveBreakdown data.positive
-                , negative = updateSide report.negativeBreakdown data.negative
+                , period = period
+                , calendarMonth = calendarMonth
             }
     in
     ( Model next, activityEffects context next )
@@ -360,8 +352,8 @@ reportRequest query (Model data) =
     { query = query
     , granularity = data.granularity
     , displayCommodity = Nothing
-    , positivePeriod = Maybe.map Time.periodToString data.positive.period
-    , negativePeriod = Maybe.map Time.periodToString data.negative.period
+    , positivePeriod = Maybe.map Time.periodToString data.period
+    , negativePeriod = Maybe.map Time.periodToString data.period
     , positiveDepth = Time.depthValue data.depth
     , negativeDepth = Time.depthValue data.depth
     }
@@ -386,11 +378,7 @@ activityEffects context data =
 
 activityEffect : Context -> Side -> ModelData -> Maybe Effect
 activityEffect context side data =
-    let
-        sideState =
-            sideFor side data
-    in
-    sideState.calendarMonth
+    data.calendarMonth
         |> Maybe.map
             (\month ->
                 FetchActivity side
@@ -436,22 +424,67 @@ view theme viewport config report (Model data) =
         [ Typography.sectionTitle theme config.timelineSectionTitle
         , timelineView theme chartWidth config report data
         , AnalyticsView.warningList theme report.warnings
-        , compositionHeader theme data.depth
+        , compositionHeader theme data
         , breakdownsView theme device config report data
         , activityViews theme device config report data
         ]
 
 
-compositionHeader : Theme -> Depth -> Element Msg
-compositionHeader theme depth =
+compositionHeader : Theme -> ModelData -> Element Msg
+compositionHeader theme data =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
         [ Element.el [ Element.width Element.fill ]
             (Typography.sectionTitle theme "Composition and activity")
-        , Element.row [ Element.spacing 10 ]
-            [ Typography.mutedBody theme "Account depth"
-            , AnalyticsView.depthControl theme (Time.depthValue depth) DepthSelected
+        , Element.column [ Element.width Element.fill, Element.spacing 8 ]
+            [ Element.row [ Element.width Element.fill, Element.spacing 8 ]
+                [ Element.el [ Element.width (Element.fillPortion 1), Element.alignLeft ]
+                    (Typography.mutedBody theme "Period")
+                , Element.row [ Element.width (Element.fillPortion 2) ]
+                    [ Element.el [ Element.width Element.fill ] Element.none
+                    , Ui.periodNavigation theme
+                        { label =
+                            Element.el [ Font.semiBold ]
+                                (Element.text (selectedPeriodLabel data))
+                        , onPrevious = PeriodChanged -1
+                        , onLatest =
+                            if data.period == latestPeriod data.granularity data.timeline then
+                                Nothing
+
+                            else
+                                Just LatestPeriodSelected
+                        , onNext = PeriodChanged 1
+                        }
+                    ]
+                ]
+            , Element.row [ Element.width Element.fill, Element.spacing 10 ]
+                [ Element.el [ Element.width (Element.fillPortion 1), Element.alignLeft ]
+                    (Typography.mutedBody theme "Account depth")
+                , Element.row [ Element.width (Element.fillPortion 2) ]
+                    [ Element.el [ Element.width Element.fill ] Element.none
+                    , AnalyticsView.depthControl theme (Time.depthValue data.depth) DepthSelected
+                    ]
+                ]
             ]
         ]
+
+
+selectedPeriodLabel : ModelData -> String
+selectedPeriodLabel data =
+    case data.granularity of
+        Monthly ->
+            data.period
+                |> Maybe.map (Time.periodToString >> Calendar.periodLabel Monthly)
+                |> Maybe.withDefault "Loading…"
+
+        Yearly ->
+            data.calendarMonth
+                |> Maybe.map
+                    (Time.monthToString
+                        >> Calendar.fiscalPeriodForMonth
+                            (Time.fiscalYearStartMonthValue data.fiscalYearStartMonth)
+                        >> Calendar.fiscalPeriodLabel
+                    )
+                |> Maybe.withDefault "Loading…"
 
 
 timelineView : Theme -> Int -> Config -> Report -> ModelData -> Element Msg
@@ -463,7 +496,7 @@ timelineView theme chartWidth config report data =
                 , AnalyticsView.timelineChart theme
                     { commodity = report.displayCommodity
                     , points = points
-                    , selected = Maybe.map Time.periodToString data.selectedTimeline
+                    , selected = Maybe.map Time.periodToString data.period
                     , onSelect = TimelineSelected
                     , availableWidth = chartWidth
                     , positiveLabel = config.positive.label
@@ -515,8 +548,6 @@ categoryView theme config side commodity breakdown sideState =
         , commodity = commodity
         , breakdown = breakdown
         , palette = config.palette
-        , onPrevious = BreakdownPeriodChanged side -1
-        , onNext = BreakdownPeriodChanged side 1
         , otherExpanded = sideState.otherExpanded
         , onOtherToggle = OtherToggled side
         }
@@ -525,19 +556,19 @@ categoryView theme config side commodity breakdown sideState =
 activityViews : Theme -> Device -> Config -> Report -> ModelData -> Element Msg
 activityViews theme device config report data =
     responsiveGrid device
-        [ activityView theme data.granularity config.positive Positive report.displayCommodity data
-        , activityView theme data.granularity config.negative Negative report.displayCommodity data
+        [ activityView theme device data.granularity config.positive Positive report.displayCommodity data
+        , activityView theme device data.granularity config.negative Negative report.displayCommodity data
         ]
 
 
-activityView : Theme -> Granularity -> SideConfig -> Side -> String -> ModelData -> Element Msg
-activityView theme granularity config side commodity data =
+activityView : Theme -> Device -> Granularity -> SideConfig -> Side -> String -> ModelData -> Element Msg
+activityView theme device granularity config side commodity data =
     let
         sideState =
             sideFor side data
 
         month =
-            sideState.calendarMonth
+            data.calendarMonth
                 |> Maybe.map Time.monthToString
                 |> Maybe.withDefault "1970-01"
     in
@@ -550,24 +581,17 @@ activityView theme granularity config side commodity data =
                 , tone = config.tone
                 , response = activityValue sideState.activity
                 , selectedBucket = selectedBucketFor side data.mode
-                , onPrevious = CalendarPeriodChanged side -1
-                , onNext = CalendarPeriodChanged side 1
                 , onSelect = BucketSelected side
                 , onTransaction = TransactionSelected
+                , device = device
                 }
 
         Yearly ->
             AnalyticsView.activityYear theme
                 { title = config.yearActivityTitle
-                , period =
-                    Calendar.fiscalPeriodForMonth
-                        (Time.fiscalYearStartMonthValue data.fiscalYearStartMonth)
-                        month
                 , commodity = commodity
                 , tone = config.tone
                 , response = activityValue sideState.activity
-                , onPrevious = CalendarPeriodChanged side -1
-                , onNext = CalendarPeriodChanged side 1
                 }
 
 
@@ -581,19 +605,19 @@ transaction (Model data) =
             Just selectedTransaction
 
 
-resetSideForGranularity : SideState -> SideState
-resetSideForGranularity sideState =
-    { sideState
-        | period = Nothing
-        , activity = beginActivityLoading sideState.activity
-    }
+beginSideLoading : SideState -> SideState
+beginSideLoading sideState =
+    { sideState | activity = beginActivityLoading sideState.activity }
 
 
-selectPeriod : Period -> Maybe Month -> SideState -> SideState
-selectPeriod period selectedMonth sideState =
-    { sideState
+selectPeriod : Period -> Maybe Month -> ModelData -> ModelData
+selectPeriod period calendarMonth data =
+    { data
         | period = Just period
-        , calendarMonth = selectedMonth |> orElse sideState.calendarMonth
+        , calendarMonth = calendarMonth
+        , positive = beginSideLoading data.positive
+        , negative = beginSideLoading data.negative
+        , mode = Exploring Nothing
     }
 
 
@@ -700,16 +724,6 @@ orElse fallback maybeValue =
 
         Nothing ->
             fallback
-
-
-maybeToList : Maybe value -> List value
-maybeToList maybeValue =
-    case maybeValue of
-        Just value ->
-            [ value ]
-
-        Nothing ->
-            []
 
 
 syncedPeriod : Maybe Period -> List { point | period : String } -> Granularity -> Maybe Period

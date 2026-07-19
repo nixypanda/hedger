@@ -958,11 +958,13 @@ transactionsHeader theme device =
 queryPanel : Theme -> Model -> Element Msg
 queryPanel theme model =
     Ui.card theme
-        [ Element.row
+        [ Ui.fieldLabel theme "hledger query"
+        , Element.row
             [ Element.width Element.fill
             , Element.spacing 8
+            , Element.centerY
             ]
-            [ Ui.searchInput theme
+            [ Ui.searchInputInline theme
                 { label = "hledger query"
                 , text = draftQuery model
                 , onChange = DraftChanged
