@@ -1,21 +1,18 @@
 module Page.Cashflow exposing (Model, Msg(..), init, update, view)
 
-import Api.Analytics as Analytics exposing (ActivityRange(..), Granularity(..))
+import Api.Analytics as Analytics
 import Api.Client as Api
 import Api.Error as ApiError
 import Api.Transaction exposing (Transaction)
-import Data.Calendar as Calendar
-import Data.Date as Date
 import Element exposing (Device, Element)
 import Element.Background as Background
-import Element.Font as Font
 import Html.Attributes
+import Page.Shared.Analysis as Analysis
 import Page.Transactions as Transactions
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.Analytics as AnalyticsView
@@ -34,23 +31,7 @@ type alias ModelData =
     { response : RemoteData Analytics.CashflowResponse
     , draftQuery : String
     , appliedQuery : String
-    , granularity : Granularity
-    , selectedTimeline : Maybe String
-    , incomePeriod : Maybe String
-    , expensePeriod : Maybe String
-    , incomeDepth : Int
-    , expenseDepth : Int
-    , activityRange : ActivityRange
-    , incomeCalendarMonth : String
-    , expenseCalendarMonth : String
-    , incomeActivity : RemoteData Analytics.ActivityResponse
-    , expenseActivity : RemoteData Analytics.ActivityResponse
-    , selectedBucket : Maybe Analytics.ActivityBucket
-    , selectedSide : Maybe Side
-    , selectedTransaction : Maybe Transaction
-    , fiscalYearStartMonth : Int
-    , incomeOtherExpanded : Bool
-    , expenseOtherExpanded : Bool
+    , analysis : Analysis.Model
     }
 
 
@@ -61,31 +42,10 @@ init =
             { response = Loading Nothing
             , draftQuery = ""
             , appliedQuery = ""
-            , granularity = Monthly
-            , selectedTimeline = Nothing
-            , incomePeriod = Nothing
-            , expensePeriod = Nothing
-            , incomeDepth = 2
-            , expenseDepth = 2
-            , activityRange = MonthActivity
-            , incomeCalendarMonth = ""
-            , expenseCalendarMonth = ""
-            , incomeActivity = NotAsked
-            , expenseActivity = NotAsked
-            , selectedBucket = Nothing
-            , selectedSide = Nothing
-            , selectedTransaction = Nothing
-            , fiscalYearStartMonth = 4
-            , incomeOtherExpanded = False
-            , expenseOtherExpanded = False
+            , analysis = Analysis.init
             }
     in
-    ( Model data, fetchReport data )
-
-
-type Side
-    = IncomeSide
-    | ExpenseSide
+    ( Model data, fetchReport data.appliedQuery data.analysis )
 
 
 
@@ -98,48 +58,25 @@ type Msg
     | ApplyQuery
     | ClearQuery
     | ResponseLoaded (Result ApiError.ApiError Analytics.CashflowResponse)
-    | GranularitySelected Granularity
-    | TimelineSelected String
-    | BreakdownPeriodChanged Side Int
-    | DepthSelected Side Int
-    | OtherToggled Side
-    | CalendarPeriodChanged Side Int
-    | IncomeActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
-    | ExpenseActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
-    | BucketSelected Side Analytics.ActivityBucket
-    | TransactionSelected Transaction
-    | Back
+    | AnalysisMsg Analysis.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg (Model data) =
     case msg of
         Refresh ->
-            reload data
+            ( Model { data | response = RemoteData.beginLoading data.response }
+            , fetchReport data.appliedQuery data.analysis
+            )
 
         DraftChanged draft ->
             ( Model { data | draftQuery = draft }, Cmd.none )
 
         ApplyQuery ->
-            reload
-                { data
-                    | appliedQuery = String.trim data.draftQuery
-                    , selectedTimeline = Nothing
-                    , incomePeriod = Nothing
-                    , expensePeriod = Nothing
-                    , selectedBucket = Nothing
-                }
+            applyQuery (String.trim data.draftQuery) data
 
         ClearQuery ->
-            reload
-                { data
-                    | draftQuery = ""
-                    , appliedQuery = ""
-                    , selectedTimeline = Nothing
-                    , incomePeriod = Nothing
-                    , expensePeriod = Nothing
-                    , selectedBucket = Nothing
-                }
+            applyQuery "" { data | draftQuery = "" }
 
         ResponseLoaded result ->
             case result of
@@ -148,247 +85,129 @@ update msg (Model data) =
 
                 Ok response ->
                     let
-                        selectedTimeline =
-                            syncedPeriod data.selectedTimeline response.timeline
+                        context =
+                            analysisContext data.appliedQuery
 
-                        selectedMonth =
-                            case selectedTimeline |> Maybe.andThen (pointFor response) of
-                                Just point ->
-                                    point.startDate |> Date.toString |> String.left 7
-
-                                Nothing ->
-                                    response.timeline
-                                        |> List.reverse
-                                        |> List.head
-                                        |> Maybe.map (.startDate >> Date.toString >> String.left 7)
-                                        |> Maybe.withDefault "1970-01"
-
-                        next =
-                            { data
-                                | response = Success response
-                                , selectedTimeline = selectedTimeline
-                                , incomePeriod = Just response.incomeBreakdown.period
-                                , expensePeriod = Just response.expenseBreakdown.period
-                                , incomeCalendarMonth =
-                                    if String.isEmpty data.incomeCalendarMonth then
-                                        selectedMonth
-
-                                    else
-                                        data.incomeCalendarMonth
-                                , expenseCalendarMonth =
-                                    if String.isEmpty data.expenseCalendarMonth then
-                                        selectedMonth
-
-                                    else
-                                        data.expenseCalendarMonth
-                            }
+                        ( analysis, effects ) =
+                            Analysis.reportLoaded context (analysisReport response) data.analysis
                     in
-                    ( Model next, fetchActivities next )
+                    ( Model { data | response = Success response, analysis = analysis }
+                    , performEffects effects
+                    )
 
-        GranularitySelected granularity ->
+        AnalysisMsg analysisMsg ->
             let
-                next =
-                    { data
-                        | granularity = granularity
-                        , activityRange = granularityActivityRange granularity
-                        , selectedTimeline = Nothing
-                        , incomePeriod = Nothing
-                        , expensePeriod = Nothing
-                        , selectedBucket = Nothing
-                        , selectedSide = Nothing
-                        , incomeActivity = RemoteData.beginLoading data.incomeActivity
-                        , expenseActivity = RemoteData.beginLoading data.expenseActivity
-                    }
-            in
-            ( Model { next | response = RemoteData.beginLoading data.response }
-            , Cmd.batch [ fetchReport next, fetchActivities next ]
-            )
+                ( analysis, effects ) =
+                    Analysis.update (analysisContext data.appliedQuery) analysisMsg data.analysis
 
-        TimelineSelected period ->
-            let
-                month =
-                    RemoteData.value data.response
-                        |> Maybe.andThen (\response -> pointFor response period)
-                        |> Maybe.map (.startDate >> Date.toString >> String.left 7)
-                        |> Maybe.withDefault data.incomeCalendarMonth
-            in
-            reload
-                { data
-                    | selectedTimeline = Just period
-                    , incomePeriod = Just period
-                    , expensePeriod = Just period
-                    , incomeCalendarMonth = month
-                    , expenseCalendarMonth = month
-                    , selectedBucket = Nothing
-                }
-
-        BreakdownPeriodChanged side offset ->
-            let
-                next =
-                    setSidePeriod side
-                        (Maybe.map (Calendar.shiftPeriod data.granularity offset) (periodFor side data))
-                        data
-            in
-            reload next
-
-        DepthSelected side depth ->
-            reload (setDepth side depth data)
-
-        OtherToggled side ->
-            ( Model
-                (if side == IncomeSide then
-                    { data | incomeOtherExpanded = not data.incomeOtherExpanded }
-
-                 else
-                    { data | expenseOtherExpanded = not data.expenseOtherExpanded }
-                )
-            , Cmd.none
-            )
-
-        CalendarPeriodChanged side offset ->
-            let
-                distance =
-                    if data.activityRange == MonthActivity then
-                        offset
+                response =
+                    if List.any isReportEffect effects then
+                        RemoteData.beginLoading data.response
 
                     else
-                        offset * 12
-
-                next =
-                    setCalendarMonth side
-                        (Calendar.shiftMonth distance (calendarMonthFor side data))
-                        { data | selectedBucket = Nothing }
+                        data.response
             in
-            ( Model next, fetchActivity side next )
-
-        IncomeActivityLoaded result ->
-            activityReceived IncomeSide result data
-
-        ExpenseActivityLoaded result ->
-            activityReceived ExpenseSide result data
-
-        BucketSelected side bucket ->
-            let
-                deselect =
-                    data.selectedSide
-                        == Just side
-                        && Maybe.map .key data.selectedBucket
-                        == Just bucket.key
-            in
-            ( Model
-                { data
-                    | selectedBucket =
-                        if deselect then
-                            Nothing
-
-                        else
-                            Just bucket
-                    , selectedSide =
-                        if deselect then
-                            Nothing
-
-                        else
-                            Just side
-                }
-            , Cmd.none
+            ( Model { data | analysis = analysis, response = response }
+            , performEffects effects
             )
 
-        TransactionSelected transaction ->
-            ( Model { data | selectedTransaction = Just transaction }, Cmd.none )
 
-        Back ->
-            ( Model { data | selectedTransaction = Nothing }, Cmd.none )
-
-
-reload : ModelData -> ( Model, Cmd Msg )
-reload data =
+applyQuery : String -> ModelData -> ( Model, Cmd Msg )
+applyQuery query data =
     let
-        next =
-            { data | response = RemoteData.beginLoading data.response }
+        context =
+            analysisContext query
+
+        ( analysis, effects ) =
+            Analysis.queryChanged context data.analysis
     in
-    ( Model next, fetchReport next )
-
-
-activityReceived :
-    Side
-    -> Result ApiError.ApiError Analytics.ActivityResponse
-    -> ModelData
-    -> ( Model, Cmd Msg )
-activityReceived side result data =
-    let
-        remote =
-            case result of
-                Ok response ->
-                    Success response
-
-                Err error ->
-                    Failure error (RemoteData.value (activityFor side data))
-
-        next =
-            setActivity side remote data
-
-        fiscal =
-            result
-                |> Result.toMaybe
-                |> Maybe.map .fiscalYearStartMonth
-                |> Maybe.withDefault data.fiscalYearStartMonth
-    in
-    ( Model { next | fiscalYearStartMonth = fiscal }, Cmd.none )
-
-
-fetchReport : ModelData -> Cmd Msg
-fetchReport data =
-    Api.getCashflow
-        { query = data.appliedQuery
-        , granularity = data.granularity
-        , displayCommodity = Nothing
-        , positivePeriod = data.incomePeriod
-        , negativePeriod = data.expensePeriod
-        , positiveDepth = data.incomeDepth
-        , negativeDepth = data.expenseDepth
+    ( Model
+        { data
+            | appliedQuery = query
+            , analysis = analysis
+            , response = RemoteData.beginLoading data.response
         }
-        ResponseLoaded
+    , performEffects effects
+    )
 
 
-fetchActivities : ModelData -> Cmd Msg
-fetchActivities data =
-    Cmd.batch [ fetchActivity IncomeSide data, fetchActivity ExpenseSide data ]
+analysisContext : String -> Analysis.Context
+analysisContext query =
+    { config = analysisConfig
+    , query = query
+    }
 
 
-fetchActivity : Side -> ModelData -> Cmd Msg
-fetchActivity side data =
-    let
-        month =
-            calendarMonthFor side data
+analysisConfig : Analysis.Config
+analysisConfig =
+    { timelineTitle = "Income and expenses"
+    , netLabel = "Net"
+    , positive =
+        { label = "Income"
+        , monthActivityTitle = "Income calendar"
+        , yearActivityTitle = "Income activity"
+        , activityKind = Analytics.IncomeActivity
+        , palette = AnalyticsView.PositivePalette
+        , tone = AnalyticsView.IncomeTone
+        }
+    , negative =
+        { label = "Expenses"
+        , monthActivityTitle = "Expenses calendar"
+        , yearActivityTitle = "Expense activity"
+        , activityKind = Analytics.ExpenseActivity
+        , palette = AnalyticsView.NegativePalette
+        , tone = AnalyticsView.ExpenseTone
+        }
+    }
 
-        period =
-            if data.activityRange == MonthActivity then
-                month
 
-            else
-                Calendar.fiscalPeriodForMonth data.fiscalYearStartMonth month
+analysisReport : Analytics.CashflowResponse -> Analysis.Report
+analysisReport response =
+    { displayCommodity = response.displayCommodity
+    , timeline =
+        if response.timelineAvailable then
+            Analysis.TimelineAvailable response.timeline
 
-        request =
-            { kind =
-                if side == IncomeSide then
-                    Analytics.IncomeActivity
+        else
+            Analysis.TimelineUnavailable
+                ("Cashflow is unavailable because at least one participating amount "
+                    ++ "cannot be converted to the display commodity."
+                )
+                response.timeline
+    , positiveBreakdown = response.incomeBreakdown
+    , negativeBreakdown = response.expenseBreakdown
+    , warnings = response.warnings
+    }
 
-                else
-                    Analytics.ExpenseActivity
-            , range = data.activityRange
-            , period = period
-            , query = data.appliedQuery
-            , displayCommodity = Nothing
-            , depth = depthFor side data
-            }
-    in
-    Api.getActivity request
-        (if side == IncomeSide then
-            IncomeActivityLoaded
 
-         else
-            ExpenseActivityLoaded
-        )
+fetchReport : String -> Analysis.Model -> Cmd Msg
+fetchReport query analysis =
+    Api.getCashflow (Analysis.reportRequest query analysis) ResponseLoaded
+
+
+performEffects : List Analysis.Effect -> Cmd Msg
+performEffects effects =
+    effects |> List.map performEffect |> Cmd.batch
+
+
+performEffect : Analysis.Effect -> Cmd Msg
+performEffect effect =
+    case effect of
+        Analysis.FetchReport request ->
+            Api.getCashflow request ResponseLoaded
+
+        Analysis.FetchActivity side request ->
+            Api.getActivity request (Analysis.ActivityLoaded side >> AnalysisMsg)
+
+
+isReportEffect : Analysis.Effect -> Bool
+isReportEffect effect =
+    case effect of
+        Analysis.FetchReport _ ->
+            True
+
+        Analysis.FetchActivity _ _ ->
+            False
 
 
 
@@ -401,26 +220,35 @@ view theme viewport (Model data) =
         device =
             Element.classifyDevice viewport
     in
-    case data.selectedTransaction of
-        Just transaction ->
-            Element.column
-                [ Element.width Element.fill
-                , Element.height Element.fill
-                , Background.color theme.pageBg
-                , Element.scrollbarY
-                ]
-                [ Ui.pageHeaderBand theme device <|
-                    Ui.pageHeader theme
-                        { leading = Just (Ui.ghostButton theme { label = "← Back", onPress = Back })
-                        , title = Typography.pageTitle theme "Transaction Detail"
-                        , subtitle = Nothing
-                        , actions = []
-                        }
-                , Ui.pageContainer device [ Transactions.transactionDetail theme transaction ]
-                ]
+    case Analysis.transaction data.analysis of
+        Just selectedTransaction ->
+            transactionView theme device selectedTransaction
 
         Nothing ->
             dashboard theme viewport device data
+
+
+transactionView : Theme -> Device -> Transaction -> Element Msg
+transactionView theme device selectedTransaction =
+    Element.column
+        [ Element.width Element.fill
+        , Element.height Element.fill
+        , Background.color theme.pageBg
+        , Element.scrollbarY
+        ]
+        [ Ui.pageHeaderBand theme device <|
+            Ui.pageHeader theme
+                { leading =
+                    Just
+                        (Ui.ghostButton theme
+                            { label = "← Back", onPress = AnalysisMsg Analysis.Back }
+                        )
+                , title = Typography.pageTitle theme "Transaction Detail"
+                , subtitle = Nothing
+                , actions = []
+                }
+        , Ui.pageContainer device [ Transactions.transactionDetail theme selectedTransaction ]
+        ]
 
 
 dashboard : Theme -> Viewport -> Device -> ModelData -> Element Msg
@@ -444,9 +272,9 @@ dashboard theme viewport device data =
                     ]
                 }
         , Ui.pageContainer device
-            (granularityControl theme data.granularity
+            (Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
                 :: queryPanel theme data
-                :: dashboardContent theme viewport device data
+                :: dashboardContent theme viewport data
             )
         ]
 
@@ -505,12 +333,8 @@ queryPanel theme data =
         ]
 
 
-dashboardContent : Theme -> Viewport -> Device -> ModelData -> List (Element Msg)
-dashboardContent theme viewport device data =
-    let
-        chartWidth =
-            max 320 (Responsive.usableContentWidth viewport device - 40)
-    in
+dashboardContent : Theme -> Viewport -> ModelData -> List (Element Msg)
+dashboardContent theme viewport data =
     case RemoteData.value data.response of
         Nothing ->
             case data.response of
@@ -530,121 +354,9 @@ dashboardContent theme viewport device data =
                     ++ String.fromInt response.totalCount
                     ++ " transactions"
                 )
-            , if response.timelineAvailable then
-                Ui.card theme
-                    [ Typography.sectionTitle theme "Income and expenses"
-                    , AnalyticsView.timelineChart theme
-                        { commodity = response.displayCommodity
-                        , points = response.timeline
-                        , selected = data.selectedTimeline
-                        , onSelect = TimelineSelected
-                        , availableWidth = chartWidth
-                        , positiveLabel = "Income"
-                        , negativeLabel = "Expenses"
-                        , netLabel = "Net"
-                        }
-                    , chartLegend theme
-                        [ ( theme.positive, "Income" )
-                        , ( theme.negative, "Expenses" )
-                        , ( theme.primary, "Net" )
-                        ]
-                    ]
-
-              else
-                Ui.errorBanner theme
-                    ("Cashflow is unavailable because at least one participating amount "
-                        ++ "cannot be converted to the display commodity."
-                    )
-            , AnalyticsView.warningList theme response.warnings
-            , responsiveGrid device
-                [ AnalyticsView.categoryCard theme
-                    { title = "Income"
-                    , commodity = response.displayCommodity
-                    , breakdown = response.incomeBreakdown
-                    , palette = AnalyticsView.PositivePalette
-                    , depth = data.incomeDepth
-                    , onDepth = DepthSelected IncomeSide
-                    , onPrevious = BreakdownPeriodChanged IncomeSide -1
-                    , onNext = BreakdownPeriodChanged IncomeSide 1
-                    , otherExpanded = data.incomeOtherExpanded
-                    , onOtherToggle = OtherToggled IncomeSide
-                    }
-                , AnalyticsView.categoryCard theme
-                    { title = "Expenses"
-                    , commodity = response.displayCommodity
-                    , breakdown = response.expenseBreakdown
-                    , palette = AnalyticsView.NegativePalette
-                    , depth = data.expenseDepth
-                    , onDepth = DepthSelected ExpenseSide
-                    , onPrevious = BreakdownPeriodChanged ExpenseSide -1
-                    , onNext = BreakdownPeriodChanged ExpenseSide 1
-                    , otherExpanded = data.expenseOtherExpanded
-                    , onOtherToggle = OtherToggled ExpenseSide
-                    }
-                ]
-            , Typography.sectionTitle theme "Activity"
-            , activityViews theme device data response
+            , Element.map AnalysisMsg
+                (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
             ]
-
-
-activityViews : Theme -> Device -> ModelData -> Analytics.CashflowResponse -> Element Msg
-activityViews theme device data response =
-    case data.activityRange of
-        MonthActivity ->
-            responsiveGrid device
-                [ AnalyticsView.activityMonth theme
-                    { title = "Income calendar"
-                    , period = data.incomeCalendarMonth
-                    , commodity = response.displayCommodity
-                    , tone = AnalyticsView.IncomeTone
-                    , response = RemoteData.value data.incomeActivity
-                    , selectedBucket = selectedBucketFor IncomeSide data
-                    , onPrevious = CalendarPeriodChanged IncomeSide -1
-                    , onNext = CalendarPeriodChanged IncomeSide 1
-                    , onSelect = BucketSelected IncomeSide
-                    , onTransaction = TransactionSelected
-                    }
-                , AnalyticsView.activityMonth theme
-                    { title = "Expenses calendar"
-                    , period = data.expenseCalendarMonth
-                    , commodity = response.displayCommodity
-                    , tone = AnalyticsView.ExpenseTone
-                    , response = RemoteData.value data.expenseActivity
-                    , selectedBucket = selectedBucketFor ExpenseSide data
-                    , onPrevious = CalendarPeriodChanged ExpenseSide -1
-                    , onNext = CalendarPeriodChanged ExpenseSide 1
-                    , onSelect = BucketSelected ExpenseSide
-                    , onTransaction = TransactionSelected
-                    }
-                ]
-
-        YearActivity ->
-            responsiveGrid device
-                [ AnalyticsView.activityYear theme
-                    { title = "Income activity"
-                    , period =
-                        Calendar.fiscalPeriodForMonth
-                            data.fiscalYearStartMonth
-                            data.incomeCalendarMonth
-                    , commodity = response.displayCommodity
-                    , tone = AnalyticsView.IncomeTone
-                    , response = RemoteData.value data.incomeActivity
-                    , onPrevious = CalendarPeriodChanged IncomeSide -1
-                    , onNext = CalendarPeriodChanged IncomeSide 1
-                    }
-                , AnalyticsView.activityYear theme
-                    { title = "Expense activity"
-                    , period =
-                        Calendar.fiscalPeriodForMonth
-                            data.fiscalYearStartMonth
-                            data.expenseCalendarMonth
-                    , commodity = response.displayCommodity
-                    , tone = AnalyticsView.ExpenseTone
-                    , response = RemoteData.value data.expenseActivity
-                    , onPrevious = CalendarPeriodChanged ExpenseSide -1
-                    , onNext = CalendarPeriodChanged ExpenseSide 1
-                    }
-                ]
 
 
 remoteNotice :
@@ -679,146 +391,3 @@ queryError remote =
 
         _ ->
             Nothing
-
-
-granularityControl : Theme -> Granularity -> Element Msg
-granularityControl theme selected =
-    Ui.wideSegmentedControl theme
-        [ { label = "M", selected = selected == Monthly, onPress = GranularitySelected Monthly }
-        , { label = "Y", selected = selected == Yearly, onPress = GranularitySelected Yearly }
-        ]
-
-
-granularityActivityRange : Granularity -> ActivityRange
-granularityActivityRange granularity =
-    if granularity == Monthly then
-        MonthActivity
-
-    else
-        YearActivity
-
-
-responsiveGrid : Device -> List (Element msg) -> Element msg
-responsiveGrid device items =
-    if Ui.isSmall device then
-        Element.column [ Element.width Element.fill, Element.spacing 16 ] items
-
-    else
-        Element.row [ Element.width Element.fill, Element.spacing 16 ] items
-
-
-selectedBucketFor : Side -> ModelData -> Maybe Analytics.ActivityBucket
-selectedBucketFor side data =
-    if data.selectedSide == Just side then
-        data.selectedBucket
-
-    else
-        Nothing
-
-
-chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
-chartLegend theme items =
-    Element.wrappedRow [ Element.spacing 14 ]
-        (List.map
-            (\( color, label ) ->
-                Element.row [ Element.spacing 5 ]
-                    [ Ui.accentDot color
-                    , Element.el [ Font.color theme.textMuted ] (Element.text label)
-                    ]
-            )
-            items
-        )
-
-
-syncedPeriod : Maybe String -> List { point | period : String } -> Maybe String
-syncedPeriod requested points =
-    case requested of
-        Just period ->
-            if List.any (.period >> (==) period) points then
-                Just period
-
-            else
-                List.reverse points |> List.head |> Maybe.map .period
-
-        Nothing ->
-            List.reverse points |> List.head |> Maybe.map .period
-
-
-pointFor : Analytics.CashflowResponse -> String -> Maybe Analytics.TimelinePoint
-pointFor response period =
-    List.filter (.period >> (==) period) response.timeline |> List.head
-
-
-periodFor : Side -> ModelData -> Maybe String
-periodFor side data =
-    if side == IncomeSide then
-        data.incomePeriod
-
-    else
-        data.expensePeriod
-
-
-setSidePeriod : Side -> Maybe String -> ModelData -> ModelData
-setSidePeriod side period data =
-    if side == IncomeSide then
-        { data | incomePeriod = period }
-
-    else
-        { data | expensePeriod = period }
-
-
-depthFor : Side -> ModelData -> Int
-depthFor side data =
-    if side == IncomeSide then
-        data.incomeDepth
-
-    else
-        data.expenseDepth
-
-
-setDepth : Side -> Int -> ModelData -> ModelData
-setDepth side depth data =
-    if side == IncomeSide then
-        { data | incomeDepth = depth }
-
-    else
-        { data | expenseDepth = depth }
-
-
-calendarMonthFor : Side -> ModelData -> String
-calendarMonthFor side data =
-    if side == IncomeSide then
-        data.incomeCalendarMonth
-
-    else
-        data.expenseCalendarMonth
-
-
-setCalendarMonth : Side -> String -> ModelData -> ModelData
-setCalendarMonth side month data =
-    if side == IncomeSide then
-        { data | incomeCalendarMonth = month, incomeActivity = RemoteData.beginLoading data.incomeActivity }
-
-    else
-        { data
-            | expenseCalendarMonth = month
-            , expenseActivity = RemoteData.beginLoading data.expenseActivity
-        }
-
-
-activityFor : Side -> ModelData -> RemoteData Analytics.ActivityResponse
-activityFor side data =
-    if side == IncomeSide then
-        data.incomeActivity
-
-    else
-        data.expenseActivity
-
-
-setActivity : Side -> RemoteData Analytics.ActivityResponse -> ModelData -> ModelData
-setActivity side remote data =
-    if side == IncomeSide then
-        { data | incomeActivity = remote }
-
-    else
-        { data | expenseActivity = remote }
