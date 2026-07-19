@@ -22,6 +22,10 @@ import View.Analytics as AnalyticsView
 import View.States as States
 
 
+
+-- MODEL
+
+
 type Model
     = Model ModelData
 
@@ -47,28 +51,6 @@ type alias ModelData =
     , assetOtherExpanded : Bool
     , liabilityOtherExpanded : Bool
     }
-
-
-type Side
-    = AssetSide
-    | LiabilitySide
-
-
-type Msg
-    = Refresh
-    | ResponseLoaded (Result ApiError.ApiError Analytics.NetWorthResponse)
-    | GranularitySelected Granularity
-    | TimelineSelected String
-    | PerformanceSelected String
-    | BreakdownPeriodChanged Side Int
-    | DepthSelected Side Int
-    | OtherToggled Side
-    | CalendarPeriodChanged Side Int
-    | AssetActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
-    | LiabilityActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
-    | BucketSelected Side Analytics.ActivityBucket
-    | TransactionSelected Transaction
-    | Back
 
 
 init : ( Model, Cmd Msg )
@@ -97,6 +79,32 @@ init =
             }
     in
     ( Model data, fetchReport data )
+
+
+type Side
+    = AssetSide
+    | LiabilitySide
+
+
+
+-- UPDATE
+
+
+type Msg
+    = Refresh
+    | ResponseLoaded (Result ApiError.ApiError Analytics.NetWorthResponse)
+    | GranularitySelected Granularity
+    | TimelineSelected String
+    | PerformanceSelected String
+    | BreakdownPeriodChanged Side Int
+    | DepthSelected Side Int
+    | OtherToggled Side
+    | CalendarPeriodChanged Side Int
+    | AssetActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
+    | LiabilityActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
+    | BucketSelected Side Analytics.ActivityBucket
+    | TransactionSelected Transaction
+    | Back
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -376,6 +384,10 @@ fetchActivity side data =
          else
             LiabilityActivityLoaded
         )
+
+
+
+-- VIEW
 
 
 view : Theme -> Viewport -> Model -> Element Msg

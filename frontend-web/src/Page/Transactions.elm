@@ -48,6 +48,10 @@ import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
 
 
+
+-- MODEL
+
+
 type Model
     = Model ModelData
 
@@ -138,6 +142,19 @@ type Status
     | LoadMoreFailureStatus
 
 
+init : Model
+init =
+    Model
+        { state = Dormant
+        , draft = ""
+        , nextToken = 0
+        }
+
+
+
+-- UPDATE
+
+
 type Msg
     = Refresh
     | DraftChanged String
@@ -150,15 +167,6 @@ type Msg
 
 type OutMsg
     = NoOutMsg
-
-
-init : Model
-init =
-    Model
-        { state = Dormant
-        , draft = ""
-        , nextToken = 0
-        }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
@@ -798,6 +806,10 @@ loadMoreError (Model data) =
 canBeginLoadingMore : Model -> Bool
 canBeginLoadingMore (Model data) =
     loadMoreCandidate data.state /= Nothing
+
+
+
+-- VIEW
 
 
 view :

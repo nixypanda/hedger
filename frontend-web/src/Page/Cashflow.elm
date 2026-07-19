@@ -22,6 +22,10 @@ import View.Analytics as AnalyticsView
 import View.States as States
 
 
+
+-- MODEL
+
+
 type Model
     = Model ModelData
 
@@ -48,30 +52,6 @@ type alias ModelData =
     , incomeOtherExpanded : Bool
     , expenseOtherExpanded : Bool
     }
-
-
-type Side
-    = IncomeSide
-    | ExpenseSide
-
-
-type Msg
-    = Refresh
-    | DraftChanged String
-    | ApplyQuery
-    | ClearQuery
-    | ResponseLoaded (Result ApiError.ApiError Analytics.CashflowResponse)
-    | GranularitySelected Granularity
-    | TimelineSelected String
-    | BreakdownPeriodChanged Side Int
-    | DepthSelected Side Int
-    | OtherToggled Side
-    | CalendarPeriodChanged Side Int
-    | IncomeActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
-    | ExpenseActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
-    | BucketSelected Side Analytics.ActivityBucket
-    | TransactionSelected Transaction
-    | Back
 
 
 init : ( Model, Cmd Msg )
@@ -101,6 +81,34 @@ init =
             }
     in
     ( Model data, fetchReport data )
+
+
+type Side
+    = IncomeSide
+    | ExpenseSide
+
+
+
+-- UPDATE
+
+
+type Msg
+    = Refresh
+    | DraftChanged String
+    | ApplyQuery
+    | ClearQuery
+    | ResponseLoaded (Result ApiError.ApiError Analytics.CashflowResponse)
+    | GranularitySelected Granularity
+    | TimelineSelected String
+    | BreakdownPeriodChanged Side Int
+    | DepthSelected Side Int
+    | OtherToggled Side
+    | CalendarPeriodChanged Side Int
+    | IncomeActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
+    | ExpenseActivityLoaded (Result ApiError.ApiError Analytics.ActivityResponse)
+    | BucketSelected Side Analytics.ActivityBucket
+    | TransactionSelected Transaction
+    | Back
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -381,6 +389,10 @@ fetchActivity side data =
          else
             ExpenseActivityLoaded
         )
+
+
+
+-- VIEW
 
 
 view : Theme -> Viewport -> Model -> Element Msg

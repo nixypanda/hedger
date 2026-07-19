@@ -11,6 +11,10 @@ import State.Viewport exposing (Viewport)
 import Ui.Theme exposing (Theme)
 
 
+
+-- MODEL
+
+
 type Model
     = AccountsPage AccountPage.Model
     | TransactionsPage TransactionsPage.Model
@@ -18,19 +22,6 @@ type Model
     | NetWorthPage NetWorthPage.Model
     | CashflowPage CashflowPage.Model
     | PlaceholderPage
-
-
-type Msg
-    = GotAccountsMsg AccountPage.Msg
-    | GotTransactionsMsg TransactionsPage.Msg
-    | GotAccountRegisterMsg AccountRegisterPage.Msg
-    | GotNetWorthMsg NetWorthPage.Msg
-    | GotCashflowMsg CashflowPage.Msg
-
-
-type OutMsg
-    = NoOutMsg
-    | Navigate Route
 
 
 type alias Context =
@@ -47,23 +38,6 @@ mapAccountOutMsg outMsg =
             NoOutMsg
 
         AccountPage.Navigate route ->
-            Navigate route
-
-
-mapTransactionsOutMsg : TransactionsPage.OutMsg -> OutMsg
-mapTransactionsOutMsg outMsg =
-    case outMsg of
-        TransactionsPage.NoOutMsg ->
-            NoOutMsg
-
-
-mapAccountRegisterOutMsg : AccountRegisterPage.OutMsg -> OutMsg
-mapAccountRegisterOutMsg outMsg =
-    case outMsg of
-        AccountRegisterPage.NoOutMsg ->
-            NoOutMsg
-
-        AccountRegisterPage.Navigate route ->
             Navigate route
 
 
@@ -136,7 +110,7 @@ init context maybeExistingModel =
             , NoOutMsg
             )
 
-        ( AccountValue accountName, Just (AccountsPage existingModel) ) ->
+        ( AccountValue _, Just (AccountsPage existingModel) ) ->
             ( AccountsPage existingModel
             , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
             , NoOutMsg
@@ -150,6 +124,40 @@ init context maybeExistingModel =
 
         _ ->
             ( PlaceholderPage, Cmd.none, NoOutMsg )
+
+
+
+-- UPDATE
+
+
+type Msg
+    = GotAccountsMsg AccountPage.Msg
+    | GotTransactionsMsg TransactionsPage.Msg
+    | GotAccountRegisterMsg AccountRegisterPage.Msg
+    | GotNetWorthMsg NetWorthPage.Msg
+    | GotCashflowMsg CashflowPage.Msg
+
+
+type OutMsg
+    = NoOutMsg
+    | Navigate Route
+
+
+mapTransactionsOutMsg : TransactionsPage.OutMsg -> OutMsg
+mapTransactionsOutMsg outMsg =
+    case outMsg of
+        TransactionsPage.NoOutMsg ->
+            NoOutMsg
+
+
+mapAccountRegisterOutMsg : AccountRegisterPage.OutMsg -> OutMsg
+mapAccountRegisterOutMsg outMsg =
+    case outMsg of
+        AccountRegisterPage.NoOutMsg ->
+            NoOutMsg
+
+        AccountRegisterPage.Navigate route ->
+            Navigate route
 
 
 update : Context -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
@@ -201,6 +209,10 @@ update context msg model =
 
         _ ->
             ( model, Cmd.none, NoOutMsg )
+
+
+
+-- VIEW
 
 
 view : Context -> Model -> Element Msg

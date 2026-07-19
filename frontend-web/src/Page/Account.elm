@@ -42,30 +42,16 @@ import View.Formatting as Formatting
 import View.States as States
 
 
+
+-- MODEL
+
+
 type Model
     = Model
         { remote : RemoteData Response
         , expanded : Set String
         , selectedValue : Maybe String
         }
-
-
-type Msg
-    = ToggleAccount String
-    | OpenAccount String
-    | OpenAccountValue String
-    | CloseAccountValue
-    | BackToAccounts
-    | Receive (Result ApiError Response)
-
-
-type OutMsg
-    = NoOutMsg
-    | Navigate Route
-
-
-type alias UpdateProps =
-    { viewport : Viewport }
 
 
 init : Model
@@ -84,6 +70,28 @@ initWithValueSelected accountName =
         , expanded = Set.empty
         , selectedValue = Just accountName
         }
+
+
+
+-- UPDATE
+
+
+type Msg
+    = ToggleAccount String
+    | OpenAccount String
+    | OpenAccountValue String
+    | CloseAccountValue
+    | BackToAccounts
+    | Receive (Result ApiError Response)
+
+
+type OutMsg
+    = NoOutMsg
+    | Navigate Route
+
+
+type alias UpdateProps =
+    { viewport : Viewport }
 
 
 fetchAccounts : Cmd Msg
@@ -152,6 +160,10 @@ selectValue path (Model model) =
 clearValue : Model -> Model
 clearValue (Model model) =
     Model { model | selectedValue = Nothing }
+
+
+
+-- VIEW
 
 
 view :

@@ -43,6 +43,10 @@ import Ui.Typography as Typography
 import View.States as States
 
 
+
+-- MODEL
+
+
 type alias Model =
     { remote : RemoteData Response
     , account : String
@@ -69,6 +73,23 @@ type alias Request =
     }
 
 
+init : Model
+init =
+    { remote = NotAsked
+    , account = ""
+    , from = ""
+    , to = ""
+    , nextToken = 0
+    , pending = Nothing
+    , loadingMore = False
+    , detail = NoDetail
+    }
+
+
+
+-- UPDATE
+
+
 type Msg
     = BackToAccounts
     | FromChange String
@@ -83,19 +104,6 @@ type Msg
 type OutMsg
     = NoOutMsg
     | Navigate Route
-
-
-init : Model
-init =
-    { remote = NotAsked
-    , account = ""
-    , from = ""
-    , to = ""
-    , nextToken = 0
-    , pending = Nothing
-    , loadingMore = False
-    , detail = NoDetail
-    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
@@ -296,6 +304,10 @@ blankToNothing value =
 
     else
         Just value
+
+
+
+-- VIEW
 
 
 view : Theme -> Viewport -> Model -> Element Msg

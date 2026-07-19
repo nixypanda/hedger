@@ -5,7 +5,6 @@ import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..))
 import Browser
-import Browser.Dom as Dom
 import Browser.Events
 import Browser.Navigation as Nav
 import Element exposing (Element)
@@ -19,12 +18,15 @@ import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
-import Task
 import Ui
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Url exposing (Url)
 import View.Shell as Shell
+
+
+
+-- MODEL
 
 
 type alias Flags =
@@ -45,32 +47,6 @@ type alias Model =
     , bootstrap : RemoteData Bootstrap
     , page : Page.Model
     }
-
-
-type Msg
-    = LinkClicked Browser.UrlRequest
-    | Navigate Route
-    | UrlChanged Url
-    | Resized Int Int
-    | BootstrapLoaded (Result ApiError Bootstrap)
-    | RefreshBootstrap
-    | ConfigLoaded Decode.Value
-    | ToggleTheme
-    | PwaMsg Pwa.Msg
-    | GotPageMsg Page.Msg
-    | NoOp
-
-
-main : Program Flags Model Msg
-main =
-    Browser.application
-        { init = init
-        , onUrlChange = UrlChanged
-        , onUrlRequest = LinkClicked
-        , subscriptions = subscriptions
-        , update = update
-        , view = view
-        }
 
 
 init : Flags -> Url -> Nav.Key -> ( Model, Cmd Msg )
@@ -122,6 +98,24 @@ pageContext route viewport theme =
     , viewport = viewport
     , theme = theme
     }
+
+
+
+-- UPDATE
+
+
+type Msg
+    = LinkClicked Browser.UrlRequest
+    | Navigate Route
+    | UrlChanged Url
+    | Resized Int Int
+    | BootstrapLoaded (Result ApiError Bootstrap)
+    | RefreshBootstrap
+    | ConfigLoaded Decode.Value
+    | ToggleTheme
+    | PwaMsg Pwa.Msg
+    | GotPageMsg Page.Msg
+    | NoOp
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -230,14 +224,8 @@ applyPageOutMsg outMsg model =
             ( model, Nav.pushUrl model.key (Route.toPath route) )
 
 
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch
-        [ Browser.Events.onResize Resized
-        , Ports.configLoaded ConfigLoaded
-        , Ports.swStatus (Pwa.SwStatus >> PwaMsg)
-        , Ports.promptInstallReady (\_ -> PwaMsg Pwa.PromptInstallReady)
-        ]
+
+-- VIEW
 
 
 view : Model -> Browser.Document Msg
@@ -453,6 +441,31 @@ pageTitle route =
             "Settings"
 
 
-focus : String -> Cmd Msg
-focus elementId =
-    Task.attempt (always NoOp) (Dom.focus elementId)
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Sub.batch
+        [ Browser.Events.onResize Resized
+        , Ports.configLoaded ConfigLoaded
+        , Ports.swStatus (Pwa.SwStatus >> PwaMsg)
+        , Ports.promptInstallReady (\_ -> PwaMsg Pwa.PromptInstallReady)
+        ]
+
+
+
+-- MAIN
+
+
+main : Program Flags Model Msg
+main =
+    Browser.application
+        { init = init
+        , onUrlChange = UrlChanged
+        , onUrlRequest = LinkClicked
+        , subscriptions = subscriptions
+        , update = update
+        , view = view
+        }
