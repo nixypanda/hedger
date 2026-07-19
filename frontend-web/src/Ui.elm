@@ -59,6 +59,7 @@ module Ui exposing
     , statusBadge
     , suggestionList
     , truncatedText
+    , wideSegmentedControl
     , wrappingStatusBadge
     )
 
@@ -703,6 +704,61 @@ segmentedControl theme segments =
         , Border.color theme.divider
         ]
         segments
+
+
+wideSegmentedControl :
+    Theme
+    -> List { label : String, selected : Bool, onPress : msg }
+    -> Element msg
+wideSegmentedControl theme options =
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing space2
+        , Element.padding 3
+        , Border.rounded radiusSmall
+        , Background.color theme.chipBg
+        , Border.width 1
+        , Border.color theme.divider
+        ]
+        (List.map
+            (\config ->
+                Input.button
+                    [ Element.width (Element.fillPortion 1)
+                    , Element.paddingEach { top = 8, right = 12, bottom = 8, left = 12 }
+                    , Border.rounded radiusControl
+                    , Background.color
+                        (if config.selected then
+                            theme.cardBg
+
+                         else
+                            theme.chipBg
+                        )
+                    , Font.color
+                        (if config.selected then
+                            theme.primary
+
+                         else
+                            theme.textMedium
+                        )
+                    , Font.medium
+                    , Font.center
+                    , caption
+                    , uiClass "ui-motion"
+                    , Element.htmlAttribute
+                        (Html.Attributes.attribute
+                            "aria-pressed"
+                            (if config.selected then
+                                "true"
+
+                             else
+                                "false"
+                            )
+                        )
+                    ]
+                    { onPress = Just config.onPress, label = Element.text config.label }
+            )
+            options
+        )
 
 
 segmentedOption :

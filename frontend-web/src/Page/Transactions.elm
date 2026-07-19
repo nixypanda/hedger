@@ -20,6 +20,7 @@ module Page.Transactions exposing
     , selectedTransaction
     , setDraft
     , status
+    , transactionDetail
     , update
     , view
     , visibleResponse

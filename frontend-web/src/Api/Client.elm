@@ -1,12 +1,23 @@
-module Api.Client exposing (getAccountRegister, getAccounts, getBootstrap, getTransactions, transactionsUrl)
+module Api.Client exposing
+    ( getAccountRegister
+    , getAccounts
+    , getActivity
+    , getBootstrap
+    , getCashflow
+    , getNetWorth
+    , getTransactions
+    , transactionsUrl
+    )
 
 import Api.Account as Account exposing (Response)
+import Api.Analytics as Analytics
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
 import Api.Register as Register
 import Api.Transaction as Transaction exposing (Response)
 import Http
 import Json.Decode as Decode
+import Json.Encode as Encode
 import Url.Builder as UrlBuilder
 
 
@@ -40,6 +51,30 @@ getTransactions request toMsg =
     Http.get
         { url = transactionsUrl request
         , expect = expectApiJson toMsg Transaction.decoder
+        }
+
+
+getNetWorth : Analytics.AnalyticsRequest -> (Result ApiError Analytics.NetWorthResponse -> msg) -> Cmd msg
+getNetWorth request toMsg =
+    analyticsPost "net-worth" (Analytics.requestEncoder request) Analytics.netWorthDecoder toMsg
+
+
+getCashflow : Analytics.AnalyticsRequest -> (Result ApiError Analytics.CashflowResponse -> msg) -> Cmd msg
+getCashflow request toMsg =
+    analyticsPost "cashflow" (Analytics.requestEncoder request) Analytics.cashflowDecoder toMsg
+
+
+getActivity : Analytics.ActivityRequest -> (Result ApiError Analytics.ActivityResponse -> msg) -> Cmd msg
+getActivity request toMsg =
+    analyticsPost "activity" (Analytics.activityRequestEncoder request) Analytics.activityDecoder toMsg
+
+
+analyticsPost : String -> Encode.Value -> Decode.Decoder value -> (Result ApiError value -> msg) -> Cmd msg
+analyticsPost screen body decoder toMsg =
+    Http.post
+        { url = UrlBuilder.absolute [ "api", "v1", screen, "query" ] []
+        , body = Http.jsonBody body
+        , expect = expectApiJson toMsg decoder
         }
 
 

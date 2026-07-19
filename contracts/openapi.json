@@ -86,6 +86,78 @@
         }
       }
     },
+    "/net-worth/query": {
+      "post": {
+        "operationId": "queryNetWorth",
+        "description": "Returns the complete Net Worth screen projection for one selected timeline and category configuration.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalyticsRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Headline, timeline, category, and performance projections",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NetWorthResponse" } } }
+          },
+          "400": {
+            "description": "Invalid granularity, period, or category depth",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          },
+          "503": {
+            "description": "No usable journal snapshot is available",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
+    },
+    "/cashflow/query": {
+      "post": {
+        "operationId": "queryCashflow",
+        "description": "Returns counts, timeline, and category projections using the same hledger query semantics as Transactions.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalyticsRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Cashflow screen projection; timelineAvailable is false rather than returning partial converted data",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CashflowResponse" } } }
+          },
+          "400": {
+            "description": "Invalid hledger query, granularity, period, or category depth",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          },
+          "503": {
+            "description": "No usable journal snapshot is available",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
+    },
+    "/activity/query": {
+      "post": {
+        "operationId": "queryActivity",
+        "description": "Returns month or fiscal-year activity buckets with complete contributing transaction DTOs.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActivityRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Income, expense, asset, or liability activity",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActivityResponse" } } }
+          },
+          "400": {
+            "description": "Invalid hledger query, activity period, kind, range, or category depth",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          },
+          "503": {
+            "description": "No usable journal snapshot is available",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
+    },
     "/accounts/tree": {
       "get": {
         "operationId": "getAccountsTree",
@@ -234,6 +306,158 @@
           "nextCursor": { "type": ["string", "null"] }
         },
         "additionalProperties": false
+      },
+      "AnalyticsRequest": {
+        "type": "object",
+        "required": ["granularity"],
+        "properties": {
+          "query": { "type": ["string", "null"], "maxLength": 2048 },
+          "granularity": { "type": "string", "enum": ["monthly", "yearly"] },
+          "displayCommodity": { "type": ["string", "null"] },
+          "positivePeriod": { "type": ["string", "null"] },
+          "negativePeriod": { "type": ["string", "null"] },
+          "positiveDepth": { "type": ["integer", "null"], "minimum": 1, "maximum": 4, "default": 2 },
+          "negativeDepth": { "type": ["integer", "null"], "minimum": 1, "maximum": 4, "default": 2 }
+        },
+        "additionalProperties": false
+      },
+      "ActivityRequest": {
+        "type": "object",
+        "required": ["kind", "range", "period"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["income", "expense", "asset", "liability"] },
+          "range": { "type": "string", "enum": ["month", "year"] },
+          "period": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$" },
+          "query": { "type": ["string", "null"], "maxLength": 2048 },
+          "displayCommodity": { "type": ["string", "null"] },
+          "depth": { "type": ["integer", "null"], "minimum": 1, "maximum": 4, "default": 2 }
+        },
+        "additionalProperties": false
+      },
+      "Kpi": {
+        "type": "object",
+        "required": ["value", "absoluteChange", "percentageChange", "trend"],
+        "properties": {
+          "value": { "$ref": "#/components/schemas/Decimal" },
+          "absoluteChange": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "percentageChange": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "trend": { "type": "array", "items": { "$ref": "#/components/schemas/Decimal" } }
+        },
+        "additionalProperties": false
+      },
+      "TimelinePoint": {
+        "type": "object",
+        "required": ["period", "startDate", "positive", "negative", "net"],
+        "properties": {
+          "period": { "type": "string" },
+          "startDate": { "type": "string", "format": "date" },
+          "positive": { "$ref": "#/components/schemas/Decimal" },
+          "negative": { "$ref": "#/components/schemas/Decimal" },
+          "net": { "$ref": "#/components/schemas/Decimal" }
+        },
+        "additionalProperties": false
+      },
+      "BreakdownItem": {
+        "type": "object",
+        "required": ["account", "quantity"],
+        "properties": {
+          "account": { "type": "string" },
+          "quantity": { "$ref": "#/components/schemas/Decimal" }
+        },
+        "additionalProperties": false
+      },
+      "CategoryBreakdown": {
+        "type": "object",
+        "required": ["period", "total", "items", "otherItems"],
+        "properties": {
+          "period": { "type": "string" },
+          "total": { "$ref": "#/components/schemas/Decimal" },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/BreakdownItem" } },
+          "otherItems": { "type": "array", "items": { "$ref": "#/components/schemas/BreakdownItem" } }
+        },
+        "additionalProperties": false
+      },
+      "PerformancePoint": {
+        "type": "object",
+        "required": ["period", "startDate", "netInvestment", "netWorth", "gainLoss"],
+        "properties": {
+          "period": { "type": "string" },
+          "startDate": { "type": "string", "format": "date" },
+          "netInvestment": { "$ref": "#/components/schemas/Decimal" },
+          "netWorth": { "$ref": "#/components/schemas/Decimal" },
+          "gainLoss": { "$ref": "#/components/schemas/Decimal" }
+        },
+        "additionalProperties": false
+      },
+      "NetWorthResponse": {
+        "type": "object",
+        "required": ["metadata", "displayCommodity", "granularity", "netWorth", "assets", "liabilities", "timeline", "assetsBreakdown", "liabilitiesBreakdown", "performance", "incompletePeriods", "warnings"],
+        "properties": {
+          "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
+          "displayCommodity": { "type": "string" },
+          "granularity": { "type": "string", "enum": ["monthly", "yearly"] },
+          "netWorth": { "$ref": "#/components/schemas/Kpi" },
+          "assets": { "$ref": "#/components/schemas/Kpi" },
+          "liabilities": { "$ref": "#/components/schemas/Kpi" },
+          "timeline": { "type": "array", "items": { "$ref": "#/components/schemas/TimelinePoint" } },
+          "assetsBreakdown": { "$ref": "#/components/schemas/CategoryBreakdown" },
+          "liabilitiesBreakdown": { "$ref": "#/components/schemas/CategoryBreakdown" },
+          "performance": { "type": "array", "items": { "$ref": "#/components/schemas/PerformancePoint" } },
+          "incompletePeriods": { "type": "integer", "minimum": 0 },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "CashflowResponse": {
+        "type": "object",
+        "required": ["metadata", "displayCommodity", "granularity", "totalCount", "filteredCount", "timelineAvailable", "timeline", "incomeBreakdown", "expenseBreakdown", "warnings"],
+        "properties": {
+          "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
+          "displayCommodity": { "type": "string" },
+          "granularity": { "type": "string", "enum": ["monthly", "yearly"] },
+          "totalCount": { "type": "integer", "minimum": 0 },
+          "filteredCount": { "type": "integer", "minimum": 0 },
+          "timelineAvailable": { "type": "boolean" },
+          "timeline": { "type": "array", "items": { "$ref": "#/components/schemas/TimelinePoint" } },
+          "incomeBreakdown": { "$ref": "#/components/schemas/CategoryBreakdown" },
+          "expenseBreakdown": { "$ref": "#/components/schemas/CategoryBreakdown" },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "ActivityBucket": {
+        "type": "object",
+        "required": ["key", "startDate", "total", "increase", "decrease", "reallocated", "categories", "transactions"],
+        "properties": {
+          "key": { "type": "string" },
+          "startDate": { "type": "string", "format": "date" },
+          "total": { "$ref": "#/components/schemas/Decimal" },
+          "increase": { "$ref": "#/components/schemas/Decimal" },
+          "decrease": { "$ref": "#/components/schemas/Decimal" },
+          "reallocated": { "$ref": "#/components/schemas/Decimal" },
+          "categories": { "type": "array", "items": { "$ref": "#/components/schemas/BreakdownItem" } },
+          "transactions": { "type": "array", "items": { "$ref": "#/components/schemas/Transaction" } }
+        },
+        "additionalProperties": false
+      },
+      "ActivityResponse": {
+        "type": "object",
+        "required": ["metadata", "displayCommodity", "kind", "range", "period", "fiscalYearStartMonth", "buckets", "warnings"],
+        "properties": {
+          "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
+          "displayCommodity": { "type": "string" },
+          "kind": { "type": "string", "enum": ["income", "expense", "asset", "liability"] },
+          "range": { "type": "string", "enum": ["month", "year"] },
+          "period": { "type": "string" },
+          "fiscalYearStartMonth": { "type": "integer", "minimum": 1, "maximum": 12 },
+          "buckets": { "type": "array", "items": { "$ref": "#/components/schemas/ActivityBucket" } },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "Decimal": {
+        "type": "string",
+        "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
       },
       "AccountNode": {
         "type": "object",

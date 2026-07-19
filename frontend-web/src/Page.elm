@@ -3,6 +3,8 @@ module Page exposing (Context, Model(..), Msg(..), OutMsg(..), init, update, vie
 import Element exposing (Element)
 import Page.Account as AccountPage
 import Page.AccountRegister as AccountRegisterPage
+import Page.Cashflow as CashflowPage
+import Page.NetWorth as NetWorthPage
 import Page.Transactions as TransactionsPage
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
@@ -13,6 +15,8 @@ type Model
     = AccountsPage AccountPage.Model
     | TransactionsPage TransactionsPage.Model
     | AccountRegisterPage AccountRegisterPage.Model
+    | NetWorthPage NetWorthPage.Model
+    | CashflowPage CashflowPage.Model
     | PlaceholderPage
 
 
@@ -20,6 +24,8 @@ type Msg
     = GotAccountsMsg AccountPage.Msg
     | GotTransactionsMsg TransactionsPage.Msg
     | GotAccountRegisterMsg AccountRegisterPage.Msg
+    | GotNetWorthMsg NetWorthPage.Msg
+    | GotCashflowMsg CashflowPage.Msg
 
 
 type OutMsg
@@ -73,6 +79,20 @@ init context maybeExistingModel =
             , Cmd.map GotTransactionsMsg (TransactionsPage.fetch request)
             , NoOutMsg
             )
+
+        ( NetWorth, _ ) ->
+            let
+                ( model, command ) =
+                    NetWorthPage.init
+            in
+            ( NetWorthPage model, Cmd.map GotNetWorthMsg command, NoOutMsg )
+
+        ( Cashflow, _ ) ->
+            let
+                ( model, command ) =
+                    CashflowPage.init
+            in
+            ( CashflowPage model, Cmd.map GotCashflowMsg command, NoOutMsg )
 
         ( Transactions, _ ) ->
             let
@@ -165,6 +185,20 @@ update context msg model =
             , mapAccountRegisterOutMsg outMsg
             )
 
+        ( GotNetWorthMsg subMsg, NetWorthPage subModel ) ->
+            let
+                ( nextModel, command ) =
+                    NetWorthPage.update subMsg subModel
+            in
+            ( NetWorthPage nextModel, Cmd.map GotNetWorthMsg command, NoOutMsg )
+
+        ( GotCashflowMsg subMsg, CashflowPage subModel ) ->
+            let
+                ( nextModel, command ) =
+                    CashflowPage.update subMsg subModel
+            in
+            ( CashflowPage nextModel, Cmd.map GotCashflowMsg command, NoOutMsg )
+
         _ ->
             ( model, Cmd.none, NoOutMsg )
 
@@ -191,6 +225,12 @@ view context model =
         ( _, AccountRegisterPage subModel ) ->
             Element.map GotAccountRegisterMsg
                 (AccountRegisterPage.view context.theme context.viewport subModel)
+
+        ( _, NetWorthPage subModel ) ->
+            Element.map GotNetWorthMsg (NetWorthPage.view context.theme context.viewport subModel)
+
+        ( _, CashflowPage subModel ) ->
+            Element.map GotCashflowMsg (CashflowPage.view context.theme context.viewport subModel)
 
         _ ->
             Element.none

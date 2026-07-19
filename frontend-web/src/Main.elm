@@ -320,6 +320,12 @@ pageView theme model =
 isRealPage : Route -> Bool
 isRealPage route =
     case route of
+        NetWorth ->
+            True
+
+        Cashflow ->
+            True
+
         Accounts ->
             True
 

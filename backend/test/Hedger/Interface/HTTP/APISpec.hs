@@ -1,15 +1,19 @@
 module Hedger.Interface.HTTP.APISpec (apiSpec) where
 
-import Data.Aeson (Value (..))
+import Data.Aeson (Value (..), object, (.=))
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Key (Key)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Text.Encoding qualified as TextEncoding
 import Data.Vector qualified as Vector
+import Network.HTTP.Types (status200, status400)
 import Network.Wai qualified as Wai
+import Network.Wai.Test (SResponse (simpleStatus))
 import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hedger.Runtime.Server (makeApplication)
-import Hedger.TestHelpers (configuration, getJson, loadedStore)
+import Hedger.TestHelpers (configuration, getJson, loadedStore, postJson)
 
 apiSpec :: TestTree
 apiSpec = withResource setup teardown $ \getApp ->
@@ -21,6 +25,12 @@ apiSpec = withResource setup teardown $ \getApp ->
         , testCase "fetches transactions with sequential cursor" $ do
             app <- getApp
             transactionsCursor app
+        , testCase "fetches net worth, cashflow, and activity projections" $ do
+            app <- getApp
+            analyticsProjections app
+        , testCase "cashflow rejects an invalid shared transaction query" $ do
+            app <- getApp
+            invalidCashflowQuery app
         ]
 
 setup :: IO Wai.Application
@@ -76,3 +86,76 @@ transactionsCursor app = do
                     _ -> assertFailure "expected objects"
             _ -> assertFailure "expected transactions array"
         _ -> assertFailure "expected object"
+
+analyticsProjections :: Wai.Application -> IO ()
+analyticsProjections app = do
+    netWorthProjection app
+    cashflowProjection app
+    activityProjection app
+
+netWorthProjection :: Wai.Application -> IO ()
+netWorthProjection app = do
+    (Just response, raw) <- postJson "/api/v1/net-worth/query" (Aeson.encode (analyticsRequest "")) app
+    assertEqual "net worth status" status200 raw.simpleStatus
+    assertArrayLength "net worth monthly timeline" 12 "timeline" response
+    assertObjectFields
+        ["netWorth", "assets", "liabilities", "assetsBreakdown", "liabilitiesBreakdown", "performance"]
+        response
+
+cashflowProjection :: Wai.Application -> IO ()
+cashflowProjection app = do
+    (Just response, raw) <-
+        postJson "/api/v1/cashflow/query" (Aeson.encode (analyticsRequest "acct:expenses")) app
+    assertEqual "cashflow status" status200 raw.simpleStatus
+    assertEqual
+        "cashflow remains available when unrelated assets lack prices"
+        (Just (Bool True))
+        (field "timelineAvailable" response)
+    assertObjectFields
+        ["totalCount", "filteredCount", "timeline", "incomeBreakdown", "expenseBreakdown"]
+        response
+
+activityProjection :: Wai.Application -> IO ()
+activityProjection app = do
+    let requestBody =
+            object
+                [ "kind" .= ("expense" :: String)
+                , "range" .= ("month" :: String)
+                , "period" .= ("2024-04" :: String)
+                , "query" .= ("" :: String)
+                , "depth" .= (2 :: Int)
+                ]
+    (Just response, raw) <- postJson "/api/v1/activity/query" (Aeson.encode requestBody) app
+    assertEqual "activity status" status200 raw.simpleStatus
+    assertObjectFields ["period", "buckets", "fiscalYearStartMonth"] response
+
+invalidCashflowQuery :: Wai.Application -> IO ()
+invalidCashflowQuery app = do
+    (_, raw) <-
+        postJson "/api/v1/cashflow/query" (Aeson.encode (analyticsRequest "date:not-a-date")) app
+    assertEqual "invalid query status" status400 raw.simpleStatus
+
+analyticsRequest :: String -> Value
+analyticsRequest query =
+    object
+        [ "query" .= query
+        , "granularity" .= ("monthly" :: String)
+        , "positiveDepth" .= (2 :: Int)
+        , "negativeDepth" .= (2 :: Int)
+        ]
+
+field :: Key -> Value -> Maybe Value
+field name value =
+    case value of
+        Object objectValue -> KeyMap.lookup name objectValue
+        _ -> Nothing
+
+assertObjectFields :: [Key] -> Value -> IO ()
+assertObjectFields names value =
+    assertBool "expected analytics response fields" (all (\name -> field name value /= Nothing) names)
+
+assertArrayLength :: String -> Int -> Key -> Value -> IO ()
+assertArrayLength label expected name value =
+    case field name value of
+        Just (Array values) -> assertEqual label expected (Vector.length values)
+        _ -> assertFailure (label <> ": expected array")

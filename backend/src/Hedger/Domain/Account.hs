@@ -5,7 +5,9 @@ module Hedger.Domain.Account (
     ValuedBalances (..),
     accountInfo,
     accountLabel,
+    isCashOnly,
     mkValuationContext,
+    valueAt,
     valueBalances,
 )
 where
@@ -59,6 +61,9 @@ valueBalances context direct subtree =
   where
     valuedDirect = context.valueAtDate direct
     valuedSubtree = context.valueAtDate subtree
+
+valueAt :: ValuationContext -> Hledger.MixedAmount -> Hledger.MixedAmount
+valueAt context = context.valueAtDate
 
 valuationCompleteness :: Text -> Hledger.MixedAmount -> Hledger.MixedAmount -> ValuationCompleteness
 valuationCompleteness target direct subtree

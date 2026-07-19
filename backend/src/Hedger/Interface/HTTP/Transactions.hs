@@ -9,6 +9,7 @@ module Hedger.Interface.HTTP.Transactions (
     TransactionDto (..),
     TransactionPresentationDto (..),
     TransactionsResponse (..),
+    toTransactionDto,
 ) where
 
 import Data.Aeson (FromJSON, ToJSON)

@@ -2,6 +2,7 @@ module Hedger.Application.TransactionQuery (
     TransactionPageRequest (..),
     TransactionPage (..),
     transactionPage,
+    parseHledgerQuery,
 )
 where
 
@@ -36,9 +37,6 @@ transactionPage :: Snapshot -> TransactionPageRequest -> Either AppError Transac
 transactionPage snapshot request = do
     let canonicalQuery = Text.strip (maybe "" id request.query)
         referenceDate = maybe emptyJournalReferenceDate id snapshot.latestJournalDate
-    if Text.length canonicalQuery > maximumQueryLength
-        then Left (QueryTooLong maximumQueryLength)
-        else pure ()
     parsedQuery <- parseHledgerQuery referenceDate canonicalQuery
     offset <-
         maybe
@@ -70,12 +68,17 @@ maximumQueryLength :: Int
 maximumQueryLength = 2048
 
 parseHledgerQuery :: Day -> Text -> Either AppError Hledger.Query
-parseHledgerQuery _ "" = Right Hledger.Any
 parseHledgerQuery referenceDate queryText =
-    case Hledger.parseQuery referenceDate queryText of
-        Left parserError -> Left (InvalidQuery (safeParserReason parserError) (parserPosition parserError))
-        Right (_, options@(_ : _)) -> Left (UnsupportedQueryOption (safeOptionNames options))
-        Right (query, []) -> Right query
+    if Text.length queryText > maximumQueryLength
+        then Left (QueryTooLong maximumQueryLength)
+        else case queryText of
+            "" -> Right Hledger.Any
+            _ -> case Hledger.parseQuery referenceDate queryText of
+                Left parserError ->
+                    Left (InvalidQuery (safeParserReason parserError) (parserPosition parserError))
+                Right (_, options@(_ : _)) ->
+                    Left (UnsupportedQueryOption (safeOptionNames options))
+                Right (query, []) -> Right query
 
 safeOptionNames :: [Hledger.QueryOpt] -> Text
 safeOptionNames = Text.intercalate ", " . fmap optionName

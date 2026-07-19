@@ -7,6 +7,7 @@ module Api.Transaction exposing
     , Tag
     , Transaction
     , decoder
+    , transactionDecoder
     )
 
 import Api.Metadata as Metadata exposing (Metadata)

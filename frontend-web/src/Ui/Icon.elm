@@ -103,10 +103,8 @@ shapes icon =
             ]
 
         Refresh ->
-            [ path [ SvgA.d "M21 12a9 9 0 0 1-15.2 6.5" ] []
-            , polyline [ SvgA.points "3 18 6 18 6 15" ] []
-            , path [ SvgA.d "M3 12a9 9 0 0 1 15.2-6.5" ] []
-            , polyline [ SvgA.points "21 6 18 6 18 9" ] []
+            [ path [ SvgA.d "M21 12a9 9 0 1 1-2.64-6.36L21 8" ] []
+            , polyline [ SvgA.points "21 3 21 8 16 8" ] []
             ]
 
         Settings ->
