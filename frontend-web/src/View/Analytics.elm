@@ -780,7 +780,7 @@ roundedBar color barWidth center zeroY valueY value =
         , SvgA.y (float top)
         , SvgA.width (float barWidth)
         , SvgA.height (float height)
-        , SvgA.rx (float (min 5 (barWidth / 2)))
+        , SvgA.rx "2"
         , SvgA.fill (Css.toCssColor color)
         , SvgA.opacity
             (if abs value < 0.0001 then
