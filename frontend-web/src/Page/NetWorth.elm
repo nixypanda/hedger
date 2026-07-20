@@ -267,7 +267,11 @@ dashboardContent : Theme -> Viewport -> Device -> ModelData -> List (Element Msg
 dashboardContent theme viewport device data =
     let
         chartWidth =
-            max 320 (Responsive.usableContentWidth viewport device - 40)
+            let
+                maxContainerWidth =
+                    1280 - 2 * Responsive.contentPadding device - 40
+            in
+            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport device - 40))
     in
     case RemoteData.value data.response of
         Nothing ->

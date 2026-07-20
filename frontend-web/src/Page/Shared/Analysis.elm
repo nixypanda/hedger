@@ -479,7 +479,11 @@ view theme viewport config report (Model data) =
             Element.classifyDevice viewport
 
         chartWidth =
-            max 320 (Responsive.usableContentWidth viewport device - 40)
+            let
+                maxContainerWidth =
+                    1280 - 2 * Responsive.contentPadding device - 40
+            in
+            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport device - 40))
     in
     Element.column [ Element.width Element.fill, Element.spacing 16 ]
         [ Typography.sectionTitle theme config.timelineSectionTitle
