@@ -142,7 +142,6 @@ type Msg
     = GranularitySelected Granularity
     | TimelineSelected String
     | PeriodChanged Int
-    | LatestPeriodSelected
     | DepthSelected Int
     | OtherToggled Side
     | LegendToggled Side
@@ -213,21 +212,6 @@ update context msg (Model data) =
 
                 _ ->
                     ( Model data, [] )
-
-        LatestPeriodSelected ->
-            case List.reverse data.timeline |> List.head of
-                Nothing ->
-                    ( Model data, [] )
-
-                Just point ->
-                    case periodFromString data.granularity point.period of
-                        Nothing ->
-                            ( Model data, [] )
-
-                        Just latest ->
-                            data
-                                |> selectPeriod latest (Just (Time.monthFromDate point.startDate))
-                                |> withReportAndActivities context
 
         DepthSelected requestedDepth ->
             case Time.depthFromInt requestedDepth of
@@ -523,12 +507,6 @@ compositionHeader theme data =
                             Element.el [ Font.semiBold ]
                                 (Element.text (selectedPeriodLabel data))
                         , onPrevious = PeriodChanged -1
-                        , onLatest =
-                            if data.period == latestPeriod data.granularity data.timeline then
-                                Nothing
-
-                            else
-                                Just LatestPeriodSelected
                         , onNext = PeriodChanged 1
                         }
                     ]

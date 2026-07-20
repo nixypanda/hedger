@@ -326,7 +326,6 @@ periodNavigation :
     ->
         { label : Element msg
         , onPrevious : msg
-        , onLatest : Maybe msg
         , onNext : msg
         }
     -> Element msg
@@ -335,20 +334,14 @@ periodNavigation theme config =
         [ compactPeriodButton theme "Previous period" "‹" config.onPrevious
         , config.label
         , compactPeriodButton theme "Next period" "›" config.onNext
-        , config.onLatest
-            |> Maybe.map
-                (\onLatest ->
-                    ghostButton theme { label = "Latest", onPress = onLatest }
-                )
-            |> Maybe.withDefault Element.none
         ]
 
 
 compactPeriodButton : Theme -> String -> String -> msg -> Element msg
 compactPeriodButton theme title label onPress =
     Input.button
-        [ Element.width (Element.px 44)
-        , Element.height (Element.px 44)
+        [ Element.width (Element.px 32)
+        , Element.height (Element.px 32)
         , Background.color theme.cardBg
         , Border.color theme.divider
         , Border.width 1
@@ -359,7 +352,7 @@ compactPeriodButton theme title label onPress =
         , Html.Attributes.title title |> Element.htmlAttribute
         ]
         { onPress = Just onPress
-        , label = Element.el [ Element.centerX, Element.centerY, Font.size 19 ] (Element.text label)
+        , label = Element.el [ Element.centerX, Element.centerY, Font.size 16 ] (Element.text label)
         }
 
 
