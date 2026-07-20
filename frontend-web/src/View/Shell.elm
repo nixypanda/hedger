@@ -276,10 +276,6 @@ tabItem config destination =
         ]
         { onPress = Just (config.onNavigate destination.route)
         , label =
-            Element.column [ Element.width Element.fill, Element.spacing 2, Element.centerY ]
-                [ Icon.view { icon = destination.icon, size = 18, color = foreground }
-                    |> Element.el [ Element.centerX ]
-                , Element.el [ Element.centerX, Typography.tabLabel ]
-                    (Element.text destination.label)
-                ]
+            Icon.view { icon = destination.icon, size = 18, color = foreground }
+                |> Element.el [ Element.centerX, Element.centerY ]
         }
