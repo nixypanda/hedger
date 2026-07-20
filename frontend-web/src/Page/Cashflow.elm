@@ -14,6 +14,7 @@ import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
+import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.Analytics as AnalyticsView
@@ -276,17 +277,17 @@ dashboard theme viewport device data =
                     ]
                 }
         , Ui.pageContainer device
-            (queryPanel theme device data
+            (queryPanel theme viewport device data
                 :: dashboardContent theme viewport data
             )
         ]
 
 
-queryPanel : Theme -> Device -> ModelData -> Element Msg
-queryPanel theme device data =
+queryPanel : Theme -> Viewport -> Device -> ModelData -> Element Msg
+queryPanel theme viewport device data =
     QueryPanel.view
         { theme = theme
-        , device = device
+        , compact = Responsive.isCompact (Responsive.contentLayout viewport device)
         , draftQuery = data.draftQuery
         , onDraftChanged = DraftChanged
         , onApply = ApplyQuery

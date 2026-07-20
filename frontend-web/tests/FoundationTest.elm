@@ -4,12 +4,14 @@ import Api.Error as ApiError
 import Api.Metadata as Metadata
 import Api.Revision as Revision
 import Data.Decimal as Decimal
+import Element
 import Expect
 import Json.Decode as Decode
 import Preferences exposing (ThemeMode(..))
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import Test exposing (Test, describe, test)
+import Ui.Responsive as Responsive
 import Url
 
 
@@ -82,4 +84,19 @@ suite =
                     """
                     |> Result.map .code
                     |> Expect.equal (Ok "journal_unavailable")
+        , test "responsive layouts use tablet width efficiently" <|
+            \_ ->
+                [ { width = 390, height = 844 }
+                , { width = 768, height = 1024 }
+                , { width = 1024, height = 768 }
+                ]
+                    |> List.map
+                        (\viewport ->
+                            Responsive.contentLayout viewport (Element.classifyDevice viewport)
+                        )
+                    |> Expect.equal
+                        [ Responsive.Compact
+                        , Responsive.Medium
+                        , Responsive.Wide
+                        ]
         ]

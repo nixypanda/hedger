@@ -1,7 +1,7 @@
 module Page.Shared.QueryPanel exposing (Config, view)
 
 import Api.Error as ApiError exposing (ApiError)
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Html.Attributes
 import Ui
 import Ui.Theme exposing (Theme)
@@ -10,7 +10,7 @@ import Ui.Typography as Typography
 
 type alias Config msg =
     { theme : Theme
-    , device : Device
+    , compact : Bool
     , draftQuery : String
     , onDraftChanged : String -> msg
     , onApply : msg
@@ -47,7 +47,7 @@ view config =
                 ]
 
         inputRow =
-            if Ui.isSmall config.device then
+            if config.compact then
                 Element.column
                     [ Element.width Element.fill
                     , Element.spacing 8

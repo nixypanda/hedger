@@ -478,6 +478,9 @@ view theme viewport config report (Model data) =
         device =
             Element.classifyDevice viewport
 
+        layout =
+            Responsive.contentLayout viewport device
+
         chartWidth =
             let
                 maxContainerWidth =
@@ -489,15 +492,23 @@ view theme viewport config report (Model data) =
         [ Typography.sectionTitle theme config.timelineSectionTitle
         , timelineView theme chartWidth config report data
         , AnalyticsView.warningList theme report.warnings
-        , compositionHeader theme data
-        , breakdownsView theme device config report data
-        , activityViews theme device config report data
+        , compositionHeader theme layout data
+        , breakdownsView theme layout config report data
+        , activityViews theme layout device config report data
         ]
 
 
-compositionHeader : Theme -> ModelData -> Element Msg
-compositionHeader theme data =
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
+compositionHeader : Theme -> Responsive.ContentLayout -> ModelData -> Element Msg
+compositionHeader theme layout data =
+    let
+        container =
+            if Responsive.isCompact layout then
+                Element.wrappedRow
+
+            else
+                Element.row
+    in
+    container [ Element.width Element.fill, Element.spacing 12, Element.alignTop ]
         [ Element.el [ Element.width Element.fill ]
             (Typography.sectionTitle theme "Composition and activity")
         , Element.column [ Element.width Element.fill, Element.spacing 8 ]
@@ -573,9 +584,9 @@ timelineView theme chartWidth config report data =
             Ui.errorBanner theme message
 
 
-breakdownsView : Theme -> Device -> Config -> Report -> ModelData -> Element Msg
-breakdownsView theme device config report data =
-    responsiveGrid device
+breakdownsView : Theme -> Responsive.ContentLayout -> Config -> Report -> ModelData -> Element Msg
+breakdownsView theme layout config report data =
+    responsiveGrid layout
         [ categoryView
             theme
             config.positive
@@ -614,9 +625,9 @@ categoryView theme config side commodity breakdown sideState =
         }
 
 
-activityViews : Theme -> Device -> Config -> Report -> ModelData -> Element Msg
-activityViews theme device config report data =
-    responsiveGrid device
+activityViews : Theme -> Responsive.ContentLayout -> Device -> Config -> Report -> ModelData -> Element Msg
+activityViews theme layout device config report data =
+    responsiveGrid layout
         [ activityView theme device data.granularity config.positive Positive report.displayCommodity data
         , activityView theme device data.granularity config.negative Negative report.displayCommodity data
         ]
@@ -865,9 +876,9 @@ periodFromString granularity value =
                 Nothing
 
 
-responsiveGrid : Device -> List (Element msg) -> Element msg
-responsiveGrid device items =
-    if Ui.isSmall device then
+responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
+responsiveGrid layout items =
+    if Responsive.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing 16 ] items
 
     else

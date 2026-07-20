@@ -977,7 +977,7 @@ queryPanel : Theme -> Device -> Model -> Element Msg
 queryPanel theme device model =
     QueryPanel.view
         { theme = theme
-        , device = device
+        , compact = Ui.isSmall device
         , draftQuery = draftQuery model
         , onDraftChanged = DraftChanged
         , onApply = ApplyDraft

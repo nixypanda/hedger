@@ -266,6 +266,9 @@ dashboard theme viewport device data =
 dashboardContent : Theme -> Viewport -> Device -> ModelData -> List (Element Msg)
 dashboardContent theme viewport device data =
     let
+        layout =
+            Responsive.contentLayout viewport device
+
         chartWidth =
             let
                 maxContainerWidth =
@@ -286,7 +289,7 @@ dashboardContent theme viewport device data =
 
         Just response ->
             [ remoteNotice theme data.response response
-            , responsiveGrid device
+            , responsiveGrid layout
                 [ AnalyticsView.kpiCard theme
                     { title = "Net worth"
                     , commodity = response.displayCommodity
@@ -363,9 +366,9 @@ remoteNotice theme remote response =
         ]
 
 
-responsiveGrid : Device -> List (Element msg) -> Element msg
-responsiveGrid device items =
-    if Ui.isSmall device then
+responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
+responsiveGrid layout items =
+    if Responsive.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing 16 ] items
 
     else
