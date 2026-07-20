@@ -28,7 +28,7 @@ import Ui
 import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import View.Analytics as AnalyticsView
+import View.Analytics as AnalyticsView exposing (LegendState(..))
 
 
 
@@ -55,7 +55,10 @@ type alias ModelData =
 type alias SideState =
     { activity : ActivityState
     , otherExpanded : Bool
+    , legendState : LegendState
     , selectedYearBucket : Maybe Analytics.ActivityBucket
+    , donutHighlight : Maybe Int
+    , calendarHighlight : Maybe Int
     }
 
 
@@ -124,7 +127,10 @@ initialSide : SideState
 initialSide =
     { activity = ActivityNotRequested
     , otherExpanded = False
+    , legendState = LegendCollapsed
     , selectedYearBucket = Nothing
+    , donutHighlight = Nothing
+    , calendarHighlight = Nothing
     }
 
 
@@ -139,6 +145,9 @@ type Msg
     | LatestPeriodSelected
     | DepthSelected Int
     | OtherToggled Side
+    | LegendToggled Side
+    | LegendCategoryHighlighted Side Int
+    | DonutSliceClicked Side Int
     | ActivityLoaded Side (Result ApiError Analytics.ActivityResponse)
     | BucketSelected Side Analytics.ActivityBucket
     | YearBucketSelected Side Analytics.ActivityBucket
@@ -237,6 +246,52 @@ update context msg (Model data) =
                     setSide side { sideState | otherExpanded = not sideState.otherExpanded } data
             in
             ( Model next, [] )
+
+        LegendToggled side ->
+            let
+                sideState =
+                    sideFor side data
+
+                nextLegendState =
+                    case sideState.legendState of
+                        LegendCollapsed ->
+                            LegendExpanded
+
+                        LegendExpanded ->
+                            LegendCollapsed
+
+                next =
+                    setSide side { sideState | legendState = nextLegendState } data
+            in
+            ( Model next, [] )
+
+        LegendCategoryHighlighted side index ->
+            let
+                sideState =
+                    sideFor side data
+
+                nextIndex =
+                    if sideState.calendarHighlight == Just index then
+                        Nothing
+
+                    else
+                        Just index
+            in
+            ( Model (setSide side { sideState | calendarHighlight = nextIndex } data), [] )
+
+        DonutSliceClicked side index ->
+            let
+                sideState =
+                    sideFor side data
+
+                nextIndex =
+                    if sideState.donutHighlight == Just index then
+                        Nothing
+
+                    else
+                        Just index
+            in
+            ( Model (setSide side { sideState | donutHighlight = nextIndex } data), [] )
 
         ActivityLoaded side result ->
             let
@@ -572,6 +627,8 @@ categoryView theme config side commodity breakdown sideState =
         , palette = config.palette
         , otherExpanded = sideState.otherExpanded
         , onOtherToggle = OtherToggled side
+        , highlightedCategory = sideState.donutHighlight
+        , onSliceClick = DonutSliceClicked side
         }
 
 
@@ -606,6 +663,10 @@ activityView theme device granularity config side commodity data =
                 , onSelect = BucketSelected side
                 , onTransaction = TransactionSelected
                 , device = device
+                , legendState = sideState.legendState
+                , onLegendToggle = LegendToggled side
+                , highlightedCategory = sideState.calendarHighlight
+                , onCategoryHighlight = LegendCategoryHighlighted side
                 }
 
         Yearly ->
@@ -617,6 +678,10 @@ activityView theme device granularity config side commodity data =
                 , selectedBucket = sideState.selectedYearBucket
                 , onSelect = YearBucketSelected side
                 , device = device
+                , legendState = sideState.legendState
+                , onLegendToggle = LegendToggled side
+                , highlightedCategory = sideState.calendarHighlight
+                , onCategoryHighlight = LegendCategoryHighlighted side
                 }
 
 
@@ -632,7 +697,13 @@ transaction (Model data) =
 
 beginSideLoading : SideState -> SideState
 beginSideLoading sideState =
-    { sideState | activity = beginActivityLoading sideState.activity, selectedYearBucket = Nothing }
+    { sideState
+        | activity = beginActivityLoading sideState.activity
+        , selectedYearBucket = Nothing
+        , legendState = LegendCollapsed
+        , donutHighlight = Nothing
+        , calendarHighlight = Nothing
+    }
 
 
 selectPeriod : Period -> Maybe Month -> ModelData -> ModelData

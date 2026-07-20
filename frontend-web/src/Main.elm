@@ -232,7 +232,17 @@ view model =
     in
     { title = pageTitle model.route ++ " · Hedger"
     , body =
-        [ Element.layout [] <|
+        [ Element.layoutWith
+            { options =
+                [ Element.focusStyle
+                    { borderColor = Nothing
+                    , backgroundColor = Nothing
+                    , shadow = Nothing
+                    }
+                ]
+            }
+            []
+          <|
             Ui.layout activeTheme <|
                 Shell.view
                     { route = model.route

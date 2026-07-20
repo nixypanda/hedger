@@ -10,8 +10,15 @@ files may add to or override them within their directory.
   `nix develop -c` invocation; repeated flake evaluation adds substantial
   latency.
 - During iteration, run the narrowest relevant command inside that development
-  shell so Cabal can reuse `backend/dist-newstyle`. Run the repository-mandated
-  `just check` before handing work back.
+  shell so Cabal can reuse `backend/dist-newstyle`. If your changes are
+  restricted to a single project (e.g. only `backend/` or only `frontend-web/`),
+  use that project's specific commands instead of the full `just check`:
+  - Backend only: `just check-backend` (or narrower subsets like
+    `check-backend-tests`, `check-backend-format`).
+  - Frontend only: `just check-frontend` (or narrower subsets like
+    `check-frontend-format`, `check-frontend-line-length`).
+  Run the full repository-mandated `just check` before handing work back, or
+  when changes span multiple projects.
 - Do not use `nix flake check` as the inner development loop. Its checks run in
   clean Nix derivations, and every source edit changes their input hash, so the
   previous local build does not make the next edited revision incremental. The

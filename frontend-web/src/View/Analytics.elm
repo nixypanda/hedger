@@ -1,5 +1,6 @@
 module View.Analytics exposing
     ( ActivityTone(..)
+    , LegendState(..)
     , Palette(..)
     , activityMonth
     , activityTransactions
@@ -61,6 +62,11 @@ type ActivityTone
     | ExpenseTone
     | AssetTone
     | LiabilityTone
+
+
+type LegendState
+    = LegendCollapsed
+    | LegendExpanded
 
 
 kpiCard :
@@ -839,6 +845,8 @@ categoryCard :
         , palette : Palette
         , otherExpanded : Bool
         , onOtherToggle : msg
+        , highlightedCategory : Maybe Int
+        , onSliceClick : Int -> msg
         }
     -> Element msg
 categoryCard theme config =
@@ -854,7 +862,11 @@ categoryCard theme config =
                 , Element.spacing 24
                 , Element.paddingEach { top = 12, right = 0, bottom = 0, left = 0 }
                 ]
-                [ donut theme config.palette config.breakdown.items
+                [ donut theme
+                    config.palette
+                    config.highlightedCategory
+                    config.onSliceClick
+                    config.breakdown.items
                 , Element.column [ Element.width (Element.fillPortion 1), Element.spacing 12 ]
                     (categoryRows theme config)
                 ]
@@ -876,19 +888,25 @@ depthControl theme selected onDepth =
         )
 
 
-donut : Theme -> Palette -> List { item | account : String, quantity : Decimal } -> Element msg
-donut theme palette items =
+donut :
+    Theme
+    -> Palette
+    -> Maybe Int
+    -> (Int -> msg)
+    -> List { item | account : String, quantity : Decimal }
+    -> Element msg
+donut theme palette highlightedCategory onSliceClick items =
     let
         values =
             List.map (.quantity >> decimalFloat >> abs) items
 
         radius =
-            120
+            108
 
         pieData =
             Shape.pie
                 { outerRadius = radius
-                , innerRadius = 70
+                , innerRadius = 64
                 , padAngle = 0.035
                 , cornerRadius = 3
                 , startAngle = 0
@@ -899,24 +917,101 @@ donut theme palette items =
                 }
                 values
 
-        renderSlice index arc =
-            Path.element (Shape.arc arc)
-                [ SvgA.fill (Css.toCssColor (paletteColor theme palette index))
-                , SvgA.stroke (Css.toCssColor theme.cardBg)
-                , SvgA.strokeWidth "1"
+        sliceColor index item =
+            if item.account == "Other" then
+                otherColor theme
+
+            else
+                paletteColor theme palette index
+
+        renderSlice index item arc =
+            let
+                isSelected =
+                    highlightedCategory == Just index
+
+                midAngle =
+                    (arc.startAngle + arc.endAngle) / 2
+
+                tx =
+                    if isSelected then
+                        18 * cos midAngle
+
+                    else
+                        0
+
+                ty =
+                    if isSelected then
+                        18 * sin midAngle
+
+                    else
+                        0
+
+                sliceLabel =
+                    categoryLabel item.account
+            in
+            Svg.g
+                [ SvgA.transform
+                    ("translate "
+                        ++ String.fromFloat tx
+                        ++ " "
+                        ++ String.fromFloat ty
+                    )
+                , SvgA.cursor "pointer"
+                , SvgA.style "transition: transform 150ms ease"
+                , SvgE.onClick (onSliceClick index)
+                , Attr.tabindex 0
+                , Attr.attribute "role" "button"
+                , Attr.attribute "aria-label"
+                    (sliceLabel ++ " slice")
                 ]
+                [ Path.element (Shape.arc arc)
+                    [ SvgA.fill
+                        (Css.toCssColor (sliceColor index item))
+                    , SvgA.stroke (Css.toCssColor theme.cardBg)
+                    , SvgA.strokeWidth
+                        (if isSelected then
+                            "3"
+
+                         else
+                            "1"
+                        )
+                    ]
+                ]
+
+        indexedSlices =
+            List.map2 Tuple.pair items pieData
+                |> List.indexedMap
+                    (\index ( item, arc ) ->
+                        ( index, item, arc )
+                    )
+
+        ( selectedSlices, unselectedSlices ) =
+            List.partition
+                (\( index, _, _ ) -> highlightedCategory == Just index)
+                indexedSlices
     in
-    Element.el [ Element.width (Element.px 240), Element.height (Element.px 240) ]
+    Element.el
+        [ Element.width (Element.px 240)
+        , Element.height (Element.px 240)
+        ]
         (Element.html
             (Svg.svg
                 [ SvgA.viewBox "0 0 240 240"
                 , SvgA.width "240"
                 , SvgA.height "240"
+                , SvgA.style "overflow: visible"
                 , Attr.attribute "role" "img"
-                , Attr.attribute "aria-label" "Category breakdown"
+                , Attr.attribute "aria-label"
+                    "Category breakdown"
                 ]
-                [ Svg.g [ SvgA.transform "translate(120,120)" ]
-                    (List.indexedMap renderSlice pieData)
+                [ Svg.g
+                    [ SvgA.transform "translate(120,120)" ]
+                    (List.map
+                        (\( index, item, arc ) ->
+                            renderSlice index item arc
+                        )
+                        (unselectedSlices ++ selectedSlices)
+                    )
                 ]
             )
         )
@@ -928,9 +1023,10 @@ categoryRow :
     -> Palette
     -> Decimal
     -> Int
+    -> Bool
     -> { item | account : String, quantity : Decimal }
     -> Element msg
-categoryRow theme commodity palette total index item =
+categoryRow theme commodity palette total index isHighlighted item =
     let
         totalValue =
             decimalFloat total
@@ -941,17 +1037,50 @@ categoryRow theme commodity palette total index item =
 
             else
                 decimalFloat item.quantity / totalValue * 100
+
+        itemColor =
+            if item.account == "Other" then
+                otherColor theme
+
+            else
+                paletteColor theme palette index
     in
-    Element.row [ Element.width Element.fill, Element.spacing 8 ]
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing 8
+        , Element.paddingXY 4 2
+        , Border.rounded 4
+        , Background.color (Element.rgba 0 0 0 0)
+        , Border.color
+            (if isHighlighted then
+                itemColor
+
+             else
+                Element.rgba 0 0 0 0
+            )
+        , Border.width 1
+        ]
         [ Icon.view
             { icon = AccountPresentation.iconForAccountName item.account
             , size = 16
-            , color = paletteColor theme palette index
+            , color = itemColor
             }
-        , Element.el [ Element.width Element.fill, Typography.minWidthZero ]
+        , Element.el
+            [ Element.width Element.fill
+            , Typography.minWidthZero
+            ]
             (Element.text (categoryLabel item.account))
-        , Element.el [ Font.color theme.textMuted, Typography.financeNumber ]
-            (Element.text (money commodity item.quantity ++ " (" ++ Formatting.roundedString share 0 ++ "%)"))
+        , Element.el
+            [ Font.color theme.textMuted
+            , Typography.financeNumber
+            ]
+            (Element.text
+                (money commodity item.quantity
+                    ++ " ("
+                    ++ Formatting.roundedString share 0
+                    ++ "%)"
+                )
+            )
         ]
 
 
@@ -964,6 +1093,7 @@ categoryRows :
             , palette : Palette
             , otherExpanded : Bool
             , onOtherToggle : msg
+            , highlightedCategory : Maybe Int
         }
     -> List (Element msg)
 categoryRows theme config =
@@ -972,6 +1102,11 @@ categoryRows theme config =
             config.breakdown.items
                 |> List.indexedMap
                     (\index item ->
+                        let
+                            isHighlighted =
+                                config.highlightedCategory
+                                    == Just index
+                        in
                         if item.account == "Other" && not (List.isEmpty config.breakdown.otherItems) then
                             Input.button
                                 [ Element.width Element.fill
@@ -996,13 +1131,18 @@ categoryRows theme config =
                                 ]
                                 { onPress = Just config.onOtherToggle
                                 , label =
-                                    Element.row [ Element.width Element.fill, Element.spacing 6 ]
-                                        [ Element.el [ Element.width Element.fill ]
+                                    Element.row
+                                        [ Element.width Element.fill
+                                        , Element.spacing 6
+                                        ]
+                                        [ Element.el
+                                            [ Element.width Element.fill ]
                                             (categoryRow theme
                                                 config.commodity
                                                 config.palette
                                                 config.breakdown.total
                                                 index
+                                                isHighlighted
                                                 item
                                             )
                                         , Element.text
@@ -1021,6 +1161,7 @@ categoryRows theme config =
                                 config.palette
                                 config.breakdown.total
                                 index
+                                isHighlighted
                                 item
                     )
 
@@ -1029,15 +1170,30 @@ categoryRows theme config =
                 config.breakdown.otherItems
                     |> List.indexedMap
                         (\index item ->
+                            let
+                                nestedIndex =
+                                    List.length config.breakdown.items
+                                        + index
+
+                                isHighlighted =
+                                    config.highlightedCategory
+                                        == Just nestedIndex
+                            in
                             Element.el
                                 [ Element.width Element.fill
-                                , Element.paddingEach { top = 0, right = 0, bottom = 0, left = 24 }
+                                , Element.paddingEach
+                                    { top = 0
+                                    , right = 0
+                                    , bottom = 0
+                                    , left = 24
+                                    }
                                 ]
                                 (categoryRow theme
                                     config.commodity
                                     config.palette
                                     config.breakdown.total
-                                    (List.length config.breakdown.items + index)
+                                    nestedIndex
+                                    isHighlighted
                                     item
                                 )
                         )
@@ -1060,6 +1216,10 @@ activityMonth :
         , onSelect : ActivityBucket -> msg
         , onTransaction : Transaction -> msg
         , device : Device
+        , legendState : LegendState
+        , onLegendToggle : msg
+        , highlightedCategory : Maybe Int
+        , onCategoryHighlight : Int -> msg
         }
     -> Element msg
 activityMonth theme config =
@@ -1092,6 +1252,7 @@ activityMonth theme config =
                         config.tone
                         config.commodity
                         categories
+                        config.highlightedCategory
                         (Maybe.map .key config.selectedBucket == Just (dayKey config.period day))
                         day
                         (bucketFor day)
@@ -1105,7 +1266,13 @@ activityMonth theme config =
     Ui.cardWith [ Element.width (Element.fillPortion 1), Element.alignTop ]
         theme
         [ Typography.subsectionTitle theme config.title
-        , activityCategoryLegend theme config.tone categories
+        , activityCategoryLegend theme
+            config.tone
+            categories
+            config.legendState
+            config.onLegendToggle
+            config.highlightedCategory
+            config.onCategoryHighlight
         , Element.row [ Element.width Element.fill ]
             (List.map
                 (\label ->
@@ -1144,12 +1311,13 @@ dayCell :
     -> ActivityTone
     -> String
     -> List BreakdownItem
+    -> Maybe Int
     -> Bool
     -> Int
     -> Maybe ActivityBucket
     -> (ActivityBucket -> msg)
     -> Element msg
-dayCell theme tone commodity categories selected day maybeBucket onSelect =
+dayCell theme tone commodity categories highlightedCategory selected day maybeBucket onSelect =
     let
         label =
             Element.column
@@ -1159,7 +1327,7 @@ dayCell theme tone commodity categories selected day maybeBucket onSelect =
                 , Element.paddingXY 2 4
                 ]
                 [ Element.el [ Element.centerX ]
-                    (dayRing theme tone categories selected day maybeBucket)
+                    (dayRing theme tone categories highlightedCategory selected day maybeBucket)
                 , maybeBucket
                     |> Maybe.map
                         (\bucket ->
@@ -1215,40 +1383,133 @@ activityCategories response =
         |> List.sortBy .account
 
 
-activityCategoryLegend : Theme -> ActivityTone -> List BreakdownItem -> Element msg
-activityCategoryLegend theme tone categories =
+activityCategoryLegend :
+    Theme
+    -> ActivityTone
+    -> List BreakdownItem
+    -> LegendState
+    -> msg
+    -> Maybe Int
+    -> (Int -> msg)
+    -> Element msg
+activityCategoryLegend theme tone categories legendState onToggle highlightedCategory onCategoryHighlight =
     if List.isEmpty categories then
         Element.none
 
     else
-        Element.wrappedRow [ Element.width Element.fill, Element.spacing 10 ]
-            (categories
-                |> List.indexedMap
+        let
+            maxVisible =
+                5
+
+            isExpanded =
+                legendState == LegendExpanded
+
+            visibleCategories =
+                if isExpanded || List.length categories <= maxVisible then
+                    categories
+
+                else
+                    List.take maxVisible categories
+
+            remainingCount =
+                max 0 (List.length categories - maxVisible)
+        in
+        Element.column [ Element.width Element.fill, Element.spacing 10 ]
+            [ Element.wrappedRow [ Element.width Element.fill, Element.spacing 10 ]
+                (List.indexedMap
                     (\index category ->
-                        Element.row [ Element.spacing 5 ]
-                            [ Ui.accentDot (activityCategoryColor theme tone index)
-                            , Typography.mutedCaption theme (categoryLabel category.account)
+                        let
+                            isHighlighted =
+                                highlightedCategory == Just index
+
+                            dotColor =
+                                if category.account == "Other" then
+                                    otherColor theme
+
+                                else
+                                    activityCategoryColor theme tone index
+                        in
+                        Input.button
+                            [ Element.spacing 5
+                            , Element.paddingXY 4 2
+                            , Border.rounded 4
+                            , Background.color (Element.rgba 0 0 0 0)
+                            , Border.color
+                                (if isHighlighted then
+                                    dotColor
+
+                                 else
+                                    Element.rgba 0 0 0 0
+                                )
+                            , Border.width 1
+                            , Element.htmlAttribute
+                                (Attr.style "cursor" "pointer")
                             ]
+                            { onPress = Just (onCategoryHighlight index)
+                            , label =
+                                Element.row [ Element.spacing 5 ]
+                                    [ Ui.accentDot dotColor
+                                    , Typography.mutedCaption
+                                        theme
+                                        (categoryLabel category.account)
+                                    ]
+                            }
                     )
-            )
+                    visibleCategories
+                )
+            , if remainingCount > 0 && not isExpanded then
+                Input.button
+                    [ Font.color theme.textMuted
+                    ]
+                    { onPress = Just onToggle
+                    , label =
+                        Typography.mutedCaption
+                            theme
+                            ("+"
+                                ++ String.fromInt remainingCount
+                                ++ " more"
+                            )
+                    }
+
+              else if isExpanded && List.length categories > maxVisible then
+                Input.button
+                    [ Font.color theme.textMuted
+                    ]
+                    { onPress = Just onToggle
+                    , label = Typography.mutedCaption theme "show less"
+                    }
+
+              else
+                Element.none
+            ]
 
 
 dayRing :
     Theme
     -> ActivityTone
     -> List BreakdownItem
+    -> Maybe Int
     -> Bool
     -> Int
     -> Maybe ActivityBucket
     -> Element msg
-dayRing theme tone categories selected day maybeBucket =
+dayRing theme tone categories highlightedCategory selected day maybeBucket =
     let
         size =
             34
 
         gradient =
             maybeBucket
-                |> Maybe.map (activityRingGradient theme tone categories)
+                |> Maybe.map
+                    (\bucket ->
+                        activityRingGradient
+                            theme
+                            tone
+                            categories
+                            highlightedCategory
+                            bucket
+                            (size // 2)
+                    )
                 |> Maybe.withDefault "transparent"
     in
     Element.html
@@ -1289,14 +1550,15 @@ miniDonut :
     -> String
     -> ActivityTone
     -> List BreakdownItem
+    -> Maybe Int
     -> Bool
     -> ActivityBucket
     -> (ActivityBucket -> msg)
     -> Element msg
-miniDonut theme commodity tone categories selected bucket onSelect =
+miniDonut theme commodity tone categories highlightedCategory selected bucket onSelect =
     let
         gradient =
-            activityRingGradient theme tone categories bucket
+            activityRingGradient theme tone categories highlightedCategory bucket 45
 
         monthLabel =
             String.left 3 (periodName bucket.key)
@@ -1367,20 +1629,59 @@ miniDonut theme commodity tone categories selected bucket onSelect =
         }
 
 
-activityRingGradient : Theme -> ActivityTone -> List BreakdownItem -> ActivityBucket -> String
-activityRingGradient theme tone categories bucket =
+activityRingGradient :
+    Theme
+    -> ActivityTone
+    -> List BreakdownItem
+    -> Maybe Int
+    -> ActivityBucket
+    -> Int
+    -> String
+activityRingGradient theme tone categories highlightedCategory bucket radius =
     let
         pieces =
             bucket.categories
                 |> List.map
                     (\category ->
-                        ( activityCategoryColor theme tone (categoryIndex category.account categories)
+                        let
+                            index =
+                                categoryIndex category.account categories
+
+                            baseColor =
+                                if category.account == "Other" then
+                                    otherColor theme
+
+                                else
+                                    activityCategoryColor theme tone index
+
+                            color =
+                                case highlightedCategory of
+                                    Nothing ->
+                                        baseColor
+
+                                    Just highlightedIndex ->
+                                        if highlightedIndex == index then
+                                            baseColor
+
+                                        else
+                                            withAlpha 0.14 baseColor
+                        in
+                        ( color
                         , abs (decimalFloat category.quantity)
                         )
                     )
 
         total =
             List.sum (List.map Tuple.second pieces)
+
+        gapPixels =
+            2
+
+        gapSize =
+            gapPixels / (2 * pi * toFloat radius) * 100
+
+        gapHalf =
+            gapSize / 2
 
         step ( color, value ) ( offset, rendered ) =
             let
@@ -1390,16 +1691,27 @@ activityRingGradient theme tone categories bucket =
 
                     else
                         offset + value / total * 100
+
+                segmentStart =
+                    offset + gapHalf
+
+                segmentEnd =
+                    next - gapHalf
+
+                colorHex =
+                    Css.toCssColor color
             in
             ( next
-            , rendered
-                ++ [ Css.toCssColor color
-                        ++ " "
-                        ++ float offset
-                        ++ "% "
-                        ++ float next
-                        ++ "%"
-                   ]
+            , if segmentEnd > segmentStart then
+                rendered
+                    ++ [ colorHex ++ " " ++ float segmentStart ++ "%"
+                       , colorHex ++ " " ++ float segmentEnd ++ "%"
+                       , "transparent " ++ float segmentEnd ++ "%"
+                       , "transparent " ++ float (next + gapHalf) ++ "%"
+                       ]
+
+              else
+                rendered
             )
 
         stops =
@@ -1410,6 +1722,15 @@ activityRingGradient theme tone categories bucket =
 
     else
         "conic-gradient(" ++ String.join ", " stops ++ ")"
+
+
+withAlpha : Float -> Element.Color -> Element.Color
+withAlpha alpha color =
+    let
+        rgb =
+            Element.toRgb color
+    in
+    Element.rgba rgb.red rgb.green rgb.blue alpha
 
 
 categoryIndex : String -> List BreakdownItem -> Int
@@ -1458,7 +1779,11 @@ activityTransactionList theme device title transactions onSelect =
                         Input.button (Ui.rowSurfaceAttrs theme False ++ [ Element.width Element.fill ])
                             { onPress = Just (onSelect transaction)
                             , label =
-                                Element.row [ Element.width Element.fill, Element.spacing 14, Element.paddingXY 4 10 ]
+                                Element.row
+                                    [ Element.width Element.fill
+                                    , Element.spacing 14
+                                    , Element.paddingXY 4 10
+                                    ]
                                     [ Element.el [ Font.color theme.textMuted, Font.size 15 ]
                                         (Element.text (Date.toString transaction.primaryDate))
                                     , Element.el
@@ -1486,6 +1811,10 @@ activityYear :
         , selectedBucket : Maybe ActivityBucket
         , onSelect : ActivityBucket -> msg
         , device : Device
+        , legendState : LegendState
+        , onLegendToggle : msg
+        , highlightedCategory : Maybe Int
+        , onCategoryHighlight : Int -> msg
         }
     -> Element msg
 activityYear theme config =
@@ -1519,7 +1848,13 @@ activityYear theme config =
                                 6
                 in
                 Element.column [ Element.width Element.fill, Element.spacing 12 ]
-                    [ activityCategoryLegend theme config.tone categories
+                    [ activityCategoryLegend theme
+                        config.tone
+                        categories
+                        config.legendState
+                        config.onLegendToggle
+                        config.highlightedCategory
+                        config.onCategoryHighlight
                     , Element.column [ Element.width Element.fill, Element.spacing 16 ]
                         (chunks cols response.buckets
                             |> List.map
@@ -1535,6 +1870,7 @@ activityYear theme config =
                                                         config.commodity
                                                         config.tone
                                                         categories
+                                                        config.highlightedCategory
                                                         (Maybe.map .key selected == Just bucket.key)
                                                         bucket
                                                         config.onSelect
@@ -1598,7 +1934,12 @@ activityYearLegend theme commodity tone categories bucket =
                         [ Icon.view
                             { icon = AccountPresentation.iconForAccountName item.account
                             , size = 16
-                            , color = activityCategoryColor theme tone index
+                            , color =
+                                if item.account == "Other" then
+                                    otherColor theme
+
+                                else
+                                    activityCategoryColor theme tone index
                             }
                         , Element.el [ Element.width Element.fill, Typography.minWidthZero ]
                             (Element.text (categoryLabel item.account))
@@ -1663,21 +2004,26 @@ paletteColor theme palette index =
         order =
             case palette of
                 PositivePalette ->
-                    [ 1, 7, 4, 3, 0, 2, 9, 5, 8, 6 ]
+                    [ 1, 7, 4, 3, 0, 2, 9, 5, 8 ]
 
                 AssetPalette ->
-                    [ 1, 7, 4, 3, 0, 2, 9, 5, 8, 6 ]
+                    [ 1, 7, 4, 3, 0, 2, 9, 5, 8 ]
 
                 NegativePalette ->
-                    [ 5, 8, 2, 0, 3, 4, 9, 1, 7, 6 ]
+                    [ 5, 8, 2, 0, 3, 4, 9, 1, 7 ]
 
                 LiabilityPalette ->
-                    [ 5, 8, 2, 0, 3, 4, 9, 1, 7, 6 ]
+                    [ 5, 8, 2, 0, 3, 4, 9, 1, 7 ]
 
         colorIndex =
             order |> List.drop (modBy (List.length order) index) |> List.head |> Maybe.withDefault 0
     in
     theme.chartSeries |> List.drop colorIndex |> List.head |> Maybe.withDefault theme.primary
+
+
+otherColor : Theme -> Element.Color
+otherColor theme =
+    theme.chartSeries |> List.drop 6 |> List.head |> Maybe.withDefault theme.primary
 
 
 activityColor : Theme -> ActivityTone -> Element.Color
