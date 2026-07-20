@@ -467,7 +467,7 @@ reportWindow granularity transactions latestDate =
         Just latest -> case granularity of
             Monthly ->
                 let finalMonth = monthStart latest
-                    firstMonth = addGregorianMonthsClip (-11) finalMonth
+                    firstMonth = addGregorianMonthsClip (-23) finalMonth
                  in (Hledger.PeriodBetween firstMonth (addGregorianMonthsClip 1 finalMonth), interval)
             Yearly ->
                 let (finalYear, _, _) = toGregorian latest

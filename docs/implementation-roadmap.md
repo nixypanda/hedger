@@ -468,7 +468,7 @@ Backend:
 - `POST /api/v1/net-worth/query` returning headline values, KPI comparisons,
   trend points, assets/liabilities/net-worth series, selected-period category
   breakdowns, Net Investment versus Net Worth, and completeness warnings;
-- monthly mode with 12 buckets ending at the effective latest month;
+- monthly mode with 24 buckets ending at the effective latest month;
 - yearly mode covering all represented years;
 - dated conversion without future prices;
 - liabilities displayed as positive magnitude and subtracted from assets;

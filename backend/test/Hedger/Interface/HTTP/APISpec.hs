@@ -97,7 +97,7 @@ netWorthProjection :: Wai.Application -> IO ()
 netWorthProjection app = do
     (Just response, raw) <- postJson "/api/v1/net-worth/query" (Aeson.encode (analyticsRequest "")) app
     assertEqual "net worth status" status200 raw.simpleStatus
-    assertArrayLength "net worth monthly timeline" 12 "timeline" response
+    assertArrayLength "net worth monthly timeline" 24 "timeline" response
     assertObjectFields
         ["netWorth", "assets", "liabilities", "assetsBreakdown", "liabilitiesBreakdown", "performance"]
         response

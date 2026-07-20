@@ -475,7 +475,7 @@ date
 - Find the latest applicable date: explicit anchorDate when supplied,
   otherwise the latest journal/report date.
 
-- Return exactly 12 monthly periods ending with the month containing the
+- Return exactly 24 monthly periods ending with the month containing the
   latest applicable date.
 
 - Use complete calendar months for chart buckets. The latest bucket may
@@ -835,7 +835,7 @@ Eledger.Runtime.Server
 2.  Boundary parser constructs Interval, AnchorDate, ValuationBasis,
     Commodity and AccountDepth.
 
-3.  Application resolves the effective range: 12 months ending at latest
+3.  Application resolves the effective range: 24 months ending at latest
     date for monthly, all represented years for yearly.
 
 4.  Application constructs a canonical ReportKey and checks the
@@ -873,7 +873,7 @@ Eledger.Runtime.Server
 
 - Transaction list default page: 50; maximum page: 200.
 
-- Chart points: monthly net worth returns 12 points by default; yearly
+- Chart points: monthly net worth returns 24 points by default; yearly
   returns at most the number of journal years.
 
 - Account tree may be complete if account count is small, but
@@ -902,7 +902,7 @@ Eledger.Runtime.Server
 - Monthly query with latest date 2026-07-17 returns periods 2025-08
   through 2026-07.
 
-- Monthly query remains exactly 12 buckets when some months contain no
+- Monthly query remains exactly 24 buckets when some months contain no
   transactions.
 
 - Yearly query returns every represented year, including years with zero
@@ -998,7 +998,7 @@ GET for simple resources
 POST /query for complex safe reads temporarily  
 screen-oriented BFF projections  
 bootstrap is small  
-net-worth monthly = latest 12 months  
+net-worth monthly = latest 24 months
 net-worth yearly = all represented years  
   
 Design:  
