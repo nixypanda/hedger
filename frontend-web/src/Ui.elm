@@ -2,6 +2,7 @@ module Ui exposing
     ( FinancialTone(..)
     , StatusTone(..)
     , accentDot
+    , backButton
     , badge
     , card
     , cardWith
@@ -346,8 +347,8 @@ periodNavigation theme config =
 compactPeriodButton : Theme -> String -> String -> msg -> Element msg
 compactPeriodButton theme title label onPress =
     Input.button
-        [ Element.width (Element.px 30)
-        , Element.height (Element.px 30)
+        [ Element.width (Element.px 44)
+        , Element.height (Element.px 44)
         , Background.color theme.cardBg
         , Border.color theme.divider
         , Border.width 1
@@ -506,6 +507,16 @@ iconButton device theme config =
         , border = theme.divider
         , hoverBackground = theme.primarySoft
         , hoverBorder = theme.primary
+        }
+
+
+backButton : Device -> Theme -> { onPress : msg } -> Element msg
+backButton device theme config =
+    iconButton device
+        theme
+        { icon = Icon.ChevronLeft
+        , title = "Back"
+        , onPress = config.onPress
         }
 
 

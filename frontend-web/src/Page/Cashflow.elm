@@ -242,8 +242,9 @@ transactionView theme device selectedTransaction =
             Ui.pageHeader theme
                 { leading =
                     Just
-                        (Ui.ghostButton theme
-                            { label = "← Back", onPress = AnalysisMsg Analysis.Back }
+                        (Ui.backButton device
+                            theme
+                            { onPress = AnalysisMsg Analysis.Back }
                         )
                 , title = Typography.pageTitle theme "Transaction Detail"
                 , subtitle = Nothing

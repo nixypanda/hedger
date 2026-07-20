@@ -673,9 +673,12 @@ registerHeader theme device model =
     if Ui.isSmall device then
         Element.column [ Element.width Element.fill, Element.spacing 16, Typography.minWidthZero ]
             [ Element.row [ Element.width Element.fill, Element.spacing 8 ]
-                [ Ui.ghostButton theme { label = "← Accounts", onPress = BackToAccounts }
+                [ Ui.backButton device theme { onPress = BackToAccounts }
                 , Element.el [ Element.alignRight ]
-                    (Ui.ghostButton theme { label = "Refresh", onPress = Refresh })
+                    (Ui.iconButton device
+                        theme
+                        { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                    )
                 ]
             , Element.column [ Element.width Element.fill, Element.spacing 8, Typography.minWidthZero ]
                 [ Typography.pageTitle theme (breakAccountPath account)
@@ -685,10 +688,14 @@ registerHeader theme device model =
 
     else
         Ui.pageHeader theme
-            { leading = Just (Ui.ghostButton theme { label = "← Accounts", onPress = BackToAccounts })
+            { leading = Just (Ui.backButton device theme { onPress = BackToAccounts })
             , title = Typography.pageTitle theme account
             , subtitle = Just "Account register"
-            , actions = [ Ui.ghostButton theme { label = "Refresh", onPress = Refresh } ]
+            , actions =
+                [ Ui.iconButton device
+                    theme
+                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                ]
             }
 
 
@@ -948,7 +955,7 @@ detailPage theme device onClose commodity entry =
         ]
         [ Ui.pageHeaderBand theme device <|
             Element.row [ Element.width Element.fill, Element.spacing 8 ]
-                [ Ui.ghostButton theme { label = "← Back", onPress = onClose }
+                [ Ui.backButton device theme { onPress = onClose }
                 , Typography.sectionTitle theme "Details"
                 ]
         , Ui.pageContainer device

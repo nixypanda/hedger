@@ -403,8 +403,8 @@ accountRow theme expanded depth (AccountNode account) =
         toggleButton =
             if not (List.isEmpty account.children) then
                 Input.button
-                    [ Element.width (Element.px 28)
-                    , Element.height (Element.px 28)
+                    [ Element.width (Element.px 44)
+                    , Element.height (Element.px 44)
                     , Element.centerY
                     ]
                     { onPress = Just (ToggleAccount account.path)
@@ -422,7 +422,7 @@ accountRow theme expanded depth (AccountNode account) =
                     }
 
             else
-                Element.el [ Element.width (Element.px 28) ] Element.none
+                Element.el [ Element.width (Element.px 44) ] Element.none
 
         valueAction =
             if Quantity.hasMultipleCommodities account.subtreeBalances then
@@ -591,11 +591,11 @@ accountDetailPage theme device onBack account =
 
 
 accountDetailHeader : Theme -> Device -> Maybe Msg -> Element Msg
-accountDetailHeader theme _ onBack =
+accountDetailHeader theme device onBack =
     Element.row [ Element.width Element.fill, Element.spacing 8 ]
         [ case onBack of
             Just message ->
-                Ui.ghostButton theme { label = "← Back", onPress = message }
+                Ui.backButton device theme { onPress = message }
 
             Nothing ->
                 Element.none

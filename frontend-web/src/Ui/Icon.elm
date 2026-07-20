@@ -8,7 +8,8 @@ import Ui.Css
 
 
 type Icon
-    = ChevronRight
+    = ChevronLeft
+    | ChevronRight
     | ChevronUp
     | ChevronDown
     | LoaderCircle
@@ -85,6 +86,9 @@ view config =
 shapes : Icon -> List (Svg msg)
 shapes icon =
     case icon of
+        ChevronLeft ->
+            [ polyline [ SvgA.points "15 6 9 12 15 18" ] [] ]
+
         ChevronRight ->
             [ polyline [ SvgA.points "9 6 15 12 9 18" ] [] ]
 

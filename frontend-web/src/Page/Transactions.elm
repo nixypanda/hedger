@@ -965,7 +965,11 @@ transactionsHeader theme device =
             { leading = Nothing
             , title = Typography.pageTitle theme "Transactions"
             , subtitle = Just "Browse your ledger activity"
-            , actions = [ Ui.ghostButton theme { label = "Refresh", onPress = Refresh } ]
+            , actions =
+                [ Ui.iconButton device
+                    theme
+                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                ]
             }
 
 
@@ -1326,7 +1330,7 @@ detailPage theme device onBack transaction =
             Element.row [ Element.width Element.fill, Element.spacing 8 ]
                 [ case onBack of
                     Just message ->
-                        Ui.ghostButton theme { label = "← Back", onPress = message }
+                        Ui.backButton device theme { onPress = message }
 
                     Nothing ->
                         Element.none
