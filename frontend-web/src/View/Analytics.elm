@@ -641,7 +641,7 @@ chartLayout availableWidth count height targetSlotWidth =
             min visiblePeriods (max 1 count)
 
         slotWidth =
-            toFloat visibleWidth / toFloat displayPeriods
+            min (toFloat visibleWidth / toFloat displayPeriods) (toFloat targetSlotWidth)
 
         plotWidth =
             max (toFloat visibleWidth) (slotWidth * toFloat (max 1 count))
