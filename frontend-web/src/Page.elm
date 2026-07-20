@@ -5,7 +5,9 @@ import Page.Account as AccountPage
 import Page.AccountRegister as AccountRegisterPage
 import Page.Cashflow as CashflowPage
 import Page.NetWorth as NetWorthPage
+import Page.Settings as SettingsPage
 import Page.Transactions as TransactionsPage
+import Preferences exposing (ThemeMode)
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui.Theme exposing (Theme)
@@ -21,6 +23,7 @@ type Model
     | AccountRegisterPage AccountRegisterPage.Model
     | NetWorthPage NetWorthPage.Model
     | CashflowPage CashflowPage.Model
+    | SettingsPage SettingsPage.Model
     | PlaceholderPage
 
 
@@ -28,6 +31,7 @@ type alias Context =
     { route : Route
     , viewport : Viewport
     , theme : Theme
+    , themeMode : ThemeMode
     }
 
 
@@ -122,6 +126,12 @@ init context maybeExistingModel =
             , NoOutMsg
             )
 
+        ( Settings, _ ) ->
+            ( SettingsPage (SettingsPage.init context.themeMode)
+            , Cmd.none
+            , NoOutMsg
+            )
+
         _ ->
             ( PlaceholderPage, Cmd.none, NoOutMsg )
 
@@ -136,11 +146,13 @@ type Msg
     | GotAccountRegisterMsg AccountRegisterPage.Msg
     | GotNetWorthMsg NetWorthPage.Msg
     | GotCashflowMsg CashflowPage.Msg
+    | GotSettingsMsg SettingsPage.Msg
 
 
 type OutMsg
     = NoOutMsg
     | Navigate Route
+    | SetThemeMode ThemeMode
 
 
 mapTransactionsOutMsg : TransactionsPage.OutMsg -> OutMsg
@@ -158,6 +170,13 @@ mapAccountRegisterOutMsg outMsg =
 
         AccountRegisterPage.Navigate route ->
             Navigate route
+
+
+mapSettingsOutMsg : SettingsPage.OutMsg -> OutMsg
+mapSettingsOutMsg outMsg =
+    case outMsg of
+        SettingsPage.SetThemeMode mode ->
+            SetThemeMode mode
 
 
 update : Context -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
@@ -207,6 +226,16 @@ update context msg model =
             in
             ( CashflowPage nextModel, Cmd.map GotCashflowMsg command, NoOutMsg )
 
+        ( GotSettingsMsg subMsg, SettingsPage subModel ) ->
+            let
+                ( nextModel, subCmd, outMsg ) =
+                    SettingsPage.update subMsg subModel
+            in
+            ( SettingsPage nextModel
+            , Cmd.map GotSettingsMsg subCmd
+            , mapSettingsOutMsg outMsg
+            )
+
         _ ->
             ( model, Cmd.none, NoOutMsg )
 
@@ -243,6 +272,10 @@ view context model =
 
         ( _, CashflowPage subModel ) ->
             Element.map GotCashflowMsg (CashflowPage.view context.theme context.viewport subModel)
+
+        ( _, SettingsPage subModel ) ->
+            Element.map GotSettingsMsg
+                (SettingsPage.view context.theme device subModel)
 
         _ ->
             Element.none

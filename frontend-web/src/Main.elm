@@ -72,6 +72,7 @@ init flags url key =
                     initialRoute
                     { width = flags.viewportWidth, height = flags.viewportHeight }
                     (Preferences.theme (Preferences.current initialTheme))
+                    initialTheme
                 )
                 Nothing
     in
@@ -92,11 +93,12 @@ init flags url key =
     )
 
 
-pageContext : Route -> Viewport -> Theme -> Page.Context
-pageContext route viewport theme =
+pageContext : Route -> Viewport -> Theme -> ThemeMode -> Page.Context
+pageContext route viewport theme themeMode =
     { route = route
     , viewport = viewport
     , theme = theme
+    , themeMode = themeMode
     }
 
 
@@ -112,7 +114,6 @@ type Msg
     | BootstrapLoaded (Result ApiError Bootstrap)
     | RefreshBootstrap
     | ConfigLoaded Decode.Value
-    | ToggleTheme
     | PwaMsg Pwa.Msg
     | GotPageMsg Page.Msg
     | NoOp
@@ -139,7 +140,7 @@ update msg model =
 
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext route model.viewport (Preferences.theme model.preferences))
+                        (pageContext route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -173,21 +174,6 @@ update msg model =
                 Err _ ->
                     ( model, Cmd.none )
 
-        ToggleTheme ->
-            let
-                mode =
-                    case model.preferences.themeMode of
-                        Light ->
-                            Dark
-
-                        Dark ->
-                            Light
-
-                preferences =
-                    Preferences.setTheme mode model.preferences
-            in
-            ( { model | preferences = preferences }, Ports.storeConfig (Preferences.encode preferences) )
-
         PwaMsg pwaMsg ->
             let
                 ( pwa, command ) =
@@ -199,7 +185,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.update
-                        (pageContext model.route model.viewport (Preferences.theme model.preferences))
+                        (pageContext model.route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
                         pageMsg
                         model.page
 
@@ -222,6 +208,13 @@ applyPageOutMsg outMsg model =
 
         Page.Navigate route ->
             ( model, Nav.pushUrl model.key (Route.toPath route) )
+
+        Page.SetThemeMode mode ->
+            let
+                preferences =
+                    Preferences.setTheme mode model.preferences
+            in
+            ( { model | preferences = preferences }, Ports.storeConfig (Preferences.encode preferences) )
 
 
 
@@ -259,33 +252,10 @@ pageView theme model =
     let
         device =
             Element.classifyDevice model.viewport
-
-        title =
-            pageTitle model.route
-
-        subtitle =
-            "The application shell is ready; this financial screen arrives in a later phase."
-
-        actions =
-            if model.route == Settings then
-                [ Ui.secondaryButton theme
-                    { label =
-                        case model.preferences.themeMode of
-                            Light ->
-                                "Use dark theme"
-
-                            Dark ->
-                                "Use light theme"
-                    , onPress = ToggleTheme
-                    }
-                ]
-
-            else
-                []
     in
     if isRealPage model.route then
         Element.map GotPageMsg
-            (Page.view (pageContext model.route model.viewport theme) model.page)
+            (Page.view (pageContext model.route model.viewport theme model.preferences.themeMode) model.page)
 
     else
         Element.column
@@ -295,9 +265,9 @@ pageView theme model =
             [ Ui.pageHeaderBand theme device <|
                 Ui.pageHeader theme
                     { leading = Nothing
-                    , title = Typography.pageTitle theme title
-                    , subtitle = Just subtitle
-                    , actions = actions
+                    , title = Typography.pageTitle theme (pageTitle model.route)
+                    , subtitle = Nothing
+                    , actions = []
                     }
             , Ui.pageContainer device <|
                 bootstrapStatus theme model.bootstrap
@@ -324,6 +294,9 @@ isRealPage route =
             True
 
         Transactions ->
+            True
+
+        Settings ->
             True
 
         _ ->
