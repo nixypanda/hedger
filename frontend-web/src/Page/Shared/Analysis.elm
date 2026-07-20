@@ -55,6 +55,7 @@ type alias ModelData =
 type alias SideState =
     { activity : ActivityState
     , otherExpanded : Bool
+    , selectedYearBucket : Maybe Analytics.ActivityBucket
     }
 
 
@@ -123,6 +124,7 @@ initialSide : SideState
 initialSide =
     { activity = ActivityNotRequested
     , otherExpanded = False
+    , selectedYearBucket = Nothing
     }
 
 
@@ -139,6 +141,7 @@ type Msg
     | OtherToggled Side
     | ActivityLoaded Side (Result ApiError Analytics.ActivityResponse)
     | BucketSelected Side Analytics.ActivityBucket
+    | YearBucketSelected Side Analytics.ActivityBucket
     | TransactionSelected Transaction
     | Back
 
@@ -283,6 +286,25 @@ update context msg (Model data) =
                             Just (Selection side bucket)
             in
             ( Model { data | mode = Exploring nextSelection }, [] )
+
+        YearBucketSelected side bucket ->
+            let
+                sideState =
+                    sideFor side data
+
+                nextBucket =
+                    case sideState.selectedYearBucket of
+                        Just selected ->
+                            if selected.key == bucket.key then
+                                Nothing
+
+                            else
+                                Just bucket
+
+                        Nothing ->
+                            Just bucket
+            in
+            ( Model (setSide side { sideState | selectedYearBucket = nextBucket } data), [] )
 
         TransactionSelected selectedTransaction ->
             case selectionFor data.mode of
@@ -592,6 +614,9 @@ activityView theme device granularity config side commodity data =
                 , commodity = commodity
                 , tone = config.tone
                 , response = activityValue sideState.activity
+                , selectedBucket = sideState.selectedYearBucket
+                , onSelect = YearBucketSelected side
+                , device = device
                 }
 
 
@@ -607,7 +632,7 @@ transaction (Model data) =
 
 beginSideLoading : SideState -> SideState
 beginSideLoading sideState =
-    { sideState | activity = beginActivityLoading sideState.activity }
+    { sideState | activity = beginActivityLoading sideState.activity, selectedYearBucket = Nothing }
 
 
 selectPeriod : Period -> Maybe Month -> ModelData -> ModelData

@@ -1284,6 +1284,89 @@ dayRing theme tone categories selected day maybeBucket =
         )
 
 
+miniDonut :
+    Theme
+    -> String
+    -> ActivityTone
+    -> List BreakdownItem
+    -> Bool
+    -> ActivityBucket
+    -> (ActivityBucket -> msg)
+    -> Element msg
+miniDonut theme commodity tone categories selected bucket onSelect =
+    let
+        gradient =
+            activityRingGradient theme tone categories bucket
+
+        monthLabel =
+            String.left 3 (periodName bucket.key)
+    in
+    Input.button
+        [ Element.width Element.fill
+        , Element.height Element.fill
+        , Element.htmlAttribute (Attr.style "min-width" "70px")
+        , Element.htmlAttribute (Attr.style "max-width" "110px")
+        , Element.htmlAttribute (Attr.style "aspect-ratio" "1")
+        ]
+        { onPress = Just (onSelect bucket)
+        , label =
+            Element.html
+                (Html.div
+                    [ Attr.style "width" "100%"
+                    , Attr.style "height" "100%"
+                    , Attr.style "border-radius" "50%"
+                    , Attr.style "background" gradient
+                    , Attr.style "display" "grid"
+                    , Attr.style "place-items" "center"
+                    , Attr.style "cursor" "pointer"
+                    , Attr.style "transition" "transform 0.15s ease"
+                    , Attr.style "transform"
+                        (if selected then
+                            "scale(1.05)"
+
+                         else
+                            "scale(1)"
+                        )
+                    ]
+                    [ Html.div
+                        [ Attr.style "width" "calc(100% - 24px)"
+                        , Attr.style "height" "calc(100% - 24px)"
+                        , Attr.style "border-radius" "50%"
+                        , Attr.style "background"
+                            (Css.toCssColor
+                                (if selected then
+                                    theme.selectedBg
+
+                                 else
+                                    theme.cardBg
+                                )
+                            )
+                        , Attr.style "display" "flex"
+                        , Attr.style "flex-direction" "column"
+                        , Attr.style "align-items" "center"
+                        , Attr.style "justify-content" "center"
+                        , Attr.style "gap" "2px"
+                        ]
+                        [ Html.div
+                            [ Attr.style "font-size" "10px"
+                            , Attr.style "font-weight" "600"
+                            , Attr.style "color" (Css.toCssColor theme.textMuted)
+                            , Attr.style "line-height" "1"
+                            ]
+                            [ Html.text monthLabel ]
+                        , Html.div
+                            [ Attr.style "font-size" "11px"
+                            , Attr.style "font-weight" "600"
+                            , Attr.style "color" (Css.toCssColor (activityColor theme tone))
+                            , Attr.style "line-height" "1"
+                            ]
+                            [ Html.text (money commodity bucket.total) ]
+                        ]
+                    ]
+                )
+        }
+
+
 activityRingGradient : Theme -> ActivityTone -> List BreakdownItem -> ActivityBucket -> String
 activityRingGradient theme tone categories bucket =
     let
@@ -1400,6 +1483,9 @@ activityYear :
         , commodity : String
         , tone : ActivityTone
         , response : Maybe ActivityResponse
+        , selectedBucket : Maybe ActivityBucket
+        , onSelect : ActivityBucket -> msg
+        , device : Device
         }
     -> Element msg
 activityYear theme config =
@@ -1411,28 +1497,123 @@ activityYear theme config =
                 Ui.loading theme "Loading activity"
 
             Just response ->
+                let
+                    categories =
+                        activityCategories response
+
+                    selected =
+                        config.selectedBucket
+
+                    cols =
+                        case config.device.class of
+                            Element.Phone ->
+                                3
+
+                            Element.Tablet ->
+                                4
+
+                            Element.Desktop ->
+                                6
+
+                            Element.BigDesktop ->
+                                6
+                in
                 Element.column [ Element.width Element.fill, Element.spacing 12 ]
-                    [ activityCategoryLegend theme config.tone (activityCategories response)
-                    , Element.wrappedRow [ Element.width Element.fill, Element.spacing 16 ]
-                        (List.map (monthActivity theme config.commodity config.tone) response.buckets)
+                    [ activityCategoryLegend theme config.tone categories
+                    , Element.column [ Element.width Element.fill, Element.spacing 16 ]
+                        (chunks cols response.buckets
+                            |> List.map
+                                (\row ->
+                                    Element.row [ Element.width Element.fill, Element.spacing 16 ]
+                                        (List.map
+                                            (\bucket ->
+                                                Element.el
+                                                    [ Element.width (Element.fillPortion 1)
+                                                    , Element.paddingXY 0 8
+                                                    ]
+                                                    (miniDonut theme
+                                                        config.commodity
+                                                        config.tone
+                                                        categories
+                                                        (Maybe.map .key selected == Just bucket.key)
+                                                        bucket
+                                                        config.onSelect
+                                                    )
+                                            )
+                                            row
+                                        )
+                                )
+                        )
+                    , case selected of
+                        Nothing ->
+                            Element.el [ Element.width Element.fill, Element.paddingXY 0 12 ]
+                                (Typography.mutedCaption theme "Select a month to see details")
+
+                        Just bucket ->
+                            activityYearLegend theme
+                                config.commodity
+                                config.tone
+                                categories
+                                bucket
                     ]
         ]
 
 
-monthActivity : Theme -> String -> ActivityTone -> ActivityBucket -> Element msg
-monthActivity theme commodity tone bucket =
-    Element.column
-        [ Element.width (Element.px 140)
-        , Element.height (Element.px 90)
-        , Element.padding 10
-        , Element.spacing 8
-        , Background.color theme.inputFill
-        , Border.rounded 10
-        ]
-        [ Typography.mutedBody theme (String.left 3 (periodName bucket.key))
-        , Element.el
-            [ Font.color (activityColor theme tone), Font.semiBold, Typography.financeNumber ]
-            (Element.text (money commodity bucket.total))
+activityYearLegend :
+    Theme
+    -> String
+    -> ActivityTone
+    -> List BreakdownItem
+    -> ActivityBucket
+    -> Element msg
+activityYearLegend theme commodity tone categories bucket =
+    let
+        total =
+            bucket.categories
+                |> List.map (.quantity >> decimalFloat >> abs)
+                |> List.sum
+
+        items =
+            bucket.categories
+                |> List.sortBy (.quantity >> decimalFloat >> abs >> negate)
+    in
+    Element.column [ Element.width Element.fill, Element.spacing 8 ]
+        [ Element.row [ Element.width Element.fill, Element.spacing 8, Element.paddingXY 0 8 ]
+            [ Typography.mutedBody theme (periodName bucket.key ++ " · ")
+            , Element.el [ Font.color (activityColor theme tone), Font.semiBold, Typography.financeNumber ]
+                (Element.text (money commodity bucket.total))
+            ]
+        , Element.column [ Element.width Element.fill, Element.spacing 4 ]
+            (List.indexedMap
+                (\index item ->
+                    let
+                        share =
+                            if total <= 0 then
+                                0
+
+                            else
+                                (decimalFloat item.quantity / total) * 100
+                    in
+                    Element.row [ Element.width Element.fill, Element.spacing 8 ]
+                        [ Icon.view
+                            { icon = AccountPresentation.iconForAccountName item.account
+                            , size = 16
+                            , color = activityCategoryColor theme tone index
+                            }
+                        , Element.el [ Element.width Element.fill, Typography.minWidthZero ]
+                            (Element.text (categoryLabel item.account))
+                        , Element.el [ Font.color theme.textMuted, Typography.financeNumber ]
+                            (Element.text
+                                (money commodity item.quantity
+                                    ++ " ("
+                                    ++ Formatting.roundedString share 0
+                                    ++ "%)"
+                                )
+                            )
+                        ]
+                )
+                items
+            )
         ]
 
 
