@@ -1,0 +1,17 @@
+commodity INR
+
+2025-04-01 Open HDFC FD
+    assets:investments:fd:hdfc            INR 100000
+    assets:cash:checking                  INR -100000
+
+2025-04-01 Open ICICI FD
+    assets:investments:fd:icici           INR 200000
+    assets:cash:checking                  INR -200000
+
+2026-03-31 Credit HDFC FD interest
+    assets:investments:fd:hdfc              INR 7000
+    income:investments:fd:interest          INR -7000
+
+2026-03-31 Credit ICICI FD interest
+    assets:investments:fd:icici             INR 10000
+    income:investments:fd:interest          INR -10000

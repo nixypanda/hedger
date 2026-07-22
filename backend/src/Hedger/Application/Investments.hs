@@ -388,7 +388,6 @@ attributedAt snapshot mappings commodity scope day =
     selectedMappings = case scope of
         Nothing -> Investment.mappingsForScope "" mappings
         Just selected -> Investment.mappingsForScope selected mappings
-    accounts = concatMap (.performanceAccounts) selectedMappings
     contributions =
         [ do
             quantity <-
@@ -401,10 +400,20 @@ attributedAt snapshot mappings commodity scope day =
                 _ -> (negate quantity, 0, 0)
         | transaction <- snapshot.transactions
         , transaction.tdate <= day
+        , mapping <- selectedMappings
+        , transactionMatchesScope mapping transaction
         , posting <- transaction.tpostings
-        , performance <- accounts
+        , performance <- mapping.performanceAccounts
         , performance.account `accountWithin` posting.paccount
         ]
+    transactionMatchesScope mapping transaction = case scope of
+        Just selected
+            | mapping.assetAccount /= selected
+                && mapping.assetAccount `accountWithin` selected ->
+                any
+                    (\candidate -> selected `accountWithin` candidate.paccount)
+                    transaction.tpostings
+        _ -> True
     combine Nothing _ = Nothing
     combine _ Nothing = Nothing
     combine (Just (incomeA, gainA, feeA)) (Just (incomeB, gainB, feeB)) =
@@ -438,8 +447,12 @@ retainedPerformanceAt snapshot mappings commodity scope day = fmap sum (traverse
             )
             mapping.performanceAccounts
         , posting <- transaction.tpostings
-        , mapping.assetAccount `accountWithin` posting.paccount
+        , mappedAssetScope mapping `accountWithin` posting.paccount
         ]
+    mappedAssetScope mapping = case scope of
+        Just selected
+            | mapping.assetAccount `accountWithin` selected -> selected
+        _ -> mapping.assetAccount
     incomeLike role = case role of
         Investment.Interest -> True
         Investment.Dividend -> True

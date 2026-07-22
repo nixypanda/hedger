@@ -25,6 +25,9 @@ investmentsSpec =
         [ testCase
             "retained FD interest is income rather than acquisition cost or unrealised gain"
             retainedFdInterest
+        , testCase
+            "parent gain mapping attributes only the selected FD descendant's interest"
+            descendantFdInterest
         , testCase "explicit partial disposal reduces remaining basis" partialDisposal
         , testCase
             "foreign acquisition cost uses acquisition-date FX and inherits its mapping"
@@ -62,6 +65,41 @@ fdMapping :: InvestmentMapping
 fdMapping =
     InvestmentMapping
         { assetAccount = "assets:investments:fd:hdfc"
+        , performanceAccounts =
+            [ PerformanceAccount
+                { account = "income:investments:fd:interest"
+                , role = Interest
+                }
+            ]
+        }
+
+descendantFdInterest :: IO ()
+descendantFdInterest = do
+    snapshotResult <- loadSnapshot "test/fixtures/investment-descendant.journal"
+    mappings <- case mkInvestmentMappings [parentFdMapping] of
+        Left message -> assertFailure (show message) >> fail "invalid mapping"
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let summary =
+                    investmentSummaryAt
+                        snapshot
+                        mappings
+                        "INR"
+                        (Just "assets:investments:fd:hdfc")
+                        (fromGregorian 2026 3 31)
+            assertEqual "market value" (Just 107000) summary.marketValue
+            assertEqual "selected interest income" (Just 7000) summary.attributedIncome
+            assertEqual "principal cost" (Just 100000) summary.purchaseCost
+            assertEqual "total profit" (Just 7000) summary.totalProfit
+            assertEqual "return" (Just 7) summary.returnPercentage
+            assertEqual "completeness" Complete summary.completeness
+
+parentFdMapping :: InvestmentMapping
+parentFdMapping =
+    InvestmentMapping
+        { assetAccount = "assets:investments:fd"
         , performanceAccounts =
             [ PerformanceAccount
                 { account = "income:investments:fd:interest"

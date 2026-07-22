@@ -76,7 +76,13 @@ mappingsForScope :: Text -> InvestmentMappings -> [InvestmentMapping]
 mappingsForScope scope (InvestmentMappings mappings) =
     if Text.null scope
         then mappings
-        else filter (\mapping -> scope `isPrefixOf` mapping.assetAccount) mappings
+        else
+            filter
+                ( \mapping ->
+                    scope `isPrefixOf` mapping.assetAccount
+                        || mapping.assetAccount `isPrefixOf` scope
+                )
+                mappings
 
 mappingForAccount :: Text -> InvestmentMappings -> Maybe InvestmentMapping
 mappingForAccount asset (InvestmentMappings mappings) =
