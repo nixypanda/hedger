@@ -9,10 +9,12 @@ import Control.Monad (void)
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp (
     defaultSettings,
     runSettings,
+    setBeforeMainLoop,
     setGracefulShutdownTimeout,
     setHost,
     setInstallShutdownHandler,
@@ -47,6 +49,8 @@ runServer configuration = do
     void (installHandler sigHUP (Catch (void (reloadSnapshot store configuration.journalPath))) Nothing)
     let settings =
             setInstallShutdownHandler installShutdownHandler
+                . setBeforeMainLoop
+                    (Text.putStrLn ("\nStarted server on port " <> Text.pack (show configuration.listenPort)))
                 . setGracefulShutdownTimeout (Just 10)
                 . setHost (fromString (Text.unpack configuration.listenAddress))
                 . setPort configuration.listenPort

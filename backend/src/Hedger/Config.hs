@@ -1,23 +1,23 @@
 module Hedger.Config (
     Config (..),
-    LogLevel (..),
     loadConfig,
     parseConfig,
 )
 where
 
 import Control.Applicative ((<|>))
+import Control.Exception (IOException, displayException, try)
+import Data.Aeson (FromJSON, ToJSON)
+import Data.ByteString (ByteString)
+import Data.ByteString qualified as ByteString
 import Data.Char qualified as Char
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Yaml qualified as Yaml
+import GHC.Generics (Generic)
 import Options.Applicative qualified as Options
-import System.Environment qualified as Environment
-import Text.Read qualified as Read
 
 import Hedger.Domain.Investment qualified as Investment
-
-data LogLevel = Debug | Info | Warn | Error
-    deriving stock (Eq, Ord, Show)
 
 data Config = Config
     { journalPath :: Text
@@ -25,103 +25,149 @@ data Config = Config
     , listenPort :: Int
     , defaultDisplayCommodity :: Text
     , fiscalYearStartMonth :: Int
-    , logLevel :: LogLevel
-    , publicBaseUrl :: Maybe Text
     , investmentMappings :: Investment.InvestmentMappings
     }
     deriving stock (Eq, Show)
 
+data FileConfig = FileConfig
+    { version :: Int
+    , journal :: Maybe JournalFileConfig
+    , server :: Maybe ServerFileConfig
+    , display :: Maybe DisplayFileConfig
+    , investments :: Maybe InvestmentsFileConfig
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data JournalFileConfig = JournalFileConfig
+    { path :: Text
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data ServerFileConfig = ServerFileConfig
+    { listenAddress :: Maybe Text
+    , port :: Maybe Int
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data DisplayFileConfig = DisplayFileConfig
+    { commodity :: Maybe Text
+    , fiscalYearStartMonth :: Maybe Int
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data InvestmentsFileConfig = InvestmentsFileConfig
+    { gainMappings :: [GainMappingFileConfig]
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data GainMappingFileConfig = GainMappingFileConfig
+    { assetAccount :: Text
+    , gainAccounts :: [Text]
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
 data CliOptions = CliOptions
-    { cliJournalPath :: Maybe Text
+    { cliConfigPath :: Maybe Text
+    , cliJournalPath :: Maybe Text
     , cliListenAddress :: Maybe Text
     , cliListenPort :: Maybe Int
     , cliDisplayCommodity :: Maybe Text
     , cliFiscalYearStartMonth :: Maybe Int
-    , cliLogLevel :: Maybe LogLevel
-    , cliPublicBaseUrl :: Maybe Text
     }
 
 loadConfig :: IO (Either Text Config)
 loadConfig = do
-    environment <- fmap (fmap (bimap Text.pack Text.pack)) Environment.getEnvironment
     cli <- Options.execParser parserInfo
-    pure (resolveConfig environment cli)
-  where
-    bimap mapFirst mapSecond (first, second) = (mapFirst first, mapSecond second)
+    case cli.cliConfigPath of
+        Nothing -> pure (resolveConfig emptyFileConfig cli)
+        Just configPath -> do
+            loaded <- readConfigurationFile (Text.unpack configPath)
+            pure $ case loaded of
+                Left problem ->
+                    Left
+                        ( "Could not read configuration file "
+                            <> configPath
+                            <> ": "
+                            <> Text.pack (displayException problem)
+                        )
+                Right contents -> decodeFileConfig contents >>= (`resolveConfig` cli)
 
-parseConfig :: [(Text, Text)] -> [Text] -> Either Text Config
-parseConfig environment arguments = do
+parseConfig :: Maybe ByteString -> [Text] -> Either Text Config
+parseConfig document arguments = do
     cli <- parseArguments arguments
-    resolveConfig environment cli
+    fileConfig <- maybe (Right emptyFileConfig) decodeFileConfig document
+    resolveConfig fileConfig cli
 
-resolveConfig :: [(Text, Text)] -> CliOptions -> Either Text Config
-resolveConfig environment cli = do
-    configuredPort <- cli.cliListenPort `orEnvironmentParsed` "HEDGER_PORT"
-    configuredFiscal <- cli.cliFiscalYearStartMonth `orEnvironmentParsed` "HEDGER_FISCAL_YEAR_START"
-    configuredLevel <- cli.cliLogLevel `orEnvironmentLogLevel` "HEDGER_LOG_LEVEL"
-    let port = configuredPort `orDefault` 8080
-        fiscal = configuredFiscal `orDefault` 4
-        level = configuredLevel `orDefault` Info
-        path = (cli.cliJournalPath <|> lookup "HEDGER_JOURNAL_PATH" environment) `orDefault` ""
-    mappings <- temporaryInvestmentMappings path
+readConfigurationFile :: FilePath -> IO (Either IOException ByteString)
+readConfigurationFile = try . ByteString.readFile
+
+decodeFileConfig :: ByteString -> Either Text FileConfig
+decodeFileConfig contents =
+    case Yaml.decodeEither' contents of
+        Left problem -> Left (Text.pack (Yaml.prettyPrintParseException problem))
+        Right fileConfig
+            | fileConfig.version == 1 -> Right fileConfig
+            | otherwise -> Left "Configuration version must be 1."
+
+resolveConfig :: FileConfig -> CliOptions -> Either Text Config
+resolveConfig fileConfig cli = do
+    mappings <- investmentMappingsFrom fileConfig.investments
     validate
         Config
-            { journalPath = path
+            { journalPath =
+                (cli.cliJournalPath <|> ((.path) <$> fileConfig.journal)) `orDefault` ""
             , listenAddress =
-                (cli.cliListenAddress <|> lookup "HEDGER_LISTEN_ADDRESS" environment) `orDefault` "127.0.0.1"
-            , listenPort = port
+                (cli.cliListenAddress <|> (fileConfig.server >>= (.listenAddress)))
+                    `orDefault` "127.0.0.1"
+            , listenPort =
+                (cli.cliListenPort <|> (fileConfig.server >>= (.port))) `orDefault` 8080
             , defaultDisplayCommodity =
-                (cli.cliDisplayCommodity <|> lookup "HEDGER_DISPLAY_COMMODITY" environment) `orDefault` "INR"
-            , fiscalYearStartMonth = fiscal
-            , logLevel = level
-            , publicBaseUrl = cli.cliPublicBaseUrl <|> lookup "HEDGER_PUBLIC_BASE_URL" environment
+                (cli.cliDisplayCommodity <|> (fileConfig.display >>= (.commodity)))
+                    `orDefault` "INR"
+            , fiscalYearStartMonth =
+                (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
+                    `orDefault` 4
             , investmentMappings = mappings
             }
-  where
-    cliValue `orEnvironmentParsed` name =
-        case cliValue of
-            Just value -> Right (Just value)
-            Nothing -> traverse (parseInteger name) (lookup name environment)
 
-    cliValue `orEnvironmentLogLevel` name =
-        case cliValue of
-            Just value -> Right (Just value)
-            Nothing -> traverse parseLogLevel (lookup name environment)
+investmentMappingsFrom :: Maybe InvestmentsFileConfig -> Either Text Investment.InvestmentMappings
+investmentMappingsFrom Nothing = Right Investment.emptyInvestmentMappings
+investmentMappingsFrom (Just configured) = do
+    mappings <- traverse investmentMappingFrom configured.gainMappings
+    Investment.mkInvestmentMappings mappings
 
-temporaryInvestmentMappings :: Text -> Either Text Investment.InvestmentMappings
-temporaryInvestmentMappings journalPath
-    | "india-us-portfolio-2023-2025.journal" `Text.isSuffixOf` journalPath =
-        Investment.mkInvestmentMappings
-            [ mapping "assets:debt" []
-            , mapping
-                "assets:debt:epf:india:nimbusworks"
-                [ performance "income:interest:epf" Investment.Interest
-                ]
-            , mapping
-                "assets:debt:eps:india:nimbusworks"
-                [performance "income:interest:eps" Investment.Interest]
-            , mapping
-                "assets:debt:ppf:india:varuna"
-                [performance "income:interest:ppf" Investment.Interest]
-            , mapping "assets:hybrid" []
-            , mapping
-                "assets:hybrid:india:nps:monsoon"
-                [performance "income:interest:nps" Investment.Interest]
-            , mapping
-                "assets:equity"
-                [ performance "income:dividend:india" Investment.Dividend
-                , performance "income:dividend:us" Investment.Dividend
-                , performance "expenses:financial:brokerage:india" Investment.Fee
-                , performance "expenses:financial:brokerage:us" Investment.Fee
-                ]
-            , mapping "assets:liquid" []
-            , mapping "assets:gold" []
-            , mapping "assets:property" []
-            ]
-    | otherwise = Right Investment.emptyInvestmentMappings
-  where
-    mapping = Investment.InvestmentMapping
-    performance = Investment.PerformanceAccount
+investmentMappingFrom :: GainMappingFileConfig -> Either Text Investment.InvestmentMapping
+investmentMappingFrom configured
+    | null configured.gainAccounts =
+        Left "Each investment gain mapping requires at least one gain account."
+    | otherwise =
+        Right
+            Investment.InvestmentMapping
+                { assetAccount = configured.assetAccount
+                , performanceAccounts =
+                    [ Investment.PerformanceAccount
+                        { account
+                        , role = Investment.OtherIncome
+                        }
+                    | account <- configured.gainAccounts
+                    ]
+                }
+
+emptyFileConfig :: FileConfig
+emptyFileConfig =
+    FileConfig
+        { version = 1
+        , journal = Nothing
+        , server = Nothing
+        , display = Nothing
+        , investments = Nothing
+        }
 
 orDefault :: Maybe value -> value -> value
 orDefault configured fallback = maybe fallback id configured
@@ -146,22 +192,12 @@ parserInfo =
 cliOptionsParser :: Options.Parser CliOptions
 cliOptionsParser =
     CliOptions
-        <$> optionalText "journal" "PATH" "Runtime path to the root journal"
+        <$> optionalText "config" "PATH" "Path to the YAML configuration file"
+        <*> optionalText "journal" "PATH" "Runtime path to the root journal"
         <*> optionalText "listen-address" "ADDRESS" "Listen address (default: 127.0.0.1)"
         <*> optionalAuto "port" "PORT" "Listen port (default: 8080)"
         <*> optionalText "display-commodity" "COMMODITY" "Default display commodity (default: INR)"
         <*> optionalAuto "fiscal-year-start" "MONTH" "Fiscal-year start month (default: 4)"
-        <*> Options.optional
-            ( Options.option
-                (Options.eitherReader (firstText . parseLogLevel . Text.pack))
-                ( Options.long "log-level"
-                    <> Options.metavar "LEVEL"
-                    <> Options.help "debug|info|warn|error (default: info)"
-                )
-            )
-        <*> optionalText "public-base-url" "URL" "Optional absolute public base URL"
-  where
-    firstText = either (Left . Text.unpack) Right
 
 optionalText :: Text -> Text -> Text -> Options.Parser (Maybe Text)
 optionalText name valueName description =
@@ -196,7 +232,6 @@ validate config = do
         | config.fiscalYearStartMonth < 1 || config.fiscalYearStartMonth > 12 ->
             Left "Fiscal-year start must be between 1 and 12."
         | otherwise -> pure ()
-    validatePublicBaseUrl config.publicBaseUrl
     pure config
 
 requireNonBlank :: Text -> Text -> Either Text ()
@@ -208,25 +243,3 @@ requireToken :: Text -> Text -> Either Text ()
 requireToken label value
     | not (Text.null value) && not (Text.any Char.isSpace value) = Right ()
     | otherwise = Left ("A non-empty " <> label <> " is required.")
-
-validatePublicBaseUrl :: Maybe Text -> Either Text ()
-validatePublicBaseUrl Nothing = Right ()
-validatePublicBaseUrl (Just url)
-    | isHttpPrefix && not (Text.any Char.isSpace url) =
-        Right ()
-    | otherwise = Left "Public base URL must be an absolute http(s) URL."
-  where
-    isHttpPrefix = "http://" `Text.isPrefixOf` url || "https://" `Text.isPrefixOf` url
-
-parseInteger :: Text -> Text -> Either Text Int
-parseInteger label value =
-    maybe (Left (label <> " must be an integer.")) Right (Read.readMaybe (Text.unpack value))
-
-parseLogLevel :: Text -> Either Text LogLevel
-parseLogLevel value =
-    case Text.toLower value of
-        "debug" -> Right Debug
-        "info" -> Right Info
-        "warn" -> Right Warn
-        "error" -> Right Error
-        _ -> Left "Log level must be one of debug, info, warn, or error."

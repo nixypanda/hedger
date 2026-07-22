@@ -88,6 +88,7 @@
                   wai
                   wai-extra
                   warp
+                  yaml
                 ]
               ))
               hledger
@@ -137,6 +138,7 @@
               wai
               wai-extra
               warp
+              yaml
             ]
           );
           elmRegistry =
@@ -172,6 +174,7 @@
                   hledger
                   just
                   python3
+                  ripgrep
                 ];
               }
               ''

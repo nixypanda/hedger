@@ -220,7 +220,7 @@ Create the Haskell executable with:
 - a static `GET /api/v1/bootstrap` response backed by the fixture.
 
 Configuration should include the journal path, listen address/port, default
-display commodity, fiscal-year start, log level, and optional public base URL.
+display commodity, fiscal-year start, and investment gain mappings.
 The journal path must be a runtime path and must not copy private ledger data
 into the Nix store.
 

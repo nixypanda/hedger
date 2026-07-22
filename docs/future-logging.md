@@ -6,10 +6,6 @@ adapter. It emits conventional access logs while replacing the hledger `query`
 parameter value with `[REDACTED]` and avoids a project-specific logging
 abstraction.
 
-The `HEDGER_LOG_LEVEL`/`--log-level` configuration is retained for future
-application and journal-loading diagnostics, but it does not filter the stock
-HTTP access log in Release 1.
-
 Revisit structured logging only when an operational requirement justifies it,
 for example centralized log ingestion, dashboards, alerting, or correlation
 across services. At that point evaluate an off-the-shelf logging package and a

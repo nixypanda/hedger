@@ -22,7 +22,7 @@ import Network.Wai.Test (
  )
 import Test.Tasty.HUnit (assertBool)
 
-import Hedger.Config (Config (..), LogLevel (Info))
+import Hedger.Config (Config (..))
 import Hedger.Domain.Investment (emptyInvestmentMappings)
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 
@@ -34,8 +34,6 @@ configuration =
         , listenPort = 8080
         , defaultDisplayCommodity = "INR"
         , fiscalYearStartMonth = 4
-        , logLevel = Info
-        , publicBaseUrl = Nothing
         , investmentMappings = emptyInvestmentMappings
         }
 

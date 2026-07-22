@@ -60,10 +60,10 @@ check-frontend-line-length:
 check-contracts:
     python3 scripts/check_contracts.py contracts/openapi.json
 
-# Run the Phase 2 server against the synthetic fixture.
+# Run the backend with the example configuration and journal.
 [working-directory("backend")]
 serve-backend:
-    cabal run hedger-server -- --journal ../examples/india-us-portfolio-2023-2025.journal --display-commodity INR
+    cabal run hedger-server -- --config ../hedger.example.yaml
 
 [working-directory("frontend-web")]
 serve-frontend:
