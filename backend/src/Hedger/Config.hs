@@ -14,6 +14,8 @@ import Options.Applicative qualified as Options
 import System.Environment qualified as Environment
 import Text.Read qualified as Read
 
+import Hedger.Domain.Investment qualified as Investment
+
 data LogLevel = Debug | Info | Warn | Error
     deriving stock (Eq, Ord, Show)
 
@@ -25,6 +27,7 @@ data Config = Config
     , fiscalYearStartMonth :: Int
     , logLevel :: LogLevel
     , publicBaseUrl :: Maybe Text
+    , investmentMappings :: Investment.InvestmentMappings
     }
     deriving stock (Eq, Show)
 
@@ -59,10 +62,11 @@ resolveConfig environment cli = do
     let port = configuredPort `orDefault` 8080
         fiscal = configuredFiscal `orDefault` 4
         level = configuredLevel `orDefault` Info
+        path = (cli.cliJournalPath <|> lookup "HEDGER_JOURNAL_PATH" environment) `orDefault` ""
+    mappings <- temporaryInvestmentMappings path
     validate
         Config
-            { journalPath =
-                (cli.cliJournalPath <|> lookup "HEDGER_JOURNAL_PATH" environment) `orDefault` ""
+            { journalPath = path
             , listenAddress =
                 (cli.cliListenAddress <|> lookup "HEDGER_LISTEN_ADDRESS" environment) `orDefault` "127.0.0.1"
             , listenPort = port
@@ -71,6 +75,7 @@ resolveConfig environment cli = do
             , fiscalYearStartMonth = fiscal
             , logLevel = level
             , publicBaseUrl = cli.cliPublicBaseUrl <|> lookup "HEDGER_PUBLIC_BASE_URL" environment
+            , investmentMappings = mappings
             }
   where
     cliValue `orEnvironmentParsed` name =
@@ -82,6 +87,41 @@ resolveConfig environment cli = do
         case cliValue of
             Just value -> Right (Just value)
             Nothing -> traverse parseLogLevel (lookup name environment)
+
+temporaryInvestmentMappings :: Text -> Either Text Investment.InvestmentMappings
+temporaryInvestmentMappings journalPath
+    | "india-us-portfolio-2023-2025.journal" `Text.isSuffixOf` journalPath =
+        Investment.mkInvestmentMappings
+            [ mapping "assets:debt" []
+            , mapping
+                "assets:debt:epf:india:nimbusworks"
+                [ performance "income:interest:epf" Investment.Interest
+                ]
+            , mapping
+                "assets:debt:eps:india:nimbusworks"
+                [performance "income:interest:eps" Investment.Interest]
+            , mapping
+                "assets:debt:ppf:india:varuna"
+                [performance "income:interest:ppf" Investment.Interest]
+            , mapping "assets:hybrid" []
+            , mapping
+                "assets:hybrid:india:nps:monsoon"
+                [performance "income:interest:nps" Investment.Interest]
+            , mapping
+                "assets:equity"
+                [ performance "income:dividend:india" Investment.Dividend
+                , performance "income:dividend:us" Investment.Dividend
+                , performance "expenses:financial:brokerage:india" Investment.Fee
+                , performance "expenses:financial:brokerage:us" Investment.Fee
+                ]
+            , mapping "assets:liquid" []
+            , mapping "assets:gold" []
+            , mapping "assets:property" []
+            ]
+    | otherwise = Right Investment.emptyInvestmentMappings
+  where
+    mapping = Investment.InvestmentMapping
+    performance = Investment.PerformanceAccount
 
 orDefault :: Maybe value -> value -> value
 orDefault configured fallback = maybe fallback id configured

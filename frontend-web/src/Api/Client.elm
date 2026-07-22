@@ -4,6 +4,7 @@ module Api.Client exposing
     , getActivity
     , getBootstrap
     , getCashflow
+    , getInvestments
     , getNetWorth
     , getTransactions
     , transactionsUrl
@@ -13,6 +14,7 @@ import Api.Account as Account exposing (Response)
 import Api.Analytics as Analytics
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
+import Api.Investments as Investments
 import Api.Register as Register
 import Api.Transaction as Transaction exposing (Response)
 import Http
@@ -62,6 +64,11 @@ getNetWorth request toMsg =
 getCashflow : Analytics.AnalyticsRequest -> (Result ApiError Analytics.CashflowResponse -> msg) -> Cmd msg
 getCashflow request toMsg =
     analyticsPost "cashflow" (Analytics.requestEncoder request) Analytics.cashflowDecoder toMsg
+
+
+getInvestments : Investments.Request -> (Result ApiError Investments.Response -> msg) -> Cmd msg
+getInvestments request toMsg =
+    analyticsPost "investments" (Investments.requestEncoder request) Investments.decoder toMsg
 
 
 getActivity : Analytics.ActivityRequest -> (Result ApiError Analytics.ActivityResponse -> msg) -> Cmd msg

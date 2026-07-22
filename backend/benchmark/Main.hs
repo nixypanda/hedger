@@ -5,8 +5,21 @@ import Control.Exception (evaluate)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Text qualified as Text
-import Hedger.Application.TransactionQuery (TransactionPage (transactions), transactionPage)
-import Hedger.Domain.Snapshot (Snapshot (transactions))
+import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian, toGregorian)
+import Hedger.Application.Investments qualified as Investments
+import Hedger.Application.TransactionQuery (
+    TransactionPage (transactions),
+    TransactionPageRequest (..),
+    transactionPage,
+ )
+import Hedger.Domain.Investment (
+    InvestmentMapping (..),
+    PerformanceAccount (..),
+    PerformanceRole (..),
+    mkInvestmentMappings,
+ )
+import Hedger.Domain.Investment qualified as Investment
+import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
 import Hedger.Interface.HTTP.Common (ResponseMetadata (..))
 import Hedger.Interface.HTTP.Transactions (
@@ -28,6 +41,8 @@ main =
         [ bench "snapshot/parse-shared-13" $ nfIO loadAndForceFixture
         , queryBenchmarks "shared-13" "test/fixtures/shared.journal"
         , queryBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
+        , investmentBenchmarks "shared-13" "test/fixtures/shared.journal"
+        , investmentBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
         , env loadTransactions $ \transactions ->
             bgroup
                 "transactions"
@@ -48,6 +63,18 @@ newtype BenchSnapshot = BenchSnapshot Snapshot
 instance NFData BenchSnapshot where
     rnf (BenchSnapshot snapshot) = rnf (sum (length . Hledger.tpostings <$> snapshot.transactions))
 
+data InvestmentInput = InvestmentInput
+    { snapshot :: Snapshot
+    , latest :: Day
+    , monthEnds :: [Day]
+    }
+
+instance NFData InvestmentInput where
+    rnf input =
+        rnf (sum (length . Hledger.tpostings <$> input.snapshot.transactions)) `seq`
+            rnf input.latest `seq`
+                rnf input.monthEnds
+
 queryBenchmarks :: String -> Text.Text -> Benchmark
 queryBenchmarks fixtureName fixturePath =
     env (BenchSnapshot <$> loadFixtureAt fixturePath) $ \(BenchSnapshot snapshot) ->
@@ -56,6 +83,68 @@ queryBenchmarks fixtureName fixturePath =
             [ bench "account" $ nf (queryWeight snapshot) "acct:assets"
             , bench "boolean" $ nf (queryWeight snapshot) "expr:'(acct:expenses OR desc:Salary)'"
             ]
+
+investmentBenchmarks :: String -> Text.Text -> Benchmark
+investmentBenchmarks fixtureName fixturePath =
+    env (loadInvestmentInput fixturePath) $ \input ->
+        bgroup
+            ("investments/" <> fixtureName)
+            [ bench "current" $
+                nf
+                    (summaryWeight . investmentSummary input.snapshot)
+                    input.latest
+            , bench "monthly-24" $
+                nf
+                    (sum . fmap (summaryWeight . investmentSummary input.snapshot))
+                    input.monthEnds
+            ]
+
+investmentSummary :: Snapshot -> Day -> Investments.InvestmentSummary
+investmentSummary snapshot day =
+    Investments.investmentSummaryAt snapshot benchmarkMappings "INR" Nothing day
+
+summaryWeight :: Investments.InvestmentSummary -> Int
+summaryWeight summary =
+    sum
+        [ length (show summary.marketValue)
+        , length (show summary.purchaseCost)
+        , length (show summary.gainLoss)
+        , length (show summary.returnPercentage)
+        , length (show summary.attributedIncome)
+        , length (show summary.realisedGain)
+        , length (show summary.totalProfit)
+        , length (show summary.completeness)
+        ]
+
+benchmarkMappings :: Investment.InvestmentMappings
+benchmarkMappings =
+    either (error . Text.unpack) id $
+        mkInvestmentMappings
+            [ InvestmentMapping
+                { assetAccount = "assets"
+                , performanceAccounts =
+                    [ PerformanceAccount "income:interest" Interest
+                    , PerformanceAccount "income:dividend" Dividend
+                    ]
+                }
+            ]
+
+loadInvestmentInput :: Text.Text -> IO InvestmentInput
+loadInvestmentInput fixturePath = do
+    snapshot <- loadFixtureAt fixturePath
+    let latest = maybe (error "investment benchmark fixture has no date") id snapshot.latestJournalDate
+        monthEnds = monthlyPeriodEnds latest
+    _ <- evaluate (rnf latest `seq` rnf monthEnds)
+    pure InvestmentInput{snapshot, latest, monthEnds}
+
+monthlyPeriodEnds :: Day -> [Day]
+monthlyPeriodEnds latest =
+    [ min latest (addDays (-1) (addGregorianMonthsClip 1 (addGregorianMonthsClip offset finalStart)))
+    | offset <- [-23 .. 0]
+    ]
+  where
+    (year, month, _) = toGregorian latest
+    finalStart = fromGregorian year month 1
 
 loadAndForceFixture :: IO Int
 loadAndForceFixture = do
@@ -90,7 +179,7 @@ responseFor transactions =
 
 queryWeight :: Snapshot -> Text.Text -> Int
 queryWeight snapshot query =
-    case transactionPage snapshot (Just query) (Just "50") Nothing of
+    case transactionPage snapshot TransactionPageRequest{query = Just query, limit = 50, cursor = Nothing} of
         Left _ -> 0
         Right page -> projectionWeight (toTransactions page.transactions)
 

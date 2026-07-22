@@ -110,6 +110,30 @@
         }
       }
     },
+    "/investments/query": {
+      "post": {
+        "operationId": "queryInvestments",
+        "description": "Returns the investment performance projection for the configured investment mappings and an optional fully qualified asset-account subtree.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvestmentsRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Portfolio summary, historical performance, breadcrumbs, child account summaries, and structured completeness warnings",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvestmentsResponse" } } }
+          },
+          "400": {
+            "description": "Invalid granularity, display commodity, or account prefix",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          },
+          "503": {
+            "description": "No usable journal snapshot is available",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+          }
+        }
+      }
+    },
     "/cashflow/query": {
       "post": {
         "operationId": "queryCashflow",
@@ -405,6 +429,94 @@
           "performance": { "type": "array", "items": { "$ref": "#/components/schemas/PerformancePoint" } },
           "incompletePeriods": { "type": "integer", "minimum": 0 },
           "warnings": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "InvestmentsRequest": {
+        "type": "object",
+        "required": ["granularity"],
+        "properties": {
+          "granularity": { "type": "string", "enum": ["monthly", "yearly"] },
+          "displayCommodity": { "type": ["string", "null"] },
+          "accountPrefix": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "InvestmentSummary": {
+        "type": "object",
+        "required": ["marketValue", "purchaseCost", "gainLoss", "returnPercentage", "attributedIncome", "realisedGain", "totalProfit", "completeness"],
+        "properties": {
+          "marketValue": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "purchaseCost": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "gainLoss": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "returnPercentage": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "attributedIncome": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "realisedGain": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "totalProfit": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "completeness": { "type": "string", "enum": ["complete", "partial", "unavailable"] }
+        },
+        "additionalProperties": false
+      },
+      "InvestmentTimelinePoint": {
+        "type": "object",
+        "required": ["period", "startDate", "marketValue", "purchaseCost", "gainLoss", "returnPercentage", "attributedIncome", "realisedGain", "totalProfit", "completeness"],
+        "properties": {
+          "period": { "type": "string" },
+          "startDate": { "type": "string", "format": "date" },
+          "marketValue": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "purchaseCost": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "gainLoss": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "returnPercentage": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "attributedIncome": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "realisedGain": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "totalProfit": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "completeness": { "type": "string", "enum": ["complete", "partial", "unavailable"] }
+        },
+        "additionalProperties": false
+      },
+      "InvestmentBreadcrumb": {
+        "type": "object",
+        "required": ["account", "label"],
+        "properties": {
+          "account": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      },
+      "InvestmentChild": {
+        "type": "object",
+        "required": ["account", "label", "summary", "hasChildren"],
+        "properties": {
+          "account": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "summary": { "$ref": "#/components/schemas/InvestmentSummary" },
+          "hasChildren": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "InvestmentWarning": {
+        "type": "object",
+        "required": ["kind", "account", "message"],
+        "properties": {
+          "kind": { "type": "string", "minLength": 1 },
+          "account": { "type": ["string", "null"] },
+          "message": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      },
+      "InvestmentsResponse": {
+        "type": "object",
+        "required": ["metadata", "displayCommodity", "granularity", "accountPrefix", "summary", "timeline", "breadcrumbs", "children", "warnings"],
+        "properties": {
+          "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
+          "displayCommodity": { "type": "string", "minLength": 1 },
+          "granularity": { "type": "string", "enum": ["monthly", "yearly"] },
+          "accountPrefix": { "type": ["string", "null"] },
+          "summary": { "$ref": "#/components/schemas/InvestmentSummary" },
+          "timeline": { "type": "array", "items": { "$ref": "#/components/schemas/InvestmentTimelinePoint" } },
+          "breadcrumbs": { "type": "array", "items": { "$ref": "#/components/schemas/InvestmentBreadcrumb" } },
+          "children": { "type": "array", "items": { "$ref": "#/components/schemas/InvestmentChild" } },
+          "warnings": { "type": "array", "items": { "$ref": "#/components/schemas/InvestmentWarning" } }
         },
         "additionalProperties": false
       },

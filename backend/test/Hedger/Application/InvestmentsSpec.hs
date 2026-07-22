@@ -1,0 +1,138 @@
+module Hedger.Application.InvestmentsSpec (investmentsSpec) where
+
+import Data.Either (isLeft, isRight)
+import Data.Time (fromGregorian)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
+
+import Hedger.Application.Investments (
+    InvestmentCompleteness (Complete),
+    InvestmentSummary (..),
+    investmentSummaryAt,
+ )
+import Hedger.Domain.Investment (
+    InvestmentMapping (..),
+    PerformanceAccount (..),
+    PerformanceRole (Interest, RealisedGain),
+    mkInvestmentMappings,
+ )
+import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
+
+investmentsSpec :: TestTree
+investmentsSpec =
+    testGroup
+        "investment performance"
+        [ testCase
+            "retained FD interest is income rather than acquisition cost or unrealised gain"
+            retainedFdInterest
+        , testCase "explicit partial disposal reduces remaining basis" partialDisposal
+        , testCase
+            "foreign acquisition cost uses acquisition-date FX and inherits its mapping"
+            foreignAcquisitionCost
+        , testCase
+            "mapping validation rejects overlapping performance ownership but permits no-income assets"
+            mappingValidation
+        ]
+
+retainedFdInterest :: IO ()
+retainedFdInterest = do
+    snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
+    mappings <- case mkInvestmentMappings [fdMapping] of
+        Left message -> assertFailure (show message) >> fail "invalid mapping"
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let summary =
+                    investmentSummaryAt
+                        snapshot
+                        mappings
+                        "INR"
+                        (Just "assets:investments:fd:hdfc")
+                        (fromGregorian 2026 3 31)
+            assertEqual "market value" (Just 107000) summary.marketValue
+            assertEqual "interest income" (Just 7000) summary.attributedIncome
+            assertEqual "principal cost" (Just 100000) summary.purchaseCost
+            assertEqual "unrealised gain" (Just 0) summary.gainLoss
+            assertEqual "total profit" (Just 7000) summary.totalProfit
+            assertEqual "return" (Just 7) summary.returnPercentage
+            assertEqual "completeness" Complete summary.completeness
+
+fdMapping :: InvestmentMapping
+fdMapping =
+    InvestmentMapping
+        { assetAccount = "assets:investments:fd:hdfc"
+        , performanceAccounts =
+            [ PerformanceAccount
+                { account = "income:investments:fd:interest"
+                , role = Interest
+                }
+            ]
+        }
+
+partialDisposal :: IO ()
+partialDisposal = do
+    snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
+    mappings <- case mkInvestmentMappings [equityMapping] of
+        Left message -> assertFailure (show message) >> fail "invalid mapping"
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let summary =
+                    investmentSummaryAt
+                        snapshot
+                        mappings
+                        "INR"
+                        (Just "assets:investments:equity:xyz")
+                        (fromGregorian 2026 3 31)
+            assertEqual "remaining market value" (Just 900) summary.marketValue
+            assertEqual "remaining cost" (Just 600) summary.purchaseCost
+            assertEqual "unrealised gain" (Just 300) summary.gainLoss
+            assertEqual "realised gain" (Just 200) summary.realisedGain
+            assertEqual "total profit" (Just 500) summary.totalProfit
+
+foreignAcquisitionCost :: IO ()
+foreignAcquisitionCost = do
+    snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
+    mappings <- case mkInvestmentMappings [InvestmentMapping "assets:investments:equity" []] of
+        Left message -> assertFailure (show message) >> fail "invalid mapping"
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let summary =
+                    investmentSummaryAt
+                        snapshot
+                        mappings
+                        "INR"
+                        (Just "assets:investments:equity:foreign")
+                        (fromGregorian 2026 3 31)
+            assertEqual "market value" (Just 12750) summary.marketValue
+            assertEqual "historical INR cost" (Just 8000) summary.purchaseCost
+            assertEqual "unrealised gain" (Just 4750) summary.gainLoss
+            assertEqual "total profit" (Just 4750) summary.totalProfit
+            assertEqual "completeness inherited from parent" Complete summary.completeness
+
+mappingValidation :: IO ()
+mappingValidation = do
+    let emptyProperty = InvestmentMapping "assets:property:home" []
+        first =
+            InvestmentMapping
+                "assets:investments:a"
+                [PerformanceAccount "income:investments:shared" Interest]
+        second =
+            InvestmentMapping
+                "assets:investments:b"
+                [PerformanceAccount "income:investments:shared:detail" Interest]
+    assertBool
+        "an explicit no-income property mapping is valid"
+        (isRight (mkInvestmentMappings [emptyProperty]))
+    assertBool "overlapping performance scopes are rejected" (isLeft (mkInvestmentMappings [first, second]))
+
+equityMapping :: InvestmentMapping
+equityMapping =
+    InvestmentMapping
+        { assetAccount = "assets:investments:equity:xyz"
+        , performanceAccounts = [PerformanceAccount "income:investments:xyz:gains" RealisedGain]
+        }

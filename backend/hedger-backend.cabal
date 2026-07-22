@@ -42,6 +42,7 @@ library
     Hedger.Application.AppM
     Hedger.Application.Common
     Hedger.Application.Internal.Cursor
+    Hedger.Application.Investments
     Hedger.Application.System
     Hedger.Application.TransactionQuery
     Hedger.Application.Transactions
@@ -50,6 +51,7 @@ library
     Hedger.Domain.Error
     Hedger.Domain.Internal.Account
     Hedger.Domain.Internal.Transaction
+    Hedger.Domain.Investment
     Hedger.Domain.Snapshot
     Hedger.Domain.Transaction
     Hedger.Infrastructure.SnapshotStore
@@ -58,6 +60,7 @@ library
     Hedger.Interface.HTTP.Analytics
     Hedger.Interface.HTTP.Common
     Hedger.Interface.HTTP.Errors
+    Hedger.Interface.HTTP.Investments
     Hedger.Interface.HTTP.Middleware
     Hedger.Interface.HTTP.System
     Hedger.Interface.HTTP.Transactions
@@ -106,6 +109,7 @@ test-suite hedger-backend-test
   main-is: Main.hs
   hs-source-dirs: test
   other-modules:
+    Hedger.Application.InvestmentsSpec
     Hedger.Application.TransactionQuerySpec
     Hedger.ConfigSpec
     Hedger.Domain.TransactionSpec
@@ -147,3 +151,4 @@ benchmark snapshot-bench
     hledger-lib >=1.52 && <1.53,
     tasty-bench >=0.4 && <0.5,
     text >=2.0 && <2.2,
+    time >=1.12 && <1.15,

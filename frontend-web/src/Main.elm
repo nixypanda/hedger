@@ -286,31 +286,8 @@ pageView theme model =
 
 
 isRealPage : Route -> Bool
-isRealPage route =
-    case route of
-        NetWorth ->
-            True
-
-        Cashflow ->
-            True
-
-        Accounts ->
-            True
-
-        Account _ ->
-            True
-
-        AccountValue _ ->
-            True
-
-        Transactions ->
-            True
-
-        Settings ->
-            True
-
-        _ ->
-            False
+isRealPage _ =
+    True
 
 
 bootstrapStatus : Theme -> RemoteData Bootstrap -> Element Msg

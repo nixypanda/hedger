@@ -3,6 +3,7 @@ module View.Formatting exposing
     , compactValue
     , formatAmountDisplay
     , formatBalance
+    , formatPercentage
     , roundedString
     )
 
@@ -64,6 +65,15 @@ formatBalance balance =
 
         Nothing ->
             commodityDisplaySymbol (Quantity.commodity balance) ++ " " ++ quantityStr
+
+
+formatPercentage : Decimal.Decimal -> String
+formatPercentage percentage =
+    percentage
+        |> Decimal.toString
+        |> String.toFloat
+        |> Maybe.map (\value -> roundedString value 2 ++ "%")
+        |> Maybe.withDefault "—"
 
 
 formatAmountDisplay : String -> Float -> String

@@ -31,6 +31,9 @@ apiSpec = withResource setup teardown $ \getApp ->
         , testCase "cashflow rejects an invalid shared transaction query" $ do
             app <- getApp
             invalidCashflowQuery app
+        , testCase "investment projection preserves valuation when mappings are absent" $ do
+            app <- getApp
+            investmentsProjection app
         ]
 
 setup :: IO Wai.Application
@@ -134,6 +137,43 @@ invalidCashflowQuery app = do
     (_, raw) <-
         postJson "/api/v1/cashflow/query" (Aeson.encode (analyticsRequest "date:not-a-date")) app
     assertEqual "invalid query status" status400 raw.simpleStatus
+
+investmentsProjection :: Wai.Application -> IO ()
+investmentsProjection app = do
+    let requestBody =
+            object
+                [ "granularity" .= ("monthly" :: String)
+                , "displayCommodity" .= ("INR" :: String)
+                , "accountPrefix" .= ("assets:investments:stocks" :: String)
+                ]
+    (Just response, raw) <- postJson "/api/v1/investments/query" (Aeson.encode requestBody) app
+    assertEqual "investments status" status200 raw.simpleStatus
+    assertArrayLength "investments monthly timeline" 24 "timeline" response
+    assertObjectFields ["summary", "children", "breadcrumbs", "warnings"] response
+    case field "summary" response of
+        Just summary -> do
+            assertEqual
+                "market value survives missing mapping"
+                (Just (String "165000"))
+                (field "marketValue" summary)
+            assertEqual
+                "cost survives missing mapping"
+                (Just (String "120000"))
+                (field "purchaseCost" summary)
+            assertEqual "gain survives missing mapping" (Just (String "45000")) (field "gainLoss" summary)
+            assertEqual
+                "total performance is unknown without mapping"
+                (Just Null)
+                (field "totalProfit" summary)
+            assertEqual "missing mapping is partial" (Just (String "partial")) (field "completeness" summary)
+        _ -> assertFailure "expected investment summary"
+    let excludedRequest =
+            object
+                [ "granularity" .= ("monthly" :: String)
+                , "accountPrefix" .= ("assets:cash" :: String)
+                ]
+    (_, excludedRaw) <- postJson "/api/v1/investments/query" (Aeson.encode excludedRequest) app
+    assertEqual "excluded investment scope is rejected" status400 excludedRaw.simpleStatus
 
 analyticsRequest :: String -> Value
 analyticsRequest query =

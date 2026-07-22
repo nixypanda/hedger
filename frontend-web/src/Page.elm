@@ -4,6 +4,7 @@ import Element exposing (Element)
 import Page.Account as AccountPage
 import Page.AccountRegister as AccountRegisterPage
 import Page.Cashflow as CashflowPage
+import Page.Investments as InvestmentsPage
 import Page.NetWorth as NetWorthPage
 import Page.Settings as SettingsPage
 import Page.Transactions as TransactionsPage
@@ -23,6 +24,7 @@ type Model
     | AccountRegisterPage AccountRegisterPage.Model
     | NetWorthPage NetWorthPage.Model
     | CashflowPage CashflowPage.Model
+    | InvestmentsPage InvestmentsPage.Model
     | SettingsPage SettingsPage.Model
     | PlaceholderPage
 
@@ -71,6 +73,13 @@ init context maybeExistingModel =
                     CashflowPage.init
             in
             ( CashflowPage model, Cmd.map GotCashflowMsg command, NoOutMsg )
+
+        ( Investments, _ ) ->
+            let
+                ( model, command ) =
+                    InvestmentsPage.init
+            in
+            ( InvestmentsPage model, Cmd.map GotInvestmentsMsg command, NoOutMsg )
 
         ( Transactions, _ ) ->
             let
@@ -132,9 +141,6 @@ init context maybeExistingModel =
             , NoOutMsg
             )
 
-        _ ->
-            ( PlaceholderPage, Cmd.none, NoOutMsg )
-
 
 
 -- UPDATE
@@ -146,6 +152,7 @@ type Msg
     | GotAccountRegisterMsg AccountRegisterPage.Msg
     | GotNetWorthMsg NetWorthPage.Msg
     | GotCashflowMsg CashflowPage.Msg
+    | GotInvestmentsMsg InvestmentsPage.Msg
     | GotSettingsMsg SettingsPage.Msg
 
 
@@ -226,6 +233,13 @@ update context msg model =
             in
             ( CashflowPage nextModel, Cmd.map GotCashflowMsg command, NoOutMsg )
 
+        ( GotInvestmentsMsg subMsg, InvestmentsPage subModel ) ->
+            let
+                ( nextModel, command ) =
+                    InvestmentsPage.update subMsg subModel
+            in
+            ( InvestmentsPage nextModel, Cmd.map GotInvestmentsMsg command, NoOutMsg )
+
         ( GotSettingsMsg subMsg, SettingsPage subModel ) ->
             let
                 ( nextModel, subCmd, outMsg ) =
@@ -272,6 +286,9 @@ view context model =
 
         ( _, CashflowPage subModel ) ->
             Element.map GotCashflowMsg (CashflowPage.view context.theme context.viewport subModel)
+
+        ( _, InvestmentsPage subModel ) ->
+            Element.map GotInvestmentsMsg (InvestmentsPage.view context.theme context.viewport subModel)
 
         ( _, SettingsPage subModel ) ->
             Element.map GotSettingsMsg

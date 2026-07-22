@@ -1,9 +1,11 @@
 module Hedger.ConfigSpec (configSpec) where
 
+import Data.Text (Text)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 
 import Hedger.Config (Config (..), parseConfig)
+import Hedger.Domain.Investment qualified as Investment
 
 configSpec :: TestTree
 configSpec =
@@ -33,4 +35,31 @@ configSpec =
                         ["--journal", "/runtime/new journal"]
                     )
                 )
+        , testCase "temporarily maps the India-US portfolio fixture" $
+            assertEqual
+                ""
+                [ "assets:debt"
+                , "assets:debt:epf:india:nimbusworks"
+                , "assets:debt:eps:india:nimbusworks"
+                , "assets:debt:ppf:india:varuna"
+                , "assets:hybrid"
+                , "assets:hybrid:india:nps:monsoon"
+                , "assets:equity"
+                , "assets:liquid"
+                , "assets:gold"
+                , "assets:property"
+                ]
+                ( Investment.mappedAssetAccounts
+                    (configFor "../examples/india-us-portfolio-2023-2025.journal").investmentMappings
+                )
+        , testCase "keeps other journals unmapped" $
+            assertEqual
+                ""
+                []
+                (Investment.mappedAssetAccounts (configFor "fixture.journal").investmentMappings)
         ]
+
+configFor :: Text -> Config
+configFor journalPath = case parseConfig [("HEDGER_JOURNAL_PATH", journalPath)] [] of
+    Right config -> config
+    Left message -> error (show message)

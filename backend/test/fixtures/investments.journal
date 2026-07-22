@@ -1,0 +1,30 @@
+commodity INR
+commodity XYZ
+commodity USD
+commodity FOREIGN
+
+P 2026-03-31 XYZ INR 150
+P 2025-01-01 USD INR 80
+P 2026-03-31 USD INR 85
+P 2026-03-31 FOREIGN USD 15
+
+2025-01-01 Buy foreign equity
+    assets:investments:equity:foreign     FOREIGN 10 @ USD 10
+    assets:cash:brokerage                 USD -100
+
+2025-04-01 Open FD
+    assets:investments:fd:hdfc          INR 100000
+    assets:cash:checking               INR -100000
+
+2026-03-31 Credit FD interest
+    assets:investments:fd:hdfc            INR 7000
+    income:investments:fd:interest        INR -7000
+
+2025-06-01 Buy ten units
+    assets:investments:equity:xyz         XYZ 10 @ INR 100
+    assets:cash:checking                  INR -1000
+
+2026-03-31 Sell four units with explicit basis
+    assets:investments:equity:xyz         XYZ -4 @ INR 100
+    assets:cash:checking                  INR 600
+    income:investments:xyz:gains          INR -200
