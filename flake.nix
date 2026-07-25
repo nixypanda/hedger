@@ -188,5 +188,7 @@
               '';
         }
       );
+
+      nixosModules.default = import ./deploy/module.nix { inherit self; };
     };
 }
