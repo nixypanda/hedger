@@ -181,7 +181,12 @@ update context msg (Model data) =
                 ( Just selectedPeriod, Just point ) ->
                     let
                         selectedMonth =
-                            Just (Time.monthFromDate point.startDate)
+                            calendarMonthForPeriod
+                                data.fiscalYearStartMonth
+                                data.granularity
+                                selectedPeriod
+                                point
+                                |> Just
 
                         next =
                             selectPeriod selectedPeriod selectedMonth data
@@ -192,23 +197,38 @@ update context msg (Model data) =
                     ( Model data, [] )
 
         PeriodChanged offset ->
-            case ( data.period, data.calendarMonth ) of
-                ( Just currentPeriod, Just currentMonth ) ->
+            case data.period of
+                Just currentPeriod ->
                     let
-                        monthDistance =
-                            if data.granularity == Monthly then
+                        adjacentPoint =
+                            timelinePointAtOffset
+                                data.granularity
                                 offset
-
-                            else
-                                offset * 12
-
-                        next =
-                            selectPeriod
-                                (shiftPeriod data.granularity offset currentPeriod)
-                                (Just (Time.shiftMonth monthDistance currentMonth))
-                                data
+                                currentPeriod
+                                data.timeline
                     in
-                    withReportAndActivities context next
+                    case adjacentPoint of
+                        Just point ->
+                            case periodFromString data.granularity point.period of
+                                Just period ->
+                                    selectPeriod
+                                        period
+                                        (Just
+                                            (calendarMonthForPeriod
+                                                data.fiscalYearStartMonth
+                                                data.granularity
+                                                period
+                                                point
+                                            )
+                                        )
+                                        data
+                                        |> withReportAndActivities context
+
+                                Nothing ->
+                                    ( Model data, [] )
+
+                        Nothing ->
+                            ( Model data, [] )
 
                 _ ->
                     ( Model data, [] )
@@ -382,9 +402,10 @@ reportLoaded context report (Model data) =
             syncedPeriod data.period points data.granularity
 
         pointMonth =
-            period
-                |> Maybe.andThen (Time.periodToString >> pointFor points)
-                |> Maybe.map (.startDate >> Time.monthFromDate)
+            Maybe.map2
+                (calendarMonthForPeriod data.fiscalYearStartMonth data.granularity)
+                period
+                (period |> Maybe.andThen (Time.periodToString >> pointFor points))
 
         requestedMonth =
             if period == data.period then
@@ -841,20 +862,49 @@ periodMatches granularity period point =
     periodFromString granularity point.period == Just period
 
 
-shiftPeriod : Granularity -> Int -> Period -> Period
-shiftPeriod granularity offset period =
+timelinePointAtOffset :
+    Granularity
+    -> Int
+    -> Period
+    -> List Analytics.TimelinePoint
+    -> Maybe Analytics.TimelinePoint
+timelinePointAtOffset granularity offset currentPeriod points =
+    points
+        |> List.indexedMap Tuple.pair
+        |> List.filter (Tuple.second >> periodMatches granularity currentPeriod)
+        |> List.head
+        |> Maybe.andThen
+            (\( currentIndex, _ ) ->
+                let
+                    targetIndex =
+                        currentIndex + offset
+                in
+                if targetIndex < 0 then
+                    Nothing
+
+                else
+                    points
+                        |> List.drop targetIndex
+                        |> List.head
+            )
+
+
+calendarMonthForPeriod :
+    FiscalYearStartMonth
+    -> Granularity
+    -> Period
+    -> Analytics.TimelinePoint
+    -> Month
+calendarMonthForPeriod fiscalYearStartMonth granularity period point =
     case ( granularity, period ) of
-        ( Monthly, MonthPeriod month ) ->
-            MonthPeriod (Time.shiftMonth offset month)
-
         ( Yearly, YearPeriod year ) ->
-            YearPeriod (year + offset)
+            Month
+                { year = year
+                , month = Time.fiscalYearStartMonthValue fiscalYearStartMonth
+                }
 
-        ( Monthly, YearPeriod year ) ->
-            YearPeriod year
-
-        ( Yearly, MonthPeriod month ) ->
-            MonthPeriod month
+        _ ->
+            Time.monthFromDate point.startDate
 
 
 pointFor : List Analytics.TimelinePoint -> String -> Maybe Analytics.TimelinePoint

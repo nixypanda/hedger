@@ -25,6 +25,7 @@ import Api.Analytics
         , TimelinePoint
         )
 import Api.Transaction exposing (Transaction)
+import Data.ActivityCalendar as ActivityCalendar
 import Data.Calendar as Calendar
 import Data.Date as Date
 import Data.Decimal as Decimal exposing (Decimal)
@@ -1560,6 +1561,9 @@ miniDonut theme commodity tone categories highlightedCategory selected bucket on
         gradient =
             activityRingGradient theme tone categories highlightedCategory bucket 45
 
+        isEmpty =
+            isEmptyActivityBucket bucket
+
         monthLabel =
             String.left 3 (periodName bucket.key)
     in
@@ -1619,7 +1623,15 @@ miniDonut theme commodity tone categories highlightedCategory selected bucket on
                         , Html.div
                             [ Attr.style "font-size" "11px"
                             , Attr.style "font-weight" "600"
-                            , Attr.style "color" (Css.toCssColor (activityColor theme tone))
+                            , Attr.style "color"
+                                (Css.toCssColor
+                                    (if isEmpty then
+                                        theme.textMuted
+
+                                     else
+                                        activityColor theme tone
+                                    )
+                                )
                             , Attr.style "line-height" "1"
                             ]
                             [ Html.text (money commodity bucket.total) ]
@@ -1717,11 +1729,24 @@ activityRingGradient theme tone categories highlightedCategory bucket radius =
         stops =
             pieces |> List.foldl step ( 0, [] ) |> Tuple.second
     in
-    if List.isEmpty stops then
+    if isEmptyActivityBucket bucket then
+        emptyActivityRingColor theme
+
+    else if List.isEmpty stops then
         Css.toCssColor (activityColor theme tone)
 
     else
         "conic-gradient(" ++ String.join ", " stops ++ ")"
+
+
+isEmptyActivityBucket : ActivityBucket -> Bool
+isEmptyActivityBucket bucket =
+    List.isEmpty bucket.categories && List.isEmpty bucket.transactions
+
+
+emptyActivityRingColor : Theme -> String
+emptyActivityRingColor theme =
+    Css.toCssColor theme.stale
 
 
 withAlpha : Float -> Element.Color -> Element.Color
@@ -1833,6 +1858,9 @@ activityYear theme config =
                     selected =
                         config.selectedBucket
 
+                    displayBuckets =
+                        ActivityCalendar.yearBuckets response
+
                     cols =
                         case config.device.class of
                             Element.Phone ->
@@ -1846,6 +1874,11 @@ activityYear theme config =
 
                             Element.BigDesktop ->
                                 6
+
+                    slots =
+                        displayBuckets
+                            |> List.map Just
+                            |> padToMultiple cols Nothing
                 in
                 Element.column [ Element.width Element.fill, Element.spacing 12 ]
                     [ activityCategoryLegend theme
@@ -1856,25 +1889,34 @@ activityYear theme config =
                         config.highlightedCategory
                         config.onCategoryHighlight
                     , Element.column [ Element.width Element.fill, Element.spacing 16 ]
-                        (chunks cols response.buckets
+                        (chunks cols slots
                             |> List.map
                                 (\row ->
                                     Element.row [ Element.width Element.fill, Element.spacing 16 ]
                                         (List.map
-                                            (\bucket ->
-                                                Element.el
-                                                    [ Element.width (Element.fillPortion 1)
-                                                    , Element.paddingXY 0 8
-                                                    ]
-                                                    (miniDonut theme
-                                                        config.commodity
-                                                        config.tone
-                                                        categories
-                                                        config.highlightedCategory
-                                                        (Maybe.map .key selected == Just bucket.key)
-                                                        bucket
-                                                        config.onSelect
-                                                    )
+                                            (\maybeBucket ->
+                                                case maybeBucket of
+                                                    Just bucket ->
+                                                        Element.el
+                                                            [ Element.width (Element.fillPortion 1)
+                                                            , Element.paddingXY 0 8
+                                                            ]
+                                                            (miniDonut theme
+                                                                config.commodity
+                                                                config.tone
+                                                                categories
+                                                                config.highlightedCategory
+                                                                (Maybe.map .key selected == Just bucket.key)
+                                                                bucket
+                                                                config.onSelect
+                                                            )
+
+                                                    Nothing ->
+                                                        Element.el
+                                                            [ Element.width (Element.fillPortion 1)
+                                                            , Element.paddingXY 0 8
+                                                            ]
+                                                            Element.none
                                             )
                                             row
                                         )
@@ -2121,3 +2163,12 @@ chunks size values =
 
     else
         List.take size values :: chunks size (List.drop size values)
+
+
+padToMultiple : Int -> value -> List value -> List value
+padToMultiple size padding values =
+    let
+        missing =
+            modBy size (size - modBy size (List.length values))
+    in
+    values ++ List.repeat missing padding
