@@ -33,6 +33,9 @@ investmentsSpec =
             "foreign acquisition cost uses acquisition-date FX and inherits its mapping"
             foreignAcquisitionCost
         , testCase
+            "monthly FX prices provide historical cost for an uncosted foreign cash balance"
+            foreignCashHistoricalCost
+        , testCase
             "mapping validation rejects overlapping performance ownership but permits no-income assets"
             mappingValidation
         ]
@@ -151,6 +154,27 @@ foreignAcquisitionCost = do
             assertEqual "unrealised gain" (Just 4750) summary.gainLoss
             assertEqual "total profit" (Just 4750) summary.totalProfit
             assertEqual "completeness inherited from parent" Complete summary.completeness
+
+foreignCashHistoricalCost :: IO ()
+foreignCashHistoricalCost = do
+    snapshotResult <- loadSnapshot "test/fixtures/investment-foreign-cash.journal"
+    mappings <- case mkInvestmentMappings [InvestmentMapping "assets:cash:brokerage" []] of
+        Left message -> assertFailure (show message) >> fail "invalid mapping"
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let summary =
+                    investmentSummaryAt
+                        snapshot
+                        mappings
+                        "INR"
+                        (Just "assets:cash:brokerage")
+                        (fromGregorian 2025 2 28)
+            assertEqual "market value uses the latest monthly FX price" (Just 8200) summary.marketValue
+            assertEqual "historical cost uses acquisition-date FX" (Just 8000) summary.purchaseCost
+            assertEqual "foreign cash gain" (Just 200) summary.gainLoss
+            assertEqual "completeness" Complete summary.completeness
 
 mappingValidation :: IO ()
 mappingValidation = do

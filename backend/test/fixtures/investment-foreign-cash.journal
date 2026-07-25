@@ -1,0 +1,9 @@
+commodity INR
+commodity USD
+
+P 2025-01-01 USD INR 80
+P 2025-02-01 USD INR 82
+
+2025-01-15 Opening USD cash balance
+    assets:cash:brokerage        USD 100
+    equity:opening              USD -100

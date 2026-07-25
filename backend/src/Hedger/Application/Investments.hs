@@ -170,7 +170,7 @@ summaryAt snapshot mappings commodity scope day =
         rawMissingCost =
             Set.fromList
                 [ item.acommodity
-                | item <- HledgerAmount.amountsRaw holdings
+                | item <- HledgerAmount.amountsRaw costHoldings
                 , abs item.aquantity >= 0.000001
                 , item.acommodity /= commodity
                 , item.acost == Nothing
@@ -189,7 +189,7 @@ summaryAt snapshot mappings commodity scope day =
         relevantAccounts = investmentAccountsAt snapshot mappings scope day
         mappingComplete =
             not (null relevantAccounts)
-                && all (hasAttributableMapping mappings scope) relevantAccounts
+                && all (hasAttributablePerformance snapshot mappings day) relevantAccounts
         retained =
             if mappingComplete
                 then retainedPerformanceAt snapshot mappings commodity scope day
@@ -325,9 +325,18 @@ journalWithHistoricalCosts snapshot commodity =
             }
     convertPosting day posting =
         posting
-            { Hledger.pamount = HledgerAmount.mapMixedAmount (convertAmount day) posting.pamount
+            { Hledger.pamount =
+                HledgerAmount.mapMixedAmount
+                    (convertAmount day posting.paccount)
+                    posting.pamount
             }
-    convertAmount day amount = amount{Hledger.acost = convertCost day <$> amount.acost}
+    convertAmount day account amount =
+        amount
+            { Hledger.acost =
+                case amount.acost of
+                    Just acquisitionCost -> Just (convertCost day acquisitionCost)
+                    Nothing -> inferredCashCost day account amount
+            }
     convertCost day acquisitionCost = case acquisitionCost of
         Hledger.UnitCost amount -> Hledger.UnitCost (convertCostAmount day amount)
         Hledger.TotalCost amount -> Hledger.TotalCost (convertCostAmount day amount)
@@ -337,6 +346,26 @@ journalWithHistoricalCosts snapshot commodity =
             ( HledgerAmount.unifyMixedAmount
                 (valueAt snapshot commodity day (HledgerAmount.mixedAmount amount))
             )
+    inferredCashCost day account amount
+        | "assets:cash" `accountWithin` account
+            && amount.acommodity /= commodity =
+            Hledger.UnitCost <$> historicalUnitPrice day amount
+        | otherwise = Nothing
+    historicalUnitPrice day amount = do
+        valued <-
+            HledgerAmount.unifyMixedAmount
+                ( valueAt
+                    snapshot
+                    commodity
+                    day
+                    ( HledgerAmount.mixedAmount
+                        amount
+                            { Hledger.aquantity = 1
+                            , Hledger.acost = Nothing
+                            }
+                    )
+                )
+        if valued.acommodity == commodity then Just valued else Nothing
 
 investmentQuery :: Maybe Text -> Bool -> HledgerQuery.Query
 investmentQuery scope includeExcluded =
@@ -464,10 +493,28 @@ retainedPerformanceAt snapshot mappings commodity scope day = fmap sum (traverse
         Investment.RealisedGain -> False
         Investment.Fee -> False
 
-hasAttributableMapping :: Investment.InvestmentMappings -> Maybe Text -> Text -> Bool
-hasAttributableMapping mappings _ asset = case Investment.mappingForAccount asset mappings of
-    Nothing -> False
-    Just _ -> True
+hasAttributablePerformance ::
+    Snapshot ->
+    Investment.InvestmentMappings ->
+    Day ->
+    Text ->
+    Bool
+hasAttributablePerformance snapshot mappings day asset =
+    case Investment.mappingForAccount asset mappings of
+        Just _ -> True
+        Nothing -> accountUsesExplicitCost snapshot day asset
+
+accountUsesExplicitCost :: Snapshot -> Day -> Text -> Bool
+accountUsesExplicitCost snapshot day asset =
+    any
+        (\amount -> abs amount.aquantity >= 0.000001 && amount.acost /= Nothing)
+        [ amount
+        | transaction <- snapshot.transactions
+        , transaction.tdate <= day
+        , posting <- transaction.tpostings
+        , posting.paccount == asset
+        , amount <- HledgerAmount.amountsRaw posting.pamount
+        ]
 
 investmentAccountsAt :: Snapshot -> Investment.InvestmentMappings -> Maybe Text -> Day -> [Text]
 investmentAccountsAt snapshot mappings scope day =

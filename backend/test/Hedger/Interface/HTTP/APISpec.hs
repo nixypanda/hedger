@@ -31,7 +31,7 @@ apiSpec = withResource setup teardown $ \getApp ->
         , testCase "cashflow rejects an invalid shared transaction query" $ do
             app <- getApp
             invalidCashflowQuery app
-        , testCase "investment projection preserves valuation when mappings are absent" $ do
+        , testCase "explicitly costed investments do not require performance mappings" $ do
             app <- getApp
             investmentsProjection app
         ]
@@ -153,19 +153,22 @@ investmentsProjection app = do
     case field "summary" response of
         Just summary -> do
             assertEqual
-                "market value survives missing mapping"
+                "market value"
                 (Just (String "165000"))
                 (field "marketValue" summary)
             assertEqual
-                "cost survives missing mapping"
+                "purchase cost"
                 (Just (String "120000"))
                 (field "purchaseCost" summary)
-            assertEqual "gain survives missing mapping" (Just (String "45000")) (field "gainLoss" summary)
+            assertEqual "gain" (Just (String "45000")) (field "gainLoss" summary)
             assertEqual
-                "total performance is unknown without mapping"
-                (Just Null)
+                "total profit defaults to the calculated gain"
+                (Just (String "45000"))
                 (field "totalProfit" summary)
-            assertEqual "missing mapping is partial" (Just (String "partial")) (field "completeness" summary)
+            assertEqual
+                "explicit cost is complete without a performance mapping"
+                (Just (String "complete"))
+                (field "completeness" summary)
         _ -> assertFailure "expected investment summary"
     let excludedRequest =
             object
