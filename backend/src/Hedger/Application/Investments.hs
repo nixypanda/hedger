@@ -30,14 +30,22 @@ import Hledger.Query qualified as HledgerQuery
 import Hledger.Reports.BalanceReport qualified as HledgerBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
-import Hedger.Application.Analytics (Granularity (..))
 import Hedger.Application.AppM (AppM, Env (..), requireSnapshot)
 import Hedger.Application.Common (SnapshotMetadata, metadataFor)
 import Hedger.Config (Config (..))
-import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Investment qualified as Investment
+import Hedger.Domain.Period (
+    Granularity (..),
+    epoch,
+    lastMaybe,
+    minimumMaybe,
+    monthKey,
+    monthStart,
+    takeLast,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Valuation (completeDecimal, missingCommodities, valueMixedAt)
 
 data InvestmentsRequest = InvestmentsRequest
     { granularity :: Granularity
@@ -389,24 +397,7 @@ excludedRoots :: [Text]
 excludedRoots = ["assets:cash", "assets:property", "assets:receivables"]
 
 valueAt :: Snapshot -> Text -> Day -> Hledger.MixedAmount -> Hledger.MixedAmount
-valueAt snapshot commodity day = Account.valueAt (Account.mkValuationContext snapshot.journal commodity day)
-
-completeDecimal :: Text -> Hledger.MixedAmount -> Maybe Decimal
-completeDecimal commodity amount
-    | Set.null missing = Just (sum [item.aquantity | item <- projected])
-    | otherwise = Nothing
-  where
-    projected = filter ((>= 0.000001) . abs . (.aquantity)) (HledgerAmount.amountsRaw amount)
-    missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
-
-missingCommodities :: Text -> Hledger.MixedAmount -> Set.Set Text
-missingCommodities commodity amount =
-    Set.fromList
-        [ item.acommodity
-        | item <- HledgerAmount.amountsRaw amount
-        , abs item.aquantity >= 0.000001
-        , item.acommodity /= commodity
-        ]
+valueAt = valueMixedAt
 
 attributedAt ::
     Snapshot ->
@@ -561,7 +552,7 @@ breadcrumbsFor (Just scope) =
     parts = HledgerAccountName.accountNameComponents scope
 
 accountLabel :: Text -> Text
-accountLabel name = fromMaybe name (lastMay (HledgerAccountName.accountNameComponents name))
+accountLabel name = fromMaybe name (lastMaybe (HledgerAccountName.accountNameComponents name))
 
 reportPeriods :: Granularity -> [Hledger.Transaction] -> Day -> [(Text, Day, Day)]
 reportPeriods granularity transactions latest = case granularity of
@@ -588,17 +579,7 @@ reportPeriods granularity transactions latest = case granularity of
         maybe
             finalYear
             (\day -> let (year, _, _) = toGregorian day in year)
-            (minimumMay (fmap (.tdate) transactions))
-
-monthKey :: Day -> Text
-monthKey day =
-    let (year, month, _) = toGregorian day
-     in Text.pack (show year <> "-" <> if month < 10 then "0" <> show month else show month)
-
-monthStart :: Day -> Day
-monthStart day =
-    let (year, month, _) = toGregorian day
-     in fromGregorian year month 1
+            (minimumMaybe (fmap (.tdate) transactions))
 
 warning :: Text -> Maybe Text -> Text -> InvestmentWarning
 warning kind account message = InvestmentWarning{kind, account, message}
@@ -639,19 +620,5 @@ emptySummary =
         , completeness = Unavailable
         }
 
-epoch :: Day
-epoch = fromGregorian 1970 1 1
-
 accountWithin :: Text -> Text -> Bool
 accountWithin prefix account = prefix == account || (prefix <> ":") `Text.isPrefixOf` account
-
-lastMay :: [value] -> Maybe value
-lastMay [] = Nothing
-lastMay values = Just (last values)
-
-minimumMay :: (Ord value) => [value] -> Maybe value
-minimumMay [] = Nothing
-minimumMay values = Just (minimum values)
-
-takeLast :: Int -> [value] -> [value]
-takeLast count values = drop (max 0 (length values - count)) values

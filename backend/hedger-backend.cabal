@@ -52,8 +52,10 @@ library
     Hedger.Domain.Internal.Account
     Hedger.Domain.Internal.Transaction
     Hedger.Domain.Investment
+    Hedger.Domain.Period
     Hedger.Domain.Snapshot
     Hedger.Domain.Transaction
+    Hedger.Domain.Valuation
     Hedger.Infrastructure.SnapshotStore
     Hedger.Interface.HTTP.API
     Hedger.Interface.HTTP.Accounts

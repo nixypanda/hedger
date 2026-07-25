@@ -37,7 +37,6 @@ import Data.Time (
  )
 import Text.Read (readMaybe)
 
-import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Dates qualified as HledgerDates
 import Hledger.Data.Period qualified as HledgerPeriod
 import Hledger.Data.Types qualified as Hledger
@@ -54,11 +53,32 @@ import Hedger.Application.TransactionQuery (parseHledgerQuery)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
+import Hedger.Domain.Period (
+    Granularity (..),
+    ReportPeriod (..),
+    dayKey,
+    epoch,
+    lastMaybe,
+    maximumMaybe,
+    minimumMaybe,
+    monthKey,
+    monthPeriod,
+    monthStart,
+    parseYearMonth,
+    takeLast,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Transaction qualified as Transaction
-
-data Granularity = Monthly | Yearly
-    deriving stock (Eq, Show)
+import Hedger.Domain.Valuation (
+    Conversion (..),
+    complete,
+    completeNothing,
+    conversionFromMixed,
+    conversionWarnings,
+    convertMixedAt,
+    foldMapConversion,
+    requireComplete,
+ )
 
 data AnalyticsRequest = AnalyticsRequest
     { query :: Maybe Text
@@ -174,29 +194,11 @@ data ActivityReport = ActivityReport
     , warnings :: [Text]
     }
 
-data ReportPeriod = ReportPeriod
-    { key :: Text
-    , start :: Day
-    , end :: Day
-    }
-
 data Movement = Movement
     { date :: Day
     , account :: Text
     , quantity :: Decimal
     }
-
-data Conversion value = Conversion
-    { value :: Maybe value
-    , missing :: Set Text
-    }
-
-instance Functor Conversion where
-    fmap change conversion =
-        Conversion
-            { value = fmap change conversion.value
-            , missing = conversion.missing
-            }
 
 netWorth :: AnalyticsRequest -> AppM NetWorthReport
 netWorth request = do
@@ -433,9 +435,6 @@ parseTransactions snapshot requested = do
     parsed <- either throwError pure (parseHledgerQuery reference canonical)
     pure (filter (HledgerQuery.matchesTransaction parsed) snapshot.transactions)
 
-epoch :: Day
-epoch = fromGregorian 1970 1 1
-
 periodicBalanceReport ::
     Snapshot ->
     [Hledger.Transaction] ->
@@ -553,20 +552,6 @@ reportMissing commodity report =
         [ (conversionFromMixed commodity amount).missing
         | amount <- report.prTotals.prrAmounts <> concatMap (.prrAmounts) report.prRows
         ]
-
-conversionFromMixed :: Text -> Hledger.MixedAmount -> Conversion Decimal
-conversionFromMixed commodity amount =
-    let projected = HledgerAmount.amountsRaw amount
-        missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
-     in Conversion
-            { value = Just (sum [item.aquantity | item <- projected, item.acommodity == commodity])
-            , missing
-            }
-
-requireComplete :: Conversion value -> Conversion value
-requireComplete conversion
-    | Set.null conversion.missing = conversion
-    | otherwise = Conversion{value = Nothing, missing = conversion.missing}
 
 reportBreakdown ::
     Text ->
@@ -692,43 +677,11 @@ performanceFrom commodity periods netWorthPoints assetResults liabilityResults g
                         }
          in Conversion{value = if Set.null missing then point else Nothing, missing}
 
-monthStart :: Day -> Day
-monthStart day =
-    let (year, month, _) = toGregorian day
-     in fromGregorian year month 1
-
-monthPeriod :: Day -> ReportPeriod
-monthPeriod day =
-    let first = monthStart day
-        next = addGregorianMonthsClip 1 first
-     in ReportPeriod{key = monthKey first, start = first, end = addDays (-1) next}
-
-monthKey :: Day -> Text
-monthKey day =
-    let (year, month, _) = toGregorian day
-     in Text.pack (show year <> "-" <> pad2 month)
-
-dayKey :: Day -> Text
-dayKey = Text.pack . show
-
-pad2 :: Int -> String
-pad2 value = if value < 10 then "0" <> show value else show value
-
 selectedPeriod :: Maybe Text -> [ReportPeriod] -> Maybe ReportPeriod
 selectedPeriod requested periods =
     case requested >>= (\key -> List.find ((== key) . (.key)) periods) of
         Just period -> Just period
         Nothing -> lastMaybe periods
-
-convertMixedAt :: Snapshot -> Text -> Day -> Hledger.MixedAmount -> Conversion Decimal
-convertMixedAt snapshot commodity day amount =
-    let valued = Account.valueAt (Account.mkValuationContext snapshot.journal commodity day) amount
-        projected = HledgerAmount.amountsRaw valued
-        missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
-     in Conversion
-            { value = if Set.null missing then Just (sum (fmap (.aquantity) projected)) else Nothing
-            , missing
-            }
 
 belongsTo :: Text -> Hledger.Posting -> Bool
 belongsTo category posting = Account.accountLabel (Account.accountInfo posting.paccount) == category
@@ -989,20 +942,6 @@ parseActivityPeriod fiscalStart activityRange raw =
                             )
                         )
 
-parseYearMonth :: Text -> Maybe (Integer, Int)
-parseYearMonth raw =
-    case Text.splitOn "-" raw of
-        [yearText, monthText] -> do
-            year <- readText yearText
-            month <- readText monthText
-            if month >= 1 && month <= 12 && raw == Text.pack (show year <> "-" <> pad2 month)
-                then Just (year, month)
-                else Nothing
-        _ -> Nothing
-
-readText :: (Read value) => Text -> Maybe value
-readText = readMaybe . Text.unpack
-
 activityBucketKey :: ActivityRange -> Day -> Text
 activityBucketKey MonthActivity = dayKey
 activityBucketKey FiscalYearActivity = monthKey
@@ -1034,43 +973,6 @@ toActivityBucket depth activityRange (key, contributions) =
             , categories = fst (groupOther categoryItems)
             , transactions = fmap (.transaction) contributions
             }
-
-conversionWarnings :: Set Text -> [Text]
-conversionWarnings missing
-    | Set.null missing = []
-    | otherwise =
-        [ "Missing dated conversion to the display commodity for: "
-            <> Text.intercalate ", " (Set.toAscList missing)
-        ]
-
-complete :: value -> Conversion value
-complete value = Conversion{value = Just value, missing = Set.empty}
-
-completeNothing :: Conversion value
-completeNothing = Conversion{value = Nothing, missing = Set.empty}
-
-foldMapConversion :: [Conversion value] -> Conversion [value]
-foldMapConversion conversions =
-    let missing = Set.unions (fmap (.missing) conversions)
-     in Conversion
-            { value = Just (mapMaybe (.value) conversions)
-            , missing
-            }
-
-maximumMaybe :: (Ord value) => [value] -> Maybe value
-maximumMaybe [] = Nothing
-maximumMaybe values = Just (maximum values)
-
-minimumMaybe :: (Ord value) => [value] -> Maybe value
-minimumMaybe [] = Nothing
-minimumMaybe values = Just (minimum values)
-
-lastMaybe :: [value] -> Maybe value
-lastMaybe [] = Nothing
-lastMaybe values = Just (last values)
-
-takeLast :: Int -> [value] -> [value]
-takeLast count values = drop (max 0 (length values - count)) values
 
 atIndex :: Int -> [value] -> Maybe value
 atIndex index values
