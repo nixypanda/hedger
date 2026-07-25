@@ -110,6 +110,53 @@ files may add to or override them within their directory.
 - Total functions.
 - Newtypes for semantic distinction.
 
+### Module layout and layering
+
+The backend is a functional-core / imperative-shell design. Dependencies point
+inward: `Interface` and `Runtime` → `Application` → `Domain`. `Infrastructure`
+is the only place with real I/O and mutable state.
+
+- `Hedger.Domain.*` — the functional core. hledger *is* the domain vocabulary;
+  hledger types are used directly, not wrapped behind an anti-corruption layer.
+  Every ledger calculation lives here as pure, total functions over a `Snapshot`,
+  reachable by property tests without `AppM`. Concept modules: `Account`,
+  `Transaction`, `Investment`, `InvestmentPerformance`, `NetWorth` (balance-sheet
+  stock and its return decomposition), `Cashflow` (income/expense flows),
+  `Activity` (the quantified counterpart of `Transaction` classification), plus
+  supporting `Valuation` (display-commodity projection: `Conversion`,
+  `ConversionWarning`), `Period` (granularity and period math), `Snapshot`, and
+  `Error`. Shared plumbing and testable guts live under `Domain.Internal.*`
+  (e.g. `Internal.PeriodReport`, `Internal.InvestmentPerformance`), re-exported by
+  a thin public module — the `Domain.Account` / `Domain.Internal.Account` pattern.
+- `Hedger.Application.*` — the imperative shell and query side. Thin use cases in
+  `AppM` (`ReaderT Env (ExceptT AppError IO)`): resolve request inputs, read the
+  snapshot and config, call the domain, attach `SnapshotMetadata`, and assemble
+  UI-shaped read-models. It contains no ledger calculation. (`Application.Analytics`
+  is an application-layer facade that bundles the net-worth/cashflow/activity
+  report endpoints; it is not a domain concept.)
+- `Hedger.Interface.HTTP.*` — Servant API, wire DTOs, and domain↔DTO mappers.
+  User-facing prose (e.g. warning sentences) is rendered here from structured
+  domain conditions; it is never baked into the domain.
+- `Hedger.Infrastructure.*` — journal reading and the mutable `SnapshotStore`.
+- `Hedger.Runtime.*` and `Hedger.Config` — composition root and configuration.
+
+Rules that keep this boundary honest:
+
+- **Pure is not the same as domain.** A concept belongs in `Domain` only if it
+  exists in the ubiquitous language of ledger/portfolio accounting independent of
+  the UI. Pure-but-UI-shaped projections — KPI sparkline trends, top-N/"Other"
+  category grouping, breadcrumb and drill-down view-models, the
+  metadata-carrying response bundles — are the application's read-side
+  responsibility, not the domain's.
+- **Domain values carry no `SnapshotMetadata`.** Freshness and reload state are
+  application concerns; the application attaches them to its response records.
+- **Name ledger concepts, not report screens.** Prefer nouns like `NetWorth`,
+  `Cashflow`, and `Activity` over reporting/UI umbrella terms.
+- **`NoFieldSelectors` caveat.** Domain records enable `NoFieldSelectors`, so
+  cross-module `record.field` dot access requires importing the field labels
+  (`Type(..)`), unlike hledger's own records where the instances are always in
+  scope.
+
 ### Ledger benchmarks
 
 - Every performance-sensitive ledger operation must have a benchmark in a

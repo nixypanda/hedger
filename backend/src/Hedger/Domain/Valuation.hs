@@ -8,9 +8,9 @@ module Hedger.Domain.Valuation (
     foldMapConversion,
     complete,
     completeNothing,
-    conversionWarnings,
     completeDecimal,
     missingCommodities,
+    ConversionWarning (..),
 )
 where
 
@@ -19,7 +19,6 @@ import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Time (Day)
 
 import Hledger.Data.Amount qualified as HledgerAmount
@@ -35,6 +34,7 @@ data Conversion value = Conversion
     { value :: Maybe value
     , missing :: Set Text
     }
+    deriving stock (Show)
 
 instance Functor Conversion where
     fmap change conversion =
@@ -90,14 +90,6 @@ complete value = Conversion{value = Just value, missing = Set.empty}
 completeNothing :: Conversion value
 completeNothing = Conversion{value = Nothing, missing = Set.empty}
 
-conversionWarnings :: Set Text -> [Text]
-conversionWarnings missing
-    | Set.null missing = []
-    | otherwise =
-        [ "Missing dated conversion to the display commodity for: "
-            <> Text.intercalate ", " (Set.toAscList missing)
-        ]
-
 {- | The display-commodity total of an amount, or 'Nothing' if any non-negligible
 component is in another commodity.
 -}
@@ -108,6 +100,12 @@ completeDecimal commodity amount
   where
     projected = filter ((>= 0.000001) . abs . (.aquantity)) (HledgerAmount.amountsRaw amount)
     missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
+
+{- | A structured data-quality condition: the display-commodity conversion was
+incomplete for these commodities. Rendering to prose is a boundary concern.
+-}
+newtype ConversionWarning = MissingConversion (Set Text)
+    deriving stock (Eq, Show)
 
 -- | The non-negligible commodities in an amount other than the display commodity.
 missingCommodities :: Text -> Hledger.MixedAmount -> Set Text

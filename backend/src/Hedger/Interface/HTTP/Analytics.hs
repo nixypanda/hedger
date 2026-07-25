@@ -2,6 +2,7 @@ module Hedger.Interface.HTTP.Analytics (AnalyticsAPI, analyticsServer) where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Decimal (Decimal)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day)
@@ -240,7 +241,7 @@ toNetWorth report =
         , liabilitiesBreakdown = toBreakdown report.liabilitiesBreakdown
         , performance = fmap toPerformance report.performance
         , incompletePeriods = report.incompletePeriods
-        , warnings = report.warnings
+        , warnings = fmap renderWarning report.warnings
         }
 
 toCashflow :: Analytics.CashflowReport -> CashflowResponse
@@ -255,7 +256,7 @@ toCashflow report =
         , timeline = fmap toTimeline report.timeline
         , incomeBreakdown = toBreakdown report.incomeBreakdown
         , expenseBreakdown = toBreakdown report.expenseBreakdown
-        , warnings = report.warnings
+        , warnings = fmap renderWarning report.warnings
         }
 
 toActivity :: Analytics.ActivityReport -> ActivityResponse
@@ -268,7 +269,7 @@ toActivity report =
         , period = report.period
         , fiscalYearStartMonth = report.fiscalYearStartMonth
         , buckets = fmap toActivityBucket report.buckets
-        , warnings = report.warnings
+        , warnings = fmap renderWarning report.warnings
         }
 
 toKpi :: Analytics.Kpi -> KpiDto
@@ -340,6 +341,10 @@ activityRangeText :: Analytics.ActivityRange -> Text
 activityRangeText range = case range of
     Analytics.MonthActivity -> "month"
     Analytics.FiscalYearActivity -> "year"
+
+renderWarning :: Analytics.ConversionWarning -> Text
+renderWarning (Analytics.MissingConversion missing) =
+    "Missing dated conversion to the display commodity for: " <> Text.intercalate ", " (Set.toAscList missing)
 
 decimal :: Decimal -> Text
 decimal = Text.pack . show

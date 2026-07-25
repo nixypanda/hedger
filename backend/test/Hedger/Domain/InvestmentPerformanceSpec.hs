@@ -1,20 +1,20 @@
-module Hedger.Application.InvestmentsSpec (investmentsSpec) where
+module Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec) where
 
 import Data.Either (isLeft, isRight)
 import Data.Time (fromGregorian)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
-import Hedger.Application.Investments (
-    InvestmentCompleteness (Complete),
-    InvestmentSummary (..),
-    investmentSummaryAt,
- )
 import Hedger.Domain.Investment (
     InvestmentMapping (..),
     PerformanceAccount (..),
     PerformanceRole (Interest, RealisedGain),
     mkInvestmentMappings,
+ )
+import Hedger.Domain.InvestmentPerformance (
+    InvestmentCompleteness (Complete),
+    InvestmentSummary (..),
+    investmentSummaryAt,
  )
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
 

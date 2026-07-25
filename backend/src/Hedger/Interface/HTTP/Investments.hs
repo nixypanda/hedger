@@ -12,6 +12,7 @@ import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Investments qualified as Investments
 import Hedger.Domain.Error (AppError (..))
+import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Interface.HTTP.Common (ResponseMetadata, runAction, servantError, toResponseMetadata)
 
 data InvestmentsRequestDto = InvestmentsRequestDto
@@ -126,7 +127,7 @@ toResponse report =
         , warnings = fmap toWarning report.warnings
         }
 
-toSummary :: Investments.InvestmentSummary -> InvestmentSummaryDto
+toSummary :: Performance.InvestmentSummary -> InvestmentSummaryDto
 toSummary value =
     InvestmentSummaryDto
         { marketValue = decimal <$> value.marketValue
@@ -137,9 +138,9 @@ toSummary value =
         , realisedGain = decimal <$> value.realisedGain
         , totalProfit = decimal <$> value.totalProfit
         , completeness = case value.completeness of
-            Investments.Complete -> "complete"
-            Investments.Partial -> "partial"
-            Investments.Unavailable -> "unavailable"
+            Performance.Complete -> "complete"
+            Performance.Partial -> "partial"
+            Performance.Unavailable -> "unavailable"
         }
 
 toPoint :: Investments.InvestmentPoint -> InvestmentPointDto
@@ -170,8 +171,25 @@ toChild value =
         , hasChildren = value.hasChildren
         }
 
-toWarning :: Investments.InvestmentWarning -> InvestmentWarningDto
-toWarning value = InvestmentWarningDto{kind = value.kind, account = value.account, message = value.message}
+toWarning :: Performance.InvestmentWarning -> InvestmentWarningDto
+toWarning (Performance.InvestmentWarning kind account) =
+    let (kindText, message) = renderWarning kind
+     in InvestmentWarningDto{kind = kindText, account = account, message = message}
+
+renderWarning :: Performance.WarningKind -> (Text, Text)
+renderWarning kind = case kind of
+    Performance.MissingPrice commodity symbol ->
+        ("missing-price", "No " <> commodity <> " price for " <> symbol <> ".")
+    Performance.MissingCost symbol ->
+        ("missing-cost", "No complete acquisition cost for " <> symbol <> ".")
+    Performance.MissingPerformanceMapping ->
+        ( "missing-performance-mapping"
+        , "Income and realised gains are unavailable because an investment account mapping is missing."
+        )
+    Performance.ForeignCost commodity symbol ->
+        ( "foreign-cost"
+        , "Acquisition cost in " <> symbol <> " cannot be reported as historical " <> commodity <> " cost."
+        )
 
 decimal :: Decimal -> Text
 decimal = Text.pack . show

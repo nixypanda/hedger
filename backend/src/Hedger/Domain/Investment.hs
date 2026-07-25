@@ -8,6 +8,7 @@ module Hedger.Domain.Investment (
     mappingsForScope,
     mappingForAccount,
     mappedAssetAccounts,
+    accountWithin,
 )
 where
 
@@ -55,7 +56,7 @@ mkInvestmentMappings mappings
   where
     invalidMapping mapping =
         not (fullyQualified mapping.assetAccount)
-            || not ("assets" `isPrefixOf` mapping.assetAccount)
+            || not ("assets" `accountWithin` mapping.assetAccount)
             || any (not . fullyQualified . (.account)) mapping.performanceAccounts
     fullyQualified = (>= 2) . length . HledgerAccountName.accountNameComponents
     owned =
@@ -69,7 +70,7 @@ mkInvestmentMappings mappings
         | (leftIndex, (leftAccount, _)) <- zip [0 :: Int ..] owned
         , (rightIndex, (rightAccount, _)) <- zip [0 :: Int ..] owned
         , leftIndex < rightIndex
-        , leftAccount `isPrefixOf` rightAccount || rightAccount `isPrefixOf` leftAccount
+        , leftAccount `accountWithin` rightAccount || rightAccount `accountWithin` leftAccount
         ]
 
 mappingsForScope :: Text -> InvestmentMappings -> [InvestmentMapping]
@@ -79,14 +80,14 @@ mappingsForScope scope (InvestmentMappings mappings) =
         else
             filter
                 ( \mapping ->
-                    scope `isPrefixOf` mapping.assetAccount
-                        || mapping.assetAccount `isPrefixOf` scope
+                    scope `accountWithin` mapping.assetAccount
+                        || mapping.assetAccount `accountWithin` scope
                 )
                 mappings
 
 mappingForAccount :: Text -> InvestmentMappings -> Maybe InvestmentMapping
 mappingForAccount asset (InvestmentMappings mappings) =
-    maximumByMay compareDepth (filter (\mapping -> mapping.assetAccount `isPrefixOf` asset) mappings)
+    maximumByMay compareDepth (filter (\mapping -> mapping.assetAccount `accountWithin` asset) mappings)
   where
     compareDepth left right = compare (depth left.assetAccount) (depth right.assetAccount)
     depth = length . HledgerAccountName.accountNameComponents
@@ -94,8 +95,8 @@ mappingForAccount asset (InvestmentMappings mappings) =
 mappedAssetAccounts :: InvestmentMappings -> [Text]
 mappedAssetAccounts (InvestmentMappings mappings) = fmap (.assetAccount) mappings
 
-isPrefixOf :: Text -> Text -> Bool
-isPrefixOf prefix account = prefix == account || (prefix <> ":") `Text.isPrefixOf` account
+accountWithin :: Text -> Text -> Bool
+accountWithin prefix account = prefix == account || (prefix <> ":") `Text.isPrefixOf` account
 
 maximumByMay :: (value -> value -> Ordering) -> [value] -> Maybe value
 maximumByMay _ [] = Nothing

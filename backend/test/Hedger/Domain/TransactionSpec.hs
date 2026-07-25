@@ -1,17 +1,22 @@
 module Hedger.Domain.TransactionSpec (transactionSpec) where
 
+import Data.Map.Strict qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Time (fromGregorian)
-import Hedgehog (Property, assert, forAll, property)
+import Hedgehog (Gen, Property, assert, forAll, property, (===))
+import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, assertEqual, testCase)
 import Test.Tasty.Hedgehog (testProperty)
 
-import Hledger.Data.Amount (mixed, num)
+import Hledger.Data.Amount (amountsRaw, mixed, num)
 import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Account (accountInfo, accountLabel)
 import Hedger.Domain.Internal.Transaction (
     TransactionClassification (..),
     classificationFor,
@@ -19,7 +24,7 @@ import Hedger.Domain.Internal.Transaction (
     isOpening,
     newestFirst,
  )
-import Hedger.Generators (genTransactions)
+import Hedger.Generators (genAccountComponent, genTransactions)
 
 transactionSpec :: TestTree
 transactionSpec =
@@ -75,6 +80,18 @@ transactionSpec =
             , testCase "all debits same group" dominantAllDebitsSameGroup
             , testCase "dominant group percentage correct" dominantGroupPercentage
             , testCase "first argument ignored" dominantCreditIgnored
+            , testGroup
+                "properties"
+                [ testProperty "pct is always between 0 and 1" dominantPctInRange
+                , testProperty "no debit postings yields (\"\", 0.0)" dominantEmptyDebits
+                , testProperty "the returned group's sum is the largest among all groups" dominantIsMaximal
+                , testProperty
+                    "splicing in extra credit postings never changes the result"
+                    dominantSpliceCreditsInvariant
+                , testProperty
+                    "dropping all credit postings never changes the result"
+                    dominantDropCreditsInvariant
+                ]
             ]
         ]
 
@@ -624,3 +641,81 @@ isDescending :: (Ord a) => [a] -> Bool
 isDescending [] = True
 isDescending [_] = True
 isDescending (x : y : rest) = x >= y && isDescending (y : rest)
+
+-- dominantMovement properties
+
+-- | An account name that classifies into one of the known top-level groups.
+genGroupAccountName :: Gen Text
+genGroupAccountName = do
+    segment <- Gen.element ["assets", "liabilities", "expenses", "income", "equity"]
+    subs <- Gen.list (Range.linear 0 3) genAccountComponent
+    pure (Text.intercalate ":" (segment : subs))
+
+genGroupPosting :: Gen Hledger.Posting
+genGroupPosting = do
+    account <- genGroupAccountName
+    quantity <- Gen.integral (Range.linearFrom 0 (-1000000) 1000000)
+    pure nullposting{Hledger.paccount = account, Hledger.pamount = mixed [num (fromInteger quantity)]}
+
+genGroupTransaction :: Gen Hledger.Transaction
+genGroupTransaction = do
+    year <- Gen.integral (Range.linear 1970 2100)
+    month <- Gen.integral (Range.linear 1 12)
+    dayOfMonth <- Gen.integral (Range.linear 1 28)
+    postings <- Gen.list (Range.linear 1 8) genGroupPosting
+    pure nulltransaction{Hledger.tdate = fromGregorian year month dayOfMonth, Hledger.tpostings = postings}
+
+-- | A posting with a negative (credit) amount and an arbitrary, unclassified account.
+genArbitraryCreditPosting :: Gen Hledger.Posting
+genArbitraryCreditPosting = do
+    account <- Text.pack <$> Gen.list (Range.linear 1 30) Gen.alphaNum
+    quantity <- Gen.integral (Range.linear (-1000000) (-1))
+    pure nullposting{Hledger.paccount = account, Hledger.pamount = mixed [num (fromInteger quantity)]}
+
+isCredit :: Hledger.Posting -> Bool
+isCredit p = any ((< 0) . (.aquantity)) (amountsRaw p.pamount)
+
+dominantPctInRange :: Property
+dominantPctInRange = property $ do
+    tx <- forAll genGroupTransaction
+    let (_, pct) = dominantMovement tx
+    assert (0 <= pct && pct <= 1)
+
+dominantEmptyDebits :: Property
+dominantEmptyDebits = property $ do
+    postings <- forAll (Gen.list (Range.linear 0 5) genArbitraryCreditPosting)
+    let tx = nulltransaction{Hledger.tpostings = postings}
+    dominantMovement tx === ("", 0.0)
+
+dominantIsMaximal :: Property
+dominantIsMaximal = property $ do
+    tx <- forAll genGroupTransaction
+    let (dominantGroup, _) = dominantMovement tx
+        groupSums =
+            Map.fromListWith
+                (+)
+                [ (accountLabel (accountInfo p.paccount), abs amount.aquantity)
+                | p <- tx.tpostings
+                , amount <- amountsRaw p.pamount
+                , amount.aquantity > 0
+                ]
+        dominantSum = Map.findWithDefault 0 dominantGroup groupSums
+    assert (all (<= dominantSum) (Map.elems groupSums))
+
+spliceAt :: Int -> [value] -> [value] -> [value]
+spliceAt position extra values =
+    let (before, after) = splitAt position values in before <> extra <> after
+
+dominantSpliceCreditsInvariant :: Property
+dominantSpliceCreditsInvariant = property $ do
+    tx <- forAll genGroupTransaction
+    extras <- forAll (Gen.list (Range.linear 0 5) genArbitraryCreditPosting)
+    position <- forAll (Gen.integral (Range.linear 0 (length tx.tpostings)))
+    let spliced = tx{Hledger.tpostings = spliceAt position extras tx.tpostings}
+    dominantMovement spliced === dominantMovement tx
+
+dominantDropCreditsInvariant :: Property
+dominantDropCreditsInvariant = property $ do
+    tx <- forAll genGroupTransaction
+    let onlyNonCredits = tx{Hledger.tpostings = filter (not . isCredit) tx.tpostings}
+    dominantMovement onlyNonCredits === dominantMovement tx

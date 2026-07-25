@@ -1,70 +1,42 @@
 module Hedger.Application.Investments (
     InvestmentsRequest (..),
-    InvestmentCompleteness (..),
-    InvestmentSummary (..),
     InvestmentPoint (..),
     InvestmentBreadcrumb (..),
     InvestmentChild (..),
-    InvestmentWarning (..),
     InvestmentsReport (..),
     investments,
-    investmentSummaryAt,
 )
 where
 
 import Control.Monad.Except (throwError)
 import Control.Monad.Reader (asks)
-import Data.Decimal (Decimal)
-import Data.List qualified as List
-import Data.Maybe (fromMaybe, mapMaybe)
-import Data.Set qualified as Set
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian, toGregorian)
+import Data.Time (Day)
 
 import Hledger.Data.AccountName qualified as HledgerAccountName
-import Hledger.Data.Amount qualified as HledgerAmount
-import Hledger.Data.Period qualified as HledgerPeriod
-import Hledger.Data.Types qualified as Hledger
-import Hledger.Query qualified as HledgerQuery
-import Hledger.Reports.BalanceReport qualified as HledgerBalance
-import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
 import Hedger.Application.AppM (AppM, Env (..), requireSnapshot)
 import Hedger.Application.Common (SnapshotMetadata, metadataFor)
 import Hedger.Config (Config (..))
-import Hedger.Domain.Error (AppError (..))
-import Hedger.Domain.Investment qualified as Investment
-import Hedger.Domain.Period (
-    Granularity (..),
-    epoch,
-    lastMaybe,
-    minimumMaybe,
-    monthKey,
-    monthStart,
-    takeLast,
+import Hedger.Domain.InvestmentPerformance (
+    InvestmentSummary (..),
+    InvestmentWarning,
+    SummaryResult (..),
+    immediateChildren,
+    investmentDataTransactions,
+    reportPeriods,
+    summaryAt,
+    validateScope,
  )
+import Hedger.Domain.Period (Granularity, epoch, lastMaybe)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (completeDecimal, missingCommodities, valueMixedAt)
 
 data InvestmentsRequest = InvestmentsRequest
     { granularity :: Granularity
     , displayCommodity :: Maybe Text
     , accountPrefix :: Maybe Text
-    }
-
-data InvestmentCompleteness = Complete | Partial | Unavailable
-    deriving stock (Eq, Show)
-
-data InvestmentSummary = InvestmentSummary
-    { marketValue :: Maybe Decimal
-    , purchaseCost :: Maybe Decimal
-    , gainLoss :: Maybe Decimal
-    , returnPercentage :: Maybe Decimal
-    , attributedIncome :: Maybe Decimal
-    , realisedGain :: Maybe Decimal
-    , totalProfit :: Maybe Decimal
-    , completeness :: InvestmentCompleteness
     }
 
 data InvestmentPoint = InvestmentPoint
@@ -85,13 +57,6 @@ data InvestmentChild = InvestmentChild
     , hasChildren :: Bool
     }
 
-data InvestmentWarning = InvestmentWarning
-    { kind :: Text
-    , account :: Maybe Text
-    , message :: Text
-    }
-    deriving stock (Eq, Show)
-
 data InvestmentsReport = InvestmentsReport
     { metadata :: SnapshotMetadata
     , displayCommodity :: Text
@@ -104,11 +69,11 @@ data InvestmentsReport = InvestmentsReport
     , warnings :: [InvestmentWarning]
     }
 
-data SummaryResult = SummaryResult
-    { summary :: InvestmentSummary
-    , warnings :: [InvestmentWarning]
-    }
-
+{- | Assemble the investments screen payload from the domain calculation. The
+calculation lives in "Hedger.Domain.InvestmentPerformance"; this use case only
+resolves inputs, projects the results into UI read-models, and attaches
+snapshot metadata.
+-}
 investments :: InvestmentsRequest -> AppM InvestmentsReport
 investments request = do
     snapshot <- requireSnapshot
@@ -117,37 +82,28 @@ investments request = do
     responseMetadata <- metadataFor snapshot
     let commodity = fromMaybe config.defaultDisplayCommodity (request.displayCommodity >>= nonEmpty)
         latest = fromMaybe epoch snapshot.latestJournalDate
-        current = summaryAt snapshot config.investmentMappings commodity scope latest
+        summaryFor selectedScope selectedDay =
+            summaryAt snapshot config.investmentMappings commodity selectedScope selectedDay
+        current = summaryFor scope latest
         hasInvestments = current.summary.marketValue /= Nothing || current.summary.purchaseCost /= Nothing
-        dataTransactions =
-            filter
-                (any (isInvestmentAccount config.investmentMappings scope . (.paccount)) . (.tpostings))
-                snapshot.transactions
+        dataTransactions = investmentDataTransactions snapshot config.investmentMappings scope
         points =
             if hasInvestments
                 then
-                    [ InvestmentPoint
-                        key
-                        start
-                        (summaryAt snapshot config.investmentMappings commodity scope end).summary
+                    [ InvestmentPoint key start (summaryFor scope end).summary
                     | (key, start, end) <- reportPeriods request.granularity dataTransactions latest
                     ]
                 else []
         childAccounts = immediateChildren snapshot config.investmentMappings scope
-        childResults =
-            [ (child, summaryAt snapshot config.investmentMappings commodity (Just child) latest)
-            | child <- childAccounts
-            ]
         children =
             [ InvestmentChild
                 { account = child
                 , label = accountLabel child
-                , summary = result.summary
+                , summary = (summaryFor (Just child) latest).summary
                 , hasChildren = not (null (immediateChildren snapshot config.investmentMappings (Just child)))
                 }
-            | (child, result) <- childResults
+            | child <- childAccounts
             ]
-        allWarnings = current.warnings
     pure
         InvestmentsReport
             { metadata = responseMetadata
@@ -158,389 +114,8 @@ investments request = do
             , timeline = points
             , breadcrumbs = breadcrumbsFor scope
             , children
-            , warnings = allWarnings
+            , warnings = current.warnings
             }
-
-summaryAt :: Snapshot -> Investment.InvestmentMappings -> Text -> Maybe Text -> Day -> SummaryResult
-summaryAt snapshot mappings commodity scope day =
-    let holdings = holdingsAt snapshot mappings scope day
-        costHoldings =
-            holdingsAtWithJournal
-                (journalWithHistoricalCosts snapshot commodity)
-                mappings
-                scope
-                day
-        costRaw = HledgerAmount.mixedAmountCost costHoldings
-        valueRaw = valueAt snapshot commodity day holdings
-        costValued = valueAt snapshot commodity day costRaw
-        hasHoldings = any ((>= 0.000001) . abs . (.aquantity)) (HledgerAmount.amountsRaw holdings)
-        market = completeDecimal commodity valueRaw
-        rawMissingCost =
-            Set.fromList
-                [ item.acommodity
-                | item <- HledgerAmount.amountsRaw costHoldings
-                , abs item.aquantity >= 0.000001
-                , item.acommodity /= commodity
-                , item.acost == Nothing
-                ]
-        foreignCost =
-            Set.fromList
-                [ item.acommodity
-                | item <- HledgerAmount.amountsRaw costRaw
-                , abs item.aquantity >= 0.000001
-                , item.acommodity /= commodity
-                ]
-        reportedCost =
-            if Set.null rawMissingCost && Set.null foreignCost
-                then completeDecimal commodity costValued
-                else Nothing
-        relevantAccounts = investmentAccountsAt snapshot mappings scope day
-        mappingComplete =
-            not (null relevantAccounts)
-                && all (hasAttributablePerformance snapshot mappings day) relevantAccounts
-        retained =
-            if mappingComplete
-                then retainedPerformanceAt snapshot mappings commodity scope day
-                else Just 0
-        cost = (-) <$> reportedCost <*> retained
-        calculatedGain = (-) <$> market <*> reportedCost
-        attributed = if mappingComplete then attributedAt snapshot mappings commodity scope day else Nothing
-        income = attributed >>= (Just . (\(value, _, _) -> value))
-        realised = attributed >>= (Just . (\(_, value, _) -> value))
-        fees = attributed >>= (Just . (\(_, _, value) -> value))
-        total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
-        percent = do
-            profit <- total
-            basis <- cost
-            if abs basis < 0.000001 then Nothing else Just (profit / abs basis * 100)
-        missingValue = missingCommodities commodity valueRaw
-        missingCost = missingCommodities commodity costValued <> rawMissingCost
-        warnings =
-            [ warning "missing-price" Nothing ("No " <> commodity <> " price for " <> symbol <> ".")
-            | symbol <- Set.toList missingValue
-            ]
-                <> [ warning "missing-cost" Nothing ("No complete acquisition cost for " <> symbol <> ".")
-                   | symbol <- Set.toList missingCost
-                   ]
-                <> [ warning
-                        "missing-performance-mapping"
-                        scope
-                        ( "Income and realised gains are unavailable because "
-                            <> "an investment account mapping is missing."
-                        )
-                   | not (null relevantAccounts) && not mappingComplete
-                   ]
-                <> [ warning
-                        "foreign-cost"
-                        scope
-                        ( "Acquisition cost in "
-                            <> symbol
-                            <> " cannot be reported as historical "
-                            <> commodity
-                            <> " cost."
-                        )
-                   | symbol <- Set.toList foreignCost
-                   ]
-        complete =
-            if market == Nothing && cost == Nothing
-                then Unavailable
-                else if null warnings && total /= Nothing then Complete else Partial
-     in if not hasHoldings
-            then SummaryResult{summary = emptySummary, warnings = []}
-            else
-                SummaryResult
-                    { summary =
-                        InvestmentSummary
-                            { marketValue = market
-                            , purchaseCost = cost
-                            , gainLoss = calculatedGain
-                            , returnPercentage = percent
-                            , attributedIncome = income
-                            , realisedGain = realised
-                            , totalProfit = total
-                            , completeness = complete
-                            }
-                    , warnings
-                    }
-
-investmentSummaryAt ::
-    Snapshot ->
-    Investment.InvestmentMappings ->
-    Text ->
-    Maybe Text ->
-    Day ->
-    InvestmentSummary
-investmentSummaryAt snapshot mappings commodity scope day =
-    (summaryAt snapshot mappings commodity scope day).summary
-
-holdingsAt :: Snapshot -> Investment.InvestmentMappings -> Maybe Text -> Day -> Hledger.MixedAmount
-holdingsAt snapshot = holdingsAtWithJournal snapshot.journal
-
-holdingsAtWithJournal ::
-    Hledger.Journal ->
-    Investment.InvestmentMappings ->
-    Maybe Text ->
-    Day ->
-    Hledger.MixedAmount
-holdingsAtWithJournal journal mappings scope day =
-    foldl HledgerAmount.maPlus HledgerAmount.nullmixedamt reports
-  where
-    reports = case scope of
-        Just selected -> [balanceFor scope (isExcluded selected)]
-        Nothing ->
-            balanceFor Nothing False
-                : [balanceFor (Just mapped) True | mapped <- minimalExcludedMappedRoots]
-    balanceFor selected includeExcluded =
-        snd (HledgerBalance.balanceReport (spec selected includeExcluded) journal)
-    period = Hledger.PeriodTo (addDays 1 day)
-    options =
-        HledgerReportOptions.defreportopts
-            { HledgerReportOptions.period_ = period
-            , HledgerReportOptions.balanceaccum_ = HledgerReportOptions.Historical
-            , HledgerReportOptions.accountlistmode_ = HledgerReportOptions.ALFlat
-            }
-    spec selected includeExcluded =
-        HledgerReportOptions.defreportspec
-            { HledgerReportOptions._rsReportOpts = options
-            , HledgerReportOptions._rsDay = day
-            , HledgerReportOptions._rsQuery =
-                HledgerQuery.And
-                    [ investmentQuery selected includeExcluded
-                    , HledgerQuery.Date (HledgerPeriod.periodAsDateSpan period)
-                    ]
-            }
-    isExcluded name = any (`accountWithin` name) excludedRoots
-    minimalExcludedMappedRoots =
-        [ name
-        | name <- Investment.mappedAssetAccounts mappings
-        , isExcluded name
-        , not
-            ( any
-                (\other -> other /= name && other `accountWithin` name)
-                (Investment.mappedAssetAccounts mappings)
-            )
-        ]
-
-journalWithHistoricalCosts :: Snapshot -> Text -> Hledger.Journal
-journalWithHistoricalCosts snapshot commodity =
-    snapshot.journal
-        { Hledger.jtxns = convertTransaction <$> snapshot.journal.jtxns
-        }
-  where
-    convertTransaction transaction =
-        transaction
-            { Hledger.tpostings = convertPosting transaction.tdate <$> transaction.tpostings
-            }
-    convertPosting day posting =
-        posting
-            { Hledger.pamount =
-                HledgerAmount.mapMixedAmount
-                    (convertAmount day posting.paccount)
-                    posting.pamount
-            }
-    convertAmount day account amount =
-        amount
-            { Hledger.acost =
-                case amount.acost of
-                    Just acquisitionCost -> Just (convertCost day acquisitionCost)
-                    Nothing -> inferredCashCost day account amount
-            }
-    convertCost day acquisitionCost = case acquisitionCost of
-        Hledger.UnitCost amount -> Hledger.UnitCost (convertCostAmount day amount)
-        Hledger.TotalCost amount -> Hledger.TotalCost (convertCostAmount day amount)
-    convertCostAmount day amount =
-        fromMaybe
-            amount
-            ( HledgerAmount.unifyMixedAmount
-                (valueAt snapshot commodity day (HledgerAmount.mixedAmount amount))
-            )
-    inferredCashCost day account amount
-        | "assets:cash" `accountWithin` account
-            && amount.acommodity /= commodity =
-            Hledger.UnitCost <$> historicalUnitPrice day amount
-        | otherwise = Nothing
-    historicalUnitPrice day amount = do
-        valued <-
-            HledgerAmount.unifyMixedAmount
-                ( valueAt
-                    snapshot
-                    commodity
-                    day
-                    ( HledgerAmount.mixedAmount
-                        amount
-                            { Hledger.aquantity = 1
-                            , Hledger.acost = Nothing
-                            }
-                    )
-                )
-        if valued.acommodity == commodity then Just valued else Nothing
-
-investmentQuery :: Maybe Text -> Bool -> HledgerQuery.Query
-investmentQuery scope includeExcluded =
-    HledgerQuery.And
-        ( [HledgerQuery.Type [Hledger.Asset]]
-            <> (if includeExcluded then [] else defaultExclusions)
-            <> scopeQuery
-        )
-  where
-    scopeQuery =
-        maybe
-            []
-            (\name -> [HledgerQuery.Acct (HledgerAccountName.accountNameToAccountRegex name)])
-            scope
-    defaultExclusions =
-        [ HledgerQuery.Not (HledgerQuery.Acct (HledgerAccountName.accountNameToAccountRegex name))
-        | name <- excludedRoots
-        ]
-
-excludedRoots :: [Text]
-excludedRoots = ["assets:cash", "assets:property", "assets:receivables"]
-
-valueAt :: Snapshot -> Text -> Day -> Hledger.MixedAmount -> Hledger.MixedAmount
-valueAt = valueMixedAt
-
-attributedAt ::
-    Snapshot ->
-    Investment.InvestmentMappings ->
-    Text ->
-    Maybe Text ->
-    Day ->
-    Maybe (Decimal, Decimal, Decimal)
-attributedAt snapshot mappings commodity scope day =
-    foldl combine (Just (0, 0, 0)) contributions
-  where
-    selectedMappings = case scope of
-        Nothing -> Investment.mappingsForScope "" mappings
-        Just selected -> Investment.mappingsForScope selected mappings
-    contributions =
-        [ do
-            quantity <-
-                completeDecimal
-                    commodity
-                    (valueAt snapshot commodity transaction.tdate posting.pamount)
-            pure $ case performance.role of
-                Investment.RealisedGain -> (0, negate quantity, 0)
-                Investment.Fee -> (0, 0, negate quantity)
-                _ -> (negate quantity, 0, 0)
-        | transaction <- snapshot.transactions
-        , transaction.tdate <= day
-        , mapping <- selectedMappings
-        , transactionMatchesScope mapping transaction
-        , posting <- transaction.tpostings
-        , performance <- mapping.performanceAccounts
-        , performance.account `accountWithin` posting.paccount
-        ]
-    transactionMatchesScope mapping transaction = case scope of
-        Just selected
-            | mapping.assetAccount /= selected
-                && mapping.assetAccount `accountWithin` selected ->
-                any
-                    (\candidate -> selected `accountWithin` candidate.paccount)
-                    transaction.tpostings
-        _ -> True
-    combine Nothing _ = Nothing
-    combine _ Nothing = Nothing
-    combine (Just (incomeA, gainA, feeA)) (Just (incomeB, gainB, feeB)) =
-        Just (incomeA + incomeB, gainA + gainB, feeA + feeB)
-
-retainedPerformanceAt ::
-    Snapshot ->
-    Investment.InvestmentMappings ->
-    Text ->
-    Maybe Text ->
-    Day ->
-    Maybe Decimal
-retainedPerformanceAt snapshot mappings commodity scope day = fmap sum (traverse id retainedAmounts)
-  where
-    selectedMappings = case scope of
-        Nothing -> Investment.mappingsForScope "" mappings
-        Just selected -> Investment.mappingsForScope selected mappings
-    retainedAmounts =
-        [ fmap
-            (max 0)
-            (completeDecimal commodity (valueAt snapshot commodity transaction.tdate posting.pamount))
-        | mapping <- selectedMappings
-        , transaction <- snapshot.transactions
-        , transaction.tdate <= day
-        , any
-            ( \performance ->
-                incomeLike performance.role
-                    && any
-                        (\candidate -> performance.account `accountWithin` candidate.paccount)
-                        transaction.tpostings
-            )
-            mapping.performanceAccounts
-        , posting <- transaction.tpostings
-        , mappedAssetScope mapping `accountWithin` posting.paccount
-        ]
-    mappedAssetScope mapping = case scope of
-        Just selected
-            | mapping.assetAccount `accountWithin` selected -> selected
-        _ -> mapping.assetAccount
-    incomeLike role = case role of
-        Investment.Interest -> True
-        Investment.Dividend -> True
-        Investment.OtherIncome -> True
-        Investment.RealisedGain -> False
-        Investment.Fee -> False
-
-hasAttributablePerformance ::
-    Snapshot ->
-    Investment.InvestmentMappings ->
-    Day ->
-    Text ->
-    Bool
-hasAttributablePerformance snapshot mappings day asset =
-    case Investment.mappingForAccount asset mappings of
-        Just _ -> True
-        Nothing -> accountUsesExplicitCost snapshot day asset
-
-accountUsesExplicitCost :: Snapshot -> Day -> Text -> Bool
-accountUsesExplicitCost snapshot day asset =
-    any
-        (\amount -> abs amount.aquantity >= 0.000001 && amount.acost /= Nothing)
-        [ amount
-        | transaction <- snapshot.transactions
-        , transaction.tdate <= day
-        , posting <- transaction.tpostings
-        , posting.paccount == asset
-        , amount <- HledgerAmount.amountsRaw posting.pamount
-        ]
-
-investmentAccountsAt :: Snapshot -> Investment.InvestmentMappings -> Maybe Text -> Day -> [Text]
-investmentAccountsAt snapshot mappings scope day =
-    List.nub
-        [ posting.paccount
-        | transaction <- snapshot.transactions
-        , transaction.tdate <= day
-        , posting <- transaction.tpostings
-        , isInvestmentAccount mappings scope posting.paccount
-        ]
-
-isInvestmentAccount :: Investment.InvestmentMappings -> Maybe Text -> Text -> Bool
-isInvestmentAccount mappings scope name =
-    "assets" `accountWithin` name
-        && case scope of
-            Just selected -> selected `accountWithin` name && allowed
-            Nothing -> allowed
-  where
-    allowed =
-        not (any (`accountWithin` name) excludedRoots)
-            || Investment.mappingForAccount name mappings /= Nothing
-
-immediateChildren :: Snapshot -> Investment.InvestmentMappings -> Maybe Text -> [Text]
-immediateChildren snapshot mappings scope =
-    List.sort . Set.toList . Set.fromList $
-        mapMaybe
-            childOf
-            (investmentAccountsAt snapshot mappings scope (fromMaybe epoch snapshot.latestJournalDate))
-  where
-    parentParts = maybe ["assets"] HledgerAccountName.accountNameComponents scope
-    childOf name =
-        let parts = HledgerAccountName.accountNameComponents name
-         in if length parts > length parentParts
-                then Just (Text.intercalate ":" (take (length parentParts + 1) parts))
-                else Nothing
 
 breadcrumbsFor :: Maybe Text -> [InvestmentBreadcrumb]
 breadcrumbsFor Nothing = []
@@ -554,71 +129,7 @@ breadcrumbsFor (Just scope) =
 accountLabel :: Text -> Text
 accountLabel name = fromMaybe name (lastMaybe (HledgerAccountName.accountNameComponents name))
 
-reportPeriods :: Granularity -> [Hledger.Transaction] -> Day -> [(Text, Day, Day)]
-reportPeriods granularity transactions latest = case granularity of
-    Monthly ->
-        [ let end = min latest (addDays (-1) (addGregorianMonthsClip 1 start))
-           in (monthKey start, start, end)
-        | start <- monthlyStarts
-        ]
-    Yearly ->
-        [ let start = fromGregorian year 1 1
-              end = min latest (fromGregorian year 12 31)
-           in (Text.pack (show year), start, end)
-        | year <- [firstYear .. finalYear]
-        ]
-  where
-    (finalYear, _, _) = toGregorian latest
-    monthlyStarts =
-        takeLast
-            24
-            ( Set.toAscList
-                (Set.fromList (fmap (monthStart . (.tdate)) transactions))
-            )
-    firstYear =
-        maybe
-            finalYear
-            (\day -> let (year, _, _) = toGregorian day in year)
-            (minimumMaybe (fmap (.tdate) transactions))
-
-warning :: Text -> Maybe Text -> Text -> InvestmentWarning
-warning kind account message = InvestmentWarning{kind, account, message}
-
 nonEmpty :: Text -> Maybe Text
 nonEmpty value
     | Text.null (Text.strip value) = Nothing
     | otherwise = Just (Text.strip value)
-
-validateScope :: Investment.InvestmentMappings -> Maybe Text -> Either AppError (Maybe Text)
-validateScope mappings requested = case requested >>= nonEmpty of
-    Nothing -> Right Nothing
-    Just scope
-        | "assets" `accountWithin` scope
-            && ( not (any (`accountWithin` scope) excludedRoots)
-                    || not (null (Investment.mappingsForScope scope mappings))
-                    || Investment.mappingForAccount scope mappings /= Nothing
-               ) ->
-            Right (Just scope)
-        | otherwise ->
-            Left
-                ( InvalidRequest
-                    ( "Account prefix must be an investment asset account outside "
-                        <> "cash, property, and receivables."
-                    )
-                )
-
-emptySummary :: InvestmentSummary
-emptySummary =
-    InvestmentSummary
-        { marketValue = Nothing
-        , purchaseCost = Nothing
-        , gainLoss = Nothing
-        , returnPercentage = Nothing
-        , attributedIncome = Nothing
-        , realisedGain = Nothing
-        , totalProfit = Nothing
-        , completeness = Unavailable
-        }
-
-accountWithin :: Text -> Text -> Bool
-accountWithin prefix account = prefix == account || (prefix <> ":") `Text.isPrefixOf` account

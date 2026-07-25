@@ -28,6 +28,12 @@ containing complete transactions and their postings. Reload failures retain
 the last usable snapshot.
 Send the server `SIGHUP` to parse, validate, and atomically publish a replacement.
 
+Internally the backend follows a functional-core / imperative-shell design: all
+ledger calculations live as pure functions in `Hedger.Domain.*` (net worth,
+cashflow, activity, investment performance, valuation), behind a thin
+application/query layer and a Servant HTTP layer. See `AGENTS.md` for the module
+layout and layering rules.
+
 ## NixOS deployment
 
 The flake exports:

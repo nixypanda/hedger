@@ -1,0 +1,345 @@
+{- | Activity: the quantified counterpart of 'Hedger.Domain.Transaction'
+classification. Where the classifier says a transaction /is/ a borrowing or an
+asset acquisition, activity says how much it moved into which accounts, bucketed
+over a period.
+-}
+module Hedger.Domain.Activity (
+    ActivityKind (..),
+    ActivityRange (..),
+    BreakdownItem (..),
+    ActivityBucketFigures (..),
+    ActivityFigures (..),
+    computeActivity,
+    parseActivityPeriod,
+)
+where
+
+import Data.Decimal (Decimal)
+import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Set (Set)
+import Data.Set qualified as Set
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian)
+import Text.Read (readMaybe)
+
+import Hledger.Data.Types qualified as Hledger
+
+import Hedger.Domain.Account qualified as Account
+import Hedger.Domain.Error (AppError (..))
+import Hedger.Domain.Internal.PeriodReport (BreakdownItem (..))
+import Hedger.Domain.Period (ReportPeriod (..), dayKey, epoch, monthKey, monthPeriod, parseYearMonth)
+import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Transaction qualified as Transaction
+import Hedger.Domain.Valuation (Conversion (..), completeNothing, convertMixedAt, foldMapConversion)
+
+data ActivityKind
+    = IncomeActivity
+    | ExpenseActivity
+    | AssetActivity
+    | LiabilityActivity
+    deriving stock (Eq, Show)
+
+data ActivityRange = MonthActivity | FiscalYearActivity
+    deriving stock (Eq, Show)
+
+data Movement = Movement
+    { date :: Day
+    , account :: Text
+    , quantity :: Decimal
+    }
+
+data ActivityBucketFigures = ActivityBucketFigures
+    { key :: Text
+    , startDate :: Day
+    , total :: Decimal
+    , increase :: Decimal
+    , decrease :: Decimal
+    , reallocated :: Decimal
+    , categoryItems :: [BreakdownItem]
+    , transactions :: [Hledger.Transaction]
+    }
+
+data ActivityFigures = ActivityFigures
+    { buckets :: [ActivityBucketFigures]
+    , missing :: Set Text
+    }
+
+computeActivity ::
+    Snapshot ->
+    [Hledger.Transaction] ->
+    Text ->
+    ActivityKind ->
+    ActivityRange ->
+    Int ->
+    ReportPeriod ->
+    ActivityFigures
+computeActivity snapshot filtered commodity activityKind activityRange depth activityPeriod =
+    ActivityFigures
+        { buckets = fmap (toBucketFigures depth activityRange) (Map.toAscList bucketed)
+        , missing = Set.unions (fmap (.missing) results)
+        }
+  where
+    inRange =
+        filter
+            ( \transaction ->
+                transaction.tdate >= activityPeriod.start && transaction.tdate <= activityPeriod.end
+            )
+            filtered
+    results = fmap (activityContribution snapshot commodity activityKind) inRange
+    contributions = mapMaybe (.value) results
+    bucketed =
+        Map.fromListWith
+            (<>)
+            [ (activityBucketKey activityRange contribution.date, [contribution])
+            | contribution <- contributions
+            ]
+
+toBucketFigures :: Int -> ActivityRange -> (Text, [ActivityContribution]) -> ActivityBucketFigures
+toBucketFigures depth activityRange (key, contributions) =
+    ActivityBucketFigures
+        { key
+        , startDate
+        , total = sum (fmap (.total) contributions)
+        , increase = sum (fmap (.increase) contributions)
+        , decrease = sum (fmap (.decrease) contributions)
+        , reallocated = sum (fmap (.reallocated) contributions)
+        , categoryItems = categoryItems
+        , transactions = fmap (.transaction) contributions
+        }
+  where
+    movements = concatMap (.categories) contributions
+    startDate = case activityRange of
+        MonthActivity -> fromMaybe epoch (readMaybe (Text.unpack key))
+        FiscalYearActivity ->
+            maybe epoch (\(year, month) -> fromGregorian year month 1) (parseYearMonth key)
+    categoryTotals =
+        Map.fromListWith
+            (+)
+            [ (Account.atDepth depth movement.account, movement.quantity)
+            | movement <- movements
+            ]
+    categoryItems =
+        [ BreakdownItem{account, quantity = abs quantity}
+        | (account, quantity) <- Map.toList categoryTotals
+        ]
+
+belongsTo :: Text -> Hledger.Posting -> Bool
+belongsTo category posting = Account.accountLabel (Account.accountInfo posting.paccount) == category
+
+categoryPostingMovements ::
+    Snapshot ->
+    Text ->
+    Text ->
+    Hledger.Transaction ->
+    (Decimal -> Decimal) ->
+    Conversion [Movement]
+categoryPostingMovements snapshot commodity category transaction change =
+    foldMapConversion
+        [ fmap
+            (Movement transaction.tdate posting.paccount . change)
+            (convertMixedAt snapshot commodity transaction.tdate posting.pamount)
+        | posting <- transaction.tpostings
+        , belongsTo category posting
+        ]
+
+data ActivityContribution = ActivityContribution
+    { date :: Day
+    , total :: Decimal
+    , increase :: Decimal
+    , decrease :: Decimal
+    , reallocated :: Decimal
+    , categories :: [Movement]
+    , transaction :: Hledger.Transaction
+    }
+
+activityContribution ::
+    Snapshot ->
+    Text ->
+    ActivityKind ->
+    Hledger.Transaction ->
+    Conversion ActivityContribution
+activityContribution snapshot commodity activityKind transaction =
+    case (activityKind, Transaction.classificationFor transaction) of
+        (IncomeActivity, Transaction.TransactionIncome) ->
+            flowActivity snapshot commodity "income" negate transaction
+        (ExpenseActivity, Transaction.TransactionExpense) ->
+            flowActivity snapshot commodity "expenses" id transaction
+        (AssetActivity, classification@Transaction.AssetAcquisition) ->
+            assetActivity snapshot commodity classification transaction
+        (AssetActivity, classification@Transaction.AssetDisposal) ->
+            assetActivity snapshot commodity classification transaction
+        (AssetActivity, classification@Transaction.AssetReallocation) ->
+            assetActivity snapshot commodity classification transaction
+        (LiabilityActivity, classification@Transaction.Borrowing) ->
+            liabilityActivity snapshot commodity classification transaction
+        (LiabilityActivity, classification@Transaction.Repayment) ->
+            liabilityActivity snapshot commodity classification transaction
+        _ -> completeNothing
+
+flowActivity ::
+    Snapshot ->
+    Text ->
+    Text ->
+    (Decimal -> Decimal) ->
+    Hledger.Transaction ->
+    Conversion ActivityContribution
+flowActivity snapshot commodity category change transaction =
+    let movementsResult = categoryPostingMovements snapshot commodity category transaction change
+        contribution = do
+            movements <- movementsResult.value
+            let total = sum (fmap (.quantity) movements)
+            if abs total < 0.000001
+                then Nothing
+                else
+                    Just
+                        ActivityContribution
+                            { date = transaction.tdate
+                            , total
+                            , increase = 0
+                            , decrease = 0
+                            , reallocated = 0
+                            , categories = movements
+                            , transaction
+                            }
+     in Conversion
+            { value = if Set.null movementsResult.missing then contribution else Nothing
+            , missing = movementsResult.missing
+            }
+
+assetActivity ::
+    Snapshot ->
+    Text ->
+    Transaction.TransactionClassification ->
+    Hledger.Transaction ->
+    Conversion ActivityContribution
+assetActivity snapshot commodity classification transaction =
+    let results =
+            [ fmap
+                (\amount -> (posting, amount))
+                (convertMixedAt snapshot commodity transaction.tdate posting.pamount)
+            | posting <- transaction.tpostings
+            , belongsTo "assets" posting
+            ]
+        missing = Set.unions (fmap (.missing) results)
+        postings = mapMaybe (.value) results
+        cash posting =
+            Account.isCashOnly (Account.accountInfo posting.paccount)
+                || inferredCashName posting.paccount
+        totalWhere predicate = sum [abs amount | (posting, amount) <- postings, predicate posting amount]
+        otherIn = totalWhere (\posting amount -> not (cash posting) && amount > 0)
+        otherOut = totalWhere (\posting amount -> not (cash posting) && amount < 0)
+        (acquired, disposed, realloc) = case classification of
+            Transaction.AssetAcquisition -> (otherIn, 0, 0)
+            Transaction.AssetDisposal -> (0, otherOut, 0)
+            Transaction.AssetReallocation -> (0, 0, min otherIn otherOut)
+            _ -> (0, 0, 0)
+        categoryValues =
+            [ Movement transaction.tdate posting.paccount (abs amount)
+            | (posting, amount) <- postings
+            , not (cash posting)
+            , abs amount >= 0.000001
+            ]
+        relevant = acquired > 0 || disposed > 0 || realloc > 0
+        result =
+            if relevant && Set.null missing
+                then
+                    Just
+                        ActivityContribution
+                            { date = transaction.tdate
+                            , total = acquired + disposed + realloc
+                            , increase = acquired
+                            , decrease = disposed
+                            , reallocated = realloc
+                            , categories = categoryValues
+                            , transaction
+                            }
+                else Nothing
+     in Conversion{value = result, missing}
+
+liabilityActivity ::
+    Snapshot ->
+    Text ->
+    Transaction.TransactionClassification ->
+    Hledger.Transaction ->
+    Conversion ActivityContribution
+liabilityActivity snapshot commodity classification transaction =
+    let results =
+            [ fmap
+                (Movement transaction.tdate posting.paccount)
+                (convertMixedAt snapshot commodity transaction.tdate posting.pamount)
+            | posting <- transaction.tpostings
+            , belongsTo "liabilities" posting
+            ]
+        missing = Set.unions (fmap (.missing) results)
+        movements = mapMaybe (.value) results
+        borrowed =
+            if classification == Transaction.Borrowing
+                then sum [abs movement.quantity | movement <- movements, movement.quantity < 0]
+                else 0
+        repaid =
+            if classification == Transaction.Repayment
+                then sum [movement.quantity | movement <- movements, movement.quantity > 0]
+                else 0
+        relevant = borrowed > 0 || repaid > 0
+        result =
+            if relevant && Set.null missing
+                then
+                    Just
+                        ActivityContribution
+                            { date = transaction.tdate
+                            , total = borrowed + repaid
+                            , increase = borrowed
+                            , decrease = repaid
+                            , reallocated = 0
+                            , categories = fmap absoluteMovement movements
+                            , transaction
+                            }
+                else Nothing
+     in Conversion{value = result, missing}
+
+inferredCashName :: Text -> Bool
+inferredCashName account =
+    any
+        (`elem` ["bank", "cash", "checking", "current", "deposit", "savings", "wallet"])
+        (fmap Text.toLower (Text.splitOn ":" account))
+
+absoluteMovement :: Movement -> Movement
+absoluteMovement movement =
+    Movement
+        { date = movement.date
+        , account = movement.account
+        , quantity = abs movement.quantity
+        }
+
+activityBucketKey :: ActivityRange -> Day -> Text
+activityBucketKey MonthActivity = dayKey
+activityBucketKey FiscalYearActivity = monthKey
+
+parseActivityPeriod :: Int -> ActivityRange -> Text -> Either AppError ReportPeriod
+parseActivityPeriod fiscalStart activityRange raw =
+    case activityRange of
+        MonthActivity ->
+            case parseYearMonth raw of
+                Just (year, month) -> Right (monthPeriod (fromGregorian year month 1))
+                Nothing -> Left (InvalidRequest "Activity month must use YYYY-MM.")
+        FiscalYearActivity ->
+            case parseYearMonth raw of
+                Just (year, month)
+                    | month == fiscalStart ->
+                        let first = fromGregorian year month 1
+                            next = addGregorianMonthsClip 12 first
+                         in Right
+                                ReportPeriod
+                                    { key = monthKey first
+                                    , start = first
+                                    , end = addDays (-1) next
+                                    }
+                _ ->
+                    Left
+                        ( InvalidRequest
+                            ( "Fiscal activity period must be the configured fiscal-year start "
+                                <> "month in YYYY-MM form."
+                            )
+                        )

@@ -16,6 +16,7 @@ module Hedger.Domain.Period (
     maximumMaybe,
     minimumMaybe,
     lastMaybe,
+    atIndex,
 )
 where
 
@@ -89,3 +90,10 @@ minimumMaybe values = Just (minimum values)
 lastMaybe :: [value] -> Maybe value
 lastMaybe [] = Nothing
 lastMaybe values = Just (last values)
+
+atIndex :: Int -> [value] -> Maybe value
+atIndex index values
+    | index < 0 = Nothing
+    | otherwise = case drop index values of
+        value : _ -> Just value
+        [] -> Nothing
