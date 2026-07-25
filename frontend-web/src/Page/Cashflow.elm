@@ -15,6 +15,7 @@ import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
+import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.Analytics as AnalyticsView
@@ -312,7 +313,7 @@ dashboardContent theme viewport data =
                     ]
 
                 _ ->
-                    [ Ui.skeletonLoading theme ]
+                    [ cashflowSkeleton theme viewport ]
 
         Just response ->
             [ remoteNotice theme data.response response
@@ -359,3 +360,44 @@ queryError remote =
 
         _ ->
             Nothing
+
+
+cashflowSkeleton : Theme -> Viewport -> Element Msg
+cashflowSkeleton theme viewport =
+    let
+        layout =
+            Responsive.contentLayout viewport (Element.classifyDevice viewport)
+
+        isCompact =
+            Responsive.isCompact layout
+    in
+    Element.column [ Element.width Element.fill, Element.spacing 16 ]
+        [ Element.column [ Element.width Element.fill, Element.spacing 8 ]
+            [ Skeleton.inputBar theme
+            , Skeleton.chipRow theme
+            ]
+        , Typography.mutedBody theme "Loading transactions…"
+        , Skeleton.chartCard theme
+        , if isCompact then
+            Element.column [ Element.width Element.fill, Element.spacing 16 ]
+                [ Skeleton.chartCard theme
+                , Skeleton.chartCard theme
+                ]
+
+          else
+            Element.row [ Element.width Element.fill, Element.spacing 16 ]
+                [ Skeleton.chartCard theme
+                , Skeleton.chartCard theme
+                ]
+        , if isCompact then
+            Element.column [ Element.width Element.fill, Element.spacing 16 ]
+                [ Skeleton.chartCard theme
+                , Skeleton.chartCard theme
+                ]
+
+          else
+            Element.row [ Element.width Element.fill, Element.spacing 16 ]
+                [ Skeleton.chartCard theme
+                , Skeleton.chartCard theme
+                ]
+        ]

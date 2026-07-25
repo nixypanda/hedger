@@ -38,6 +38,7 @@ import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
+import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.States as States
@@ -731,7 +732,13 @@ content theme device (Model data) =
             Ui.card theme [ Ui.loading theme "Loading register…" ]
 
         Loading _ _ ->
-            Ui.card theme [ Ui.skeletonLoading theme ]
+            Ui.card theme
+                [ Skeleton.listRow theme
+                , Ui.hairline theme
+                , Skeleton.listRow theme
+                , Ui.hairline theme
+                , Skeleton.listRow theme
+                ]
 
         LoadFailed _ error ->
             Ui.card theme

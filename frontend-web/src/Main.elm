@@ -19,6 +19,7 @@ import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Url exposing (Url)
@@ -297,7 +298,7 @@ bootstrapStatus theme remote =
             Ui.loading theme "Preparing application metadata…"
 
         Loading Nothing ->
-            Ui.card theme [ Ui.skeletonLoading theme ]
+            Ui.card theme [ Ui.Skeleton.loading theme ]
 
         Loading (Just bootstrap) ->
             Ui.card theme

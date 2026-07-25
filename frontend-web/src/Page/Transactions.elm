@@ -44,6 +44,7 @@ import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
+import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
@@ -1027,7 +1028,7 @@ remoteContent theme device model =
             Ui.card theme [ Ui.loading theme "Loading transactions…" ]
 
         Loading Nothing ->
-            Ui.card theme [ Ui.skeletonLoading theme ]
+            transactionsSkeleton theme
 
         Loading (Just response) ->
             transactionContent theme device model response
@@ -1504,3 +1505,19 @@ amountText amount =
 amountsText : List Amount -> String
 amountsText =
     List.map amountText >> String.join ", "
+
+
+transactionsSkeleton : Theme -> Element Msg
+transactionsSkeleton theme =
+    Ui.card theme
+        [ Typography.mutedBody theme "Loading transactions…"
+        , Element.column [ Element.width Element.fill, Element.spacing 4 ]
+            [ Element.el [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
+                (Typography.subsectionTitle theme "January 2026")
+            , Skeleton.listRow theme
+            , Ui.hairline theme
+            , Skeleton.listRow theme
+            , Ui.hairline theme
+            , Skeleton.listRow theme
+            ]
+        ]

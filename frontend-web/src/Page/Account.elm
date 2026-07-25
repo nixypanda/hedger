@@ -35,6 +35,7 @@ import State.Viewport exposing (Viewport)
 import String
 import Ui
 import Ui.Icon as Icon
+import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
@@ -340,7 +341,17 @@ content theme device model =
             Ui.loading theme "Loading accounts…"
 
         Loading ->
-            Ui.card theme [ Ui.skeletonLoading theme ]
+            Ui.card theme
+                [ Skeleton.listRow theme
+                , Ui.hairline theme
+                , Skeleton.listRow theme
+                , Ui.hairline theme
+                , Skeleton.listRow theme
+                , Ui.hairline theme
+                , Skeleton.listRow theme
+                , Ui.hairline theme
+                , Skeleton.listRow theme
+                ]
 
         Refreshing response ->
             Ui.card theme

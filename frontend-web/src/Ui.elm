@@ -56,8 +56,6 @@ module Ui exposing
     , segmentedControl
     , segmentedOption
     , selectDropdown
-    , skeletonBar
-    , skeletonLoading
     , statusBadge
     , suggestionList
     , truncatedText
@@ -397,27 +395,6 @@ errorBanner theme message =
         [ Icon.view { icon = Icon.AlertTriangle, size = 18, color = theme.dangerFg }
         , Element.paragraph [ Element.width Element.fill ] [ Element.text message ]
         ]
-
-
-skeletonLoading : Theme -> Element msg
-skeletonLoading theme =
-    Element.column [ Element.width Element.fill, Element.spacing space12 ]
-        [ skeletonBar theme
-        , skeletonBar theme
-        , skeletonBar theme
-        ]
-
-
-skeletonBar : Theme -> Element msg
-skeletonBar theme =
-    Element.el
-        [ Element.width Element.fill
-        , Element.height (Element.px 16)
-        , Background.color theme.inputFill
-        , Border.rounded radiusSmall
-        , uiClass "ui-skeleton"
-        ]
-        Element.none
 
 
 primaryButton : Theme -> { label : String, onPress : msg } -> Element msg

@@ -15,6 +15,7 @@ import Api.Investments as Investments exposing (Completeness(..), Granularity(..
 import Data.Decimal as Decimal exposing (Decimal)
 import Element exposing (Device, Element)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes as Attr
@@ -27,6 +28,7 @@ import Ui
 import Ui.Css as Css
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Responsive as Responsive
+import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.Formatting as Formatting
@@ -201,7 +203,7 @@ content theme viewport device data =
                     ]
 
                 _ ->
-                    [ Ui.skeletonLoading theme ]
+                    [ investmentsSkeleton theme viewport ]
 
         Just response ->
             [ remoteNotice theme data.response response
@@ -756,4 +758,59 @@ chartLegend theme =
             [ Ui.accentDot theme.primary, Typography.mutedCaption theme "Market value" ]
         , Element.row [ Element.spacing 6 ]
             [ Ui.accentDot theme.textMuted, Typography.mutedCaption theme "Purchase cost" ]
+        ]
+
+
+investmentsSkeleton : Theme -> Viewport -> Element Msg
+investmentsSkeleton theme viewport =
+    let
+        layout =
+            Responsive.contentLayout viewport (Element.classifyDevice viewport)
+
+        isCompact =
+            Responsive.isCompact layout
+    in
+    Element.column [ Element.width Element.fill, Element.spacing 16 ]
+        [ Element.row [ Element.width Element.fill, Element.spacing 6 ]
+            [ Element.el
+                [ Element.width (Element.px 60)
+                , Element.height (Element.px 12)
+                , Background.color theme.inputFill
+                , Border.rounded 6
+                , Typography.uiClass "ui-skeleton"
+                ]
+                Element.none
+            , Element.el
+                [ Element.width (Element.px 80)
+                , Element.height (Element.px 12)
+                , Background.color theme.inputFill
+                , Border.rounded 6
+                , Typography.uiClass "ui-skeleton"
+                ]
+                Element.none
+            ]
+        , if isCompact then
+            Element.column [ Element.width Element.fill, Element.spacing 16 ]
+                [ Skeleton.metricCard theme
+                , Skeleton.metricCard theme
+                , Skeleton.metricCard theme
+                , Skeleton.metricCard theme
+                ]
+
+          else
+            Element.row [ Element.width Element.fill, Element.spacing 16 ]
+                [ Skeleton.metricCard theme
+                , Skeleton.metricCard theme
+                , Skeleton.metricCard theme
+                , Skeleton.metricCard theme
+                ]
+        , Skeleton.chartCard theme
+        , Typography.sectionTitle theme "Holdings"
+        , Ui.card theme
+            [ Skeleton.listRow theme
+            , Ui.hairline theme
+            , Skeleton.listRow theme
+            , Ui.hairline theme
+            , Skeleton.listRow theme
+            ]
         ]

@@ -15,6 +15,7 @@ import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
+import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.Analytics as AnalyticsView
@@ -285,7 +286,7 @@ dashboardContent theme viewport device data =
                     ]
 
                 _ ->
-                    [ Ui.skeletonLoading theme ]
+                    [ netWorthSkeleton theme viewport ]
 
         Just response ->
             [ remoteNotice theme data.response response
@@ -373,6 +374,30 @@ responsiveGrid layout items =
 
     else
         Element.row [ Element.width Element.fill, Element.spacing 16 ] items
+
+
+netWorthSkeleton : Theme -> Viewport -> Element Msg
+netWorthSkeleton theme viewport =
+    let
+        layout =
+            Responsive.contentLayout viewport (Element.classifyDevice viewport)
+    in
+    Element.column [ Element.width Element.fill, Element.spacing 16 ]
+        [ responsiveGrid layout
+            [ Skeleton.kpiCard theme
+            , Skeleton.kpiCard theme
+            , Skeleton.kpiCard theme
+            ]
+        , Typography.sectionTitle theme "Performance"
+        , Skeleton.chartCard theme
+        , Element.column [ Element.width Element.fill, Element.spacing 16 ]
+            [ Skeleton.chartCard theme
+            , responsiveGrid layout
+                [ Skeleton.chartCard theme
+                , Skeleton.chartCard theme
+                ]
+            ]
+        ]
 
 
 chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
