@@ -1,6 +1,7 @@
 module Hedger.Interface.HTTP.Common (
     CommodityQuantity (..),
     ResponseMetadata (..),
+    commodityQuantities,
     toResponseMetadata,
     runAction,
     servantError,
@@ -24,6 +25,9 @@ import GHC.Generics (Generic)
 import Network.HTTP.Types qualified as HTTP
 import Servant (Handler, ServerError (..), throwError)
 import Text.Read (readMaybe)
+
+import Hledger.Data.Amount qualified as HledgerAmount
+import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AppM (AppM, Env, runAppM)
 import Hedger.Application.Common (SnapshotMetadata (..))
@@ -93,6 +97,19 @@ data CommodityQuantity = CommodityQuantity
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON, FromJSON)
+
+commodityQuantities :: Hledger.MixedAmount -> [CommodityQuantity]
+commodityQuantities =
+    fmap toCommodityQuantity
+        . HledgerAmount.amountsRaw
+        . HledgerAmount.mixedAmountStripCosts
+
+toCommodityQuantity :: Hledger.Amount -> CommodityQuantity
+toCommodityQuantity amount =
+    CommodityQuantity
+        { commodity = amount.acommodity
+        , quantity = Text.pack (show amount.aquantity)
+        }
 
 toResponseMetadata :: SnapshotMetadata -> ResponseMetadata
 toResponseMetadata value =

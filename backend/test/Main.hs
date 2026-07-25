@@ -9,6 +9,7 @@ import Hedger.Domain.TransactionSpec (transactionSpec)
 import Hedger.Infrastructure.Internal.CursorSpec (cursorSpec)
 import Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec)
 import Hedger.Interface.HTTP.APISpec (apiSpec)
+import Hedger.Interface.HTTP.CommonSpec (commonSpec)
 
 main :: IO ()
 main =
@@ -22,4 +23,5 @@ main =
             , cursorSpec
             , transactionQuerySpec
             , apiSpec
+            , commonSpec
             ]

@@ -10,7 +10,6 @@ import Data.Time (Day)
 import GHC.Generics (Generic)
 import Servant
 
-import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AccountRegisterQuery (RegisterEntry (..), RegisterPageRequest (..))
@@ -27,6 +26,7 @@ import Hedger.Domain.Error (AppError)
 import Hedger.Interface.HTTP.Common (
     CommodityQuantity (..),
     ResponseMetadata (..),
+    commodityQuantities,
     parseCanonicalAccountPath,
     parseDay,
     parseLimit,
@@ -155,22 +155,19 @@ toAccountNode displayCommodity valuationDate account =
         , accountType =
             accountTypeText <$> account.accountType
         , hasChildren = account.hasChildren
-        , directBalances = amounts account.directBalances
-        , subtreeBalances = amounts account.subtreeBalances
+        , directBalances = commodityQuantities account.directBalances
+        , subtreeBalances = commodityQuantities account.subtreeBalances
         , valuation = valuationDto displayCommodity valuationDate account.valuation
         , children = toAccountNode displayCommodity valuationDate <$> account.children
         }
-
-amounts :: Hledger.MixedAmount -> [CommodityQuantity]
-amounts = fmap toCommodityQuantity . HledgerAmount.amountsRaw
 
 valuationDto :: Text -> Day -> Account.ValuedBalances -> AccountValuationDto
 valuationDto displayCommodity valuationDate valued =
     AccountValuationDto
         { asOf = valuationDate
         , commodity = displayCommodity
-        , directBalances = amounts valued.directBalance
-        , subtreeBalances = amounts valued.subtreeBalance
+        , directBalances = commodityQuantities valued.directBalance
+        , subtreeBalances = commodityQuantities valued.subtreeBalance
         , completeness = completenessText valued.completeness
         }
 
@@ -179,13 +176,6 @@ completenessText status = case status of
     Account.Complete -> "complete"
     Account.Partial -> "partial"
     Account.Unavailable -> "unavailable"
-
-toCommodityQuantity :: Hledger.Amount -> CommodityQuantity
-toCommodityQuantity amount =
-    CommodityQuantity
-        { commodity = amount.acommodity
-        , quantity = Text.pack (show amount.aquantity)
-        }
 
 accountTypeText :: Hledger.AccountType -> Text
 accountTypeText accountType = case accountType of
@@ -226,8 +216,8 @@ toRegisterEntry displayCommodity RegisterEntry{rawItem = raw, displayItem = valu
 valueDto :: Text -> Hledger.MixedAmount -> Hledger.MixedAmount -> RegisterValueDto
 valueDto displayCommodity rawAmount valuedAmount =
     RegisterValueDto
-        { raw = amounts rawAmount
-        , display = amounts valuedAmount
+        { raw = commodityQuantities rawAmount
+        , display = commodityQuantities valuedAmount
         , completeness = completenessForRaw displayCommodity valuedAmount
         }
 
@@ -237,4 +227,4 @@ completenessForRaw displayCommodity valuedAmount
     | any ((== displayCommodity) . (.commodity)) projected = "partial"
     | otherwise = "unavailable"
   where
-    projected = amounts valuedAmount
+    projected = commodityQuantities valuedAmount
