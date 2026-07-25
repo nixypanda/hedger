@@ -186,9 +186,9 @@ granularityControl : Theme -> Granularity -> Element Msg
 granularityControl theme selected =
     Ui.segmentedControl theme
         [ Ui.segmentedOption theme
-            { label = "Monthly", selected = selected == Monthly, onPress = GranularitySelected Monthly }
+            { label = "M", selected = selected == Monthly, onPress = GranularitySelected Monthly }
         , Ui.segmentedOption theme
-            { label = "Yearly", selected = selected == Yearly, onPress = GranularitySelected Yearly }
+            { label = "Y", selected = selected == Yearly, onPress = GranularitySelected Yearly }
         ]
 
 
@@ -250,7 +250,7 @@ dashboard theme viewport device selected response =
             min 1200 (max 320 (Responsive.usableContentWidth viewport device - 40))
     in
     Element.column [ Element.width Element.fill, Element.spacing 16 ]
-        [ summaryGrid layout theme response.displayCommodity response.summary
+        [ summaryGrid layout theme response.displayCommodity response.summary response.timeline
         , performanceBreakdown theme response.displayCommodity response.summary
         , Typography.sectionTitle theme "Value and cost"
         , Ui.card theme
@@ -292,32 +292,44 @@ breakdownMetric theme commodity label value =
         ]
 
 
-summaryGrid : Responsive.ContentLayout -> Theme -> String -> Investments.Summary -> Element Msg
-summaryGrid layout theme commodity summary =
+summaryGrid :
+    Responsive.ContentLayout
+    -> Theme
+    -> String
+    -> Investments.Summary
+    -> List Investments.TimelinePoint
+    -> Element Msg
+summaryGrid layout theme commodity summary timeline =
     let
         cards =
-            [ metricCard theme commodity "Market value" summary.marketValue Nothing Icon.Wallet theme.primary
+            [ metricCard theme
+                commodity
+                "Market value"
+                summary.marketValue
+                Icon.Wallet
+                theme.primary
+                timeline
             , metricCard theme
                 commodity
                 "Purchase cost"
                 summary.purchaseCost
-                Nothing
                 Icon.Receipt
                 theme.textMedium
+                timeline
             , metricCard theme
                 commodity
                 "Gain / loss"
                 summary.gainLoss
-                summary.returnPercentage
                 Icon.TrendingUp
                 (toneFor summary.gainLoss theme)
+                timeline
             , metricCard theme
                 commodity
                 "Total profit"
                 summary.totalProfit
-                Nothing
                 Icon.ChartBar
                 (toneFor summary.totalProfit theme)
+                timeline
             ]
     in
     if Responsive.isCompact layout then
@@ -332,26 +344,27 @@ metricCard :
     -> String
     -> String
     -> Maybe Decimal
-    -> Maybe Decimal
     -> Icon
     -> Element.Color
+    -> List Investments.TimelinePoint
     -> Element Msg
-metricCard theme commodity title amount percentage icon color =
-    Ui.cardWith [ Element.width (Element.fillPortion 1), Element.height (Element.px 154) ]
+metricCard theme commodity title amount icon color _ =
+    Ui.cardWith [ Element.width (Element.fillPortion 1), Element.height (Element.px 184) ]
         theme
-        [ Element.row [ Element.width Element.fill ]
-            [ Icon.view { icon = icon, size = 22, color = color }
-            , Element.el [ Element.alignRight ] (Typography.mutedCaption theme title)
+        [ Element.row [ Element.width Element.fill, Element.spacing 12 ]
+            [ Element.el
+                [ Element.width (Element.px 42)
+                , Element.height (Element.px 42)
+                , Background.color theme.primarySoft
+                , Border.rounded 10
+                ]
+                (Element.el [ Element.centerX, Element.centerY ]
+                    (Icon.view { icon = icon, size = 22, color = color })
+                )
             ]
+        , Typography.mutedBody theme title
         , Element.el [ Typography.kpiValue, Typography.financeNumber, Font.bold ]
             (Element.text (maybeMoney commodity amount))
-        , percentage
-            |> Maybe.map
-                (\value ->
-                    Element.el [ Font.color color, Font.semiBold, Typography.caption ]
-                        (Element.text (Formatting.formatPercentage value ++ " return"))
-                )
-            |> Maybe.withDefault Element.none
         ]
 
 
@@ -443,7 +456,7 @@ completenessBadge : Theme -> Completeness -> Element msg
 completenessBadge theme completeness =
     case completeness of
         Complete ->
-            Ui.statusBadge theme Ui.StatusSuccess "Complete"
+            Element.none
 
         Partial ->
             Ui.statusBadge theme Ui.StatusWarning "Partial"
@@ -791,18 +804,18 @@ investmentsSkeleton theme viewport =
             ]
         , if isCompact then
             Element.column [ Element.width Element.fill, Element.spacing 16 ]
-                [ Skeleton.metricCard theme
-                , Skeleton.metricCard theme
-                , Skeleton.metricCard theme
-                , Skeleton.metricCard theme
+                [ Skeleton.kpiCard theme
+                , Skeleton.kpiCard theme
+                , Skeleton.kpiCard theme
+                , Skeleton.kpiCard theme
                 ]
 
           else
             Element.row [ Element.width Element.fill, Element.spacing 16 ]
-                [ Skeleton.metricCard theme
-                , Skeleton.metricCard theme
-                , Skeleton.metricCard theme
-                , Skeleton.metricCard theme
+                [ Skeleton.kpiCard theme
+                , Skeleton.kpiCard theme
+                , Skeleton.kpiCard theme
+                , Skeleton.kpiCard theme
                 ]
         , Skeleton.chartCard theme
         , Typography.sectionTitle theme "Holdings"
