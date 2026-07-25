@@ -234,21 +234,35 @@ netWorth request = do
                 HledgerReportOptions.CalcGain
                 HledgerReportOptions.Historical
                 1
-        periods = reportPeriodsFrom request.granularity assetReport
+        reportPeriods = reportPeriodsFrom request.granularity assetReport
+        dataPeriods = periodsWithData request.granularity matched reportPeriods
+        dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
         assetTotals = reportTotals commodity assetReport
         liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilityReport)
-        points = zipWith3 netWorthPointFrom periods assetTotals liabilityTotals
-        positivePeriod = selectedPeriod request.positivePeriod periods
-        negativePeriod = selectedPeriod request.negativePeriod periods
-        assetsBreakdown = reportBreakdown commodity request.positiveDepth positivePeriod periods assetReport
+        allPoints = zipWith3 netWorthPointFrom reportPeriods assetTotals liabilityTotals
+        points =
+            filter
+                ((`Set.member` dataPeriodKeys) . (.period))
+                allPoints
+        positivePeriod = selectedPeriod request.positivePeriod dataPeriods
+        negativePeriod = selectedPeriod request.negativePeriod dataPeriods
+        assetsBreakdown =
+            reportBreakdown
+                commodity
+                request.positiveDepth
+                positivePeriod
+                reportPeriods
+                assetReport
         liabilitiesBreakdown =
-            reportBreakdown commodity request.negativeDepth negativePeriod periods liabilityReport
+            reportBreakdown commodity request.negativeDepth negativePeriod reportPeriods liabilityReport
         performanceResults =
-            performanceFrom commodity periods points assetTotals liabilityTotals gainReport
+            filter
+                (maybe False ((`Set.member` dataPeriodKeys) . (.period)) . (.value))
+                (performanceFrom commodity reportPeriods allPoints assetTotals liabilityTotals gainReport)
         performance = mapMaybe (.value) performanceResults
         performanceMissing = reportMissing commodity gainReport
         historyMissing = reportMissing commodity assetReport <> reportMissing commodity liabilityReport
-        selectedKey = (.key) <$> selectedPeriod request.positivePeriod periods
+        selectedKey = (.key) <$> selectedPeriod request.positivePeriod dataPeriods
         timelineNetWorth point = point.net
         timelineAssets point = point.positive
         timelineLiabilities point = point.negative
@@ -316,24 +330,35 @@ cashflow request = do
                 HledgerReportOptions.CalcChange
                 HledgerReportOptions.PerPeriod
                 request.negativeDepth
-        periods = reportPeriodsFrom request.granularity incomeReport
+        reportPeriods = reportPeriodsFrom request.granularity incomeReport
+        dataPeriods = periodsWithData request.granularity matched reportPeriods
+        dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
         incomeTotals = fmap (fmap negate) (reportTotals commodity incomeReport)
         expenseTotals = reportTotals commodity expenseReport
         missing = reportMissing commodity incomeReport <> reportMissing commodity expenseReport
         available = Set.null missing
         points =
             if available
-                then zipWith3 cashflowPointFrom periods incomeTotals expenseTotals
+                then
+                    filter
+                        ((`Set.member` dataPeriodKeys) . (.period))
+                        (zipWith3 cashflowPointFrom reportPeriods incomeTotals expenseTotals)
                 else []
-        positivePeriod = selectedPeriod request.positivePeriod periods
-        negativePeriod = selectedPeriod request.negativePeriod periods
+        positivePeriod = selectedPeriod request.positivePeriod dataPeriods
+        negativePeriod = selectedPeriod request.negativePeriod dataPeriods
         incomeBreakdown =
             if available
-                then reportBreakdown commodity request.positiveDepth positivePeriod periods incomeReport
+                then reportBreakdown commodity request.positiveDepth positivePeriod reportPeriods incomeReport
                 else emptyBreakdown positivePeriod
         expenseBreakdown =
             if available
-                then reportBreakdown commodity request.negativeDepth negativePeriod periods expenseReport
+                then
+                    reportBreakdown
+                        commodity
+                        request.negativeDepth
+                        negativePeriod
+                        reportPeriods
+                        expenseReport
                 else emptyBreakdown negativePeriod
     pure
         CashflowReport
@@ -462,25 +487,32 @@ periodicBalanceReport
 
 reportWindow :: Granularity -> [Hledger.Transaction] -> Maybe Day -> (Hledger.Period, Hledger.Interval)
 reportWindow granularity transactions latestDate =
-    case latestDate <|> maximumMaybe (fmap (.tdate) transactions) of
-        Nothing -> (Hledger.PeriodAll, interval)
-        Just latest -> case granularity of
-            Monthly ->
-                let finalMonth = monthStart latest
-                    firstMonth = addGregorianMonthsClip (-23) finalMonth
-                 in (Hledger.PeriodBetween firstMonth (addGregorianMonthsClip 1 finalMonth), interval)
-            Yearly ->
-                let (finalYear, _, _) = toGregorian latest
-                    firstYear = maybe finalYear yearOf (minimumMaybe (fmap (.tdate) transactions))
-                 in ( Hledger.PeriodBetween
-                        (fromGregorian firstYear 1 1)
-                        (fromGregorian (finalYear + 1) 1 1)
-                    , interval
-                    )
+    case granularity of
+        Monthly ->
+            case maximumMaybe selectedMonthlyStarts of
+                Nothing -> (Hledger.PeriodAll, interval)
+                Just finalMonth ->
+                    let firstMonth = fromMaybe finalMonth (minimumMaybe selectedMonthlyStarts)
+                     in (Hledger.PeriodBetween firstMonth (addGregorianMonthsClip 1 finalMonth), interval)
+        Yearly ->
+            case latestDate <|> maximumMaybe (fmap (.tdate) transactions) of
+                Nothing -> (Hledger.PeriodAll, interval)
+                Just latest ->
+                    let (finalYear, _, _) = toGregorian latest
+                        firstYear = maybe finalYear yearOf (minimumMaybe (fmap (.tdate) transactions))
+                     in ( Hledger.PeriodBetween
+                            (fromGregorian firstYear 1 1)
+                            (fromGregorian (finalYear + 1) 1 1)
+                        , interval
+                        )
   where
     interval = case granularity of
         Monthly -> Hledger.Months 1
         Yearly -> Hledger.Years 1
+    selectedMonthlyStarts =
+        takeLast
+            24
+            (Set.toAscList (Set.fromList (fmap (monthStart . (.tdate)) transactions)))
     left <|> right = case left of
         Just _ -> left
         Nothing -> right
@@ -499,6 +531,18 @@ reportPeriodsFrom granularity report = fmap toPeriod report.prDates
                 , start
                 , end = addDays (-1) exclusiveEnd
                 }
+
+periodsWithData ::
+    Granularity ->
+    [Hledger.Transaction] ->
+    [ReportPeriod] ->
+    [ReportPeriod]
+periodsWithData granularity transactions periods =
+    case granularity of
+        Monthly ->
+            let dataMonths = Set.fromList (fmap (monthKey . (.tdate)) transactions)
+             in filter ((`Set.member` dataMonths) . (.key)) periods
+        Yearly -> periods
 
 reportTotals :: Text -> HledgerMultiBalance.MultiBalanceReport -> [Conversion Decimal]
 reportTotals commodity report = fmap (conversionFromMixed commodity) report.prTotals.prrAmounts
@@ -1024,6 +1068,9 @@ minimumMaybe values = Just (minimum values)
 lastMaybe :: [value] -> Maybe value
 lastMaybe [] = Nothing
 lastMaybe values = Just (last values)
+
+takeLast :: Int -> [value] -> [value]
+takeLast count values = drop (max 0 (length values - count)) values
 
 atIndex :: Int -> [value] -> Maybe value
 atIndex index values

@@ -111,6 +111,10 @@ investments request = do
         latest = fromMaybe epoch snapshot.latestJournalDate
         current = summaryAt snapshot config.investmentMappings commodity scope latest
         hasInvestments = current.summary.marketValue /= Nothing || current.summary.purchaseCost /= Nothing
+        dataTransactions =
+            filter
+                (any (isInvestmentAccount config.investmentMappings scope . (.paccount)) . (.tpostings))
+                snapshot.transactions
         points =
             if hasInvestments
                 then
@@ -118,7 +122,7 @@ investments request = do
                         key
                         start
                         (summaryAt snapshot config.investmentMappings commodity scope end).summary
-                    | (key, start, end) <- reportPeriods request.granularity snapshot latest
+                    | (key, start, end) <- reportPeriods request.granularity dataTransactions latest
                     ]
                 else []
         childAccounts = immediateChildren snapshot config.investmentMappings scope
@@ -512,13 +516,12 @@ breadcrumbsFor (Just scope) =
 accountLabel :: Text -> Text
 accountLabel name = fromMaybe name (lastMay (HledgerAccountName.accountNameComponents name))
 
-reportPeriods :: Granularity -> Snapshot -> Day -> [(Text, Day, Day)]
-reportPeriods granularity snapshot latest = case granularity of
+reportPeriods :: Granularity -> [Hledger.Transaction] -> Day -> [(Text, Day, Day)]
+reportPeriods granularity transactions latest = case granularity of
     Monthly ->
-        [ let start = addGregorianMonthsClip offset finalStart
-              end = min latest (addDays (-1) (addGregorianMonthsClip 1 start))
+        [ let end = min latest (addDays (-1) (addGregorianMonthsClip 1 start))
            in (monthKey start, start, end)
-        | offset <- [-23 .. 0]
+        | start <- monthlyStarts
         ]
     Yearly ->
         [ let start = fromGregorian year 1 1
@@ -527,18 +530,28 @@ reportPeriods granularity snapshot latest = case granularity of
         | year <- [firstYear .. finalYear]
         ]
   where
-    (finalYear, finalMonth, _) = toGregorian latest
-    finalStart = fromGregorian finalYear finalMonth 1
+    (finalYear, _, _) = toGregorian latest
+    monthlyStarts =
+        takeLast
+            24
+            ( Set.toAscList
+                (Set.fromList (fmap (monthStart . (.tdate)) transactions))
+            )
     firstYear =
         maybe
             finalYear
             (\day -> let (year, _, _) = toGregorian day in year)
-            (minimumMay (fmap (.tdate) snapshot.transactions))
+            (minimumMay (fmap (.tdate) transactions))
 
 monthKey :: Day -> Text
 monthKey day =
     let (year, month, _) = toGregorian day
      in Text.pack (show year <> "-" <> if month < 10 then "0" <> show month else show month)
+
+monthStart :: Day -> Day
+monthStart day =
+    let (year, month, _) = toGregorian day
+     in fromGregorian year month 1
 
 warning :: Text -> Maybe Text -> Text -> InvestmentWarning
 warning kind account message = InvestmentWarning{kind, account, message}
@@ -592,3 +605,6 @@ lastMay values = Just (last values)
 minimumMay :: (Ord value) => [value] -> Maybe value
 minimumMay [] = Nothing
 minimumMay values = Just (minimum values)
+
+takeLast :: Int -> [value] -> [value]
+takeLast count values = drop (max 0 (length values - count)) values
