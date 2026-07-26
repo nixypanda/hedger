@@ -12,6 +12,7 @@ module Api.Investments exposing
     , requestEncoder
     )
 
+import Api.Json exposing (maybeString, required)
 import Api.Metadata as Metadata exposing (Metadata)
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
@@ -203,15 +204,3 @@ granularityString granularity =
 
         Yearly ->
             "yearly"
-
-
-maybeString : Maybe String -> Encode.Value
-maybeString =
-    Maybe.map Encode.string >> Maybe.withDefault Encode.null
-
-
-required : String -> Decoder field -> Decoder (field -> value) -> Decoder value
-required name fieldDecoder partialDecoder =
-    Decode.map2 (\partial field -> partial field)
-        partialDecoder
-        (Decode.field name fieldDecoder)

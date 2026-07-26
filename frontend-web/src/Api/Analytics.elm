@@ -22,6 +22,7 @@ module Api.Analytics exposing
     , requestEncoder
     )
 
+import Api.Json exposing (maybeString, required)
 import Api.Metadata as Metadata exposing (Metadata)
 import Api.Transaction as Transaction exposing (Transaction)
 import Data.Date as Date exposing (Date)
@@ -199,11 +200,6 @@ activityRequestEncoder request =
         , ( "displayCommodity", maybeString request.displayCommodity )
         , ( "depth", Encode.int request.depth )
         ]
-
-
-maybeString : Maybe String -> Encode.Value
-maybeString =
-    Maybe.map Encode.string >> Maybe.withDefault Encode.null
 
 
 granularityString : Granularity -> String
@@ -400,10 +396,3 @@ activityRangeDecoder =
                     _ ->
                         Decode.fail "Unknown activity range."
             )
-
-
-required : String -> Decoder field -> Decoder (field -> value) -> Decoder value
-required name fieldDecoder partialDecoder =
-    Decode.map2 (\partial field -> partial field)
-        partialDecoder
-        (Decode.field name fieldDecoder)
