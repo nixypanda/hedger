@@ -2,9 +2,10 @@ module TransactionsTest exposing (suite)
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Metadata exposing (Freshness(..), Metadata)
+import Api.Metadata exposing (Metadata)
 import Api.Transaction as Transaction exposing (Response)
 import Data.Date as Date
+import Data.Freshness exposing (Freshness(..))
 import Data.Status as Status
 import Expect
 import Json.Decode as Decode

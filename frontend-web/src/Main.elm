@@ -3,10 +3,10 @@ module Main exposing (main)
 import Api.Bootstrap exposing (Bootstrap)
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Metadata exposing (Freshness(..))
 import Browser
 import Browser.Events
 import Browser.Navigation as Nav
+import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
 import Element.Font as Font
 import Html.Attributes

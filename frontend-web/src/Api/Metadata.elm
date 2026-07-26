@@ -1,14 +1,7 @@
-module Api.Metadata exposing (Freshness(..), Metadata, decoder, empty)
+module Api.Metadata exposing (Metadata, decoder, empty)
 
+import Data.Freshness as Freshness exposing (Freshness)
 import Json.Decode as Decode exposing (Decoder)
-
-
-type Freshness
-    = Fresh
-    | Stale
-    | Refreshing
-    | Partial
-    | Unavailable
 
 
 type alias Metadata =
@@ -20,41 +13,15 @@ type alias Metadata =
 
 empty : Metadata
 empty =
-    { revision = Nothing, freshness = Fresh, warnings = [] }
+    { revision = Nothing, freshness = Freshness.Fresh, warnings = [] }
 
 
 decoder : Decoder Metadata
 decoder =
     Decode.map3 Metadata
         (optional "revision" Decode.string Nothing Just)
-        (optional "freshness" freshnessDecoder Fresh identity)
+        (optional "freshness" Freshness.decoder Freshness.Fresh identity)
         (optional "warnings" (Decode.list Decode.string) [] identity)
-
-
-freshnessDecoder : Decoder Freshness
-freshnessDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\value ->
-                case value of
-                    "fresh" ->
-                        Decode.succeed Fresh
-
-                    "stale" ->
-                        Decode.succeed Stale
-
-                    "refreshing" ->
-                        Decode.succeed Refreshing
-
-                    "partial" ->
-                        Decode.succeed Partial
-
-                    "unavailable" ->
-                        Decode.succeed Unavailable
-
-                    _ ->
-                        Decode.fail ("Unknown freshness: " ++ value)
-            )
 
 
 optional : String -> Decoder a -> b -> (a -> b) -> Decoder b

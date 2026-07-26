@@ -5,8 +5,8 @@ module View.States exposing
     )
 
 import Api.Error as ApiError
-import Api.Metadata as Metadata exposing (Freshness(..))
 import Data.Completeness as Completeness exposing (Completeness)
+import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
 import RemoteData exposing (RemoteData(..))
 import Ui

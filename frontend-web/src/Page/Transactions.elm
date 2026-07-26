@@ -27,9 +27,10 @@ module Page.Transactions exposing
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Metadata exposing (Freshness(..), Metadata)
+import Api.Metadata exposing (Metadata)
 import Api.Transaction exposing (Posting, Response, Transaction)
 import Data.Date as Date
+import Data.Freshness exposing (Freshness(..))
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Font as Font

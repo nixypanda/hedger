@@ -18,10 +18,10 @@ module Page.Account exposing
 import Api.Account as Account exposing (AccountNode(..), AccountPath, Response)
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Metadata exposing (Freshness(..))
 import Data.AccountType as AccountType
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date
+import Data.Freshness exposing (Freshness)
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Device, Element)
 import Element.Background as Background

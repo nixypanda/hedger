@@ -1,8 +1,8 @@
 module RegisterTest exposing (suite)
 
-import Api.Metadata as Metadata
 import Api.Register as Register
 import Data.Completeness as Completeness
+import Data.Freshness as Freshness
 import Expect
 import Json.Decode as Decode
 import Page.AccountRegister as Page
@@ -63,7 +63,7 @@ suite =
 
 sampleResponse : Register.Response
 sampleResponse =
-    { metadata = { revision = Just "revision-a", freshness = Metadata.Fresh, warnings = [] }
+    { metadata = { revision = Just "revision-a", freshness = Freshness.Fresh, warnings = [] }
     , displayCommodity = "INR"
     , entries = []
     , nextCursor = Nothing

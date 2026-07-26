@@ -1,9 +1,9 @@
 module FoundationTest exposing (suite)
 
 import Api.Error as ApiError
-import Api.Metadata as Metadata
 import Api.Revision as Revision
 import Data.Decimal as Decimal
+import Data.Freshness as Freshness
 import Element
 import Expect
 import Json.Decode as Decode
@@ -68,7 +68,7 @@ suite =
             \_ ->
                 Revision.ensureMatching (Just "revision-a")
                     { revision = Just "revision-b"
-                    , freshness = Metadata.Fresh
+                    , freshness = Freshness.Fresh
                     , warnings = []
                     }
                     |> Expect.equal
