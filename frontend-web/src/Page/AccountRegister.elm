@@ -23,7 +23,8 @@ module Page.AccountRegister exposing
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Register exposing (Completeness(..), Entry, Response, Value)
+import Api.Register exposing (Entry, Response, Value)
+import Data.Completeness exposing (Completeness(..))
 import Data.Date as Date
 import Data.Decimal as Decimal
 import Data.Quantity as Quantity exposing (Quantity)

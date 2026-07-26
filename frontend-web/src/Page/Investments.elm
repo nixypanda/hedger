@@ -11,7 +11,8 @@ module Page.Investments exposing
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Investments as Investments exposing (Completeness(..), Granularity(..))
+import Api.Investments as Investments exposing (Granularity(..))
+import Data.Completeness exposing (Completeness(..))
 import Data.Decimal as Decimal exposing (Decimal)
 import Element exposing (Device, Element)
 import Element.Background as Background

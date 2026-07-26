@@ -1,7 +1,6 @@
 module Api.Account exposing
     ( AccountNode(..)
     , AccountPath
-    , Completeness(..)
     , Response
     , Valuation
     , accountPath
@@ -11,15 +10,10 @@ module Api.Account exposing
 
 import Api.Metadata as Metadata exposing (Metadata)
 import Data.AccountType as AccountType exposing (AccountType)
+import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date exposing (Date)
 import Data.Quantity as Quantity exposing (Quantity)
 import Json.Decode as Decode exposing (Decoder)
-
-
-type Completeness
-    = Complete
-    | Partial
-    | Unavailable
 
 
 type AccountPath
@@ -102,24 +96,4 @@ valuationDecoder =
         (Decode.field "commodity" Decode.string)
         (Decode.field "directBalances" (Decode.list Quantity.decoder))
         (Decode.field "subtreeBalances" (Decode.list Quantity.decoder))
-        (Decode.field "completeness" completenessDecoder)
-
-
-completenessDecoder : Decoder Completeness
-completenessDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\value ->
-                case value of
-                    "complete" ->
-                        Decode.succeed Complete
-
-                    "partial" ->
-                        Decode.succeed Partial
-
-                    "unavailable" ->
-                        Decode.succeed Unavailable
-
-                    _ ->
-                        Decode.fail ("Unknown completeness: " ++ value)
-            )
+        (Decode.field "completeness" Completeness.decoder)

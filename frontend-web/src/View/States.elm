@@ -6,7 +6,7 @@ module View.States exposing
 
 import Api.Error as ApiError
 import Api.Metadata as Metadata exposing (Freshness(..))
-import Api.Register as Register
+import Data.Completeness as Completeness exposing (Completeness)
 import Element exposing (Element)
 import RemoteData exposing (RemoteData(..))
 import Ui
@@ -32,16 +32,16 @@ freshnessBanner theme freshness =
             Ui.statusBadge theme Ui.StatusDanger "Unavailable"
 
 
-registerCompletenessBadge : Theme -> Register.Completeness -> Element msg
+registerCompletenessBadge : Theme -> Completeness -> Element msg
 registerCompletenessBadge theme completeness =
     case completeness of
-        Register.Complete ->
+        Completeness.Complete ->
             Ui.statusBadge theme Ui.StatusSuccess "Complete valuation"
 
-        Register.Partial ->
+        Completeness.Partial ->
             Ui.statusBadge theme Ui.StatusWarning "Partial valuation"
 
-        Register.Unavailable ->
+        Completeness.Unavailable ->
             Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
 
 

@@ -2,6 +2,7 @@ module RegisterTest exposing (suite)
 
 import Api.Metadata as Metadata
 import Api.Register as Register
+import Data.Completeness as Completeness
 import Expect
 import Json.Decode as Decode
 import Page.AccountRegister as Page
@@ -30,7 +31,7 @@ suite =
                         (Ok
                             { commodity = "INR"
                             , entryCount = 2
-                            , completeness = Just Register.Partial
+                            , completeness = Just Completeness.Partial
                             , nextCursor = Just "page-2"
                             }
                         )

@@ -1,7 +1,6 @@
 module Api.Investments exposing
     ( Breadcrumb
     , Child
-    , Completeness(..)
     , Granularity(..)
     , Request
     , Response
@@ -14,6 +13,7 @@ module Api.Investments exposing
 
 import Api.Json exposing (maybeString, required)
 import Api.Metadata as Metadata exposing (Metadata)
+import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
 import Json.Decode as Decode exposing (Decoder)
@@ -23,12 +23,6 @@ import Json.Encode as Encode
 type Granularity
     = Monthly
     | Yearly
-
-
-type Completeness
-    = Complete
-    | Partial
-    | Unavailable
 
 
 type alias Request =
@@ -124,7 +118,7 @@ summaryDecoder =
         |> required "attributedIncome" (Decode.nullable Decimal.decoder)
         |> required "realisedGain" (Decode.nullable Decimal.decoder)
         |> required "totalProfit" (Decode.nullable Decimal.decoder)
-        |> required "completeness" completenessDecoder
+        |> required "completeness" Completeness.decoder
 
 
 timelineDecoder : Decoder TimelinePoint
@@ -173,26 +167,6 @@ granularityDecoder =
 
                     _ ->
                         Decode.fail "Unknown investment granularity."
-            )
-
-
-completenessDecoder : Decoder Completeness
-completenessDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\value ->
-                case value of
-                    "complete" ->
-                        Decode.succeed Complete
-
-                    "partial" ->
-                        Decode.succeed Partial
-
-                    "unavailable" ->
-                        Decode.succeed Unavailable
-
-                    _ ->
-                        Decode.fail "Unknown investment completeness."
             )
 
 

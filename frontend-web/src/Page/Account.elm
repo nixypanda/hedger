@@ -20,6 +20,7 @@ import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Metadata exposing (Freshness(..))
 import Data.AccountType as AccountType
+import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Device, Element)
@@ -675,16 +676,16 @@ detailAccount detail =
             Nothing
 
 
-completenessBadge : Theme -> Account.Completeness -> Element msg
+completenessBadge : Theme -> Completeness -> Element msg
 completenessBadge theme completeness =
     case completeness of
-        Account.Complete ->
+        Completeness.Complete ->
             Ui.statusBadge theme Ui.StatusSuccess "Complete valuation"
 
-        Account.Partial ->
+        Completeness.Partial ->
             Ui.statusBadge theme Ui.StatusWarning "Partial valuation"
 
-        Account.Unavailable ->
+        Completeness.Unavailable ->
             Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
 
 

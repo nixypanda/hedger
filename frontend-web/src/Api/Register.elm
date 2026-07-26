@@ -1,15 +1,10 @@
-module Api.Register exposing (Completeness(..), Entry, Response, Value, decoder)
+module Api.Register exposing (Entry, Response, Value, decoder)
 
 import Api.Metadata as Metadata exposing (Metadata)
+import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date exposing (Date)
 import Data.Quantity as Quantity exposing (Quantity)
 import Json.Decode as Decode exposing (Decoder)
-
-
-type Completeness
-    = Complete
-    | Partial
-    | Unavailable
 
 
 type alias Value =
@@ -60,24 +55,4 @@ valueDecoder =
     Decode.map3 Value
         (Decode.field "raw" (Decode.list Quantity.decoder))
         (Decode.field "display" (Decode.list Quantity.decoder))
-        (Decode.field "completeness" completenessDecoder)
-
-
-completenessDecoder : Decoder Completeness
-completenessDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\value ->
-                case value of
-                    "complete" ->
-                        Decode.succeed Complete
-
-                    "partial" ->
-                        Decode.succeed Partial
-
-                    "unavailable" ->
-                        Decode.succeed Unavailable
-
-                    _ ->
-                        Decode.fail ("Unknown completeness: " ++ value)
-            )
+        (Decode.field "completeness" Completeness.decoder)
