@@ -1,8 +1,9 @@
 module InvestmentsTest exposing (suite)
 
-import Api.Investments as Investments exposing (Granularity(..))
+import Api.Investments as Investments
 import Data.Completeness exposing (Completeness(..))
 import Data.Decimal as Decimal
+import Data.Granularity exposing (Granularity(..))
 import Expect
 import Json.Decode as Decode
 import Page.Investments as Page

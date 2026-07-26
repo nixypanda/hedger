@@ -8,7 +8,6 @@ module Api.Analytics exposing
     , BreakdownItem
     , CashflowResponse
     , CategoryBreakdown
-    , Granularity(..)
     , Kpi
     , NetWorthResponse
     , PerformancePoint
@@ -27,13 +26,9 @@ import Api.Metadata as Metadata exposing (Metadata)
 import Api.Transaction as Transaction exposing (Transaction)
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
+import Data.Granularity as Granularity exposing (Granularity)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-
-
-type Granularity
-    = Monthly
-    | Yearly
 
 
 type ActivityKind
@@ -181,7 +176,7 @@ requestEncoder : AnalyticsRequest -> Encode.Value
 requestEncoder request =
     Encode.object
         [ ( "query", Encode.string request.query )
-        , ( "granularity", Encode.string (granularityString request.granularity) )
+        , ( "granularity", Encode.string (Granularity.toString request.granularity) )
         , ( "displayCommodity", maybeString request.displayCommodity )
         , ( "positivePeriod", maybeString request.positivePeriod )
         , ( "negativePeriod", maybeString request.negativePeriod )
@@ -200,16 +195,6 @@ activityRequestEncoder request =
         , ( "displayCommodity", maybeString request.displayCommodity )
         , ( "depth", Encode.int request.depth )
         ]
-
-
-granularityString : Granularity -> String
-granularityString granularity =
-    case granularity of
-        Monthly ->
-            "monthly"
-
-        Yearly ->
-            "yearly"
 
 
 activityKindString : ActivityKind -> String
@@ -243,7 +228,7 @@ netWorthDecoder =
     Decode.succeed NetWorthResponse
         |> required "metadata" Metadata.decoder
         |> required "displayCommodity" Decode.string
-        |> required "granularity" granularityDecoder
+        |> required "granularity" Granularity.decoder
         |> required "netWorth" kpiDecoder
         |> required "assets" kpiDecoder
         |> required "liabilities" kpiDecoder
@@ -260,7 +245,7 @@ cashflowDecoder =
     Decode.succeed CashflowResponse
         |> required "metadata" Metadata.decoder
         |> required "displayCommodity" Decode.string
-        |> required "granularity" granularityDecoder
+        |> required "granularity" Granularity.decoder
         |> required "totalCount" Decode.int
         |> required "filteredCount" Decode.int
         |> required "timelineAvailable" Decode.bool
@@ -339,23 +324,6 @@ activityBucketDecoder =
         |> required "reallocated" Decimal.decoder
         |> required "categories" (Decode.list breakdownDecoder)
         |> required "transactions" (Decode.list Transaction.transactionDecoder)
-
-
-granularityDecoder : Decoder Granularity
-granularityDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\value ->
-                case value of
-                    "monthly" ->
-                        Decode.succeed Monthly
-
-                    "yearly" ->
-                        Decode.succeed Yearly
-
-                    _ ->
-                        Decode.fail "Unknown analytics granularity."
-            )
 
 
 activityKindDecoder : Decoder ActivityKind

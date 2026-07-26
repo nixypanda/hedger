@@ -16,10 +16,11 @@ module Page.Shared.Analysis exposing
     , view
     )
 
-import Api.Analytics as Analytics exposing (ActivityRange(..), Granularity(..), Report, Timeline(..))
+import Api.Analytics as Analytics exposing (ActivityRange(..), Report, Timeline(..))
 import Api.Error exposing (ApiError)
 import Api.Transaction exposing (Transaction)
 import Data.Calendar as Calendar
+import Data.Granularity exposing (Granularity(..))
 import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..), Period(..))
 import Element exposing (Device, Element)
 import Element.Font as Font

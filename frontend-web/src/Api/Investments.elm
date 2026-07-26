@@ -1,7 +1,6 @@
 module Api.Investments exposing
     ( Breadcrumb
     , Child
-    , Granularity(..)
     , Request
     , Response
     , Summary
@@ -16,13 +15,9 @@ import Api.Metadata as Metadata exposing (Metadata)
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
+import Data.Granularity as Granularity exposing (Granularity)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-
-
-type Granularity
-    = Monthly
-    | Yearly
 
 
 type alias Request =
@@ -88,7 +83,7 @@ type alias Response =
 requestEncoder : Request -> Encode.Value
 requestEncoder request =
     Encode.object
-        [ ( "granularity", Encode.string (granularityString request.granularity) )
+        [ ( "granularity", Encode.string (Granularity.toString request.granularity) )
         , ( "displayCommodity", maybeString request.displayCommodity )
         , ( "accountPrefix", maybeString request.accountPrefix )
         ]
@@ -99,7 +94,7 @@ decoder =
     Decode.succeed Response
         |> required "metadata" Metadata.decoder
         |> required "displayCommodity" Decode.string
-        |> required "granularity" granularityDecoder
+        |> required "granularity" Granularity.decoder
         |> required "accountPrefix" (Decode.nullable Decode.string)
         |> required "summary" summaryDecoder
         |> required "timeline" (Decode.list timelineDecoder)
@@ -151,30 +146,3 @@ warningDecoder =
         (Decode.field "kind" Decode.string)
         (Decode.field "account" (Decode.nullable Decode.string))
         (Decode.field "message" Decode.string)
-
-
-granularityDecoder : Decoder Granularity
-granularityDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\value ->
-                case value of
-                    "monthly" ->
-                        Decode.succeed Monthly
-
-                    "yearly" ->
-                        Decode.succeed Yearly
-
-                    _ ->
-                        Decode.fail "Unknown investment granularity."
-            )
-
-
-granularityString : Granularity -> String
-granularityString granularity =
-    case granularity of
-        Monthly ->
-            "monthly"
-
-        Yearly ->
-            "yearly"

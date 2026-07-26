@@ -8,7 +8,7 @@ module Data.Calendar exposing
     , shiftPeriod
     )
 
-import Api.Analytics exposing (Granularity(..))
+import Data.Granularity exposing (Granularity(..))
 import Lib.Time as Time
 
 
