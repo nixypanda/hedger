@@ -206,7 +206,7 @@ content theme viewport device data =
                     [ investmentsSkeleton theme viewport ]
 
         Just response ->
-            [ remoteNotice theme data.response response
+            [ States.remoteNotice theme response.metadata.freshness data.response
             , breadcrumbView theme response.breadcrumbs
             , if isEmpty response then
                 Ui.emptyState theme "No investment holdings were found in this account scope."
@@ -214,22 +214,6 @@ content theme viewport device data =
               else
                 dashboard theme viewport device data.selectedPeriod response
             ]
-
-
-remoteNotice : Theme -> RemoteData Investments.Response -> Investments.Response -> Element Msg
-remoteNotice theme remote response =
-    Element.column [ Element.width Element.fill, Element.spacing 8 ]
-        [ States.freshnessBanner theme response.metadata.freshness
-        , case remote of
-            Loading _ ->
-                Ui.statusBadge theme Ui.StatusPrimary "Refreshing"
-
-            Failure error _ ->
-                Ui.errorBanner theme ("Refresh failed; showing earlier data. " ++ ApiError.message error)
-
-            _ ->
-                Element.none
-        ]
 
 
 isEmpty : Investments.Response -> Bool

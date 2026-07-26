@@ -316,7 +316,7 @@ dashboardContent theme viewport data =
                     [ cashflowSkeleton theme viewport ]
 
         Just response ->
-            [ remoteNotice theme data.response response
+            [ States.remoteNotice theme response.metadata.freshness data.response
             , Typography.mutedBody theme
                 (String.fromInt response.filteredCount
                     ++ " of "
@@ -326,26 +326,6 @@ dashboardContent theme viewport data =
             , Element.map AnalysisMsg
                 (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
             ]
-
-
-remoteNotice :
-    Theme
-    -> RemoteData Analytics.CashflowResponse
-    -> Analytics.CashflowResponse
-    -> Element Msg
-remoteNotice theme remote response =
-    Element.column [ Element.width Element.fill, Element.spacing 8 ]
-        [ States.freshnessBanner theme response.metadata.freshness
-        , case remote of
-            Loading _ ->
-                Ui.statusBadge theme Ui.StatusPrimary "Refreshing"
-
-            Failure error _ ->
-                Ui.errorBanner theme (ApiError.message error)
-
-            _ ->
-                Element.none
-        ]
 
 
 queryError : RemoteData value -> Maybe ApiError

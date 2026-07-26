@@ -289,7 +289,7 @@ dashboardContent theme viewport device data =
                     [ netWorthSkeleton theme viewport ]
 
         Just response ->
-            [ remoteNotice theme data.response response
+            [ States.remoteNotice theme response.metadata.freshness data.response
             , responsiveGrid layout
                 [ AnalyticsView.kpiCard theme
                     { title = "Net worth"
@@ -345,26 +345,6 @@ dashboardContent theme viewport device data =
             , Element.map AnalysisMsg
                 (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
             ]
-
-
-remoteNotice :
-    Theme
-    -> RemoteData Analytics.NetWorthResponse
-    -> Analytics.NetWorthResponse
-    -> Element Msg
-remoteNotice theme remote response =
-    Element.column [ Element.width Element.fill, Element.spacing 8 ]
-        [ States.freshnessBanner theme response.metadata.freshness
-        , case remote of
-            Loading _ ->
-                Ui.statusBadge theme Ui.StatusPrimary "Refreshing"
-
-            Failure error _ ->
-                Ui.errorBanner theme (ApiError.message error)
-
-            _ ->
-                Element.none
-        ]
 
 
 responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
