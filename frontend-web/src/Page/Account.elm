@@ -15,9 +15,10 @@ module Page.Account exposing
     , view
     )
 
-import Api.Account as Account exposing (AccountNode(..), AccountPath, Response)
+import Api.Account exposing (Response)
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Data.Account as Account exposing (AccountNode(..), AccountPath)
 import Data.AccountType as AccountType
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date

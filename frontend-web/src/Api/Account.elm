@@ -1,54 +1,15 @@
 module Api.Account exposing
-    ( AccountNode(..)
-    , AccountPath
-    , Response
-    , Valuation
-    , accountPath
-    , accountPathToString
+    ( Response
     , decoder
     )
 
 import Api.Metadata as Metadata exposing (Metadata)
+import Data.Account exposing (AccountNode(..), Valuation, accountPath)
 import Data.AccountType as AccountType exposing (AccountType)
-import Data.Completeness as Completeness exposing (Completeness)
-import Data.Date as Date exposing (Date)
+import Data.Completeness as Completeness
+import Data.Date as Date
 import Data.Quantity as Quantity exposing (Quantity)
 import Json.Decode as Decode exposing (Decoder)
-
-
-type AccountPath
-    = AccountPath String
-
-
-accountPath : String -> AccountPath
-accountPath value =
-    AccountPath value
-
-
-accountPathToString : AccountPath -> String
-accountPathToString (AccountPath value) =
-    value
-
-
-type AccountNode
-    = AccountNode
-        { path : AccountPath
-        , name : String
-        , accountType : Maybe AccountType
-        , directBalances : List Quantity
-        , subtreeBalances : List Quantity
-        , valuation : Valuation
-        , children : List AccountNode
-        }
-
-
-type alias Valuation =
-    { asOf : Date
-    , commodity : String
-    , directBalances : List Quantity
-    , subtreeBalances : List Quantity
-    , completeness : Completeness
-    }
 
 
 type alias Response =
@@ -58,20 +19,34 @@ type alias Response =
     }
 
 
+type AccountNodeDto
+    = AccountNodeDto
+        { path : String
+        , name : String
+        , accountType : Maybe AccountType
+        , directBalances : List Quantity
+        , subtreeBalances : List Quantity
+        , valuation : Valuation
+        , children : List AccountNodeDto
+        }
+
+
 decoder : Decoder Response
 decoder =
     Decode.map3 Response
         (Decode.field "metadata" Metadata.decoder)
         (Decode.field "displayCommodity" Decode.string)
-        (Decode.field "accounts" (Decode.list accountDecoder))
+        (Decode.field "accounts" (Decode.list accountDtoDecoder)
+            |> Decode.map (List.map toAccountNode)
+        )
 
 
-accountDecoder : Decoder AccountNode
-accountDecoder =
+accountDtoDecoder : Decoder AccountNodeDto
+accountDtoDecoder =
     Decode.map7
         (\path name accountType directBalances subtreeBalances valuation children ->
-            AccountNode
-                { path = accountPath path
+            AccountNodeDto
+                { path = path
                 , name = name
                 , accountType = accountType
                 , directBalances = directBalances
@@ -86,7 +61,7 @@ accountDecoder =
         (Decode.field "directBalances" (Decode.list Quantity.decoder))
         (Decode.field "subtreeBalances" (Decode.list Quantity.decoder))
         (Decode.field "valuation" valuationDecoder)
-        (Decode.field "children" (Decode.list (Decode.lazy (\_ -> accountDecoder))))
+        (Decode.field "children" (Decode.list (Decode.lazy (\_ -> accountDtoDecoder))))
 
 
 valuationDecoder : Decoder Valuation
@@ -97,3 +72,16 @@ valuationDecoder =
         (Decode.field "directBalances" (Decode.list Quantity.decoder))
         (Decode.field "subtreeBalances" (Decode.list Quantity.decoder))
         (Decode.field "completeness" Completeness.decoder)
+
+
+toAccountNode : AccountNodeDto -> AccountNode
+toAccountNode (AccountNodeDto dto) =
+    AccountNode
+        { path = accountPath dto.path
+        , name = dto.name
+        , accountType = dto.accountType
+        , directBalances = dto.directBalances
+        , subtreeBalances = dto.subtreeBalances
+        , valuation = dto.valuation
+        , children = List.map toAccountNode dto.children
+        }

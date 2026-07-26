@@ -8,12 +8,10 @@ module Api.Analytics exposing
     , BreakdownItem
     , CashflowResponse
     , CategoryBreakdown
-    , Kpi
     , NetWorthResponse
     , PerformancePoint
     , Report
     , Timeline(..)
-    , TimelinePoint
     , activityDecoder
     , activityRequestEncoder
     , cashflowDecoder
@@ -23,10 +21,12 @@ module Api.Analytics exposing
 
 import Api.Json exposing (maybeString, required)
 import Api.Metadata as Metadata exposing (Metadata)
-import Api.Transaction as Transaction exposing (Transaction)
+import Api.Transaction as Transaction
+import Data.Analytics exposing (Kpi, TimelinePoint)
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
 import Data.Granularity as Granularity exposing (Granularity)
+import Data.Transaction exposing (Transaction)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 
@@ -61,23 +61,6 @@ type alias ActivityRequest =
     , query : String
     , displayCommodity : Maybe String
     , depth : Int
-    }
-
-
-type alias Kpi =
-    { value : Decimal
-    , absoluteChange : Maybe Decimal
-    , percentageChange : Maybe Decimal
-    , trend : List Decimal
-    }
-
-
-type alias TimelinePoint =
-    { period : String
-    , startDate : Date
-    , positive : Decimal
-    , negative : Decimal
-    , net : Decimal
     }
 
 

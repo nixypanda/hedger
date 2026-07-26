@@ -18,10 +18,11 @@ module Page.Shared.Analysis exposing
 
 import Api.Analytics as Analytics exposing (ActivityRange(..), Report, Timeline(..))
 import Api.Error exposing (ApiError)
-import Api.Transaction exposing (Transaction)
+import Data.Analytics exposing (TimelinePoint)
 import Data.Calendar as Calendar
 import Data.Granularity exposing (Granularity(..))
 import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..), Period(..))
+import Data.Transaction exposing (Transaction)
 import Element exposing (Device, Element)
 import Element.Font as Font
 import State.Viewport exposing (Viewport)
@@ -45,7 +46,7 @@ type alias ModelData =
     , depth : Depth
     , period : Maybe Period
     , calendarMonth : Maybe Month
-    , timeline : List Analytics.TimelinePoint
+    , timeline : List TimelinePoint
     , positive : SideState
     , negative : SideState
     , mode : Mode
@@ -817,7 +818,7 @@ beginActivityLoading activity =
     ActivityLoading (activityValue activity)
 
 
-timelinePoints : Timeline -> List Analytics.TimelinePoint
+timelinePoints : Timeline -> List TimelinePoint
 timelinePoints timeline =
     case timeline of
         TimelineAvailable points ->
@@ -867,8 +868,8 @@ timelinePointAtOffset :
     Granularity
     -> Int
     -> Period
-    -> List Analytics.TimelinePoint
-    -> Maybe Analytics.TimelinePoint
+    -> List TimelinePoint
+    -> Maybe TimelinePoint
 timelinePointAtOffset granularity offset currentPeriod points =
     points
         |> List.indexedMap Tuple.pair
@@ -894,7 +895,7 @@ calendarMonthForPeriod :
     FiscalYearStartMonth
     -> Granularity
     -> Period
-    -> Analytics.TimelinePoint
+    -> TimelinePoint
     -> Month
 calendarMonthForPeriod fiscalYearStartMonth granularity period point =
     case ( granularity, period ) of
@@ -908,7 +909,7 @@ calendarMonthForPeriod fiscalYearStartMonth granularity period point =
             Time.monthFromDate point.startDate
 
 
-pointFor : List Analytics.TimelinePoint -> String -> Maybe Analytics.TimelinePoint
+pointFor : List TimelinePoint -> String -> Maybe TimelinePoint
 pointFor points period =
     List.filter (.period >> (==) period) points |> List.head
 

@@ -1,6 +1,4 @@
-module Api.Revision exposing (Mismatch, ensureMatching)
-
-import Api.Metadata exposing (Metadata)
+module Data.Revision exposing (Mismatch, ensureMatching)
 
 
 type alias Mismatch =
@@ -9,9 +7,9 @@ type alias Mismatch =
     }
 
 
-ensureMatching : Maybe String -> Metadata -> Result Mismatch ()
-ensureMatching expected metadata =
-    case ( expected, metadata.revision ) of
+ensureMatching : Maybe String -> Maybe String -> Result Mismatch ()
+ensureMatching expected received =
+    case ( expected, received ) of
         ( Just expectedRevision, Just receivedRevision ) ->
             if expectedRevision == receivedRevision then
                 Ok ()

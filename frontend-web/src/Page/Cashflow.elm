@@ -3,7 +3,7 @@ module Page.Cashflow exposing (Model, Msg(..), init, update, view)
 import Api.Analytics as Analytics
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Transaction exposing (Transaction)
+import Data.Transaction exposing (Transaction)
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Html.Attributes

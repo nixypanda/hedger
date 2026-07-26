@@ -1,9 +1,9 @@
 module View.Transaction exposing (amountsText, classificationLabel, classificationTone, transactionDetail)
 
-import Api.Transaction exposing (Amount, Posting, Tag, Transaction)
 import Data.Date as Date
 import Data.Decimal as Decimal
 import Data.Status as Status
+import Data.Transaction exposing (Amount, Posting, Tag, Transaction)
 import Element exposing (Element)
 import Element.Font as Font
 import Ui

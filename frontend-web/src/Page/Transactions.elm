@@ -27,10 +27,12 @@ module Page.Transactions exposing
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Transaction exposing (Posting, Response, Transaction)
+import Api.Transaction exposing (Response)
 import Data.Date as Date
 import Data.Freshness exposing (Freshness(..))
 import Data.Paginated as Paginated exposing (Paginated)
+import Data.Revision as Revision
+import Data.Transaction exposing (Posting, Transaction)
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Font as Font
@@ -115,7 +117,17 @@ config =
     { nextCursor = .response >> .nextCursor
     , append = appendPageData
     , shouldReset =
-        \old new -> old.response.metadata.revision /= new.response.metadata.revision
+        \old new ->
+            case
+                Revision.ensureMatching
+                    old.response.metadata.revision
+                    new.response.metadata.revision
+            of
+                Ok () ->
+                    False
+
+                Err _ ->
+                    True
     }
 
 

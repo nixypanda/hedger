@@ -7,6 +7,7 @@ import Api.Transaction as Transaction exposing (Response)
 import Data.Date as Date
 import Data.Freshness exposing (Freshness(..))
 import Data.Status as Status
+import Data.Transaction exposing (Transaction)
 import Expect
 import Json.Decode as Decode
 import Page.Transactions as Page
@@ -499,7 +500,7 @@ samplePage pageIndex =
     }
 
 
-sampleTransaction : Int -> Transaction.Transaction
+sampleTransaction : Int -> Transaction
 sampleTransaction number =
     let
         base =

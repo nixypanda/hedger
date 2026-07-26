@@ -19,16 +19,15 @@ import Api.Analytics
         , ActivityResponse
         , BreakdownItem
         , CategoryBreakdown
-        , Kpi
         , PerformancePoint
-        , TimelinePoint
         )
-import Api.Transaction exposing (Transaction)
 import Data.ActivityCalendar as ActivityCalendar
+import Data.Analytics exposing (Kpi, TimelinePoint)
 import Data.Calendar as Calendar
 import Data.Date as Date
 import Data.Decimal as Decimal exposing (Decimal)
 import Data.Granularity exposing (Granularity(..))
+import Data.Transaction exposing (Transaction)
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Border as Border

@@ -1,9 +1,8 @@
 module FoundationTest exposing (suite)
 
 import Api.Error as ApiError
-import Api.Revision as Revision
 import Data.Decimal as Decimal
-import Data.Freshness as Freshness
+import Data.Revision as Revision
 import Element
 import Expect
 import Json.Decode as Decode
@@ -67,12 +66,16 @@ suite =
         , test "revision mismatches are explicit" <|
             \_ ->
                 Revision.ensureMatching (Just "revision-a")
-                    { revision = Just "revision-b"
-                    , freshness = Freshness.Fresh
-                    , warnings = []
-                    }
+                    (Just "revision-b")
                     |> Expect.equal
                         (Err { expected = "revision-a", received = "revision-b" })
+        , test "equal or absent revisions are compatible" <|
+            \_ ->
+                [ Revision.ensureMatching (Just "revision-a") (Just "revision-a")
+                , Revision.ensureMatching Nothing (Just "revision-a")
+                , Revision.ensureMatching (Just "revision-a") Nothing
+                ]
+                    |> Expect.equal [ Ok (), Ok (), Ok () ]
         , test "stable API error envelope decodes" <|
             \_ ->
                 Decode.decodeString ApiError.decoder
