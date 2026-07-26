@@ -699,14 +699,9 @@ detailBalance theme balance =
         ]
         [ Element.text (Quantity.commodity balance)
             |> Element.el [ Element.width (Element.fillPortion 1), Font.color theme.textMedium ]
-        , Element.text (formatQuantity balance)
+        , Element.text (Formatting.formatBalance balance)
             |> Element.el [ Element.alignRight, Font.semiBold, Font.color theme.textPrimary ]
         ]
-
-
-formatQuantity : Quantity -> String
-formatQuantity balance =
-    Formatting.formatBalance balance
 
 
 findAccount : AccountPath -> List AccountNode -> Maybe AccountNode

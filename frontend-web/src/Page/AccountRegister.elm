@@ -41,6 +41,7 @@ import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import View.Formatting as Formatting
 import View.States as States
 
 
@@ -942,13 +943,8 @@ displayValue commodity value =
     value.display
         |> List.filter (\amount -> amount.commodity == commodity)
         |> List.head
-        |> Maybe.map formatQuantity
+        |> Maybe.map Formatting.formatBalance
         |> Maybe.withDefault "—"
-
-
-formatQuantity : Quantity -> String
-formatQuantity quantity =
-    Decimal.toString (Quantity.quantity quantity) ++ " " ++ Quantity.commodity quantity
 
 
 detailPage : Theme -> Device -> Msg -> String -> Entry -> Element Msg
