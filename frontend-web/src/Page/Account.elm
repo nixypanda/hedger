@@ -322,7 +322,7 @@ wideLayout theme device page account =
         , Element.el
             [ Element.width (Element.fillPortion 3)
             , Element.height Element.fill
-            , Element.scrollbarY
+            , Element.clipY
             ]
             (accountDetailPage theme device (Just BackToAccounts) account)
         ]

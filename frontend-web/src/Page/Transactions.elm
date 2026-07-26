@@ -579,7 +579,7 @@ wideLayout theme device model response selected =
         , Element.el
             [ Element.width (Element.fillPortion 3)
             , Element.height Element.fill
-            , Element.scrollbarY
+            , Element.clipY
             , Element.htmlAttribute (Html.Attributes.class "transactions-detail-pane")
             ]
             (detailPage theme device (Just Back) selected)
