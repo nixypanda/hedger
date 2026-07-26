@@ -12,6 +12,7 @@ import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Investments qualified as Investments
 import Hedger.Domain.Error (AppError (..))
+import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Interface.HTTP.Common (ResponseMetadata, runAction, servantError, toResponseMetadata)
 
@@ -27,7 +28,7 @@ data InvestmentSummaryDto = InvestmentSummaryDto
     { marketValue :: Maybe Text
     , purchaseCost :: Maybe Text
     , gainLoss :: Maybe Text
-    , returnPercentage :: Maybe Text
+    , xirr :: Maybe Text
     , attributedIncome :: Maybe Text
     , realisedGain :: Maybe Text
     , totalProfit :: Maybe Text
@@ -42,7 +43,7 @@ data InvestmentPointDto = InvestmentPointDto
     , marketValue :: Maybe Text
     , purchaseCost :: Maybe Text
     , gainLoss :: Maybe Text
-    , returnPercentage :: Maybe Text
+    , xirr :: Maybe Text
     , attributedIncome :: Maybe Text
     , realisedGain :: Maybe Text
     , totalProfit :: Maybe Text
@@ -63,6 +64,8 @@ data InvestmentChildDto = InvestmentChildDto
     , label :: Text
     , summary :: InvestmentSummaryDto
     , hasChildren :: Bool
+    , assetClass :: Text
+    , allocationPercentage :: Maybe Text
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON)
@@ -71,6 +74,15 @@ data InvestmentWarningDto = InvestmentWarningDto
     { kind :: Text
     , account :: Maybe Text
     , message :: Text
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (ToJSON)
+
+data AssetClassAllocationDto = AssetClassAllocationDto
+    { assetClass :: Text
+    , marketValue :: Maybe Text
+    , currentPercentage :: Maybe Text
+    , targetPercentage :: Maybe Text
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON)
@@ -84,6 +96,7 @@ data InvestmentsResponse = InvestmentsResponse
     , timeline :: [InvestmentPointDto]
     , breadcrumbs :: [InvestmentBreadcrumbDto]
     , children :: [InvestmentChildDto]
+    , assetClassAllocations :: [AssetClassAllocationDto]
     , warnings :: [InvestmentWarningDto]
     }
     deriving stock (Eq, Show, Generic)
@@ -124,6 +137,7 @@ toResponse report =
         , timeline = fmap toPoint report.timeline
         , breadcrumbs = fmap toBreadcrumb report.breadcrumbs
         , children = fmap toChild report.children
+        , assetClassAllocations = fmap toAssetClassAllocation report.assetClassAllocations
         , warnings = fmap toWarning report.warnings
         }
 
@@ -133,7 +147,7 @@ toSummary value =
         { marketValue = decimal <$> value.marketValue
         , purchaseCost = decimal <$> value.purchaseCost
         , gainLoss = decimal <$> value.gainLoss
-        , returnPercentage = decimal <$> value.returnPercentage
+        , xirr = decimal <$> value.xirr
         , attributedIncome = decimal <$> value.attributedIncome
         , realisedGain = decimal <$> value.realisedGain
         , totalProfit = decimal <$> value.totalProfit
@@ -152,7 +166,7 @@ toPoint value =
             , marketValue = summary.marketValue
             , purchaseCost = summary.purchaseCost
             , gainLoss = summary.gainLoss
-            , returnPercentage = summary.returnPercentage
+            , xirr = summary.xirr
             , attributedIncome = summary.attributedIncome
             , realisedGain = summary.realisedGain
             , totalProfit = summary.totalProfit
@@ -169,7 +183,28 @@ toChild value =
         , label = value.label
         , summary = toSummary value.summary
         , hasChildren = value.hasChildren
+        , assetClass = assetClassText value.assetClass
+        , allocationPercentage = decimal <$> value.allocationPercentage
         }
+
+toAssetClassAllocation :: Investments.AssetClassAllocation -> AssetClassAllocationDto
+toAssetClassAllocation value =
+    AssetClassAllocationDto
+        { assetClass = assetClassText value.assetClass
+        , marketValue = decimal <$> value.marketValue
+        , currentPercentage = decimal <$> value.currentPercentage
+        , targetPercentage = decimal <$> value.targetPercentage
+        }
+
+assetClassText :: Investment.AssetClass -> Text
+assetClassText assetClass = case assetClass of
+    Investment.Equity -> "equity"
+    Investment.Debt -> "debt"
+    Investment.Cash -> "cash"
+    Investment.Gold -> "gold"
+    Investment.Hybrid -> "hybrid"
+    Investment.Property -> "property"
+    Investment.Other -> "other"
 
 toWarning :: Performance.InvestmentWarning -> InvestmentWarningDto
 toWarning (Performance.InvestmentWarning kind account) =

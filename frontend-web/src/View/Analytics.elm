@@ -285,8 +285,8 @@ netWorthPerformanceChart theme config =
                 , domain = Cartesian.PaddedExtent { ratio = 0.12, minimum = 1 }
                 , series =
                     [ Cartesian.AreaBetween
-                        { first = .netWorth >> decimalFloat
-                        , second = .netInvestment >> decimalFloat
+                        { first = .netWorth >> decimalFloat >> Just
+                        , second = .netInvestment >> decimalFloat >> Just
                         , positiveColor = theme.positive
                         , negativeColor = theme.negative
                         , opacity = 0.18

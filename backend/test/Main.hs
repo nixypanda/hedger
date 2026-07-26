@@ -11,6 +11,7 @@ import Hedger.Domain.InvestmentSpec (investmentSpec)
 import Hedger.Domain.PeriodSpec (periodSpec)
 import Hedger.Domain.TransactionSpec (transactionSpec)
 import Hedger.Domain.ValuationSpec (valuationSpec)
+import Hedger.Domain.XirrSpec (xirrSpec)
 import Hedger.Infrastructure.Internal.CursorSpec (cursorSpec)
 import Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec)
 import Hedger.Interface.HTTP.APISpec (apiSpec)
@@ -34,4 +35,5 @@ main =
             , periodSpec
             , accountSpec
             , valuationSpec
+            , xirrSpec
             ]

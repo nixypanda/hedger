@@ -81,6 +81,7 @@
                   hledger-lib
                   http-types
                   mtl
+                  math-functions
                   optparse-applicative
                   servant
                   servant-server
@@ -130,6 +131,7 @@
               tasty-hunit
               hledger-lib
               http-types
+              math-functions
               mtl
               optparse-applicative
               servant

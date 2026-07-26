@@ -1,5 +1,7 @@
 module Api.Investments exposing
-    ( Breadcrumb
+    ( AssetClass(..)
+    , AssetClassAllocation
+    , Breadcrumb
     , Child
     , Request
     , Response
@@ -31,7 +33,7 @@ type alias Summary =
     { marketValue : Maybe Decimal
     , purchaseCost : Maybe Decimal
     , gainLoss : Maybe Decimal
-    , returnPercentage : Maybe Decimal
+    , xirr : Maybe Decimal
     , attributedIncome : Maybe Decimal
     , realisedGain : Maybe Decimal
     , totalProfit : Maybe Decimal
@@ -57,6 +59,26 @@ type alias Child =
     , label : String
     , summary : Summary
     , hasChildren : Bool
+    , assetClass : AssetClass
+    , allocationPercentage : Maybe Decimal
+    }
+
+
+type AssetClass
+    = Equity
+    | Debt
+    | Cash
+    | Gold
+    | Hybrid
+    | Property
+    | Other
+
+
+type alias AssetClassAllocation =
+    { assetClass : AssetClass
+    , marketValue : Maybe Decimal
+    , currentPercentage : Maybe Decimal
+    , targetPercentage : Maybe Decimal
     }
 
 
@@ -76,6 +98,7 @@ type alias Response =
     , timeline : List TimelinePoint
     , breadcrumbs : List Breadcrumb
     , children : List Child
+    , assetClassAllocations : List AssetClassAllocation
     , warnings : List Warning
     }
 
@@ -100,6 +123,7 @@ decoder =
         |> required "timeline" (Decode.list timelineDecoder)
         |> required "breadcrumbs" (Decode.list breadcrumbDecoder)
         |> required "children" (Decode.list childDecoder)
+        |> required "assetClassAllocations" (Decode.list assetClassAllocationDecoder)
         |> required "warnings" (Decode.list warningDecoder)
 
 
@@ -109,7 +133,7 @@ summaryDecoder =
         |> required "marketValue" (Decode.nullable Decimal.decoder)
         |> required "purchaseCost" (Decode.nullable Decimal.decoder)
         |> required "gainLoss" (Decode.nullable Decimal.decoder)
-        |> required "returnPercentage" (Decode.nullable Decimal.decoder)
+        |> required "xirr" (Decode.nullable Decimal.decoder)
         |> required "attributedIncome" (Decode.nullable Decimal.decoder)
         |> required "realisedGain" (Decode.nullable Decimal.decoder)
         |> required "totalProfit" (Decode.nullable Decimal.decoder)
@@ -133,11 +157,54 @@ breadcrumbDecoder =
 
 childDecoder : Decoder Child
 childDecoder =
-    Decode.map4 Child
+    Decode.map6 Child
         (Decode.field "account" Decode.string)
         (Decode.field "label" Decode.string)
         (Decode.field "summary" summaryDecoder)
         (Decode.field "hasChildren" Decode.bool)
+        (Decode.field "assetClass" assetClassDecoder)
+        (Decode.field "allocationPercentage" (Decode.nullable Decimal.decoder))
+
+
+assetClassDecoder : Decoder AssetClass
+assetClassDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\value ->
+                case value of
+                    "equity" ->
+                        Decode.succeed Equity
+
+                    "debt" ->
+                        Decode.succeed Debt
+
+                    "cash" ->
+                        Decode.succeed Cash
+
+                    "gold" ->
+                        Decode.succeed Gold
+
+                    "hybrid" ->
+                        Decode.succeed Hybrid
+
+                    "property" ->
+                        Decode.succeed Property
+
+                    "other" ->
+                        Decode.succeed Other
+
+                    _ ->
+                        Decode.fail ("Unknown asset class: " ++ value)
+            )
+
+
+assetClassAllocationDecoder : Decoder AssetClassAllocation
+assetClassAllocationDecoder =
+    Decode.map4 AssetClassAllocation
+        (Decode.field "assetClass" assetClassDecoder)
+        (Decode.field "marketValue" (Decode.nullable Decimal.decoder))
+        (Decode.field "currentPercentage" (Decode.nullable Decimal.decoder))
+        (Decode.field "targetPercentage" (Decode.nullable Decimal.decoder))
 
 
 warningDecoder : Decoder Warning

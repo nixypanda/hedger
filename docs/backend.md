@@ -115,6 +115,17 @@ investments:
     - assetAccount: "assets:debt:fd"
       gainAccounts:
         - "income:interest:fd"
+    - assetAccount: "assets:debt:fd:excluded"
+      gainAccounts: []
+  assetClasses:
+    - kind: debt
+      accountPrefixes:
+        - "assets:debt"
+      targetPercent: 35
+    - kind: equity
+      accountPrefixes:
+        - "assets:equity"
+      targetPercent: 65
 ```
 
 ### Defaults
@@ -127,6 +138,7 @@ investments:
 | `defaultDisplayCommodity`| `--display-commodity C` | `display.commodity`           | `INR`     |
 | `fiscalYearStartMonth`   | `--fiscal-year-start M` | `display.fiscalYearStartMonth`| `4`       |
 | `investmentMappings`     | (none)                  | `investments.gainMappings`    | empty     |
+| `assetClassMappings`     | (none)                  | `investments.assetClasses`    | empty (`other`) |
 
 ### Validation
 
@@ -134,7 +146,15 @@ investments:
 - Listen address and display commodity must be non-blank, non-space tokens.
 - Port must be 1..65535.
 - Fiscal year start month must be 1..12.
-- Each investment gain mapping requires at least one gain account.
+- An empty `gainAccounts` list explicitly gives an asset account no gain
+  accounts. Because the most specific asset-account mapping wins, this can opt
+  a child account out of a broader parent mapping.
+- Asset-class mappings use `equity`, `debt`, `cash`, `gold`, `hybrid`,
+  `property`, or `other`.
+- Every asset-class mapping requires a qualified `assets:` account prefix.
+  Duplicate and component-prefix-overlapping mappings are rejected.
+- `targetPercent` is optional. When any asset-class targets are configured,
+  their percentages must each be between 0 and 100 and must total 100.
 
 ## Domain Modules
 

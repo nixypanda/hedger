@@ -11,6 +11,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
 import Data.Char qualified as Char
+import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Yaml qualified as Yaml
@@ -26,6 +27,7 @@ data Config = Config
     , defaultDisplayCommodity :: Text
     , fiscalYearStartMonth :: Int
     , investmentMappings :: Investment.InvestmentMappings
+    , assetClassMappings :: Investment.AssetClassMappings
     }
     deriving stock (Eq, Show)
 
@@ -60,7 +62,8 @@ data DisplayFileConfig = DisplayFileConfig
     deriving anyclass (FromJSON, ToJSON)
 
 data InvestmentsFileConfig = InvestmentsFileConfig
-    { gainMappings :: [GainMappingFileConfig]
+    { gainMappings :: Maybe [GainMappingFileConfig]
+    , assetClasses :: Maybe [AssetClassFileConfig]
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON)
@@ -68,6 +71,14 @@ data InvestmentsFileConfig = InvestmentsFileConfig
 data GainMappingFileConfig = GainMappingFileConfig
     { assetAccount :: Text
     , gainAccounts :: [Text]
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data AssetClassFileConfig = AssetClassFileConfig
+    { kind :: Text
+    , accountPrefixes :: [Text]
+    , targetPercent :: Maybe Scientific
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON)
@@ -118,6 +129,7 @@ decodeFileConfig contents =
 resolveConfig :: FileConfig -> CliOptions -> Either Text Config
 resolveConfig fileConfig cli = do
     mappings <- investmentMappingsFrom fileConfig.investments
+    assetClasses <- assetClassMappingsFrom fileConfig.investments
     validate
         Config
             { journalPath =
@@ -134,30 +146,55 @@ resolveConfig fileConfig cli = do
                 (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
                     `orDefault` 4
             , investmentMappings = mappings
+            , assetClassMappings = assetClasses
             }
 
 investmentMappingsFrom :: Maybe InvestmentsFileConfig -> Either Text Investment.InvestmentMappings
 investmentMappingsFrom Nothing = Right Investment.emptyInvestmentMappings
 investmentMappingsFrom (Just configured) = do
-    mappings <- traverse investmentMappingFrom configured.gainMappings
+    mappings <- traverse investmentMappingFrom (orDefault configured.gainMappings [])
     Investment.mkInvestmentMappings mappings
 
+assetClassMappingsFrom :: Maybe InvestmentsFileConfig -> Either Text Investment.AssetClassMappings
+assetClassMappingsFrom Nothing = Right Investment.emptyAssetClassMappings
+assetClassMappingsFrom (Just configured) = do
+    mappings <- traverse assetClassMappingFrom (orDefault configured.assetClasses [])
+    Investment.mkAssetClassMappings mappings
+
 investmentMappingFrom :: GainMappingFileConfig -> Either Text Investment.InvestmentMapping
-investmentMappingFrom configured
-    | null configured.gainAccounts =
-        Left "Each investment gain mapping requires at least one gain account."
-    | otherwise =
-        Right
-            Investment.InvestmentMapping
-                { assetAccount = configured.assetAccount
-                , performanceAccounts =
-                    [ Investment.PerformanceAccount
-                        { account
-                        , role = Investment.OtherIncome
-                        }
-                    | account <- configured.gainAccounts
-                    ]
-                }
+investmentMappingFrom configured =
+    Right
+        Investment.InvestmentMapping
+            { assetAccount = configured.assetAccount
+            , performanceAccounts =
+                [ Investment.PerformanceAccount
+                    { account
+                    , role = Investment.OtherIncome
+                    }
+                | account <- configured.gainAccounts
+                ]
+            }
+
+assetClassMappingFrom :: AssetClassFileConfig -> Either Text Investment.AssetClassMapping
+assetClassMappingFrom configured = do
+    assetClass <- assetClassFrom configured.kind
+    pure
+        Investment.AssetClassMapping
+            { assetClass
+            , accountPrefixes = configured.accountPrefixes
+            , targetPercentage = realToFrac <$> configured.targetPercent
+            }
+
+assetClassFrom :: Text -> Either Text Investment.AssetClass
+assetClassFrom kind = case kind of
+    "equity" -> Right Investment.Equity
+    "debt" -> Right Investment.Debt
+    "cash" -> Right Investment.Cash
+    "gold" -> Right Investment.Gold
+    "hybrid" -> Right Investment.Hybrid
+    "property" -> Right Investment.Property
+    "other" -> Right Investment.Other
+    _ -> Left ("Unsupported asset class kind: " <> kind)
 
 emptyFileConfig :: FileConfig
 emptyFileConfig =

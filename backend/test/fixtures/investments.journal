@@ -28,3 +28,8 @@ P 2026-03-31 FOREIGN USD 15
     assets:investments:equity:xyz         XYZ -4 @ INR 100
     assets:cash:checking                  INR 600
     income:investments:xyz:gains          INR -200
+
+2026-04-01 Settle remaining units
+    assets:investments:equity:xyz         XYZ -6 @ INR 100
+    assets:cash:checking                  INR 900
+    income:investments:xyz:gains          INR -300

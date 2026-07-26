@@ -23,7 +23,7 @@ import Network.Wai.Test (
 import Test.Tasty.HUnit (assertBool)
 
 import Hedger.Config (Config (..))
-import Hedger.Domain.Investment (emptyInvestmentMappings)
+import Hedger.Domain.Investment (emptyAssetClassMappings, emptyInvestmentMappings)
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 
 configuration :: Config
@@ -35,6 +35,7 @@ configuration =
         , defaultDisplayCommodity = "INR"
         , fiscalYearStartMonth = 4
         , investmentMappings = emptyInvestmentMappings
+        , assetClassMappings = emptyAssetClassMappings
         }
 
 loadedStore :: IO SnapshotStore

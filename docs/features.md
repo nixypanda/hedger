@@ -167,8 +167,7 @@ Investment calculations support:
 - Gain/loss decomposition: attributed income, realised gain, unrealised gain.
 - Return percentage only for positive, complete cost basis.
 - Account-prefix drilldown with breadcrumb navigation.
-- Investment policy excluding `assets:cash`, `assets:property`, and
-  `assets:receivables` via configuration.
+- All `assets:` roots participate without requiring gain mappings.
 - Structured warnings for missing prices, missing costs, missing performance
   mappings, and foreign costs.
 

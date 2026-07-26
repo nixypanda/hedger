@@ -16,6 +16,7 @@ module Hedger.Domain.InvestmentPerformance (
     investmentDataTransactions,
     immediateChildren,
     reportPeriods,
+    externalCashFlowsAt,
 )
 where
 

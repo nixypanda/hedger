@@ -47,15 +47,26 @@ registerCompletenessBadge theme completeness =
 
 remoteNotice : Theme -> Freshness -> RemoteData a -> Element msg
 remoteNotice theme freshness remote =
-    Element.column [ Element.width Element.fill, Element.spacing 8 ]
-        [ freshnessBanner theme freshness
-        , case remote of
-            Loading _ ->
-                Ui.statusBadge theme Ui.StatusPrimary "Refreshing"
+    case remote of
+        Loading _ ->
+            noticeSlot (Ui.statusBadge theme Ui.StatusPrimary "Refreshing")
 
-            Failure error _ ->
-                Ui.errorBanner theme (ApiError.message error)
+        Failure error _ ->
+            Ui.errorBanner theme (ApiError.message error)
 
-            _ ->
-                Element.none
+        _ ->
+            case freshness of
+                Fresh ->
+                    noticeSlot Element.none
+
+                _ ->
+                    noticeSlot (freshnessBanner theme freshness)
+
+
+noticeSlot : Element msg -> Element msg
+noticeSlot notice =
+    Element.el
+        [ Element.width Element.fill
+        , Element.height (Element.px 20)
         ]
+        notice

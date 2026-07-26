@@ -6,7 +6,6 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian, toGregorian)
-import Hedger.Application.Investments qualified as Investments
 import Hedger.Application.TransactionQuery (
     TransactionPage (transactions),
     TransactionPageRequest (..),
@@ -19,7 +18,9 @@ import Hedger.Domain.Investment (
     mkInvestmentMappings,
  )
 import Hedger.Domain.Investment qualified as Investment
+import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Xirr qualified as Xirr
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
 import Hedger.Interface.HTTP.Common (ResponseMetadata (..))
 import Hedger.Interface.HTTP.Transactions (
@@ -43,6 +44,9 @@ main =
         , queryBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
         , investmentBenchmarks "shared-13" "test/fixtures/shared.journal"
         , investmentBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
+        , bench "xirr/small" $ nf xirrWeight smallXirrCashFlows
+        , xirrBenchmarks "shared-13" "test/fixtures/shared.journal"
+        , xirrBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
         , env loadTransactions $ \transactions ->
             bgroup
                 "transactions"
@@ -62,6 +66,11 @@ newtype BenchSnapshot = BenchSnapshot Snapshot
 
 instance NFData BenchSnapshot where
     rnf (BenchSnapshot snapshot) = rnf (sum (length . Hledger.tpostings <$> snapshot.transactions))
+
+newtype BenchXirrCashFlows = BenchXirrCashFlows [Xirr.CashFlow]
+
+instance NFData BenchXirrCashFlows where
+    rnf (BenchXirrCashFlows flows) = rnf (length (show flows))
 
 data InvestmentInput = InvestmentInput
     { snapshot :: Snapshot
@@ -99,17 +108,47 @@ investmentBenchmarks fixtureName fixturePath =
                     input.monthEnds
             ]
 
-investmentSummary :: Snapshot -> Day -> Investments.InvestmentSummary
-investmentSummary snapshot day =
-    Investments.investmentSummaryAt snapshot benchmarkMappings "INR" Nothing day
+xirrBenchmarks :: String -> Text.Text -> Benchmark
+xirrBenchmarks fixtureName fixturePath =
+    env (BenchXirrCashFlows <$> loadDerivedXirrCashFlows fixturePath) $ \(BenchXirrCashFlows flows) ->
+        bgroup ("xirr/" <> fixtureName) [bench "journal-derived" $ nf xirrWeight flows]
 
-summaryWeight :: Investments.InvestmentSummary -> Int
+xirrWeight :: [Xirr.CashFlow] -> Int
+xirrWeight = length . show . Xirr.xirr
+
+smallXirrCashFlows :: [Xirr.CashFlow]
+smallXirrCashFlows =
+    [ Xirr.cashFlow (fromGregorian 2024 1 1) (-1000)
+    , Xirr.cashFlow (fromGregorian 2024 7 1) (-500)
+    , Xirr.cashFlow (fromGregorian 2025 1 1) 1800
+    ]
+
+loadDerivedXirrCashFlows :: Text.Text -> IO [Xirr.CashFlow]
+loadDerivedXirrCashFlows fixturePath = do
+    snapshot <- loadFixtureAt fixturePath
+    let dates = (.tdate) <$> snapshot.transactions
+        flows = case dates of
+            [] -> smallXirrCashFlows
+            first : rest ->
+                let contributionCount = length rest + 1
+                    terminal = addDays 365 (maximum dates)
+                 in Xirr.cashFlow first (-1)
+                        : [Xirr.cashFlow day (-1) | day <- rest]
+                            <> [Xirr.cashFlow terminal (fromIntegral (contributionCount + 1000))]
+    _ <- evaluate (sum (length . show <$> flows))
+    pure flows
+
+investmentSummary :: Snapshot -> Day -> Performance.InvestmentSummary
+investmentSummary snapshot day =
+    Performance.investmentSummaryAt snapshot benchmarkMappings "INR" Nothing day
+
+summaryWeight :: Performance.InvestmentSummary -> Int
 summaryWeight summary =
     sum
         [ length (show summary.marketValue)
         , length (show summary.purchaseCost)
         , length (show summary.gainLoss)
-        , length (show summary.returnPercentage)
+        , length (show summary.xirr)
         , length (show summary.attributedIncome)
         , length (show summary.realisedGain)
         , length (show summary.totalProfit)

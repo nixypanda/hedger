@@ -1,21 +1,30 @@
 module Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec) where
 
+import Data.Decimal (Decimal)
 import Data.Either (isLeft, isRight)
 import Data.Time (fromGregorian)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
+import Hledger.Data.Transaction (nulltransaction)
+import Hledger.Data.Types qualified as Hledger
+
 import Hedger.Domain.Investment (
     InvestmentMapping (..),
     PerformanceAccount (..),
-    PerformanceRole (Interest, RealisedGain),
+    PerformanceRole (Fee, Interest, RealisedGain),
+    emptyInvestmentMappings,
     mkInvestmentMappings,
  )
 import Hedger.Domain.InvestmentPerformance (
     InvestmentCompleteness (Complete),
     InvestmentSummary (..),
+    externalCashFlowsAt,
     investmentSummaryAt,
+    reportPeriods,
  )
+import Hedger.Domain.Period (Granularity (Monthly))
+import Hedger.Domain.Xirr (cashFlowAmount, cashFlowDate)
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
 
 investmentsSpec :: TestTree
@@ -38,6 +47,12 @@ investmentsSpec =
         , testCase
             "mapping validation rejects overlapping performance ownership but permits no-income assets"
             mappingValidation
+        , testCase
+            "XIRR cash flows cancel reinvestment and transfers while retaining external income and fees"
+            externalCashFlows
+        , testCase "investment summary reports annualised XIRR instead of absolute return" summaryXirr
+        , testCase "settled accounts have complete empty summaries" settledAccount
+        , testCase "monthly periods include months without transactions" contiguousMonthlyPeriods
         ]
 
 retainedFdInterest :: IO ()
@@ -61,7 +76,7 @@ retainedFdInterest = do
             assertEqual "principal cost" (Just 100000) summary.purchaseCost
             assertEqual "unrealised gain" (Just 0) summary.gainLoss
             assertEqual "total profit" (Just 7000) summary.totalProfit
-            assertEqual "return" (Just 7) summary.returnPercentage
+            assertAnnualRate "XIRR" summary.xirr 0.07 0.071
             assertEqual "completeness" Complete summary.completeness
 
 fdMapping :: InvestmentMapping
@@ -96,7 +111,7 @@ descendantFdInterest = do
             assertEqual "selected interest income" (Just 7000) summary.attributedIncome
             assertEqual "principal cost" (Just 100000) summary.purchaseCost
             assertEqual "total profit" (Just 7000) summary.totalProfit
-            assertEqual "return" (Just 7) summary.returnPercentage
+            assertAnnualRate "XIRR" summary.xirr 0.07 0.071
             assertEqual "completeness" Complete summary.completeness
 
 parentFdMapping :: InvestmentMapping
@@ -127,11 +142,22 @@ partialDisposal = do
                         "INR"
                         (Just "assets:investments:equity:xyz")
                         (fromGregorian 2026 3 31)
+                flows =
+                    externalCashFlowsAt
+                        snapshot
+                        mappings
+                        "INR"
+                        (Just "assets:investments:equity:xyz")
+                        (fromGregorian 2026 3 31)
             assertEqual "remaining market value" (Just 900) summary.marketValue
             assertEqual "remaining cost" (Just 600) summary.purchaseCost
             assertEqual "unrealised gain" (Just 300) summary.gainLoss
             assertEqual "realised gain" (Just 200) summary.realisedGain
             assertEqual "total profit" (Just 500) summary.totalProfit
+            assertEqual
+                "XIRR uses actual purchase and sale cash"
+                (Just [-1000, 600])
+                (fmap (fmap cashFlowAmount) flows)
 
 foreignAcquisitionCost :: IO ()
 foreignAcquisitionCost = do
@@ -191,6 +217,103 @@ mappingValidation = do
         "an explicit no-income property mapping is valid"
         (isRight (mkInvestmentMappings [emptyProperty]))
     assertBool "overlapping performance scopes are rejected" (isLeft (mkInvestmentMappings [first, second]))
+
+externalCashFlows :: IO ()
+externalCashFlows = do
+    snapshotResult <- loadSnapshot "test/fixtures/investment-xirr.journal"
+    mappings <- case mkInvestmentMappings [xirrMapping] of
+        Left message -> assertFailure (show message) >> fail "invalid mapping"
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let flows =
+                    externalCashFlowsAt
+                        snapshot
+                        mappings
+                        "INR"
+                        (Just "assets:investments:fund")
+                        (fromGregorian 2025 6 1)
+            assertEqual
+                "only investor cash movements remain"
+                (Just [-100, 0, 0, 5, 0, -3])
+                (fmap (fmap cashFlowAmount) flows)
+            assertEqual
+                "cash flows retain their transaction dates"
+                (Just (fromGregorian 2025 1 1))
+                (fmap (fmap cashFlowDate) flows >>= safeHead)
+
+summaryXirr :: IO ()
+summaryXirr = do
+    snapshotResult <- loadSnapshot "test/fixtures/investment-xirr.journal"
+    mappings <- case mkInvestmentMappings [xirrMapping] of
+        Left message -> assertFailure (show message) >> fail "invalid mapping"
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let summary =
+                    investmentSummaryAt
+                        snapshot
+                        mappings
+                        "INR"
+                        (Just "assets:investments:fund")
+                        (fromGregorian 2025 6 1)
+            assertAnnualRate "summary XIRR" summary.xirr 0.2 0.3
+
+settledAccount :: IO ()
+settledAccount = do
+    snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot ->
+            assertEqual
+                "settled account completeness"
+                Complete
+                ( investmentSummaryAt
+                    snapshot
+                    emptyInvestmentMappings
+                    "INR"
+                    (Just "assets:investments:equity:xyz")
+                    (fromGregorian 2026 4 1)
+                ).completeness
+
+xirrMapping :: InvestmentMapping
+xirrMapping =
+    InvestmentMapping
+        { assetAccount = "assets:investments:fund"
+        , performanceAccounts =
+            [ PerformanceAccount "income:investments:fund:dividend" Interest
+            , PerformanceAccount "expenses:investments:fund:fee" Fee
+            ]
+        }
+
+assertAnnualRate :: String -> Maybe Decimal -> Decimal -> Decimal -> IO ()
+assertAnnualRate label actual lower upper = case actual of
+    Nothing -> assertFailure (label <> " was unavailable")
+    Just value -> assertBool label (value > lower && value < upper)
+
+safeHead :: [value] -> Maybe value
+safeHead [] = Nothing
+safeHead (value : _) = Just value
+
+contiguousMonthlyPeriods :: IO ()
+contiguousMonthlyPeriods =
+    assertEqual
+        "every month from the first transaction through the latest date"
+        ["2025-01", "2025-02", "2025-03", "2025-04"]
+        ( (\(key, _, _) -> key)
+            <$> reportPeriods
+                Monthly
+                [ transactionOn 2025 1 15
+                , transactionOn 2025 4 2
+                ]
+                (fromGregorian 2025 4 20)
+        )
+
+transactionOn :: Integer -> Int -> Int -> Hledger.Transaction
+transactionOn year month day =
+    nulltransaction{Hledger.tdate = fromGregorian year month day}
 
 equityMapping :: InvestmentMapping
 equityMapping =

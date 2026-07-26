@@ -3,20 +3,27 @@ module Hedger.Domain.InvestmentSpec (investmentSpec) where
 import Data.Either (isLeft, isRight)
 import Data.List qualified as List
 import Data.Ord (comparing)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Hedgehog (Gen, MonadTest, Property, assert, failure, footnote, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import Test.Tasty.Hedgehog (testProperty)
 
 import Hedger.Domain.Investment (
+    AssetClass (..),
+    AssetClassMapping (..),
+    AssetClassMappings,
     InvestmentMapping (..),
     InvestmentMappings,
     PerformanceAccount (..),
+    assetClassForAccount,
     mappingForAccount,
     mappingsForScope,
+    mkAssetClassMappings,
     mkInvestmentMappings,
  )
 import Hedger.Generators (
@@ -29,8 +36,13 @@ import Hedger.Generators (
 investmentSpec :: TestTree
 investmentSpec =
     testGroup
-        "investment mappings"
+        "investments"
         [ testGroup
+            "asset class mappings"
+            [ testCase "uses Other for unmatched accounts" unmatchedAccountsAreOther
+            , testProperty "lookup does not depend on mapping order" assetClassLookupPermutationInvariant
+            ]
+        , testGroup
             "mkInvestmentMappings"
             [ testProperty "a disjoint, well-formed set is accepted" happyPath
             , testProperty "a duplicated asset account is rejected" rejectsDuplicateAssetAccount
@@ -64,6 +76,11 @@ buildValid mappings = case mkInvestmentMappings mappings of
     Right built -> pure built
     Left err -> footnote (Text.unpack err) >> failure
 
+buildAssetClassMappings :: (MonadTest m) => [AssetClassMapping] -> m AssetClassMappings
+buildAssetClassMappings mappings = case mkAssetClassMappings mappings of
+    Right built -> pure built
+    Left err -> footnote (Text.unpack err) >> failure
+
 componentsOf :: Text -> [Text]
 componentsOf = Text.splitOn ":"
 
@@ -72,6 +89,42 @@ isComponentPrefixOf prefix account = componentsOf prefix `List.isPrefixOf` compo
 
 componentCount :: Text -> Int
 componentCount = length . componentsOf
+
+-- Asset class mappings
+
+unmatchedAccountsAreOther :: IO ()
+unmatchedAccountsAreOther = do
+    mappings <- case mkAssetClassMappings [AssetClassMapping Equity ["assets:equity"] Nothing] of
+        Left err -> assertFailure (Text.unpack err) >> fail "invalid asset class mapping"
+        Right value -> pure value
+    assertEqual "unmatched asset class" Other (assetClassForAccount "assets:debt:fund" mappings)
+
+genAssetClass :: Gen AssetClass
+genAssetClass = Gen.element [Equity, Debt, Cash, Gold, Hybrid, Property, Other]
+
+genDisjointAssetClassMappingSet :: Gen [AssetClassMapping]
+genDisjointAssetClassMappingSet = do
+    mappingCount <- Gen.integral (Range.linear 1 5)
+    leaves <- Set.toList <$> Gen.set (Range.singleton mappingCount) genAccountComponent
+    classes <- Gen.list (Range.singleton mappingCount) genAssetClass
+    pure
+        [ AssetClassMapping assetClass ["assets:" <> leaf] Nothing
+        | (assetClass, leaf) <- zip classes leaves
+        ]
+
+assetClassLookupPermutationInvariant :: Property
+assetClassLookupPermutationInvariant = property $ do
+    mappings <- forAll genDisjointAssetClassMappingSet
+    shuffled <- forAll (Gen.shuffle mappings)
+    first <- buildAssetClassMappings mappings
+    second <- buildAssetClassMappings shuffled
+    mapping <- forAll (Gen.element mappings)
+    suffix <- forAll (Gen.list (Range.linear 0 3) genAccountComponent)
+    case mapping.accountPrefixes of
+        prefix : _ -> do
+            let query = Text.intercalate ":" (prefix : suffix)
+            assetClassForAccount query first === assetClassForAccount query second
+        [] -> footnote "generator produced an empty prefix set" >> failure
 
 -- mkInvestmentMappings
 

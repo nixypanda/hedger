@@ -1,9 +1,16 @@
 module Hedger.Domain.Investment (
+    AssetClass (..),
+    AssetClassMapping (..),
+    AssetClassMappings,
     InvestmentMappings,
     InvestmentMapping (..),
     PerformanceAccount (..),
     PerformanceRole (..),
+    assetClassForAccount,
+    assetClassMappingsList,
+    emptyAssetClassMappings,
     emptyInvestmentMappings,
+    mkAssetClassMappings,
     mkInvestmentMappings,
     mappingsForScope,
     mappingForAccount,
@@ -12,11 +19,32 @@ module Hedger.Domain.Investment (
 )
 where
 
+import Data.Decimal (Decimal)
 import Data.List qualified as List
 import Data.Text (Text)
 import Data.Text qualified as Text
 
 import Hledger.Data.AccountName qualified as HledgerAccountName
+
+data AssetClass
+    = Equity
+    | Debt
+    | Cash
+    | Gold
+    | Hybrid
+    | Property
+    | Other
+    deriving stock (Eq, Ord, Show)
+
+data AssetClassMapping = AssetClassMapping
+    { assetClass :: AssetClass
+    , accountPrefixes :: [Text]
+    , targetPercentage :: Maybe Decimal
+    }
+    deriving stock (Eq, Show)
+
+newtype AssetClassMappings = AssetClassMappings [AssetClassMapping]
+    deriving stock (Eq, Show)
 
 newtype InvestmentMappings = InvestmentMappings [InvestmentMapping]
     deriving stock (Eq, Show)
@@ -43,6 +71,50 @@ data PerformanceRole
 
 emptyInvestmentMappings :: InvestmentMappings
 emptyInvestmentMappings = InvestmentMappings []
+
+emptyAssetClassMappings :: AssetClassMappings
+emptyAssetClassMappings = AssetClassMappings []
+
+mkAssetClassMappings :: [AssetClassMapping] -> Either Text AssetClassMappings
+mkAssetClassMappings mappings
+    | any (null . (.accountPrefixes)) mappings =
+        Left "Each asset class mapping requires at least one account prefix."
+    | any (any invalidPrefix . (.accountPrefixes)) mappings =
+        Left "Asset class mappings require fully qualified assets account prefixes."
+    | any (maybe False (\target -> target < 0 || target > 100) . (.targetPercentage)) mappings =
+        Left "Asset class target percentages must be between 0 and 100."
+    | not (null targeted) && sum targeted /= 100 =
+        Left "Configured asset class target percentages must total 100."
+    | otherwise = case overlappingPrefixes of
+        first : _ -> Left ("Asset class account-prefix scopes overlap: " <> first)
+        [] -> Right (AssetClassMappings mappings)
+  where
+    invalidPrefix prefix =
+        not (fullyQualified prefix)
+            || not ("assets" `accountWithin` prefix)
+    fullyQualified = (>= 2) . length . HledgerAccountName.accountNameComponents
+    prefixes = concatMap (.accountPrefixes) mappings
+    targeted = [target | mapping <- mappings, Just target <- [mapping.targetPercentage]]
+    overlappingPrefixes =
+        [ left
+        | (leftIndex, left) <- zip [0 :: Int ..] prefixes
+        , (rightIndex, right) <- zip [0 :: Int ..] prefixes
+        , leftIndex < rightIndex
+        , left `accountWithin` right || right `accountWithin` left
+        ]
+
+assetClassMappingsList :: AssetClassMappings -> [AssetClassMapping]
+assetClassMappingsList (AssetClassMappings mappings) = mappings
+
+assetClassForAccount :: Text -> AssetClassMappings -> AssetClass
+assetClassForAccount account (AssetClassMappings mappings) =
+    case [ mapping.assetClass
+         | mapping <- mappings
+         , prefix <- mapping.accountPrefixes
+         , prefix `accountWithin` account
+         ] of
+        assetClass : _ -> assetClass
+        [] -> Other
 
 mkInvestmentMappings :: [InvestmentMapping] -> Either Text InvestmentMappings
 mkInvestmentMappings mappings

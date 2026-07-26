@@ -148,8 +148,10 @@ investmentsProjection app = do
                 ]
     (Just response, raw) <- postJson "/api/v1/investments/query" (Aeson.encode requestBody) app
     assertEqual "investments status" status200 raw.simpleStatus
-    assertArrayLength "investments monthly timeline excludes empty months" 1 "timeline" response
-    assertObjectFields ["summary", "children", "breadcrumbs", "warnings"] response
+    assertArrayLength "investments monthly timeline includes empty months" 13 "timeline" response
+    assertObjectFields
+        ["summary", "children", "assetClassAllocations", "breadcrumbs", "warnings"]
+        response
     case field "summary" response of
         Just summary -> do
             assertEqual
@@ -161,6 +163,8 @@ investmentsProjection app = do
                 (Just (String "120000"))
                 (field "purchaseCost" summary)
             assertEqual "gain" (Just (String "45000")) (field "gainLoss" summary)
+            assertBool "return percentage is replaced by XIRR" (field "returnPercentage" summary == Nothing)
+            assertBool "XIRR is present as an annual fraction" (field "xirr" summary /= Nothing)
             assertEqual
                 "total profit defaults to the calculated gain"
                 (Just (String "45000"))
@@ -170,13 +174,33 @@ investmentsProjection app = do
                 (Just (String "complete"))
                 (field "completeness" summary)
         _ -> assertFailure "expected investment summary"
-    let excludedRequest =
+    let childrenRequest =
+            object
+                [ "granularity" .= ("monthly" :: String)
+                , "displayCommodity" .= ("INR" :: String)
+                , "accountPrefix" .= ("assets:investments" :: String)
+                ]
+    (Just childrenResponse, childrenRaw) <-
+        postJson "/api/v1/investments/query" (Aeson.encode childrenRequest) app
+    assertEqual "investment children status" status200 childrenRaw.simpleStatus
+    case field "children" childrenResponse of
+        Just (Array children) ->
+            assertBool
+                "children include asset class and allocation fields"
+                (all hasAssetClassAndAllocation children)
+        _ -> assertFailure "expected investment children"
+    let assetRootRequest =
             object
                 [ "granularity" .= ("monthly" :: String)
                 , "accountPrefix" .= ("assets:cash" :: String)
                 ]
-    (_, excludedRaw) <- postJson "/api/v1/investments/query" (Aeson.encode excludedRequest) app
-    assertEqual "excluded investment scope is rejected" status400 excludedRaw.simpleStatus
+    (_, assetRootRaw) <- postJson "/api/v1/investments/query" (Aeson.encode assetRootRequest) app
+    assertEqual "any asset root is accepted" status200 assetRootRaw.simpleStatus
+
+hasAssetClassAndAllocation :: Value -> Bool
+hasAssetClassAndAllocation child =
+    field "assetClass" child == Just (String "other")
+        && field "allocationPercentage" child /= Nothing
 
 analyticsRequest :: String -> Value
 analyticsRequest query =

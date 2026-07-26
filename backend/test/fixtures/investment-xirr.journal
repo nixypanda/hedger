@@ -1,0 +1,25 @@
+commodity INR
+
+2025-01-01 Fund contribution
+    assets:investments:fund:a              INR 100
+    assets:cash:checking                  INR -100
+
+2025-02-01 Internal fund transfer
+    assets:investments:fund:a             INR -40
+    assets:investments:fund:b              INR 40
+
+2025-03-01 Reinvest dividend
+    assets:investments:fund:b              INR 10
+    income:investments:fund:dividend      INR -10
+
+2025-04-01 Cash dividend
+    assets:cash:checking                   INR 5
+    income:investments:fund:dividend      INR -5
+
+2025-05-01 Deduct fund fee
+    assets:investments:fund:b             INR -2
+    expenses:investments:fund:fee          INR 2
+
+2025-06-01 Pay fund fee from cash
+    expenses:investments:fund:fee          INR 3
+    assets:cash:checking                  INR -3

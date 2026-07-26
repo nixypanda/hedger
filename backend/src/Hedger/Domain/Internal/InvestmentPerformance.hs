@@ -18,7 +18,6 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     investmentDataTransactions,
     immediateChildren,
     reportPeriods,
-    excludedRoots,
 
     -- * Building blocks (exposed for property tests)
     holdingsAt,
@@ -29,6 +28,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     retainedPerformanceAt,
     hasAttributablePerformance,
     accountUsesExplicitCost,
+    externalCashFlowsAt,
 )
 where
 
@@ -51,9 +51,10 @@ import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Investment (accountWithin)
 import Hedger.Domain.Investment qualified as Investment
-import Hedger.Domain.Period (Granularity (..), epoch, minimumMaybe, monthKey, monthStart, takeLast)
+import Hedger.Domain.Period (Granularity (..), epoch, minimumMaybe, monthKey, monthStart)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (completeDecimal, missingCommodities, valueMixedAt)
+import Hedger.Domain.Xirr qualified as Xirr
 
 data InvestmentCompleteness = Complete | Partial | Unavailable
     deriving stock (Eq, Show)
@@ -62,7 +63,7 @@ data InvestmentSummary = InvestmentSummary
     { marketValue :: Maybe Decimal
     , purchaseCost :: Maybe Decimal
     , gainLoss :: Maybe Decimal
-    , returnPercentage :: Maybe Decimal
+    , xirr :: Maybe Decimal
     , attributedIncome :: Maybe Decimal
     , realisedGain :: Maybe Decimal
     , totalProfit :: Maybe Decimal
@@ -144,10 +145,10 @@ summaryAt snapshot mappings commodity scope day =
         realised = attributed >>= (Just . (\(_, value, _) -> value))
         fees = attributed >>= (Just . (\(_, _, value) -> value))
         total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
-        percent = do
-            profit <- total
-            basis <- cost
-            if abs basis < 0.000001 then Nothing else Just (profit / abs basis * 100)
+        annualisedReturn =
+            if mappingComplete
+                then xirrAt snapshot mappings commodity scope day market
+                else Nothing
         missingValue = missingCommodities commodity valueRaw
         missingCost = missingCommodities commodity costValued <> rawMissingCost
         warnings =
@@ -176,7 +177,7 @@ summaryAt snapshot mappings commodity scope day =
                             { marketValue = market
                             , purchaseCost = cost
                             , gainLoss = calculatedGain
-                            , returnPercentage = percent
+                            , xirr = annualisedReturn
                             , attributedIncome = income
                             , realisedGain = realised
                             , totalProfit = total
@@ -204,16 +205,9 @@ holdingsAtWithJournal ::
     Maybe Text ->
     Day ->
     Hledger.MixedAmount
-holdingsAtWithJournal journal mappings scope day =
-    foldl HledgerAmount.maPlus HledgerAmount.nullmixedamt reports
+holdingsAtWithJournal journal _ scope day =
+    snd (HledgerBalance.balanceReport (spec scope) journal)
   where
-    reports = case scope of
-        Just selected -> [balanceFor scope (isExcluded selected)]
-        Nothing ->
-            balanceFor Nothing False
-                : [balanceFor (Just mapped) True | mapped <- minimalExcludedMappedRoots]
-    balanceFor selected includeExcluded =
-        snd (HledgerBalance.balanceReport (spec selected includeExcluded) journal)
     period = Hledger.PeriodTo (addDays 1 day)
     options =
         HledgerReportOptions.defreportopts
@@ -221,27 +215,16 @@ holdingsAtWithJournal journal mappings scope day =
             , HledgerReportOptions.balanceaccum_ = HledgerReportOptions.Historical
             , HledgerReportOptions.accountlistmode_ = HledgerReportOptions.ALFlat
             }
-    spec selected includeExcluded =
+    spec selected =
         HledgerReportOptions.defreportspec
             { HledgerReportOptions._rsReportOpts = options
             , HledgerReportOptions._rsDay = day
             , HledgerReportOptions._rsQuery =
                 HledgerQuery.And
-                    [ investmentQuery selected includeExcluded
+                    [ investmentQuery selected
                     , HledgerQuery.Date (HledgerPeriod.periodAsDateSpan period)
                     ]
             }
-    isExcluded name = any (`accountWithin` name) excludedRoots
-    minimalExcludedMappedRoots =
-        [ name
-        | name <- Investment.mappedAssetAccounts mappings
-        , isExcluded name
-        , not
-            ( any
-                (\other -> other /= name && other `accountWithin` name)
-                (Investment.mappedAssetAccounts mappings)
-            )
-        ]
 
 journalWithHistoricalCosts :: Snapshot -> Text -> Hledger.Journal
 journalWithHistoricalCosts snapshot commodity =
@@ -297,11 +280,10 @@ journalWithHistoricalCosts snapshot commodity =
                 )
         if valued.acommodity == commodity then Just valued else Nothing
 
-investmentQuery :: Maybe Text -> Bool -> HledgerQuery.Query
-investmentQuery scope includeExcluded =
+investmentQuery :: Maybe Text -> HledgerQuery.Query
+investmentQuery scope =
     HledgerQuery.And
         ( [HledgerQuery.Type [Hledger.Asset]]
-            <> (if includeExcluded then [] else defaultExclusions)
             <> scopeQuery
         )
   where
@@ -310,13 +292,6 @@ investmentQuery scope includeExcluded =
             []
             (\name -> [HledgerQuery.Acct (HledgerAccountName.accountNameToAccountRegex name)])
             scope
-    defaultExclusions =
-        [ HledgerQuery.Not (HledgerQuery.Acct (HledgerAccountName.accountNameToAccountRegex name))
-        | name <- excludedRoots
-        ]
-
-excludedRoots :: [Text]
-excludedRoots = ["assets:cash", "assets:property", "assets:receivables"]
 
 attributedAt ::
     Snapshot ->
@@ -344,19 +319,11 @@ attributedAt snapshot mappings commodity scope day =
         | transaction <- snapshot.transactions
         , transaction.tdate <= day
         , mapping <- selectedMappings
-        , transactionMatchesScope mapping transaction
+        , transactionMatchesScope scope mapping transaction
         , posting <- transaction.tpostings
         , performance <- mapping.performanceAccounts
         , performance.account `accountWithin` posting.paccount
         ]
-    transactionMatchesScope mapping transaction = case scope of
-        Just selected
-            | mapping.assetAccount /= selected
-                && mapping.assetAccount `accountWithin` selected ->
-                any
-                    (\candidate -> selected `accountWithin` candidate.paccount)
-                    transaction.tpostings
-        _ -> True
     combine Nothing _ = Nothing
     combine _ Nothing = Nothing
     combine (Just (incomeA, gainA, feeA)) (Just (incomeB, gainB, feeB)) =
@@ -403,6 +370,95 @@ retainedPerformanceAt snapshot mappings commodity scope day = fmap sum (traverse
         Investment.RealisedGain -> False
         Investment.Fee -> False
 
+{- | External investor cash flows for an investment scope, valued on each
+transaction date. Contributions are negative; withdrawals and cash-paid income
+are positive. The calculation uses postings outside the selected investment
+scope and excludes mapped performance postings. This preserves actual purchase
+and sale cash, while reinvested income, deducted fees, and transfers wholly
+inside the scope cancel to zero.
+-}
+externalCashFlowsAt ::
+    Snapshot ->
+    Investment.InvestmentMappings ->
+    Text ->
+    Maybe Text ->
+    Day ->
+    Maybe [Xirr.CashFlow]
+externalCashFlowsAt snapshot mappings commodity scope day =
+    traverse transactionCashFlow relevantTransactions
+  where
+    selectedMappings = case scope of
+        Nothing -> Investment.mappingsForScope "" mappings
+        Just selected -> Investment.mappingsForScope selected mappings
+    relevantTransactions =
+        [ transaction
+        | transaction <- snapshot.transactions
+        , transaction.tdate <= day
+        , transactionTouchesScope transaction || transactionHasSelectedPerformance transaction
+        ]
+    transactionTouchesScope =
+        any (isInvestmentAccount mappings scope . (.paccount)) . (.tpostings)
+    transactionHasSelectedPerformance transaction =
+        any
+            ( \mapping ->
+                transactionMatchesScope scope mapping transaction
+                    && any
+                        ( \performance ->
+                            any
+                                (\posting -> performance.account `accountWithin` posting.paccount)
+                                transaction.tpostings
+                        )
+                        mapping.performanceAccounts
+            )
+            selectedMappings
+    transactionCashFlow transaction = do
+        externalMovement <-
+            valuePostings
+                transaction
+                [ posting
+                | posting <- transaction.tpostings
+                , not (isInvestmentAccount mappings scope posting.paccount)
+                , not (isSelectedPerformancePosting transaction posting)
+                ]
+        pure (Xirr.cashFlow transaction.tdate externalMovement)
+    valuePostings transaction =
+        fmap sum
+            . traverse
+                (completeDecimal commodity . valueMixedAt snapshot commodity transaction.tdate . (.pamount))
+    isSelectedPerformancePosting transaction posting =
+        any
+            ( \mapping ->
+                transactionMatchesScope scope mapping transaction
+                    && any
+                        (\performance -> performance.account `accountWithin` posting.paccount)
+                        mapping.performanceAccounts
+            )
+            selectedMappings
+
+xirrAt ::
+    Snapshot ->
+    Investment.InvestmentMappings ->
+    Text ->
+    Maybe Text ->
+    Day ->
+    Maybe Decimal ->
+    Maybe Decimal
+xirrAt snapshot mappings commodity scope day terminalMarket = do
+    flows <- externalCashFlowsAt snapshot mappings commodity scope day
+    terminal <- terminalMarket
+    annualRate <- either (const Nothing) Just (Xirr.xirr (flows <> [Xirr.cashFlow day terminal]))
+    pure (Xirr.annualRate annualRate)
+
+transactionMatchesScope :: Maybe Text -> Investment.InvestmentMapping -> Hledger.Transaction -> Bool
+transactionMatchesScope scope mapping transaction = case scope of
+    Just selected
+        | mapping.assetAccount /= selected
+            && mapping.assetAccount `accountWithin` selected ->
+            any
+                (\candidate -> selected `accountWithin` candidate.paccount)
+                transaction.tpostings
+    _ -> True
+
 hasAttributablePerformance ::
     Snapshot ->
     Investment.InvestmentMappings ->
@@ -445,15 +501,11 @@ investmentAccountsAt snapshot mappings scope day =
         ]
 
 isInvestmentAccount :: Investment.InvestmentMappings -> Maybe Text -> Text -> Bool
-isInvestmentAccount mappings scope name =
+isInvestmentAccount _ scope name =
     "assets" `accountWithin` name
         && case scope of
-            Just selected -> selected `accountWithin` name && allowed
-            Nothing -> allowed
-  where
-    allowed =
-        not (any (`accountWithin` name) excludedRoots)
-            || Investment.mappingForAccount name mappings /= Nothing
+            Just selected -> selected `accountWithin` name
+            Nothing -> True
 
 immediateChildren :: Snapshot -> Investment.InvestmentMappings -> Maybe Text -> [Text]
 immediateChildren snapshot mappings scope =
@@ -484,12 +536,15 @@ reportPeriods granularity transactions latest = case granularity of
         ]
   where
     (finalYear, _, _) = toGregorian latest
+    finalMonth = monthStart latest
     monthlyStarts =
-        takeLast
-            24
-            ( Set.toAscList
-                (Set.fromList (fmap (monthStart . (.tdate)) transactions))
-            )
+        takeWhile
+            (<= finalMonth)
+            (iterate (addGregorianMonthsClip 1) firstMonthlyStart)
+    firstMonthlyStart =
+        max
+            (addGregorianMonthsClip (-23) finalMonth)
+            (maybe finalMonth monthStart (minimumMaybe (fmap (.tdate) transactions)))
     firstYear =
         maybe
             finalYear
@@ -497,22 +552,14 @@ reportPeriods granularity transactions latest = case granularity of
             (minimumMaybe (fmap (.tdate) transactions))
 
 validateScope :: Investment.InvestmentMappings -> Maybe Text -> Either AppError (Maybe Text)
-validateScope mappings requested = case requested >>= scopeText of
+validateScope _ requested = case requested >>= scopeText of
     Nothing -> Right Nothing
     Just scope
-        | "assets" `accountWithin` scope
-            && ( not (any (`accountWithin` scope) excludedRoots)
-                    || not (null (Investment.mappingsForScope scope mappings))
-                    || Investment.mappingForAccount scope mappings /= Nothing
-               ) ->
+        | "assets" `accountWithin` scope ->
             Right (Just scope)
         | otherwise ->
             Left
-                ( InvalidRequest
-                    ( "Account prefix must be an investment asset account outside "
-                        <> "cash, property, and receivables."
-                    )
-                )
+                (InvalidRequest "Account prefix must be an asset account.")
 
 scopeText :: Text -> Maybe Text
 scopeText value
@@ -525,9 +572,9 @@ emptySummary =
         { marketValue = Nothing
         , purchaseCost = Nothing
         , gainLoss = Nothing
-        , returnPercentage = Nothing
+        , xirr = Nothing
         , attributedIncome = Nothing
         , realisedGain = Nothing
         , totalProfit = Nothing
-        , completeness = Unavailable
+        , completeness = Complete
         }

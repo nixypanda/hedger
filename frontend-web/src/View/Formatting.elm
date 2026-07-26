@@ -4,6 +4,7 @@ module View.Formatting exposing
     , formatAmountDisplay
     , formatBalance
     , formatPercentage
+    , formatRatePercentage
     , roundedString
     )
 
@@ -69,10 +70,20 @@ formatBalance balance =
 
 formatPercentage : Decimal.Decimal -> String
 formatPercentage percentage =
+    formatPercentageWithMultiplier 1 percentage
+
+
+formatRatePercentage : Decimal.Decimal -> String
+formatRatePercentage rate =
+    formatPercentageWithMultiplier 100 rate
+
+
+formatPercentageWithMultiplier : Float -> Decimal.Decimal -> String
+formatPercentageWithMultiplier multiplier percentage =
     percentage
         |> Decimal.toString
         |> String.toFloat
-        |> Maybe.map (\value -> roundedString value 2 ++ "%")
+        |> Maybe.map (\value -> roundedString (value * multiplier) 2 ++ "%")
         |> Maybe.withDefault "—"
 
 

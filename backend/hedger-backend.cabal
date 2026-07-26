@@ -54,6 +54,7 @@ library
     Hedger.Domain.Internal.Account
     Hedger.Domain.Internal.InvestmentPerformance
     Hedger.Domain.Internal.PeriodReport
+    Hedger.Domain.Internal.Xirr
     Hedger.Domain.Internal.Transaction
     Hedger.Domain.Investment
     Hedger.Domain.InvestmentPerformance
@@ -62,6 +63,7 @@ library
     Hedger.Domain.Snapshot
     Hedger.Domain.Transaction
     Hedger.Domain.Valuation
+    Hedger.Domain.Xirr
     Hedger.Infrastructure.SnapshotStore
     Hedger.Interface.HTTP.API
     Hedger.Interface.HTTP.Accounts
@@ -86,9 +88,11 @@ library
     hledger-lib >=1.52 && <1.53,
     http-types >=0.12 && <0.13,
     mtl >=2.3 && <2.4,
+    math-functions >=0.3 && <0.4,
     optparse-applicative >=0.18 && <0.20,
     servant >=0.20 && <0.21,
     servant-server >=0.20 && <0.21,
+    scientific >=0.3 && <0.4,
     text >=2.0 && <2.2,
     time >=1.12 && <1.15,
     transformers >=0.6 && <0.7,
@@ -127,6 +131,7 @@ test-suite hedger-backend-test
     Hedger.Domain.PeriodSpec
     Hedger.Domain.TransactionSpec
     Hedger.Domain.ValuationSpec
+    Hedger.Domain.XirrSpec
     Hedger.Generators
     Hedger.Infrastructure.Internal.CursorSpec
     Hedger.Infrastructure.SnapshotStoreSpec
@@ -144,6 +149,7 @@ test-suite hedger-backend-test
     hedgehog >=1.4 && <1.6,
     hedger-backend,
     hledger-lib >=1.52 && <1.53,
+    math-functions >=0.3 && <0.4,
     http-types >=0.12 && <0.13,
     tasty >=1.4 && <1.6,
     tasty-hedgehog >=1.4 && <1.5,

@@ -444,12 +444,15 @@
       },
       "InvestmentSummary": {
         "type": "object",
-        "required": ["marketValue", "purchaseCost", "gainLoss", "returnPercentage", "attributedIncome", "realisedGain", "totalProfit", "completeness"],
+        "required": ["marketValue", "purchaseCost", "gainLoss", "xirr", "attributedIncome", "realisedGain", "totalProfit", "completeness"],
         "properties": {
           "marketValue": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
           "purchaseCost": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
           "gainLoss": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
-          "returnPercentage": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "xirr": {
+            "description": "Annualized return as a fraction, where 0.07 represents 7%.",
+            "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }]
+          },
           "attributedIncome": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
           "realisedGain": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
           "totalProfit": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
@@ -459,14 +462,17 @@
       },
       "InvestmentTimelinePoint": {
         "type": "object",
-        "required": ["period", "startDate", "marketValue", "purchaseCost", "gainLoss", "returnPercentage", "attributedIncome", "realisedGain", "totalProfit", "completeness"],
+        "required": ["period", "startDate", "marketValue", "purchaseCost", "gainLoss", "xirr", "attributedIncome", "realisedGain", "totalProfit", "completeness"],
         "properties": {
           "period": { "type": "string" },
           "startDate": { "type": "string", "format": "date" },
           "marketValue": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
           "purchaseCost": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
           "gainLoss": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
-          "returnPercentage": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
+          "xirr": {
+            "description": "Annualized return as a fraction, where 0.07 represents 7%.",
+            "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }]
+          },
           "attributedIncome": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
           "realisedGain": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
           "totalProfit": { "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }] },
@@ -485,12 +491,39 @@
       },
       "InvestmentChild": {
         "type": "object",
-        "required": ["account", "label", "summary", "hasChildren"],
+        "required": ["account", "label", "summary", "hasChildren", "assetClass", "allocationPercentage"],
         "properties": {
           "account": { "type": "string", "minLength": 1 },
           "label": { "type": "string", "minLength": 1 },
           "summary": { "$ref": "#/components/schemas/InvestmentSummary" },
-          "hasChildren": { "type": "boolean" }
+          "hasChildren": { "type": "boolean" },
+          "assetClass": {
+            "type": "string",
+            "enum": ["equity", "debt", "cash", "gold", "hybrid", "property", "other"]
+          },
+          "allocationPercentage": {
+            "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetClassAllocation": {
+        "type": "object",
+        "required": ["assetClass", "marketValue", "currentPercentage", "targetPercentage"],
+        "properties": {
+          "assetClass": {
+            "type": "string",
+            "enum": ["equity", "debt", "cash", "gold", "hybrid", "property", "other"]
+          },
+          "marketValue": {
+            "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }]
+          },
+          "currentPercentage": {
+            "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }]
+          },
+          "targetPercentage": {
+            "anyOf": [{ "$ref": "#/components/schemas/Decimal" }, { "type": "null" }]
+          }
         },
         "additionalProperties": false
       },
@@ -506,7 +539,7 @@
       },
       "InvestmentsResponse": {
         "type": "object",
-        "required": ["metadata", "displayCommodity", "granularity", "accountPrefix", "summary", "timeline", "breadcrumbs", "children", "warnings"],
+        "required": ["metadata", "displayCommodity", "granularity", "accountPrefix", "summary", "timeline", "breadcrumbs", "children", "assetClassAllocations", "warnings"],
         "properties": {
           "metadata": { "$ref": "#/components/schemas/ResponseMetadata" },
           "displayCommodity": { "type": "string", "minLength": 1 },
@@ -516,6 +549,7 @@
           "timeline": { "type": "array", "items": { "$ref": "#/components/schemas/InvestmentTimelinePoint" } },
           "breadcrumbs": { "type": "array", "items": { "$ref": "#/components/schemas/InvestmentBreadcrumb" } },
           "children": { "type": "array", "items": { "$ref": "#/components/schemas/InvestmentChild" } },
+          "assetClassAllocations": { "type": "array", "items": { "$ref": "#/components/schemas/AssetClassAllocation" } },
           "warnings": { "type": "array", "items": { "$ref": "#/components/schemas/InvestmentWarning" } }
         },
         "additionalProperties": false

@@ -23,8 +23,20 @@ suite =
                             , completeness = response.summary.completeness
                             , gain = response.summary.gainLoss |> Maybe.map Decimal.toString
                             , profit = response.summary.totalProfit
+                            , xirr = response.summary.xirr |> Maybe.map Decimal.toString
                             , periods = List.length response.timeline
                             , child = response.children |> List.head |> Maybe.map .account
+                            , childAssetClass = response.children |> List.head |> Maybe.map .assetClass
+                            , childAllocation =
+                                response.children
+                                    |> List.head
+                                    |> Maybe.andThen .allocationPercentage
+                                    |> Maybe.map Decimal.toString
+                            , assetClassTarget =
+                                response.assetClassAllocations
+                                    |> List.head
+                                    |> Maybe.andThen .targetPercentage
+                                    |> Maybe.map Decimal.toString
                             , warning = response.warnings |> List.head |> Maybe.map .kind
                             }
                         )
@@ -34,8 +46,12 @@ suite =
                             , completeness = Partial
                             , gain = Just "3000"
                             , profit = Nothing
+                            , xirr = Just "0.2"
                             , periods = 1
                             , child = Just "assets:investments:equity"
+                            , childAssetClass = Just Investments.Equity
+                            , childAllocation = Just "100"
+                            , assetClassTarget = Just "60"
                             , warning = Just "missing-performance-mapping"
                             }
                         )
@@ -70,15 +86,30 @@ suite =
                     , portfolioAccount = Page.accountPrefix portfolio
                     , portfolioPeriod = Page.selectedPeriod portfolio
                     }
-        , test "rounds investment return percentages" percentageFormatting
+        , test "formats annual XIRR fractions as percentages" percentageFormatting
+        , test "chart mode changes without replacing the selected period" <|
+            \_ ->
+                let
+                    ( initial, _ ) =
+                        Page.init
+
+                    ( selected, _ ) =
+                        Page.update (Page.PeriodSelected "2026-03") initial
+
+                    ( returns, _ ) =
+                        Page.update (Page.ChartModeSelected Page.ReturnsChart) selected
+                in
+                Expect.equal
+                    { mode = Page.ReturnsChart, period = Just "2026-03" }
+                    { mode = Page.chartMode returns, period = Page.selectedPeriod returns }
         ]
 
 
 percentageFormatting : () -> Expect.Expectation
 percentageFormatting _ =
-    Decimal.fromString "91.2198020288977159880834160873882820258192651439920556107249255"
-        |> Result.map Formatting.formatPercentage
-        |> Expect.equal (Ok "91.22%")
+    Decimal.fromString "0.07"
+        |> Result.map Formatting.formatRatePercentage
+        |> Expect.equal (Ok "7%")
 
 
 fixture : String
@@ -92,7 +123,7 @@ fixture =
     "marketValue": "18000",
     "purchaseCost": "15000",
     "gainLoss": "3000",
-    "returnPercentage": "20",
+    "xirr": "0.2",
     "attributedIncome": null,
     "realisedGain": null,
     "totalProfit": null,
@@ -104,13 +135,19 @@ fixture =
     "marketValue": "18000",
     "purchaseCost": "15000",
     "gainLoss": "3000",
-    "returnPercentage": "20",
+    "xirr": "0.2",
     "attributedIncome": null,
     "realisedGain": null,
     "totalProfit": null,
     "completeness": "partial"
   }],
   "breadcrumbs": [],
+  "assetClassAllocations": [{
+    "assetClass": "equity",
+    "marketValue": "18000",
+    "currentPercentage": "100",
+    "targetPercentage": "60"
+  }],
   "children": [{
     "account": "assets:investments:equity",
     "label": "Equity",
@@ -118,13 +155,15 @@ fixture =
       "marketValue": "18000",
       "purchaseCost": "15000",
       "gainLoss": "3000",
-      "returnPercentage": "20",
+      "xirr": "0.2",
       "attributedIncome": null,
       "realisedGain": null,
       "totalProfit": null,
       "completeness": "partial"
     },
-    "hasChildren": true
+    "hasChildren": true,
+    "assetClass": "equity",
+    "allocationPercentage": "100"
   }],
   "warnings": [{
     "kind": "missing-performance-mapping",

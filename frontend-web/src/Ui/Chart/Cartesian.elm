@@ -44,8 +44,8 @@ type Series item
         , markers : MarkerMode
         }
     | AreaBetween
-        { first : item -> Float
-        , second : item -> Float
+        { first : item -> Maybe Float
+        , second : item -> Maybe Float
         , positiveColor : Element.Color
         , negativeColor : Element.Color
         , opacity : Float
@@ -285,7 +285,7 @@ seriesValues item series =
             line.value item |> Maybe.map List.singleton |> Maybe.withDefault []
 
         AreaBetween area ->
-            [ area.first item, area.second item ]
+            List.filterMap identity [ area.first item, area.second item ]
 
 
 lineSegments :
@@ -336,8 +336,8 @@ areaSegments :
     (Int -> Float)
     -> (Float -> Float)
     ->
-        { first : item -> Float
-        , second : item -> Float
+        { first : item -> Maybe Float
+        , second : item -> Maybe Float
         , positiveColor : Element.Color
         , negativeColor : Element.Color
         , opacity : Float
@@ -347,24 +347,6 @@ areaSegments :
     -> List (Svg.Svg msg)
 areaSegments x y area index ( firstItem, secondItem ) =
     let
-        firstValue =
-            area.first firstItem
-
-        firstBaseline =
-            area.second firstItem
-
-        secondValue =
-            area.first secondItem
-
-        secondBaseline =
-            area.second secondItem
-
-        firstDifference =
-            firstValue - firstBaseline
-
-        secondDifference =
-            secondValue - secondBaseline
-
         firstX =
             x index
 
@@ -393,31 +375,47 @@ areaSegments x y area index ( firstItem, secondItem ) =
             else
                 area.negativeColor
     in
-    if firstDifference * secondDifference >= 0 then
-        [ polygon (colorFor firstDifference)
-            [ ( firstX, firstValue )
-            , ( secondX, secondValue )
-            , ( secondX, secondBaseline )
-            , ( firstX, firstBaseline )
-            ]
-        ]
+    case
+        ( ( area.first firstItem, area.second firstItem )
+        , ( area.first secondItem, area.second secondItem )
+        )
+    of
+        ( ( Just firstValue, Just firstBaseline ), ( Just secondValue, Just secondBaseline ) ) ->
+            let
+                firstDifference =
+                    firstValue - firstBaseline
 
-    else
-        let
-            ratio =
-                abs firstDifference / (abs firstDifference + abs secondDifference)
+                secondDifference =
+                    secondValue - secondBaseline
+            in
+            if firstDifference * secondDifference >= 0 then
+                [ polygon (colorFor firstDifference)
+                    [ ( firstX, firstValue )
+                    , ( secondX, secondValue )
+                    , ( secondX, secondBaseline )
+                    , ( firstX, firstBaseline )
+                    ]
+                ]
 
-            crossX =
-                firstX + (secondX - firstX) * ratio
+            else
+                let
+                    ratio =
+                        abs firstDifference / (abs firstDifference + abs secondDifference)
 
-            crossValue =
-                firstValue + (secondValue - firstValue) * ratio
-        in
-        [ polygon (colorFor firstDifference)
-            [ ( firstX, firstValue ), ( crossX, crossValue ), ( firstX, firstBaseline ) ]
-        , polygon (colorFor secondDifference)
-            [ ( crossX, crossValue ), ( secondX, secondValue ), ( secondX, secondBaseline ) ]
-        ]
+                    crossX =
+                        firstX + (secondX - firstX) * ratio
+
+                    crossValue =
+                        firstValue + (secondValue - firstValue) * ratio
+                in
+                [ polygon (colorFor firstDifference)
+                    [ ( firstX, firstValue ), ( crossX, crossValue ), ( firstX, firstBaseline ) ]
+                , polygon (colorFor secondDifference)
+                    [ ( crossX, crossValue ), ( secondX, secondValue ), ( secondX, secondBaseline ) ]
+                ]
+
+        _ ->
+            []
 
 
 adjacentPairs : List value -> List ( value, value )
