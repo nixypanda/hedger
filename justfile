@@ -45,6 +45,16 @@ check-backend-tests:
 check-backend-manifest:
     cabal check
 
+# Run backend tests with coverage and open HTML report.
+[working-directory("backend")]
+coverage:
+    cabal test hedger-backend-test --enable-coverage --open
+
+# Run backend tests with coverage and print a text summary.
+[working-directory("backend")]
+coverage-report:
+    cabal test hedger-backend-test --enable-coverage
+
 check-frontend: check-frontend-format check-frontend-line-length
     cd frontend-web && elm make src/Main.elm --output=/dev/null
     cd frontend-web && elm-test

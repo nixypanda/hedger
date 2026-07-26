@@ -1,6 +1,7 @@
 agent-docs/
 .direnv/
 .envrc
+cabal.project.local
 dist-newstyle/
 elm-stuff/
 result
