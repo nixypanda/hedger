@@ -9,7 +9,6 @@ import Element.Background as Background
 import Element.Font as Font
 import Html.Attributes
 import Page.Shared.Analysis as Analysis
-import Page.Transactions as Transactions
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
@@ -20,6 +19,7 @@ import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.Analytics as AnalyticsView
 import View.States as States
+import View.Transaction as TransactionView
 
 
 
@@ -234,7 +234,7 @@ transactionView theme device transaction =
                 , subtitle = Nothing
                 , actions = []
                 }
-        , Ui.pageContainer device [ Transactions.transactionDetail theme transaction ]
+        , Ui.pageContainer device [ TransactionView.transactionDetail theme transaction ]
         ]
 
 
