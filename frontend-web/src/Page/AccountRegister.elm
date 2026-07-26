@@ -27,6 +27,7 @@ import Api.Register exposing (Entry, Response, Value)
 import Data.Completeness exposing (Completeness(..))
 import Data.Date as Date
 import Data.Decimal as Decimal
+import Data.Paginated as Paginated exposing (Paginated)
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Device, Element)
 import Element.Background as Background
@@ -55,29 +56,20 @@ type Model
 
 
 type alias ModelData =
-    { state : State
+    { paginated : Paginated Criteria Response
     , account : String
     , from : String
     , to : String
-    , nextToken : Int
+    , selection : Selection
     }
 
 
-type State
-    = NotStarted
-    | Loading Filters Int
-    | LoadFailed Filters ApiError
-    | Showing Window
-    | Refreshing Window Int
-    | RefreshFailed Window ApiError
-    | LoadingMore Window NextRequest
-    | LoadMoreFailed Window NextRequest ApiError
-
-
-type alias Window =
-    { filters : Filters
-    , response : Response
-    , selection : Selection
+{-| The applied scope carried through the pagination machine: which account we
+are viewing and the date filters that were in effect when the request was sent.
+-}
+type alias Criteria =
+    { account : String
+    , filters : Filters
     }
 
 
@@ -92,35 +84,29 @@ type alias Filters =
     }
 
 
-type Request
-    = InitialRequest RequestData
-    | RefreshRequest RequestData
-    | NextPageRequest NextRequest
+type alias Request =
+    Paginated.Request Criteria
 
 
-type alias RequestData =
-    { token : Int
-    , account : String
-    , filters : Filters
-    }
-
-
-type alias NextRequest =
-    { token : Int
-    , account : String
-    , filters : Filters
-    , cursor : String
+{-| Register entries append unboundedly and never reset — a register is a single
+running ledger, not a re-queryable window.
+-}
+config : Paginated.Config Response
+config =
+    { nextCursor = .nextCursor
+    , append = \current next -> { next | entries = current.entries ++ next.entries }
+    , shouldReset = \_ _ -> False
     }
 
 
 init : Model
 init =
     Model
-        { state = NotStarted
+        { paginated = Paginated.init
         , account = ""
         , from = ""
         , to = ""
-        , nextToken = 0
+        , selection = NoSelection
         }
 
 
@@ -215,39 +201,21 @@ fetch =
 beginLoading : String -> Model -> ( Model, Request )
 beginLoading account (Model data) =
     let
-        appliedFilters =
-            currentFilters data
+        criteria =
+            { account = account, filters = currentFilters data }
 
-        requestData =
-            { token = data.nextToken + 1
-            , account = account
-            , filters = appliedFilters
-            }
-
-        request =
+        ( nextPaginated, request ) =
             if hasWindowFor data account then
-                RefreshRequest requestData
+                Paginated.beginRefresh criteria data.paginated
 
             else
-                InitialRequest requestData
-
-        state =
-            case currentWindow data of
-                Just window ->
-                    if hasWindowFor data account then
-                        Refreshing { window | selection = NoSelection } requestData.token
-
-                    else
-                        Loading appliedFilters requestData.token
-
-                _ ->
-                    Loading appliedFilters requestData.token
+                Paginated.beginFresh criteria data.paginated
     in
     ( Model
         { data
-            | state = state
+            | paginated = nextPaginated
             , account = account
-            , nextToken = requestData.token
+            , selection = NoSelection
         }
     , request
     )
@@ -255,128 +223,16 @@ beginLoading account (Model data) =
 
 beginLoadingMore : Model -> Maybe ( Model, Request )
 beginLoadingMore (Model data) =
-    case data.state of
-        Showing window ->
-            nextRequest data window
-
-        RefreshFailed window _ ->
-            nextRequest data window
-
-        LoadMoreFailed window request _ ->
-            nextRequestFrom data window request.cursor
-
-        _ ->
-            Nothing
-
-
-nextRequest : ModelData -> Window -> Maybe ( Model, Request )
-nextRequest data window =
-    case window.response.nextCursor of
-        Just cursor ->
-            nextRequestFrom data window cursor
-
-        Nothing ->
-            Nothing
-
-
-nextRequestFrom : ModelData -> Window -> String -> Maybe ( Model, Request )
-nextRequestFrom data window cursor =
-    let
-        requestData =
-            { token = data.nextToken + 1
-            , account = data.account
-            , filters = window.filters
-            , cursor = cursor
-            }
-
-        request =
-            NextPageRequest requestData
-    in
-    Just
-        ( Model
-            { data
-                | state = LoadingMore { window | selection = NoSelection } requestData
-                , nextToken = requestData.token
-            }
-        , request
-        )
+    Paginated.beginLoadMore config data.paginated
+        |> Maybe.map
+            (\( nextPaginated, request ) ->
+                ( Model { data | paginated = nextPaginated, selection = NoSelection }, request )
+            )
 
 
 receive : Request -> Result ApiError Response -> Model -> Model
 receive request result (Model data) =
-    if not (requestIsActive request data.state) then
-        Model data
-
-    else
-        case ( request, result ) of
-            ( InitialRequest requestData, Ok response ) ->
-                Model { data | state = Showing (newWindow requestData.filters response) }
-
-            ( RefreshRequest requestData, Ok response ) ->
-                Model { data | state = Showing (newWindow requestData.filters response) }
-
-            ( NextPageRequest activeNextRequest, Ok response ) ->
-                case data.state of
-                    LoadingMore window _ ->
-                        Model
-                            { data
-                                | state =
-                                    Showing
-                                        { window
-                                            | response = appendResponse window.response response
-                                        }
-                            }
-
-                    _ ->
-                        Model data
-
-            ( InitialRequest requestData, Err error ) ->
-                Model { data | state = LoadFailed requestData.filters error }
-
-            ( RefreshRequest _, Err error ) ->
-                case data.state of
-                    Refreshing window _ ->
-                        Model { data | state = RefreshFailed window error }
-
-                    _ ->
-                        Model data
-
-            ( NextPageRequest activeNextRequest, Err error ) ->
-                case data.state of
-                    LoadingMore window _ ->
-                        Model { data | state = LoadMoreFailed window activeNextRequest error }
-
-                    _ ->
-                        Model data
-
-
-requestIsActive : Request -> State -> Bool
-requestIsActive request state =
-    case ( request, state ) of
-        ( InitialRequest requestData, Loading _ token ) ->
-            requestData.token == token
-
-        ( RefreshRequest requestData, Refreshing _ token ) ->
-            requestData.token == token
-
-        ( NextPageRequest requestData, LoadingMore _ activeRequest ) ->
-            requestData.token == activeRequest.token
-
-        _ ->
-            False
-
-
-newWindow : Filters -> Response -> Window
-newWindow appliedFilters response =
-    { filters = appliedFilters
-    , response = response
-    , selection = NoSelection
-    }
-
-
-appendResponse : Response -> Response -> Response
-appendResponse current next =
-    { next | entries = current.entries ++ next.entries }
+    Model { data | paginated = Paginated.receive config request result data.paginated }
 
 
 currentFilters : ModelData -> Filters
@@ -386,31 +242,9 @@ currentFilters data =
     }
 
 
-currentWindow : ModelData -> Maybe Window
-currentWindow data =
-    case data.state of
-        Showing window ->
-            Just window
-
-        Refreshing window _ ->
-            Just window
-
-        RefreshFailed window _ ->
-            Just window
-
-        LoadingMore window _ ->
-            Just window
-
-        LoadMoreFailed window _ _ ->
-            Just window
-
-        _ ->
-            Nothing
-
-
 hasWindowFor : ModelData -> String -> Bool
 hasWindowFor data account =
-    data.account == account && currentWindow data /= Nothing
+    data.account == account && Paginated.currentPage data.paginated /= Nothing
 
 
 setFrom : String -> Model -> Model
@@ -425,65 +259,22 @@ setTo value (Model data) =
 
 selectDetail : Entry -> Model -> Model
 selectDetail entry (Model data) =
-    Model { data | state = mapWindow (selectInWindow entry) data.state }
+    Model { data | selection = Selected entry }
 
 
 clearDetail : Model -> Model
 clearDetail (Model data) =
-    Model { data | state = mapWindow (\window -> { window | selection = NoSelection }) data.state }
-
-
-mapWindow : (Window -> Window) -> State -> State
-mapWindow transform state =
-    case state of
-        Showing window ->
-            Showing (transform window)
-
-        Refreshing window token ->
-            Refreshing (transform window) token
-
-        RefreshFailed window error ->
-            RefreshFailed (transform window) error
-
-        LoadingMore window request ->
-            LoadingMore (transform window) request
-
-        LoadMoreFailed window request error ->
-            LoadMoreFailed (transform window) request error
-
-        _ ->
-            state
-
-
-selectInWindow : Entry -> Window -> Window
-selectInWindow entry window =
-    { window | selection = Selected entry }
+    Model { data | selection = NoSelection }
 
 
 requestAccount : Request -> String
 requestAccount request =
-    case request of
-        InitialRequest data ->
-            data.account
-
-        RefreshRequest data ->
-            data.account
-
-        NextPageRequest data ->
-            data.account
+    (Paginated.requestCriteria request).account
 
 
 requestFilters : Request -> Filters
 requestFilters request =
-    case request of
-        InitialRequest data ->
-            data.filters
-
-        RefreshRequest data ->
-            data.filters
-
-        NextPageRequest data ->
-            data.filters
+    (Paginated.requestCriteria request).filters
 
 
 requestFrom : Request -> Maybe String
@@ -497,13 +288,8 @@ requestTo request =
 
 
 requestCursor : Request -> Maybe String
-requestCursor request =
-    case request of
-        NextPageRequest data ->
-            Just data.cursor
-
-        _ ->
-            Nothing
+requestCursor =
+    Paginated.requestCursor
 
 
 blankToNothing : String -> Maybe String
@@ -527,7 +313,7 @@ modelFilters (Model data) =
 
 visibleResponse : Model -> Maybe Response
 visibleResponse (Model data) =
-    responseFor data.state
+    Paginated.currentPage data.paginated
 
 
 
@@ -541,19 +327,16 @@ view theme viewport (Model data) =
             Element.classifyDevice viewport
 
         commodity =
-            responseFor data.state
+            visibleResponse (Model data)
                 |> Maybe.map .displayCommodity
                 |> Maybe.withDefault ""
-
-        selection =
-            selectionFor data.state
     in
     if viewport.width >= 1000 then
-        case selection of
-            NoDetail ->
+        case data.selection of
+            NoSelection ->
                 listPage theme device (Model data)
 
-            DetailShown entry ->
+            Selected entry ->
                 Element.row [ Element.width Element.fill, Element.height Element.fill, Element.clip ]
                     [ Element.el
                         [ Element.width (Element.fillPortion 2)
@@ -570,86 +353,12 @@ view theme viewport (Model data) =
                     ]
 
     else
-        case selection of
-            NoDetail ->
+        case data.selection of
+            NoSelection ->
                 listPage theme device (Model data)
 
-            DetailShown entry ->
+            Selected entry ->
                 detailPage theme device CloseDetail commodity entry
-
-
-type ViewSelection
-    = NoDetail
-    | DetailShown Entry
-
-
-selectionFor : State -> ViewSelection
-selectionFor state =
-    case selectionIn state of
-        Just entry ->
-            DetailShown entry
-
-        Nothing ->
-            NoDetail
-
-
-selectionIn : State -> Maybe Entry
-selectionIn state =
-    case state of
-        Showing window ->
-            selectedEntry window.selection
-
-        Refreshing window _ ->
-            selectedEntry window.selection
-
-        RefreshFailed window _ ->
-            selectedEntry window.selection
-
-        LoadingMore window _ ->
-            selectedEntry window.selection
-
-        LoadMoreFailed window _ _ ->
-            selectedEntry window.selection
-
-        _ ->
-            Nothing
-
-
-selectedEntry : Selection -> Maybe Entry
-selectedEntry selection =
-    case selection of
-        NoSelection ->
-            Nothing
-
-        Selected entry ->
-            Just entry
-
-
-responseFor : State -> Maybe Response
-responseFor state =
-    currentWindowFromState state |> Maybe.map .response
-
-
-currentWindowFromState : State -> Maybe Window
-currentWindowFromState state =
-    case state of
-        Showing window ->
-            Just window
-
-        Refreshing window _ ->
-            Just window
-
-        RefreshFailed window _ ->
-            Just window
-
-        LoadingMore window _ ->
-            Just window
-
-        LoadMoreFailed window _ _ ->
-            Just window
-
-        _ ->
-            Nothing
 
 
 listPage : Theme -> Device -> Model -> Element Msg
@@ -729,11 +438,11 @@ filters theme model =
 
 content : Theme -> Device -> Model -> Element Msg
 content theme device (Model data) =
-    case data.state of
-        NotStarted ->
+    case ( Paginated.status data.paginated, visibleResponse (Model data) ) of
+        ( Paginated.NotAsked, _ ) ->
             Ui.card theme [ Ui.loading theme "Loading register…" ]
 
-        Loading _ _ ->
+        ( Paginated.LoadingFirst, _ ) ->
             Ui.card theme
                 [ Skeleton.listRow theme
                 , Ui.hairline theme
@@ -742,34 +451,38 @@ content theme device (Model data) =
                 , Skeleton.listRow theme
                 ]
 
-        LoadFailed _ error ->
+        ( Paginated.LoadFailure, _ ) ->
             Ui.card theme
                 [ Ui.errorBanner theme
-                    ("Register failed to load: " ++ ApiError.message error)
+                    ("Register failed to load: " ++ failureMessage data.paginated)
                 ]
 
-        Showing window ->
-            registerContent theme device (Model data) window.response
-
-        Refreshing window _ ->
-            registerContent theme device (Model data) window.response
-
-        RefreshFailed window error ->
+        ( Paginated.RefreshFailure, Just response ) ->
             Element.column [ Element.width Element.fill, Element.spacing 12 ]
                 [ Ui.errorBanner theme
-                    ("Refresh failed; showing stale register: " ++ ApiError.message error)
-                , registerContent theme device (Model data) window.response
+                    ("Refresh failed; showing stale register: " ++ failureMessage data.paginated)
+                , registerContent theme device (Model data) response
                 ]
 
-        LoadingMore window _ ->
-            registerContent theme device (Model data) window.response
-
-        LoadMoreFailed window _ error ->
+        ( Paginated.LoadMoreFailure, Just response ) ->
             Element.column [ Element.width Element.fill, Element.spacing 12 ]
                 [ Ui.errorBanner theme
-                    ("Loading more entries failed: " ++ ApiError.message error)
-                , registerContent theme device (Model data) window.response
+                    ("Loading more entries failed: " ++ failureMessage data.paginated)
+                , registerContent theme device (Model data) response
                 ]
+
+        ( _, Just response ) ->
+            registerContent theme device (Model data) response
+
+        ( _, Nothing ) ->
+            Ui.card theme [ Ui.loading theme "Loading register…" ]
+
+
+failureMessage : Paginated Criteria Response -> String
+failureMessage paginated =
+    Paginated.error paginated
+        |> Maybe.map ApiError.message
+        |> Maybe.withDefault "Unknown error"
 
 
 registerContent : Theme -> Device -> Model -> Response -> Element Msg
@@ -787,7 +500,7 @@ registerContent theme device model response =
 
 paging : Theme -> Model -> Response -> Element Msg
 paging theme (Model data) response =
-    if isLoadingMore data.state then
+    if Paginated.status data.paginated == Paginated.LoadingMore_ then
         Ui.loading theme "Loading more entries…"
 
     else
@@ -797,16 +510,6 @@ paging theme (Model data) response =
 
             Nothing ->
                 Typography.mutedCaption theme "All matching entries are loaded."
-
-
-isLoadingMore : State -> Bool
-isLoadingMore state =
-    case state of
-        LoadingMore _ _ ->
-            True
-
-        _ ->
-            False
 
 
 registerRows : Theme -> Device -> Model -> String -> List Entry -> Element Msg

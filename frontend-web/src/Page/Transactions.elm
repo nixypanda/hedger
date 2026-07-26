@@ -27,10 +27,10 @@ module Page.Transactions exposing
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Metadata exposing (Metadata)
 import Api.Transaction exposing (Posting, Response, Transaction)
 import Data.Date as Date
 import Data.Freshness exposing (Freshness(..))
+import Data.Paginated as Paginated exposing (Paginated)
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Font as Font
@@ -58,21 +58,19 @@ type Model
 
 
 type alias ModelData =
-    { state : State
+    { paginated : Paginated AppliedQuery PageData
     , draft : DraftQuery
-    , nextRequestId : RequestId
+    , selection : Maybe Transaction
     }
 
 
-type State
-    = Dormant
-    | InitialLoading AppliedQuery RequestId
-    | InitialFailure AppliedQuery ApiError
-    | Showing Window
-    | RefreshingWindow Window RequestId
-    | RefreshFailedWindow Window ApiError
-    | LoadingMoreWindow Window NextAttempt
-    | LoadMoreFailedWindow Window NextAttempt ApiError
+{-| The accumulated window plus a count of how many pages it spans, so the
+bounded-window logic can drop the oldest page once the cap is reached.
+-}
+type alias PageData =
+    { response : Response
+    , retainedPages : Int
+    }
 
 
 type AppliedQuery
@@ -83,61 +81,8 @@ type DraftQuery
     = DraftQuery String
 
 
-type RequestId
-    = RequestId Int
-
-
-type Cursor
-    = Cursor String
-
-
-type NextAttempt
-    = NextAttempt RequestId Cursor
-
-
-type Window
-    = Window WindowData
-
-
-type alias WindowData =
-    { applied : AppliedQuery
-    , metadata : Metadata
-    , rows : Rows
-    , nextCursor : Maybe Cursor
-    , retainedPages : RetainedPages
-    }
-
-
-type Rows
-    = Unselected (List Transaction)
-    | Selected (List Transaction) Transaction (List Transaction)
-
-
-type RetainedPages
-    = OnePage
-    | TwoPages
-    | ThreePages
-    | FourPages
-    | FivePages
-
-
-type Request
-    = FirstPageRequest FirstRequest
-    | NextPageRequest NextRequest
-
-
-type FirstRequest
-    = FirstRequest RequestBase
-
-
-type NextRequest
-    = NextRequest RequestBase Cursor
-
-
-type alias RequestBase =
-    { requestId : RequestId
-    , query : AppliedQuery
-    }
+type alias Request =
+    Paginated.Request AppliedQuery
 
 
 type Status
@@ -151,12 +96,63 @@ type Status
     | LoadMoreFailureStatus
 
 
+pageSize : Int
+pageSize =
+    50
+
+
+maxPages : Int
+maxPages =
+    5
+
+
+{-| Transactions keep a bounded, self-healing window: appends drop the oldest
+page past the cap, and a changed journal revision resets the window to the newly
+loaded page rather than stitching incompatible snapshots together.
+-}
+config : Paginated.Config PageData
+config =
+    { nextCursor = .response >> .nextCursor
+    , append = appendPageData
+    , shouldReset =
+        \old new -> old.response.metadata.revision /= new.response.metadata.revision
+    }
+
+
+appendPageData : PageData -> PageData -> PageData
+appendPageData current next =
+    let
+        combined =
+            current.response.transactions ++ next.response.transactions
+
+        retained =
+            if current.retainedPages >= maxPages then
+                List.drop
+                    (min pageSize (List.length current.response.transactions))
+                    combined
+
+            else
+                combined
+
+        response =
+            next.response
+    in
+    { response = { response | transactions = retained }
+    , retainedPages = min maxPages (current.retainedPages + 1)
+    }
+
+
+wrap : Response -> PageData
+wrap response =
+    { response = response, retainedPages = 1 }
+
+
 init : Model
 init =
     Model
-        { state = Dormant
+        { paginated = Paginated.init
         , draft = DraftQuery ""
-        , nextRequestId = RequestId 0
+        , selection = Nothing
         }
 
 
@@ -187,9 +183,7 @@ update msg (Model data) =
                 ( nextModel, request ) =
                     beginLoading (Model data)
             in
-            case nextModel of
-                Model nextData ->
-                    ( Model nextData, fetchTransactions request, NoOutMsg )
+            ( nextModel, fetchTransactions request, NoOutMsg )
 
         DraftChanged draft ->
             ( Model { data | draft = DraftQuery draft }, Cmd.none, NoOutMsg )
@@ -199,43 +193,28 @@ update msg (Model data) =
                 ( nextModel, request ) =
                     applyDraft (Model data)
             in
-            case nextModel of
-                Model nextData ->
-                    ( Model nextData, fetchTransactions request, NoOutMsg )
+            ( nextModel, fetchTransactions request, NoOutMsg )
 
         ClearDraft ->
             let
-                cleared =
-                    { data | draft = DraftQuery "" }
-
                 ( nextModel, request ) =
-                    applyDraft (Model cleared)
+                    applyDraft (setDraft "" (Model data))
             in
-            case nextModel of
-                Model nextData ->
-                    ( Model nextData, fetchTransactions request, NoOutMsg )
+            ( nextModel, fetchTransactions request, NoOutMsg )
 
         LoadMore ->
             case beginLoadingMore (Model data) of
                 Just ( nextModel, request ) ->
-                    case nextModel of
-                        Model nextData ->
-                            ( Model nextData, fetchTransactions request, NoOutMsg )
+                    ( nextModel, fetchTransactions request, NoOutMsg )
 
                 Nothing ->
                     ( Model data, Cmd.none, NoOutMsg )
 
         Select transaction ->
-            ( Model { data | state = mapWindow (selectInWindow transaction) data.state }
-            , Cmd.none
-            , NoOutMsg
-            )
+            ( select transaction (Model data), Cmd.none, NoOutMsg )
 
         Back ->
-            ( Model { data | state = mapWindow clearWindowSelection data.state }
-            , Cmd.none
-            , NoOutMsg
-            )
+            ( clearSelection (Model data), Cmd.none, NoOutMsg )
 
         Loaded request result ->
             ( receive request result (Model data), Cmd.none, NoOutMsg )
@@ -255,43 +234,28 @@ fetch =
     fetchTransactions
 
 
-pageSize : Int
-pageSize =
-    50
-
-
+{-| Refresh the current window in place, re-fetching the applied query the window
+owns — not whatever draft the user may be editing.
+-}
 beginLoading : Model -> ( Model, Request )
 beginLoading (Model data) =
     let
         applied =
-            stateAppliedQuery data.state
+            Paginated.appliedCriteria data.paginated
+                |> Maybe.withDefault (AppliedQuery "")
 
-        ( nextData, token, request ) =
-            issueFirstRequest applied data
-
-        nextState =
-            case visibleWindow data.state of
-                Just window ->
-                    RefreshingWindow window token
-
-                Nothing ->
-                    InitialLoading applied token
+        ( nextPaginated, request ) =
+            Paginated.beginRefresh applied data.paginated
     in
-    ( Model { nextData | state = nextState }, FirstPageRequest request )
+    ( Model { data | paginated = nextPaginated }, request )
 
 
 beginLoadingMore : Model -> Maybe ( Model, Request )
 beginLoadingMore (Model data) =
-    loadMoreCandidate data.state
+    Paginated.beginLoadMore config data.paginated
         |> Maybe.map
-            (\( window, cursor ) ->
-                let
-                    ( nextData, attempt, request ) =
-                        issueNextRequest (windowAppliedQuery window) cursor data
-                in
-                ( Model { nextData | state = LoadingMoreWindow window attempt }
-                , NextPageRequest request
-                )
+            (\( nextPaginated, request ) ->
+                ( Model { data | paginated = nextPaginated }, request )
             )
 
 
@@ -300,417 +264,91 @@ setDraft draft (Model data) =
     Model { data | draft = DraftQuery draft }
 
 
+{-| Apply the (trimmed) draft as a new query, blanking the current window.
+-}
 applyDraft : Model -> ( Model, Request )
 applyDraft (Model data) =
     let
         query =
             String.trim (draftQueryText data.draft)
 
-        applied =
-            AppliedQuery query
-
-        appliedData =
-            { data | draft = DraftQuery query }
-
-        ( nextData, token, request ) =
-            issueFirstRequest applied appliedData
+        ( nextPaginated, request ) =
+            Paginated.beginFresh (AppliedQuery query) data.paginated
     in
-    ( Model { nextData | state = InitialLoading applied token }, FirstPageRequest request )
+    ( Model { data | draft = DraftQuery query, paginated = nextPaginated }, request )
 
 
 receive : Request -> Result ApiError Response -> Model -> Model
 receive request result (Model data) =
-    case data.state of
-        InitialLoading applied active ->
-            case request of
-                FirstPageRequest received ->
-                    if matchesFirstRequest received applied active then
-                        case result of
-                            Ok response ->
-                                Model
-                                    { data
-                                        | state =
-                                            Showing
-                                                (windowFromResponse applied response OnePage Nothing)
-                                    }
-
-                            Err error ->
-                                Model { data | state = InitialFailure applied error }
-
-                    else
-                        Model data
-
-                NextPageRequest _ ->
-                    Model data
-
-        RefreshingWindow window active ->
-            case request of
-                FirstPageRequest received ->
-                    if matchesFirstRequest received (windowAppliedQuery window) active then
-                        case result of
-                            Ok response ->
-                                Model
-                                    { data
-                                        | state =
-                                            Showing
-                                                (windowFromResponse
-                                                    (windowAppliedQuery window)
-                                                    response
-                                                    OnePage
-                                                    (windowSelection window)
-                                                )
-                                    }
-
-                            Err error ->
-                                Model { data | state = RefreshFailedWindow window error }
-
-                    else
-                        Model data
-
-                NextPageRequest _ ->
-                    Model data
-
-        LoadingMoreWindow window active ->
-            case request of
-                NextPageRequest received ->
-                    if matchesNextRequest received (windowAppliedQuery window) active then
-                        case result of
-                            Ok page ->
-                                let
-                                    nextWindow =
-                                        if revisionChanged window page then
-                                            windowFromResponse (windowAppliedQuery window)
-                                                page
-                                                OnePage
-                                                Nothing
-
-                                        else
-                                            appendPage window page
-                                in
-                                Model
-                                    { data
-                                        | state = Showing nextWindow
-                                    }
-
-                            Err error ->
-                                Model { data | state = LoadMoreFailedWindow window active error }
-
-                    else
-                        Model data
-
-                FirstPageRequest _ ->
-                    Model data
-
-        _ ->
-            Model data
+    Model
+        { data
+            | paginated =
+                Paginated.receive config request (Result.map wrap result) data.paginated
+        }
 
 
+{-| Selection is validated against the visible window: only rows present in the
+current window can be selected, and an outsider leaves the prior selection
+untouched.
+-}
 select : Transaction -> Model -> Model
 select transaction (Model data) =
-    Model { data | state = mapWindow (selectInWindow transaction) data.state }
+    if isVisibleRow transaction (Model data) then
+        Model { data | selection = Just transaction }
+
+    else
+        Model data
 
 
 clearSelection : Model -> Model
 clearSelection (Model data) =
-    Model { data | state = mapWindow clearWindowSelection data.state }
+    Model { data | selection = Nothing }
 
 
-revisionChanged : Window -> Response -> Bool
-revisionChanged window current =
-    (windowResponse window).metadata.revision /= current.metadata.revision
+{-| The selection re-derived on read: a stored selection only counts while its
+row remains in the visible window, so refreshes and revision resets that drop
+the row clear it structurally.
+-}
+selectedTransaction : Model -> Maybe Transaction
+selectedTransaction (Model data) =
+    data.selection
+        |> Maybe.andThen
+            (\transaction ->
+                if isVisibleRow transaction (Model data) then
+                    Just transaction
+
+                else
+                    Nothing
+            )
 
 
-issueFirstRequest : AppliedQuery -> ModelData -> ( ModelData, RequestId, FirstRequest )
-issueFirstRequest applied data =
-    let
-        nextRequestId =
-            incrementRequestId data.nextRequestId
-
-        requestId =
-            nextRequestId
-    in
-    ( { data | nextRequestId = nextRequestId }
-    , requestId
-    , FirstRequest { requestId = requestId, query = applied }
-    )
-
-
-issueNextRequest : AppliedQuery -> Cursor -> ModelData -> ( ModelData, NextAttempt, NextRequest )
-issueNextRequest applied cursor data =
-    let
-        nextRequestId =
-            incrementRequestId data.nextRequestId
-
-        requestId =
-            nextRequestId
-
-        attempt =
-            NextAttempt requestId cursor
-    in
-    ( { data | nextRequestId = nextRequestId }
-    , attempt
-    , NextRequest { requestId = requestId, query = applied } cursor
-    )
-
-
-matchesFirstRequest : FirstRequest -> AppliedQuery -> RequestId -> Bool
-matchesFirstRequest (FirstRequest request) applied requestId =
-    request.requestId == requestId && request.query == applied
-
-
-matchesNextRequest : NextRequest -> AppliedQuery -> NextAttempt -> Bool
-matchesNextRequest (NextRequest request cursor) applied (NextAttempt requestId activeCursor) =
-    request.requestId
-        == requestId
-        && request.query
-        == applied
-        && cursor
-        == activeCursor
+isVisibleRow : Transaction -> Model -> Bool
+isVisibleRow transaction model =
+    visibleResponse model
+        |> Maybe.map (\response -> List.member transaction response.transactions)
+        |> Maybe.withDefault False
 
 
 requestQuery : Request -> String
 requestQuery request =
-    case request of
-        FirstPageRequest (FirstRequest first) ->
-            appliedQueryText first.query
-
-        NextPageRequest (NextRequest next _) ->
-            appliedQueryText next.query
+    appliedQueryText (Paginated.requestCriteria request)
 
 
 requestCursor : Request -> Maybe String
-requestCursor request =
-    case request of
-        FirstPageRequest _ ->
-            Nothing
+requestCursor =
+    Paginated.requestCursor
 
-        NextPageRequest (NextRequest _ cursor) ->
-            Just (cursorText cursor)
 
+visibleResponse : Model -> Maybe Response
+visibleResponse (Model data) =
+    Paginated.currentPage data.paginated |> Maybe.map .response
 
-visibleWindow : State -> Maybe Window
-visibleWindow state =
-    case state of
-        Showing window ->
-            Just window
 
-        RefreshingWindow window _ ->
-            Just window
-
-        RefreshFailedWindow window _ ->
-            Just window
-
-        LoadingMoreWindow window _ ->
-            Just window
-
-        LoadMoreFailedWindow window _ _ ->
-            Just window
-
-        _ ->
-            Nothing
-
-
-loadMoreCandidate : State -> Maybe ( Window, Cursor )
-loadMoreCandidate state =
-    case state of
-        Showing window ->
-            windowNextCursor window |> Maybe.map (Tuple.pair window)
-
-        RefreshFailedWindow window _ ->
-            windowNextCursor window |> Maybe.map (Tuple.pair window)
-
-        LoadMoreFailedWindow window (NextAttempt _ cursor) _ ->
-            Just ( window, cursor )
-
-        _ ->
-            Nothing
-
-
-windowNextCursor : Window -> Maybe Cursor
-windowNextCursor (Window window) =
-    window.nextCursor
-
-
-windowResponse : Window -> Response
-windowResponse (Window window) =
-    { metadata = window.metadata
-    , transactions = rowsToList window.rows
-    , nextCursor = Maybe.map cursorText window.nextCursor
-    }
-
-
-windowFromResponse : AppliedQuery -> Response -> RetainedPages -> Maybe Transaction -> Window
-windowFromResponse applied response pages selected =
-    Window
-        { applied = applied
-        , metadata = response.metadata
-        , rows = rowsWithSelection selected response.transactions
-        , nextCursor = Maybe.map Cursor response.nextCursor
-        , retainedPages = pages
-        }
-
-
-appendPage : Window -> Response -> Window
-appendPage (Window current) page =
-    let
-        combined =
-            rowsToList current.rows ++ page.transactions
-
-        retainedTransactions =
-            case current.retainedPages of
-                FivePages ->
-                    List.drop (min pageSize (List.length (rowsToList current.rows))) combined
-
-                _ ->
-                    combined
-    in
-    Window
-        { applied = current.applied
-        , metadata = page.metadata
-        , rows = rowsWithSelection (selectedRow current.rows) retainedTransactions
-        , nextCursor = Maybe.map Cursor page.nextCursor
-        , retainedPages = advancePages current.retainedPages
-        }
-
-
-advancePages : RetainedPages -> RetainedPages
-advancePages pages =
-    case pages of
-        OnePage ->
-            TwoPages
-
-        TwoPages ->
-            ThreePages
-
-        ThreePages ->
-            FourPages
-
-        FourPages ->
-            FivePages
-
-        FivePages ->
-            FivePages
-
-
-rowsToList : Rows -> List Transaction
-rowsToList rows =
-    case rows of
-        Unselected transactions ->
-            transactions
-
-        Selected before selected after ->
-            before ++ (selected :: after)
-
-
-selectedRow : Rows -> Maybe Transaction
-selectedRow rows =
-    case rows of
-        Unselected _ ->
-            Nothing
-
-        Selected _ selected _ ->
-            Just selected
-
-
-rowsWithSelection : Maybe Transaction -> List Transaction -> Rows
-rowsWithSelection selected transactions =
-    selected
-        |> Maybe.andThen (\transaction -> selectRows transaction transactions)
-        |> Maybe.withDefault (Unselected transactions)
-
-
-selectRows : Transaction -> List Transaction -> Maybe Rows
-selectRows target transactions =
-    selectRowsHelp target [] transactions
-
-
-selectRowsHelp : Transaction -> List Transaction -> List Transaction -> Maybe Rows
-selectRowsHelp target reversedBefore remaining =
-    case remaining of
-        [] ->
-            Nothing
-
-        transaction :: after ->
-            if transaction == target then
-                Just (Selected (List.reverse reversedBefore) transaction after)
-
-            else
-                selectRowsHelp target (transaction :: reversedBefore) after
-
-
-selectInWindow : Transaction -> Window -> Window
-selectInWindow transaction (Window window) =
-    case selectRows transaction (rowsToList window.rows) of
-        Just rows ->
-            Window { window | rows = rows }
-
-        Nothing ->
-            Window window
-
-
-clearWindowSelection : Window -> Window
-clearWindowSelection (Window window) =
-    Window { window | rows = Unselected (rowsToList window.rows) }
-
-
-windowSelection : Window -> Maybe Transaction
-windowSelection (Window window) =
-    selectedRow window.rows
-
-
-windowAppliedQuery : Window -> AppliedQuery
-windowAppliedQuery (Window window) =
-    window.applied
-
-
-mapWindow : (Window -> Window) -> State -> State
-mapWindow transform state =
-    case state of
-        Showing window ->
-            Showing (transform window)
-
-        RefreshingWindow window request ->
-            RefreshingWindow (transform window) request
-
-        RefreshFailedWindow window error ->
-            RefreshFailedWindow (transform window) error
-
-        LoadingMoreWindow window request ->
-            LoadingMoreWindow (transform window) request
-
-        LoadMoreFailedWindow window request error ->
-            LoadMoreFailedWindow (transform window) request error
-
-        _ ->
-            state
-
-
-remoteData : Model -> RemoteData Response
-remoteData (Model data) =
-    case data.state of
-        Dormant ->
-            NotAsked
-
-        InitialLoading _ _ ->
-            Loading Nothing
-
-        InitialFailure _ error ->
-            Failure error Nothing
-
-        Showing window ->
-            Success (windowResponse window)
-
-        RefreshingWindow window _ ->
-            Loading (Just (windowResponse window))
-
-        RefreshFailedWindow window error ->
-            Failure error (Just (windowResponse window))
-
-        LoadingMoreWindow window _ ->
-            Success (windowResponse window)
-
-        LoadMoreFailedWindow window _ _ ->
-            Success (windowResponse window)
+retainedPageCount : Model -> Int
+retainedPageCount (Model data) =
+    Paginated.currentPage data.paginated
+        |> Maybe.map .retainedPages
+        |> Maybe.withDefault 0
 
 
 draftQuery : Model -> String
@@ -720,35 +358,9 @@ draftQuery (Model data) =
 
 appliedQuery : Model -> String
 appliedQuery (Model data) =
-    appliedQueryText (stateAppliedQuery data.state)
-
-
-stateAppliedQuery : State -> AppliedQuery
-stateAppliedQuery state =
-    case state of
-        Dormant ->
-            AppliedQuery ""
-
-        InitialLoading applied _ ->
-            applied
-
-        InitialFailure applied _ ->
-            applied
-
-        Showing window ->
-            windowAppliedQuery window
-
-        RefreshingWindow window _ ->
-            windowAppliedQuery window
-
-        RefreshFailedWindow window _ ->
-            windowAppliedQuery window
-
-        LoadingMoreWindow window _ ->
-            windowAppliedQuery window
-
-        LoadMoreFailedWindow window _ _ ->
-            windowAppliedQuery window
+    Paginated.appliedCriteria data.paginated
+        |> Maybe.map appliedQueryText
+        |> Maybe.withDefault ""
 
 
 appliedQueryText : AppliedQuery -> String
@@ -761,93 +373,98 @@ draftQueryText (DraftQuery query) =
     query
 
 
-cursorText : Cursor -> String
-cursorText (Cursor cursor) =
-    cursor
-
-
-incrementRequestId : RequestId -> RequestId
-incrementRequestId (RequestId requestId) =
-    RequestId (requestId + 1)
-
-
-selectedTransaction : Model -> Maybe Transaction
-selectedTransaction (Model data) =
-    visibleWindow data.state |> Maybe.andThen windowSelection
-
-
-visibleResponse : Model -> Maybe Response
-visibleResponse model =
-    RemoteData.value (remoteData model)
-
-
-retainedPageCount : Model -> Int
-retainedPageCount (Model data) =
-    visibleWindow data.state
-        |> Maybe.map (\(Window window) -> pagesToInt window.retainedPages)
-        |> Maybe.withDefault 0
-
-
-pagesToInt : RetainedPages -> Int
-pagesToInt pages =
-    case pages of
-        OnePage ->
-            1
-
-        TwoPages ->
-            2
-
-        ThreePages ->
-            3
-
-        FourPages ->
-            4
-
-        FivePages ->
-            5
-
-
 status : Model -> Status
 status (Model data) =
-    case data.state of
-        Dormant ->
+    case Paginated.status data.paginated of
+        Paginated.NotAsked ->
             NotAskedStatus
 
-        InitialLoading _ _ ->
+        Paginated.LoadingFirst ->
             InitialLoadingStatus
 
-        InitialFailure _ _ ->
+        Paginated.LoadFailure ->
             InitialFailureStatus
 
-        Showing _ ->
+        Paginated.Showing_ ->
             ShowingStatus
 
-        RefreshingWindow _ _ ->
+        Paginated.Refreshing_ ->
             RefreshingStatus
 
-        RefreshFailedWindow _ _ ->
+        Paginated.RefreshFailure ->
             RefreshFailureStatus
 
-        LoadingMoreWindow _ _ ->
+        Paginated.LoadingMore_ ->
             LoadingMoreStatus
 
-        LoadMoreFailedWindow _ _ _ ->
+        Paginated.LoadMoreFailure ->
             LoadMoreFailureStatus
+
+
+{-| Project the machine onto `RemoteData` for the view: refreshes surface the
+stale window as loading, and failures over a window keep it as stale data.
+-}
+remoteData : Model -> RemoteData Response
+remoteData (Model data) =
+    let
+        visible =
+            visibleResponse (Model data)
+    in
+    case Paginated.status data.paginated of
+        Paginated.NotAsked ->
+            NotAsked
+
+        Paginated.LoadingFirst ->
+            Loading Nothing
+
+        Paginated.LoadFailure ->
+            Failure (activeError data.paginated) Nothing
+
+        Paginated.Showing_ ->
+            successOrLoading visible
+
+        Paginated.Refreshing_ ->
+            Loading visible
+
+        Paginated.RefreshFailure ->
+            Failure (activeError data.paginated) visible
+
+        Paginated.LoadingMore_ ->
+            successOrLoading visible
+
+        Paginated.LoadMoreFailure ->
+            successOrLoading visible
+
+
+successOrLoading : Maybe Response -> RemoteData Response
+successOrLoading visible =
+    case visible of
+        Just response ->
+            Success response
+
+        Nothing ->
+            Loading Nothing
+
+
+activeError : Paginated AppliedQuery PageData -> ApiError
+activeError paginated =
+    Paginated.error paginated
+        |> Maybe.withDefault
+            { code = "unknown_error"
+            , message = "Unknown error"
+            , requestId = Nothing
+            , details = Nothing
+            }
 
 
 loadMoreError : Model -> Maybe ApiError
 loadMoreError (Model data) =
-    case data.state of
-        LoadMoreFailedWindow _ _ error ->
-            Just error
-
-        _ ->
-            Nothing
+    Paginated.loadMoreError data.paginated
 
 
 canBeginLoadingMore : Model -> Bool
 canBeginLoadingMore (Model data) =
-    loadMoreCandidate data.state /= Nothing
+    Paginated.canLoadMore config data.paginated
 
 
 
