@@ -328,7 +328,7 @@ dashboardContent theme viewport device data =
                       else
                         Element.none
                     ]
-                , AnalyticsView.performanceChart theme
+                , AnalyticsView.netWorthPerformanceChart theme
                     { commodity = response.displayCommodity
                     , points = response.performance
                     , selected = data.selectedPerformance

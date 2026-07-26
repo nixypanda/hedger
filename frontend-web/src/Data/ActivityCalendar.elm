@@ -1,21 +1,21 @@
 module Data.ActivityCalendar exposing (yearBuckets)
 
-import Api.Analytics exposing (ActivityBucket, ActivityResponse)
+import Data.Analytics exposing (ActivityBucket)
 import Data.Calendar as Calendar
 import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
 import Data.Time as Time exposing (Month(..))
 
 
-yearBuckets : ActivityResponse -> List ActivityBucket
-yearBuckets response =
-    case latestBucket response.buckets of
+yearBuckets : String -> List ActivityBucket -> List ActivityBucket
+yearBuckets period buckets =
+    case latestBucket buckets of
         Nothing ->
             []
 
         Just finalBucket ->
-            monthKeysThrough response.period finalBucket.key
-                |> List.map (bucketFor response.buckets)
+            monthKeysThrough period finalBucket.key
+                |> List.map (bucketFor buckets)
 
 
 latestBucket : List ActivityBucket -> Maybe ActivityBucket

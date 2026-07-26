@@ -22,11 +22,10 @@ module Api.Analytics exposing
 import Api.Json exposing (maybeString, required)
 import Api.Metadata as Metadata exposing (Metadata)
 import Api.Transaction as Transaction
-import Data.Analytics exposing (Kpi, TimelinePoint)
+import Data.Analytics as AnalyticsData exposing (Kpi, TimelinePoint)
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
 import Data.Granularity as Granularity exposing (Granularity)
-import Data.Transaction exposing (Transaction)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 
@@ -65,9 +64,7 @@ type alias ActivityRequest =
 
 
 type alias BreakdownItem =
-    { account : String
-    , quantity : Decimal
-    }
+    AnalyticsData.BreakdownItem
 
 
 type alias CategoryBreakdown =
@@ -118,15 +115,7 @@ type alias CashflowResponse =
 
 
 type alias ActivityBucket =
-    { key : String
-    , startDate : Date
-    , total : Decimal
-    , increase : Decimal
-    , decrease : Decimal
-    , reallocated : Decimal
-    , categories : List BreakdownItem
-    , transactions : List Transaction
-    }
+    AnalyticsData.ActivityBucket
 
 
 type alias ActivityResponse =
@@ -281,7 +270,7 @@ categoryBreakdownDecoder =
 
 breakdownDecoder : Decoder BreakdownItem
 breakdownDecoder =
-    Decode.succeed BreakdownItem
+    Decode.succeed AnalyticsData.BreakdownItem
         |> required "account" Decode.string
         |> required "quantity" Decimal.decoder
 
@@ -298,7 +287,7 @@ performanceDecoder =
 
 activityBucketDecoder : Decoder ActivityBucket
 activityBucketDecoder =
-    Decode.succeed ActivityBucket
+    Decode.succeed AnalyticsData.ActivityBucket
         |> required "key" Decode.string
         |> required "startDate" Date.decoder
         |> required "total" Decimal.decoder

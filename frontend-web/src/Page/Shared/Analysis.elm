@@ -586,7 +586,7 @@ timelineView theme chartWidth config report data =
         TimelineAvailable points ->
             Ui.card theme
                 [ Typography.subsectionTitle theme config.timelineTitle
-                , AnalyticsView.timelineChart theme
+                , AnalyticsView.positiveNegativeTimelineChart theme
                     { commodity = report.displayCommodity
                     , points = points
                     , selected = Maybe.map Time.periodToString data.period

@@ -1,8 +1,7 @@
 module ActivityCalendarTest exposing (suite)
 
-import Api.Analytics as Analytics exposing (ActivityKind(..), ActivityRange(..))
-import Api.Metadata as Metadata
 import Data.ActivityCalendar as ActivityCalendar
+import Data.Analytics exposing (ActivityBucket)
 import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
 import Expect
@@ -14,18 +13,14 @@ suite =
     describe "year activity calendar"
         [ test "shows nothing when the range has no values" <|
             \_ ->
-                emptyResponse
-                    |> ActivityCalendar.yearBuckets
+                ActivityCalendar.yearBuckets "2025-04" []
                     |> Expect.equal []
         , test "fills leading and internal empty months through the final value" <|
             \_ ->
-                { emptyResponse
-                    | buckets =
-                        [ bucket "2025-06" "10"
-                        , bucket "2025-08" "20"
-                        ]
-                }
-                    |> ActivityCalendar.yearBuckets
+                [ bucket "2025-06" "10"
+                , bucket "2025-08" "20"
+                ]
+                    |> ActivityCalendar.yearBuckets "2025-04"
                     |> List.map (\item -> ( item.key, Decimal.toString item.total ))
                     |> Expect.equal
                         [ ( "2025-04", "0" )
@@ -37,20 +32,7 @@ suite =
         ]
 
 
-emptyResponse : Analytics.ActivityResponse
-emptyResponse =
-    { metadata = Metadata.empty
-    , displayCommodity = "INR"
-    , kind = ExpenseActivity
-    , range = YearActivity
-    , period = "2025-04"
-    , fiscalYearStartMonth = 4
-    , buckets = []
-    , warnings = []
-    }
-
-
-bucket : String -> String -> Analytics.ActivityBucket
+bucket : String -> String -> ActivityBucket
 bucket key total =
     { key = key
     , startDate = Date { year = 2025, month = 1, day = 1 }
