@@ -1,6 +1,7 @@
 module Ui.Chart.Cartesian exposing
     ( Config
     , Domain(..)
+    , MarkerMode(..)
     , Series(..)
     , view
     )
@@ -15,10 +16,19 @@ import Ui.Theme exposing (Theme)
 
 type Domain
     = SymmetricAroundZero
+    | IncludingBaseline
+        { baseline : Float
+        , minimumSpan : Float
+        }
     | PaddedExtent
         { ratio : Float
         , minimum : Float
         }
+
+
+type MarkerMode
+    = SelectedMarkers
+    | AllMarkers
 
 
 type Series item
@@ -28,10 +38,10 @@ type Series item
         , color : Element.Color
         }
     | Line
-        { value : item -> Float
+        { value : item -> Maybe Float
         , color : Element.Color
         , width : Float
-        , selectedMarker : Bool
+        , markers : MarkerMode
         }
     | AreaBetween
         { first : item -> Float
@@ -49,7 +59,7 @@ type alias Config item msg =
     , label : String
     , items : List item
     , key : item -> String
-    , xLabel : item -> String
+    , xLabel : item -> Maybe String
     , describe : item -> String
     , selected : Maybe String
     , onSelect : String -> msg
@@ -136,54 +146,64 @@ view theme config =
 
         lines =
             config.series
+                |> List.concatMap
+                    (\series ->
+                        case series of
+                            Line line ->
+                                lineSegments x y line.value config.items
+                                    |> List.map
+                                        (\points ->
+                                            Svg.polyline
+                                                [ SvgA.points points
+                                                , SvgA.fill "none"
+                                                , SvgA.stroke (Css.toCssColor line.color)
+                                                , SvgA.strokeWidth (float line.width)
+                                                , SvgA.strokeLinecap "round"
+                                                , SvgA.strokeLinejoin "round"
+                                                , SvgA.pointerEvents "none"
+                                                ]
+                                                []
+                                        )
+
+                            _ ->
+                                []
+                    )
+
+        markers index item =
+            config.series
                 |> List.filterMap
                     (\series ->
                         case series of
                             Line line ->
-                                Just
-                                    (Svg.polyline
-                                        [ SvgA.points (pointsFor x y line.value config.items)
-                                        , SvgA.fill "none"
-                                        , SvgA.stroke (Css.toCssColor line.color)
-                                        , SvgA.strokeWidth (float line.width)
-                                        , SvgA.strokeLinecap "round"
-                                        , SvgA.strokeLinejoin "round"
-                                        , SvgA.pointerEvents "none"
-                                        ]
-                                        []
-                                    )
+                                if
+                                    line.markers
+                                        == AllMarkers
+                                        || (line.markers
+                                                == SelectedMarkers
+                                                && config.selected
+                                                == Just (config.key item)
+                                           )
+                                then
+                                    line.value item
+                                        |> Maybe.map (y >> Chart.marker theme line.color (x index))
+
+                                else
+                                    Nothing
 
                             _ ->
                                 Nothing
                     )
-
-        markers index item =
-            if config.selected == Just (config.key item) then
-                config.series
-                    |> List.filterMap
-                        (\series ->
-                            case series of
-                                Line line ->
-                                    if line.selectedMarker then
-                                        Just (Chart.marker theme line.color (x index) (y (line.value item)))
-
-                                    else
-                                        Nothing
-
-                                _ ->
-                                    Nothing
-                        )
-
-            else
-                []
 
         annotations index item =
             let
                 itemKey =
                     config.key item
             in
-            [ Chart.xAxisLabel theme chartLayout (x index) (config.xLabel item)
-            ]
+            (config.xLabel item
+                |> Maybe.map (Chart.xAxisLabel theme chartLayout (x index))
+                |> Maybe.map List.singleton
+                |> Maybe.withDefault []
+            )
                 ++ markers index item
                 ++ [ Chart.hitTarget
                         chartLayout
@@ -228,6 +248,18 @@ domainRange domain series items =
             in
             ( -high, high )
 
+        IncludingBaseline baselineConfig ->
+            let
+                minimum =
+                    min baselineConfig.baseline
+                        (List.minimum values |> Maybe.withDefault baselineConfig.baseline)
+
+                maximum =
+                    max baselineConfig.baseline
+                        (List.maximum values |> Maybe.withDefault baselineConfig.baseline)
+            in
+            ( minimum, max maximum (minimum + baselineConfig.minimumSpan) )
+
         PaddedExtent paddingConfig ->
             let
                 minimum =
@@ -250,23 +282,54 @@ seriesValues item series =
             [ bar.baseline, bar.value item ]
 
         Line line ->
-            [ line.value item ]
+            line.value item |> Maybe.map List.singleton |> Maybe.withDefault []
 
         AreaBetween area ->
             [ area.first item, area.second item ]
 
 
-pointsFor :
+lineSegments :
     (Int -> Float)
     -> (Float -> Float)
-    -> (item -> Float)
+    -> (item -> Maybe Float)
     -> List item
-    -> String
-pointsFor x y value items =
+    -> List String
+lineSegments x y value items =
     items
         |> List.indexedMap
-            (\index item -> float (x index) ++ "," ++ float (y (value item)))
-        |> String.join " "
+            (\index item ->
+                value item
+                    |> Maybe.map
+                        (\pointValue ->
+                            float (x index) ++ "," ++ float (y pointValue)
+                        )
+            )
+        |> contiguousValues
+        |> List.map (String.join " ")
+
+
+contiguousValues : List (Maybe value) -> List (List value)
+contiguousValues values =
+    let
+        finish current completed =
+            if List.isEmpty current then
+                completed
+
+            else
+                List.reverse current :: completed
+
+        collect remaining current completed =
+            case remaining of
+                [] ->
+                    finish current completed |> List.reverse
+
+                (Just value) :: rest ->
+                    collect rest (value :: current) completed
+
+                Nothing :: rest ->
+                    collect rest [] (finish current completed)
+    in
+    collect values [] []
 
 
 areaSegments :

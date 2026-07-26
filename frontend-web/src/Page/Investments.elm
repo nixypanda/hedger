@@ -23,11 +23,8 @@ import Element.Input as Input
 import Html.Attributes as Attr
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
-import Svg
-import Svg.Attributes as SvgA
-import Svg.Events as SvgE
 import Ui
-import Ui.Css as Css
+import Ui.Chart.Cartesian as Cartesian
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
@@ -209,12 +206,12 @@ content theme viewport device data =
 
         Just response ->
             [ States.remoteNotice theme response.metadata.freshness data.response
-            , breadcrumbView theme response.breadcrumbs
+            , investmentBreadcrumbs theme response.breadcrumbs
             , if isEmpty response then
                 Ui.emptyState theme "No investment holdings were found in this account scope."
 
               else
-                dashboard theme viewport device data.selectedPeriod response
+                investmentDashboard theme viewport device data.selectedPeriod response
             ]
 
 
@@ -226,8 +223,14 @@ isEmpty response =
         && List.isEmpty response.timeline
 
 
-dashboard : Theme -> Viewport -> Device -> Maybe String -> Investments.Response -> Element Msg
-dashboard theme viewport device selected response =
+investmentDashboard :
+    Theme
+    -> Viewport
+    -> Device
+    -> Maybe String
+    -> Investments.Response
+    -> Element Msg
+investmentDashboard theme viewport device selected response =
     let
         layout =
             Responsive.contentLayout viewport device
@@ -236,25 +239,122 @@ dashboard theme viewport device selected response =
             min 1200 (max 320 (Responsive.usableContentWidth viewport device - 40))
     in
     Element.column [ Element.width Element.fill, Element.spacing 16 ]
-        [ summaryGrid layout theme response.displayCommodity response.summary response.timeline
-        , performanceBreakdown theme response.displayCommodity response.summary
+        [ investmentSummaryGrid layout theme response.displayCommodity response.summary
+        , investmentPerformanceBreakdown theme response.displayCommodity response.summary
         , Typography.sectionTitle theme "Value and cost"
         , Ui.card theme
             [ Element.row [ Element.width Element.fill ]
                 [ Typography.subsectionTitle theme "Portfolio history"
-                , completenessBadge theme response.summary.completeness
+                , investmentCompletenessBadge theme response.summary.completeness
                 ]
-            , performanceChart theme response.displayCommodity chartWidth selected response.timeline
-            , selectedPeriodView theme response.displayCommodity selected response.timeline
-            , chartLegend theme
+            , investmentPerformanceChart theme
+                response.displayCommodity
+                chartWidth
+                selected
+                response.timeline
+            , selectedInvestmentPeriod theme
+                response.displayCommodity
+                selected
+                response.timeline
+            , investmentChartLegend theme
             ]
-        , childrenView theme device response.displayCommodity response.children
-        , warningsView theme response.warnings
+        , investmentChildren theme response.displayCommodity response.children
+        , investmentWarnings theme response.warnings
         ]
 
 
-performanceBreakdown : Theme -> String -> Investments.Summary -> Element Msg
-performanceBreakdown theme commodity summary =
+investmentPerformanceChart :
+    Theme
+    -> String
+    -> Int
+    -> Maybe String
+    -> List Investments.TimelinePoint
+    -> Element Msg
+investmentPerformanceChart theme commodity availableWidth selected points =
+    let
+        hasValues =
+            List.any
+                (\point ->
+                    point.summary.marketValue
+                        /= Nothing
+                        || point.summary.purchaseCost
+                        /= Nothing
+                )
+                points
+
+        visiblePeriods =
+            investmentChartLabelPeriods points
+    in
+    if hasValues then
+        Cartesian.view theme
+            { availableWidth = availableWidth
+            , height = 260
+            , targetSlotWidth = 52
+            , label = "Investment market value and purchase cost over time"
+            , items = points
+            , key = .period
+            , xLabel =
+                \point ->
+                    if List.member point.period visiblePeriods then
+                        Just (shortInvestmentPeriod point.period)
+
+                    else
+                        Nothing
+            , describe =
+                \point ->
+                    "Select "
+                        ++ point.period
+                        ++ ": market value "
+                        ++ investmentMoney commodity point.summary.marketValue
+                        ++ ", purchase cost "
+                        ++ investmentMoney commodity point.summary.purchaseCost
+            , selected = selected
+            , onSelect = PeriodSelected
+            , formatTick = investmentAxisMoney commodity
+            , domain = Cartesian.IncludingBaseline { baseline = 0, minimumSpan = 1 }
+            , series =
+                [ Cartesian.Line
+                    { value = .summary >> .purchaseCost >> investmentDecimalFloat
+                    , color = theme.textMuted
+                    , width = 2.2
+                    , markers = Cartesian.AllMarkers
+                    }
+                , Cartesian.Line
+                    { value = .summary >> .marketValue >> investmentDecimalFloat
+                    , color = theme.primary
+                    , width = 3
+                    , markers = Cartesian.AllMarkers
+                    }
+                ]
+            }
+
+    else
+        Ui.emptyState theme "No historical valuations are available for this scope."
+
+
+investmentChartLabelPeriods : List Investments.TimelinePoint -> List String
+investmentChartLabelPeriods points =
+    let
+        labelEvery =
+            max 1 (ceiling (toFloat (List.length points) / 6))
+
+        lastIndex =
+            List.length points - 1
+    in
+    points
+        |> List.indexedMap
+            (\index point ->
+                if modBy labelEvery index == 0 || index == lastIndex then
+                    Just point.period
+
+                else
+                    Nothing
+            )
+        |> List.filterMap identity
+
+
+investmentPerformanceBreakdown : Theme -> String -> Investments.Summary -> Element Msg
+investmentPerformanceBreakdown theme commodity summary =
     if summary.attributedIncome == Nothing && summary.realisedGain == Nothing then
         Element.none
 
@@ -262,60 +362,55 @@ performanceBreakdown theme commodity summary =
         Ui.card theme
             [ Typography.subsectionTitle theme "Performance breakdown"
             , Element.wrappedRow [ Element.width Element.fill, Element.spacing 24 ]
-                [ breakdownMetric theme commodity "Attributed income" summary.attributedIncome
-                , breakdownMetric theme commodity "Realised gain" summary.realisedGain
-                , breakdownMetric theme commodity "Unrealised gain" summary.gainLoss
+                [ investmentBreakdownMetric theme commodity "Attributed income" summary.attributedIncome
+                , investmentBreakdownMetric theme commodity "Realised gain" summary.realisedGain
+                , investmentBreakdownMetric theme commodity "Unrealised gain" summary.gainLoss
                 ]
             ]
 
 
-breakdownMetric : Theme -> String -> String -> Maybe Decimal -> Element msg
-breakdownMetric theme commodity label value =
+investmentBreakdownMetric : Theme -> String -> String -> Maybe Decimal -> Element msg
+investmentBreakdownMetric theme commodity label value =
     Element.column [ Element.spacing 4, Element.width (Element.fillPortion 1) ]
         [ Typography.mutedCaption theme label
         , Element.el [ Typography.financeNumber, Font.semiBold ]
-            (Element.text (maybeMoney commodity value))
+            (Element.text (investmentMoney commodity value))
         ]
 
 
-summaryGrid :
+investmentSummaryGrid :
     Responsive.ContentLayout
     -> Theme
     -> String
     -> Investments.Summary
-    -> List Investments.TimelinePoint
     -> Element Msg
-summaryGrid layout theme commodity summary timeline =
+investmentSummaryGrid layout theme commodity summary =
     let
         cards =
-            [ metricCard theme
+            [ investmentMetricCard theme
                 commodity
                 "Market value"
                 summary.marketValue
                 Icon.Wallet
                 theme.primary
-                timeline
-            , metricCard theme
+            , investmentMetricCard theme
                 commodity
                 "Purchase cost"
                 summary.purchaseCost
                 Icon.Receipt
                 theme.textMedium
-                timeline
-            , metricCard theme
+            , investmentMetricCard theme
                 commodity
                 "Gain / loss"
                 summary.gainLoss
                 Icon.TrendingUp
-                (toneFor summary.gainLoss theme)
-                timeline
-            , metricCard theme
+                (investmentTone summary.gainLoss theme)
+            , investmentMetricCard theme
                 commodity
                 "Total profit"
                 summary.totalProfit
                 Icon.ChartBar
-                (toneFor summary.totalProfit theme)
-                timeline
+                (investmentTone summary.totalProfit theme)
             ]
     in
     if Responsive.isCompact layout then
@@ -325,16 +420,15 @@ summaryGrid layout theme commodity summary timeline =
         Element.row [ Element.width Element.fill, Element.spacing 16 ] cards
 
 
-metricCard :
+investmentMetricCard :
     Theme
     -> String
     -> String
     -> Maybe Decimal
     -> Icon
     -> Element.Color
-    -> List Investments.TimelinePoint
     -> Element Msg
-metricCard theme commodity title amount icon color _ =
+investmentMetricCard theme commodity title amount icon color =
     Ui.cardWith [ Element.width (Element.fillPortion 1), Element.height (Element.px 184) ]
         theme
         [ Element.row [ Element.width Element.fill, Element.spacing 12 ]
@@ -350,12 +444,12 @@ metricCard theme commodity title amount icon color _ =
             ]
         , Typography.mutedBody theme title
         , Element.el [ Typography.kpiValue, Typography.financeNumber, Font.bold ]
-            (Element.text (maybeMoney commodity amount))
+            (Element.text (investmentMoney commodity amount))
         ]
 
 
-childrenView : Theme -> Device -> String -> List Investments.Child -> Element Msg
-childrenView theme _ commodity children =
+investmentChildren : Theme -> String -> List Investments.Child -> Element Msg
+investmentChildren theme commodity children =
     Element.column [ Element.width Element.fill, Element.spacing 10 ]
         [ Typography.sectionTitle theme "Holdings"
         , if List.isEmpty children then
@@ -363,20 +457,20 @@ childrenView theme _ commodity children =
 
           else
             Ui.listCard theme
-                { rows = List.map (childRow theme commodity) children
+                { rows = List.map (investmentChildRow theme commodity) children
                 , footer = Nothing
                 }
         ]
 
 
-childRow : Theme -> String -> Investments.Child -> Element Msg
-childRow theme commodity child =
+investmentChildRow : Theme -> String -> Investments.Child -> Element Msg
+investmentChildRow theme commodity child =
     Ui.listRow
         { onSelect = AccountSelected child.account
         , leading = [ Icon.view { icon = Icon.Equity, size = 22, color = theme.primary } ]
         , title = Typography.subsectionTitle theme child.label
         , subtitle =
-            [ completenessBadge theme child.summary.completeness
+            [ investmentCompletenessBadge theme child.summary.completeness
             , child.summary.returnPercentage
                 |> Maybe.map
                     (\value ->
@@ -386,7 +480,7 @@ childRow theme commodity child =
             ]
         , trailing =
             [ Element.el [ Typography.financeNumber, Font.semiBold ]
-                (Element.text (maybeMoney commodity child.summary.marketValue))
+                (Element.text (investmentMoney commodity child.summary.marketValue))
             , if child.hasChildren then
                 Icon.view { icon = Icon.ChevronRight, size = 18, color = theme.textMuted }
 
@@ -396,8 +490,8 @@ childRow theme commodity child =
         }
 
 
-breadcrumbView : Theme -> List Investments.Breadcrumb -> Element Msg
-breadcrumbView theme breadcrumbs =
+investmentBreadcrumbs : Theme -> List Investments.Breadcrumb -> Element Msg
+investmentBreadcrumbs theme breadcrumbs =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing 6 ]
         (Input.button []
             { onPress = Just PortfolioSelected
@@ -418,8 +512,8 @@ breadcrumbView theme breadcrumbs =
         )
 
 
-warningsView : Theme -> List Investments.Warning -> Element Msg
-warningsView theme warnings =
+investmentWarnings : Theme -> List Investments.Warning -> Element Msg
+investmentWarnings theme warnings =
     if List.isEmpty warnings then
         Element.none
 
@@ -438,8 +532,8 @@ warningsView theme warnings =
             )
 
 
-completenessBadge : Theme -> Completeness -> Element msg
-completenessBadge theme completeness =
+investmentCompletenessBadge : Theme -> Completeness -> Element msg
+investmentCompletenessBadge theme completeness =
     case completeness of
         Complete ->
             Element.none
@@ -451,252 +545,13 @@ completenessBadge theme completeness =
             Ui.statusBadge theme Ui.StatusDanger "Unavailable"
 
 
-toneFor : Maybe Decimal -> Theme -> Element.Color
-toneFor value theme =
-    case value |> Maybe.andThen (Decimal.toString >> String.toFloat) of
-        Just amount ->
-            if amount < 0 then
-                theme.negative
-
-            else
-                theme.positive
-
-        Nothing ->
-            theme.textMuted
-
-
-maybeMoney : String -> Maybe Decimal -> String
-maybeMoney commodity value =
-    value
-        |> Maybe.andThen (Decimal.toString >> String.toFloat)
-        |> Maybe.map (Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity))
-        |> Maybe.withDefault "—"
-
-
-performanceChart :
-    Theme
-    -> String
-    -> Int
-    -> Maybe String
-    -> List Investments.TimelinePoint
-    -> Element Msg
-performanceChart theme commodity availableWidth selected points =
-    let
-        width =
-            max 320 availableWidth
-
-        height =
-            260
-
-        plotLeft =
-            14
-
-        plotRight =
-            toFloat width - 14
-
-        plotTop =
-            18
-
-        plotBottom =
-            210
-
-        values =
-            List.concatMap
-                (\point ->
-                    List.filterMap decimalFloat
-                        [ point.summary.marketValue, point.summary.purchaseCost ]
-                )
-                points
-
-        low =
-            min 0 (List.minimum values |> Maybe.withDefault 0)
-
-        high =
-            max 1 (List.maximum values |> Maybe.withDefault 1)
-
-        x index =
-            if List.length points <= 1 then
-                (plotLeft + plotRight) / 2
-
-            else
-                plotLeft + toFloat index * (plotRight - plotLeft) / toFloat (List.length points - 1)
-
-        y value =
-            plotBottom - ((value - low) / (high - low) * (plotBottom - plotTop))
-
-        lineFor select =
-            points
-                |> List.indexedMap
-                    (\index point ->
-                        select point.summary
-                            |> decimalFloat
-                            |> Maybe.map
-                                (\value ->
-                                    String.fromFloat (x index) ++ "," ++ String.fromFloat (y value)
-                                )
-                    )
-                |> List.filterMap identity
-                |> String.join " "
-
-        axisLabel =
-            Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity) high
-
-        labelEvery =
-            max 1 (ceiling (toFloat (List.length points) / 6))
-
-        hitWidth =
-            max 24 ((plotRight - plotLeft) / toFloat (max 1 (List.length points)))
-
-        pointMarks =
-            points
-                |> List.indexedMap
-                    (\index point ->
-                        let
-                            center =
-                                x index
-
-                            selectedPoint =
-                                selected == Just point.period
-
-                            marketY =
-                                point.summary.marketValue
-                                    |> decimalFloat
-                                    |> Maybe.map y
-                                    |> Maybe.withDefault plotBottom
-
-                            costY =
-                                point.summary.purchaseCost
-                                    |> decimalFloat
-                                    |> Maybe.map y
-                                    |> Maybe.withDefault plotBottom
-
-                            showLabel =
-                                modBy labelEvery index == 0 || index == List.length points - 1
-                        in
-                        Svg.g []
-                            [ if selectedPoint then
-                                Svg.rect
-                                    [ SvgA.x (String.fromFloat (center - 12))
-                                    , SvgA.y (String.fromFloat plotTop)
-                                    , SvgA.width "24"
-                                    , SvgA.height (String.fromFloat (plotBottom - plotTop))
-                                    , SvgA.fill (Css.toCssColor theme.primarySoft)
-                                    ]
-                                    []
-
-                              else
-                                Svg.g [] []
-                            , Svg.circle
-                                [ SvgA.cx (String.fromFloat center)
-                                , SvgA.cy (String.fromFloat costY)
-                                , SvgA.r
-                                    (if selectedPoint then
-                                        "4"
-
-                                     else
-                                        "2.5"
-                                    )
-                                , SvgA.fill (Css.toCssColor theme.cardBg)
-                                , SvgA.stroke (Css.toCssColor theme.textMuted)
-                                , SvgA.strokeWidth "2"
-                                ]
-                                []
-                            , Svg.circle
-                                [ SvgA.cx (String.fromFloat center)
-                                , SvgA.cy (String.fromFloat marketY)
-                                , SvgA.r
-                                    (if selectedPoint then
-                                        "5"
-
-                                     else
-                                        "3"
-                                    )
-                                , SvgA.fill (Css.toCssColor theme.cardBg)
-                                , SvgA.stroke (Css.toCssColor theme.primary)
-                                , SvgA.strokeWidth "2.5"
-                                ]
-                                []
-                            , if showLabel then
-                                Svg.text_
-                                    [ SvgA.x (String.fromFloat center)
-                                    , SvgA.y "239"
-                                    , SvgA.textAnchor "middle"
-                                    , SvgA.fill (Css.toCssColor theme.textMuted)
-                                    , SvgA.fontSize "11"
-                                    ]
-                                    [ Svg.text (shortPeriod point.period) ]
-
-                              else
-                                Svg.g [] []
-                            , Svg.rect
-                                [ SvgA.x (String.fromFloat (center - hitWidth / 2))
-                                , SvgA.y (String.fromFloat plotTop)
-                                , SvgA.width (String.fromFloat hitWidth)
-                                , SvgA.height (String.fromFloat (plotBottom - plotTop + 34))
-                                , SvgA.fill "transparent"
-                                , SvgA.cursor "pointer"
-                                , Attr.attribute "aria-label" ("Select " ++ point.period)
-                                , SvgE.onClick (PeriodSelected point.period)
-                                ]
-                                []
-                            ]
-                    )
-
-        chart =
-            Svg.svg
-                [ SvgA.viewBox ("0 0 " ++ String.fromInt width ++ " " ++ String.fromInt height)
-                , SvgA.width "100%"
-                , SvgA.height (String.fromInt height)
-                , Attr.attribute "role" "img"
-                , Attr.attribute "aria-label" "Investment market value and purchase cost over time"
-                ]
-                ([ Svg.line
-                    [ SvgA.x1 (String.fromFloat plotLeft)
-                    , SvgA.y1 (String.fromFloat plotBottom)
-                    , SvgA.x2 (String.fromFloat plotRight)
-                    , SvgA.y2 (String.fromFloat plotBottom)
-                    , SvgA.stroke (Css.toCssColor theme.divider)
-                    ]
-                    []
-                 , Svg.text_
-                    [ SvgA.x (String.fromFloat plotLeft)
-                    , SvgA.y "13"
-                    , SvgA.fill (Css.toCssColor theme.textMuted)
-                    , SvgA.fontSize "11"
-                    ]
-                    [ Svg.text axisLabel ]
-                 , Svg.polyline
-                    [ SvgA.points (lineFor .purchaseCost)
-                    , SvgA.fill "none"
-                    , SvgA.stroke (Css.toCssColor theme.textMuted)
-                    , SvgA.strokeWidth "2.2"
-                    ]
-                    []
-                 , Svg.polyline
-                    [ SvgA.points (lineFor .marketValue)
-                    , SvgA.fill "none"
-                    , SvgA.stroke (Css.toCssColor theme.primary)
-                    , SvgA.strokeWidth "3"
-                    ]
-                    []
-                 ]
-                    ++ pointMarks
-                )
-    in
-    if List.isEmpty values then
-        Ui.emptyState theme "No historical valuations are available for this scope."
-
-    else
-        Element.el [ Element.width Element.fill, Element.height (Element.px height) ] (Element.html chart)
-
-
-selectedPeriodView :
+selectedInvestmentPeriod :
     Theme
     -> String
     -> Maybe String
     -> List Investments.TimelinePoint
     -> Element msg
-selectedPeriodView theme commodity selected points =
+selectedInvestmentPeriod theme commodity selected points =
     let
         selectedPoint =
             selected
@@ -715,23 +570,63 @@ selectedPeriodView theme commodity selected points =
                 , Background.color theme.primarySoft
                 ]
                 [ Element.row [ Element.width Element.fill ]
-                    [ Element.el [ Font.semiBold ] (Element.text (periodLabel point.period))
+                    [ Element.el [ Font.semiBold ] (Element.text (investmentPeriodLabel point.period))
                     , Element.el [ Element.alignRight ]
-                        (completenessBadge theme point.summary.completeness)
+                        (investmentCompletenessBadge theme point.summary.completeness)
                     ]
                 , Element.wrappedRow [ Element.width Element.fill, Element.spacing 18 ]
-                    [ breakdownMetric theme commodity "Market value" point.summary.marketValue
-                    , breakdownMetric theme commodity "Purchase cost" point.summary.purchaseCost
-                    , breakdownMetric theme commodity "Gain / loss" point.summary.gainLoss
-                    , breakdownMetric theme commodity "Attributed income" point.summary.attributedIncome
-                    , breakdownMetric theme commodity "Realised gain" point.summary.realisedGain
-                    , breakdownMetric theme commodity "Total profit" point.summary.totalProfit
+                    [ investmentBreakdownMetric theme commodity "Market value" point.summary.marketValue
+                    , investmentBreakdownMetric theme commodity "Purchase cost" point.summary.purchaseCost
+                    , investmentBreakdownMetric theme commodity "Gain / loss" point.summary.gainLoss
+                    , investmentBreakdownMetric theme
+                        commodity
+                        "Attributed income"
+                        point.summary.attributedIncome
+                    , investmentBreakdownMetric theme commodity "Realised gain" point.summary.realisedGain
+                    , investmentBreakdownMetric theme commodity "Total profit" point.summary.totalProfit
                     ]
                 ]
 
 
-shortPeriod : String -> String
-shortPeriod period =
+investmentChartLegend : Theme -> Element msg
+investmentChartLegend theme =
+    Element.wrappedRow [ Element.spacing 16 ]
+        [ Element.row [ Element.spacing 6 ]
+            [ Ui.accentDot theme.primary, Typography.mutedCaption theme "Market value" ]
+        , Element.row [ Element.spacing 6 ]
+            [ Ui.accentDot theme.textMuted, Typography.mutedCaption theme "Purchase cost" ]
+        ]
+
+
+investmentTone : Maybe Decimal -> Theme -> Element.Color
+investmentTone value theme =
+    case investmentDecimalFloat value of
+        Just amount ->
+            if amount < 0 then
+                theme.negative
+
+            else
+                theme.positive
+
+        Nothing ->
+            theme.textMuted
+
+
+investmentMoney : String -> Maybe Decimal -> String
+investmentMoney commodity value =
+    value
+        |> investmentDecimalFloat
+        |> Maybe.map (Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity))
+        |> Maybe.withDefault "—"
+
+
+investmentAxisMoney : String -> Float -> String
+investmentAxisMoney commodity =
+    Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity)
+
+
+shortInvestmentPeriod : String -> String
+shortInvestmentPeriod period =
     case String.split "-" period of
         [ year, month ] ->
             month ++ "/" ++ String.right 2 year
@@ -740,24 +635,14 @@ shortPeriod period =
             period
 
 
-periodLabel : String -> String
-periodLabel period =
+investmentPeriodLabel : String -> String
+investmentPeriodLabel period =
     "Selected " ++ period
 
 
-decimalFloat : Maybe Decimal -> Maybe Float
-decimalFloat =
+investmentDecimalFloat : Maybe Decimal -> Maybe Float
+investmentDecimalFloat =
     Maybe.andThen (Decimal.toString >> String.toFloat)
-
-
-chartLegend : Theme -> Element msg
-chartLegend theme =
-    Element.wrappedRow [ Element.spacing 16 ]
-        [ Element.row [ Element.spacing 6 ]
-            [ Ui.accentDot theme.primary, Typography.mutedCaption theme "Market value" ]
-        , Element.row [ Element.spacing 6 ]
-            [ Ui.accentDot theme.textMuted, Typography.mutedCaption theme "Purchase cost" ]
-        ]
 
 
 investmentsSkeleton : Theme -> Viewport -> Element Msg

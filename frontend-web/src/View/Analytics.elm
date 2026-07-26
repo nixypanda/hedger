@@ -183,7 +183,7 @@ positiveNegativeTimelineChart theme config =
                 , label = "Assets and liabilities timeline"
                 , items = config.points
                 , key = .period
-                , xLabel = .period >> shortPeriod
+                , xLabel = .period >> shortPeriod >> Just
                 , describe =
                     \point ->
                         point.period
@@ -211,10 +211,10 @@ positiveNegativeTimelineChart theme config =
                         , color = theme.negative
                         }
                     , Cartesian.Line
-                        { value = .net >> decimalFloat
+                        { value = .net >> decimalFloat >> Just
                         , color = theme.primary
                         , width = 2.6
-                        , selectedMarker = True
+                        , markers = Cartesian.SelectedMarkers
                         }
                     ]
                 }
@@ -271,7 +271,7 @@ netWorthPerformanceChart theme config =
                 , label = "Net investment and net worth timeline"
                 , items = config.points
                 , key = .period
-                , xLabel = .period >> shortPeriod
+                , xLabel = .period >> shortPeriod >> Just
                 , describe =
                     \point ->
                         point.period
@@ -292,16 +292,16 @@ netWorthPerformanceChart theme config =
                         , opacity = 0.18
                         }
                     , Cartesian.Line
-                        { value = .netWorth >> decimalFloat
+                        { value = .netWorth >> decimalFloat >> Just
                         , color = theme.primary
                         , width = 2.6
-                        , selectedMarker = True
+                        , markers = Cartesian.SelectedMarkers
                         }
                     , Cartesian.Line
-                        { value = .netInvestment >> decimalFloat
+                        { value = .netInvestment >> decimalFloat >> Just
                         , color = theme.positive
                         , width = 2.4
-                        , selectedMarker = True
+                        , markers = Cartesian.SelectedMarkers
                         }
                     ]
                 }
