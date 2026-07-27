@@ -159,7 +159,7 @@ postingDetailRow theme posting =
             , Typography.minWidthZero
             ]
             [ Icon.view
-                { icon = AccountPresentation.iconForAccountName posting.account
+                { icon = AccountPresentation.iconForAccount posting.accountType posting.account
                 , size = 16
                 , color = theme.textMedium
                 }

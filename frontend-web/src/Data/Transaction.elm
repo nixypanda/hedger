@@ -7,6 +7,7 @@ module Data.Transaction exposing
     , Transaction
     )
 
+import Data.AccountType exposing (AccountType)
 import Data.Date exposing (Date)
 import Data.Decimal exposing (Decimal)
 import Data.Status exposing (Status)
@@ -27,6 +28,7 @@ type alias Transaction =
 
 type alias Posting =
     { account : String
+    , accountType : Maybe AccountType
     , status : Status
     , comment : Maybe String
     , tags : List Tag

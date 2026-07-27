@@ -23,11 +23,13 @@ import Hledger.Data.Amount qualified as Hledger
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AppM (Env)
+import Hedger.Application.Common (AccountTypeClassifier)
 import Hedger.Application.TransactionQuery (TransactionPageRequest (..))
 import Hedger.Application.Transactions (TransactionList (..), transactionList)
 import Hedger.Domain.Transaction qualified as Domain
 import Hedger.Interface.HTTP.Common (
     ResponseMetadata (..),
+    accountTypeText,
     parseLimit,
     runAction,
     servantError,
@@ -61,6 +63,7 @@ data AmountDto = AmountDto
 
 data PostingDto = PostingDto
     { account :: Text
+    , accountType :: Maybe Text
     , status :: Text
     , comment :: Maybe Text
     , tags :: [TagDto]
@@ -120,15 +123,15 @@ toTransactionsResponse :: TransactionList -> TransactionsResponse
 toTransactionsResponse value =
     TransactionsResponse
         { metadata = toResponseMetadata value.metadata
-        , transactions = toTransactions value.transactions
+        , transactions = toTransactions value.classifyAccount value.transactions
         , nextCursor = value.nextCursor
         }
 
-toTransactions :: [Hledger.Transaction] -> [TransactionDto]
-toTransactions = fmap toTransactionDto . Domain.newestFirst
+toTransactions :: AccountTypeClassifier -> [Hledger.Transaction] -> [TransactionDto]
+toTransactions classify = fmap (toTransactionDto classify) . Domain.newestFirst
 
-toTransactionDto :: Hledger.Transaction -> TransactionDto
-toTransactionDto transaction =
+toTransactionDto :: AccountTypeClassifier -> Hledger.Transaction -> TransactionDto
+toTransactionDto classify transaction =
     TransactionDto
         { primaryDate = transaction.tdate
         , secondaryDate = transaction.tdate2
@@ -137,14 +140,15 @@ toTransactionDto transaction =
         , description = transaction.tdescription
         , comment = nonEmpty transaction.tcomment
         , tags = projectTags transaction.ttags
-        , postings = projectPosting <$> transaction.tpostings
+        , postings = projectPosting classify <$> transaction.tpostings
         , presentation = presentationDto (Domain.presentationFor transaction)
         }
 
-projectPosting :: Hledger.Posting -> PostingDto
-projectPosting posting =
+projectPosting :: AccountTypeClassifier -> Hledger.Posting -> PostingDto
+projectPosting classify posting =
     PostingDto
         { account = posting.paccount
+        , accountType = accountTypeText <$> classify posting.paccount
         , status = statusText posting.pstatus
         , comment = nonEmpty posting.pcomment
         , tags = projectTags posting.ptags

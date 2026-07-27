@@ -471,7 +471,8 @@ accountRow theme expanded depth (AccountNode account) =
                     Element.row [ Element.width Element.fill, Element.spacing 8 ]
                         [ Icon.view
                             { icon =
-                                AccountPresentation.iconForAccountName
+                                AccountPresentation.iconForAccount
+                                    account.accountType
                                     (Account.accountPathToString account.path)
                             , size = 18
                             , color = theme.primary

@@ -21,6 +21,7 @@ import Api.Analytics
         , CategoryBreakdown
         , PerformancePoint
         )
+import Data.AccountType exposing (AccountType)
 import Data.ActivityCalendar as ActivityCalendar
 import Data.Analytics exposing (Kpi, TimelinePoint)
 import Data.Calendar as Calendar
@@ -437,7 +438,7 @@ categoryRow :
     -> Decimal
     -> Int
     -> Bool
-    -> { item | account : String, quantity : Decimal }
+    -> { item | account : String, accountType : Maybe AccountType, quantity : Decimal }
     -> Element msg
 categoryRow theme commodity palette total index isHighlighted item =
     let
@@ -474,7 +475,7 @@ categoryRow theme commodity palette total index isHighlighted item =
         , Border.width 1
         ]
         [ Icon.view
-            { icon = AccountPresentation.iconForAccountName item.account
+            { icon = AccountPresentation.iconForAccount item.accountType item.account
             , size = 16
             , color = itemColor
             }
@@ -1265,7 +1266,7 @@ activityYearLegend theme commodity tone categories bucket =
                     in
                     Element.row [ Element.width Element.fill, Element.spacing 8 ]
                         [ Icon.view
-                            { icon = AccountPresentation.iconForAccountName item.account
+                            { icon = AccountPresentation.iconForAccount item.accountType item.account
                             , size = 16
                             , color =
                                 if item.account == "Other" then

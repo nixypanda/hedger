@@ -5,6 +5,7 @@ module Api.Transaction exposing
     )
 
 import Api.Metadata as Metadata exposing (Metadata)
+import Data.AccountType as AccountType
 import Data.Date as Date
 import Data.Decimal as Decimal
 import Data.Status as Status
@@ -63,8 +64,9 @@ presentationDecoder =
 
 postingDecoder : Decoder Posting
 postingDecoder =
-    Decode.map5 Posting
+    Decode.map6 Posting
         (Decode.field "account" Decode.string)
+        (Decode.field "accountType" (Decode.nullable AccountType.decoder))
         (Decode.field "status" Status.decoder)
         (Decode.field "comment" (Decode.nullable Decode.string))
         (Decode.field "tags" (Decode.list tagDecoder))

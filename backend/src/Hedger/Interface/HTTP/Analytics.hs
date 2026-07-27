@@ -11,9 +11,11 @@ import Servant
 
 import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
+import Hedger.Application.Common (AccountTypeClassifier)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Interface.HTTP.Common (
     ResponseMetadata,
+    accountTypeText,
     runAction,
     servantError,
     toResponseMetadata,
@@ -64,6 +66,7 @@ data TimelinePointDto = TimelinePointDto
 
 data BreakdownItemDto = BreakdownItemDto
     { account :: Text
+    , accountType :: Maybe Text
     , quantity :: Text
     }
     deriving stock (Eq, Show, Generic)
@@ -237,8 +240,8 @@ toNetWorth report =
         , assets = toKpi report.assetsKpi
         , liabilities = toKpi report.liabilitiesKpi
         , timeline = fmap toTimeline report.timeline
-        , assetsBreakdown = toBreakdown report.assetsBreakdown
-        , liabilitiesBreakdown = toBreakdown report.liabilitiesBreakdown
+        , assetsBreakdown = toBreakdown report.classifyAccount report.assetsBreakdown
+        , liabilitiesBreakdown = toBreakdown report.classifyAccount report.liabilitiesBreakdown
         , performance = fmap toPerformance report.performance
         , incompletePeriods = report.incompletePeriods
         , warnings = fmap renderWarning report.warnings
@@ -254,8 +257,8 @@ toCashflow report =
         , filteredCount = report.filteredCount
         , timelineAvailable = report.timelineAvailable
         , timeline = fmap toTimeline report.timeline
-        , incomeBreakdown = toBreakdown report.incomeBreakdown
-        , expenseBreakdown = toBreakdown report.expenseBreakdown
+        , incomeBreakdown = toBreakdown report.classifyAccount report.incomeBreakdown
+        , expenseBreakdown = toBreakdown report.classifyAccount report.expenseBreakdown
         , warnings = fmap renderWarning report.warnings
         }
 
@@ -268,7 +271,7 @@ toActivity report =
         , range = activityRangeText report.range
         , period = report.period
         , fiscalYearStartMonth = report.fiscalYearStartMonth
-        , buckets = fmap toActivityBucket report.buckets
+        , buckets = fmap (toActivityBucket report.classifyAccount) report.buckets
         , warnings = fmap renderWarning report.warnings
         }
 
@@ -291,17 +294,22 @@ toTimeline value =
         , net = decimal value.net
         }
 
-toBreakdown :: Analytics.CategoryBreakdown -> CategoryBreakdownDto
-toBreakdown value =
+toBreakdown :: AccountTypeClassifier -> Analytics.CategoryBreakdown -> CategoryBreakdownDto
+toBreakdown classify value =
     CategoryBreakdownDto
         { period = value.period
         , total = decimal value.total
-        , items = fmap toBreakdownItem value.items
-        , otherItems = fmap toBreakdownItem value.otherItems
+        , items = fmap (toBreakdownItem classify) value.items
+        , otherItems = fmap (toBreakdownItem classify) value.otherItems
         }
 
-toBreakdownItem :: Analytics.BreakdownItem -> BreakdownItemDto
-toBreakdownItem value = BreakdownItemDto{account = value.account, quantity = decimal value.quantity}
+toBreakdownItem :: AccountTypeClassifier -> Analytics.BreakdownItem -> BreakdownItemDto
+toBreakdownItem classify value =
+    BreakdownItemDto
+        { account = value.account
+        , accountType = accountTypeText <$> classify value.account
+        , quantity = decimal value.quantity
+        }
 
 toPerformance :: Analytics.PerformancePoint -> PerformancePointDto
 toPerformance value =
@@ -313,8 +321,8 @@ toPerformance value =
         , gainLoss = decimal value.gainLoss
         }
 
-toActivityBucket :: Analytics.ActivityBucket -> ActivityBucketDto
-toActivityBucket value =
+toActivityBucket :: AccountTypeClassifier -> Analytics.ActivityBucket -> ActivityBucketDto
+toActivityBucket classify value =
     ActivityBucketDto
         { key = value.key
         , startDate = value.startDate
@@ -322,8 +330,8 @@ toActivityBucket value =
         , increase = decimal value.increase
         , decrease = decimal value.decrease
         , reallocated = decimal value.reallocated
-        , categories = fmap toBreakdownItem value.categories
-        , transactions = fmap toTransactionDto value.transactions
+        , categories = fmap (toBreakdownItem classify) value.categories
+        , transactions = fmap (toTransactionDto classify) value.transactions
         }
 
 granularityText :: Analytics.Granularity -> Text

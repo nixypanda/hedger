@@ -1,5 +1,6 @@
 module Data.Analytics exposing (ActivityBucket, BreakdownItem, Kpi, TimelinePoint)
 
+import Data.AccountType exposing (AccountType)
 import Data.Date exposing (Date)
 import Data.Decimal exposing (Decimal)
 import Data.Transaction exposing (Transaction)
@@ -7,6 +8,7 @@ import Data.Transaction exposing (Transaction)
 
 type alias BreakdownItem =
     { account : String
+    , accountType : Maybe AccountType
     , quantity : Decimal
     }
 

@@ -26,6 +26,7 @@ import Hedger.Domain.Error (AppError)
 import Hedger.Interface.HTTP.Common (
     CommodityQuantity (..),
     ResponseMetadata (..),
+    accountTypeText,
     commodityQuantities,
     parseCanonicalAccountPath,
     parseDay,
@@ -176,17 +177,6 @@ completenessText status = case status of
     Account.Complete -> "complete"
     Account.Partial -> "partial"
     Account.Unavailable -> "unavailable"
-
-accountTypeText :: Hledger.AccountType -> Text
-accountTypeText accountType = case accountType of
-    Hledger.Asset -> "asset"
-    Hledger.Liability -> "liability"
-    Hledger.Equity -> "equity"
-    Hledger.Revenue -> "income"
-    Hledger.Expense -> "expense"
-    Hledger.Cash -> "cash"
-    Hledger.Conversion -> "conversion"
-    Hledger.Gain -> "gain"
 
 toAccountRegisterResponse :: AccountRegister -> AccountRegisterResponse
 toAccountRegisterResponse value =

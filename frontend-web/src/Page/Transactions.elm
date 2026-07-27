@@ -919,7 +919,7 @@ postingPreviewRow : Theme -> Posting -> Element msg
 postingPreviewRow theme posting =
     Element.row [ Element.width Element.fill, Element.spacing 4 ]
         [ Icon.view
-            { icon = AccountPresentation.iconForAccountName posting.account
+            { icon = AccountPresentation.iconForAccount posting.accountType posting.account
             , size = 14
             , color = theme.textMuted
             }

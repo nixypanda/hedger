@@ -1,6 +1,7 @@
 module Hedger.Interface.HTTP.Common (
     CommodityQuantity (..),
     ResponseMetadata (..),
+    accountTypeText,
     commodityQuantities,
     toResponseMetadata,
     runAction,
@@ -118,3 +119,14 @@ toResponseMetadata value =
         , freshness = value.freshness
         , warnings = value.warnings
         }
+
+accountTypeText :: Hledger.AccountType -> Text
+accountTypeText accountType = case accountType of
+    Hledger.Asset -> "asset"
+    Hledger.Liability -> "liability"
+    Hledger.Equity -> "equity"
+    Hledger.Revenue -> "income"
+    Hledger.Expense -> "expense"
+    Hledger.Cash -> "cash"
+    Hledger.Conversion -> "conversion"
+    Hledger.Gain -> "gain"

@@ -22,6 +22,7 @@ module Api.Analytics exposing
 import Api.Json exposing (maybeString, required)
 import Api.Metadata as Metadata exposing (Metadata)
 import Api.Transaction as Transaction
+import Data.AccountType as AccountType
 import Data.Analytics as AnalyticsData exposing (Kpi, TimelinePoint)
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
@@ -272,6 +273,7 @@ breakdownDecoder : Decoder BreakdownItem
 breakdownDecoder =
     Decode.succeed AnalyticsData.BreakdownItem
         |> required "account" Decode.string
+        |> required "accountType" (Decode.nullable AccountType.decoder)
         |> required "quantity" Decimal.decoder
 
 

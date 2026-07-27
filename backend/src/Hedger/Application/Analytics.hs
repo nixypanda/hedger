@@ -37,7 +37,12 @@ import Hledger.Data.Types qualified as Hledger
 import Hledger.Query qualified as HledgerQuery
 
 import Hedger.Application.AppM (AppM, Env (..), requireSnapshot)
-import Hedger.Application.Common (SnapshotMetadata, metadataFor)
+import Hedger.Application.Common (
+    AccountTypeClassifier,
+    SnapshotMetadata,
+    accountTypeClassifier,
+    metadataFor,
+ )
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Activity (
@@ -108,6 +113,7 @@ data NetWorthReport = NetWorthReport
     , performance :: [PerformancePoint]
     , incompletePeriods :: Int
     , warnings :: [ConversionWarning]
+    , classifyAccount :: AccountTypeClassifier
     }
 
 data CashflowReport = CashflowReport
@@ -121,6 +127,7 @@ data CashflowReport = CashflowReport
     , incomeBreakdown :: CategoryBreakdown
     , expenseBreakdown :: CategoryBreakdown
     , warnings :: [ConversionWarning]
+    , classifyAccount :: AccountTypeClassifier
     }
 
 data ActivityBucket = ActivityBucket
@@ -143,6 +150,7 @@ data ActivityReport = ActivityReport
     , fiscalYearStartMonth :: Int
     , buckets :: [ActivityBucket]
     , warnings :: [ConversionWarning]
+    , classifyAccount :: AccountTypeClassifier
     }
 
 -- * Use cases: resolve inputs, call the domain, project figures into read-models.
@@ -180,6 +188,7 @@ netWorth request = do
             , performance = figures.performance
             , incompletePeriods = figures.incompletePeriods
             , warnings = conversionWarnings figures.missing
+            , classifyAccount = accountTypeClassifier snapshot.journal
             }
 
 cashflow :: AnalyticsRequest -> AppM CashflowReport
@@ -212,6 +221,7 @@ cashflow request = do
             , expenseBreakdown =
                 categoryBreakdown figures.expenseBreakdownPeriod figures.expenseBreakdownItems
             , warnings = conversionWarnings figures.missing
+            , classifyAccount = accountTypeClassifier snapshot.journal
             }
 
 activity :: ActivityRequest -> AppM ActivityReport
@@ -246,6 +256,7 @@ activity request = do
             , fiscalYearStartMonth = fiscalStart
             , buckets = fmap toActivityBucket figures.buckets
             , warnings = conversionWarnings figures.missing
+            , classifyAccount = accountTypeClassifier snapshot.journal
             }
 
 -- * Input resolution
