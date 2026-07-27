@@ -25,6 +25,7 @@ import System.Posix.Signals (Handler (Catch), installHandler, sigHUP, sigTERM)
 
 import Hedger.Application.AppM (Env (..))
 import Hedger.Config (Config (..))
+import Hedger.Infrastructure.JournalWatcher (withJournalWatcher)
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotStore,
     loadSnapshot,
@@ -55,11 +56,12 @@ runServer configuration = do
                 . setHost (fromString (Text.unpack configuration.listenAddress))
                 . setPort configuration.listenPort
                 $ defaultSettings
-    runSettings
-        settings
-        ( requestContextMiddleware
-            (redactQueryForLogging RequestLogger.logStdout (coreApplication configuration store))
-        )
+    withJournalWatcher store configuration.journalPath $
+        runSettings
+            settings
+            ( requestContextMiddleware
+                (redactQueryForLogging RequestLogger.logStdout (coreApplication configuration store))
+            )
 
 installShutdownHandler :: IO () -> IO ()
 installShutdownHandler closeSocket = void (installHandler sigTERM (Catch closeSocket) Nothing)

@@ -28,6 +28,13 @@ containing complete transactions and their postings. Reload failures retain
 the last usable snapshot.
 Send the server `SIGHUP` to parse, validate, and atomically publish a replacement.
 
+The server also watches the journal and every file it `include`s and reloads
+automatically when any of them changes on disk. Watching is event-driven (via
+`fsnotify` — FSEvents on macOS, inotify on Linux), so an idle server does no
+polling. The watched set is re-derived from the live snapshot after each reload,
+so newly added or removed `include`s are tracked. `SIGHUP` remains available as
+a manual trigger.
+
 Internally the backend follows a functional-core / imperative-shell design: all
 ledger calculations live as pure functions in `Hedger.Domain.*` (net worth,
 cashflow, activity, investment performance, valuation), behind a thin

@@ -74,6 +74,7 @@
               (haskellPackages.ghcWithPackages (
                 haskell: with haskell; [
                   aeson
+                  fsnotify
                   hedgehog
                   tasty
                   tasty-hedgehog
@@ -125,6 +126,7 @@
           backendGhc = pkgs.haskellPackages.ghcWithPackages (
             haskell: with haskell; [
               aeson
+              fsnotify
               hedgehog
               tasty
               tasty-hedgehog
