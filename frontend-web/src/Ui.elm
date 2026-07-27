@@ -7,57 +7,31 @@ module Ui exposing
     , card
     , cardWith
     , chip
-    , chips
-    , coloredPill
-    , completionDropdown
-    , completionRow
-    , completionRowWithLeading
     , dangerButton
-    , dangerIconButton
     , dateInput
-    , detailRow
-    , disabledIconButton
-    , disabledPrimaryButton
-    , dotSeparated
-    , drawerPanel
     , emptyState
     , errorBanner
     , fieldLabel
     , financialBadge
     , formSection
     , ghostButton
-    , ghostButtonWithLabel
     , hairline
     , iconButton
-    , input
-    , inputWithSuffix
     , isSmall
     , layout
-    , listCard
-    , listRow
     , loading
-    , maybeErrorBanner
-    , modalOverlay
-    , optionRow
-    , optionRowWithLeading
     , pageContainer
     , pageHeader
     , pageHeaderBand
     , periodNavigation
     , primaryButton
-    , removableChip
-    , removableChipWithLeading
     , rowSurfaceAttrs
-    , scrimOverlay
-    , searchInput
     , searchInputInline
     , secondaryButton
     , section
     , segmentedControl
     , segmentedOption
-    , selectDropdown
     , statusBadge
-    , suggestionList
     , truncatedText
     , wideSegmentedControl
     , wrappingStatusBadge
@@ -68,9 +42,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Element.Region as Region
 import Html.Attributes
-import Lib.Text
 import Ui.DesignTokens
     exposing
         ( radiusCard
@@ -94,7 +66,6 @@ import Ui.Typography
         , caption
         , minWidthZero
         , mutedParagraph
-        , sectionTitle
         , subsectionTitle
         , uiClass
         )
@@ -213,64 +184,6 @@ formSection theme title children =
         }
 
 
-listCard : Theme -> { rows : List (Element msg), footer : Maybe (Element msg) } -> Element msg
-listCard theme config =
-    section theme
-        { header = Nothing
-        , body =
-            case config.rows of
-                [] ->
-                    [ Element.el [ Element.width Element.fill, Element.padding space16 ]
-                        (mutedParagraph theme "No items yet.")
-                    ]
-
-                rows ->
-                    List.intersperse (hairline theme) rows
-        , footer = config.footer
-        }
-
-
-listRow :
-    { onSelect : msg
-    , leading : List (Element msg)
-    , title : Element msg
-    , subtitle : List (Element msg)
-    , trailing : List (Element msg)
-    }
-    -> Element msg
-listRow config =
-    Element.wrappedRow
-        [ Element.width Element.fill
-        , Element.padding space16
-        , Element.spacing space12
-        , minWidthZero
-        ]
-        [ Input.button
-            [ Element.width Element.fill
-            , minWidthZero
-            , uiClass "ui-motion"
-            ]
-            { onPress = Just config.onSelect
-            , label =
-                Element.row
-                    [ Element.width Element.fill
-                    , Element.spacing space12
-                    , minWidthZero
-                    ]
-                    [ leadingSlot config.leading
-                    , Element.column
-                        [ Element.width Element.fill
-                        , Element.spacing space4
-                        , Element.alignTop
-                        , minWidthZero
-                        ]
-                        (config.title :: config.subtitle)
-                    ]
-            }
-        , trailingSlot config.trailing
-        ]
-
-
 hairline : Theme -> Element msg
 hairline theme =
     Element.el
@@ -377,11 +290,6 @@ emptyState theme message =
         ]
 
 
-maybeErrorBanner : Theme -> Maybe String -> Element msg
-maybeErrorBanner theme maybeError =
-    Maybe.withDefault Element.none (Maybe.map (errorBanner theme) maybeError)
-
-
 errorBanner : Theme -> String -> Element msg
 errorBanner theme message =
     Element.row
@@ -406,18 +314,6 @@ primaryButton theme config =
         , foreground = Element.rgb255 255 255 255
         , border = theme.primary
         , hoverBackground = theme.primaryPressed
-        }
-
-
-disabledPrimaryButton : Theme -> { label : String } -> Element msg
-disabledPrimaryButton theme config =
-    buttonBase theme
-        { label = Element.text config.label
-        , onPress = Nothing
-        , background = theme.primaryDisabled
-        , foreground = Element.rgb255 255 255 255
-        , border = theme.primaryDisabled
-        , hoverBackground = theme.primaryDisabled
         }
 
 
@@ -490,36 +386,6 @@ backButton device theme config =
         }
 
 
-dangerIconButton : Device -> Theme -> { icon : Icon, title : String, onPress : msg } -> Element msg
-dangerIconButton device theme config =
-    iconButtonBase device
-        theme
-        { icon = config.icon
-        , title = config.title
-        , onPress = Just config.onPress
-        , background = theme.cardBg
-        , foreground = theme.dangerFg
-        , border = theme.dangerFg
-        , hoverBackground = theme.dangerBg
-        , hoverBorder = theme.dangerSolid
-        }
-
-
-disabledIconButton : Theme -> { icon : Icon, title : String } -> Element msg
-disabledIconButton theme config =
-    iconButtonBase { class = Element.Phone, orientation = Element.Portrait }
-        theme
-        { icon = config.icon
-        , title = config.title
-        , onPress = Nothing
-        , background = theme.inputFill
-        , foreground = theme.textMuted
-        , border = theme.divider
-        , hoverBackground = theme.inputFill
-        , hoverBorder = theme.divider
-        }
-
-
 fieldLabel : Theme -> String -> Element msg
 fieldLabel theme label =
     Element.el
@@ -528,23 +394,6 @@ fieldLabel theme label =
         , Font.color theme.textPrimary
         ]
         (Element.text label)
-
-
-input :
-    Theme
-    ->
-        { label : String
-        , value : String
-        , onChange : String -> msg
-        }
-    -> Element msg
-input theme config =
-    Input.text (inputAttrs theme)
-        { onChange = config.onChange
-        , text = config.value
-        , placeholder = Nothing
-        , label = Input.labelAbove [] (fieldLabel theme config.label)
-        }
 
 
 dateInput :
@@ -560,24 +409,6 @@ dateInput theme config =
         (Element.htmlAttribute (Html.Attributes.type_ "date") :: inputAttrs theme)
         { onChange = config.onChange
         , text = config.value
-        , placeholder = Nothing
-        , label = Input.labelAbove [] (fieldLabel theme config.label)
-        }
-
-
-searchInput :
-    Theme
-    ->
-        { label : String
-        , text : String
-        , onChange : String -> msg
-        , extraAttrs : List (Attribute msg)
-        }
-    -> Element msg
-searchInput theme config =
-    Input.text (inputAttrs theme ++ config.extraAttrs)
-        { onChange = config.onChange
-        , text = config.text
         , placeholder = Nothing
         , label = Input.labelAbove [] (fieldLabel theme config.label)
         }
@@ -599,52 +430,6 @@ searchInputInline theme config =
         , placeholder = Nothing
         , label = Input.labelHidden config.label
         }
-
-
-inputWithSuffix :
-    Theme
-    ->
-        { label : String
-        , text : String
-        , suffix : String
-        , onChange : String -> msg
-        }
-    -> Element msg
-inputWithSuffix theme config =
-    Element.column
-        [ Element.width Element.fill
-        , Element.spacing space4
-        ]
-        [ fieldLabel theme config.label
-        , Element.el
-            [ Element.width Element.fill
-            , Element.inFront
-                (Element.el
-                    [ Element.alignRight
-                    , Element.centerY
-                    , Element.paddingEach { top = 0, right = 12, bottom = 0, left = 0 }
-                    , Font.color theme.textMuted
-                    , body
-                    ]
-                    (Element.text config.suffix)
-                )
-            ]
-            (Input.text
-                (Element.paddingEach
-                    { top = 10
-                    , right = 56
-                    , bottom = 10
-                    , left = 10
-                    }
-                    :: inputBaseAttrs theme
-                )
-                { onChange = config.onChange
-                , text = config.text
-                , placeholder = Nothing
-                , label = Input.labelHidden config.label
-                }
-            )
-        ]
 
 
 chip :
@@ -669,28 +454,6 @@ chip theme config =
 
         Nothing ->
             Element.el attrs (Element.text config.label)
-
-
-chips : Theme -> List String -> Element msg
-chips theme labels =
-    if List.isEmpty labels then
-        Element.none
-
-    else
-        Element.wrappedRow
-            [ Element.spacing space8
-            , Element.width Element.fill
-            ]
-            (List.map
-                (\label ->
-                    chip theme
-                        { label = label
-                        , selected = False
-                        , onClick = Nothing
-                        }
-                )
-                labels
-            )
 
 
 segmentedControl : Theme -> List (Element msg) -> Element msg
@@ -800,84 +563,6 @@ segmentedOption theme config =
         { onPress = Just config.onPress
         , label = Element.text config.label
         }
-
-
-removableChip : Device -> Theme -> { label : String, onRemove : msg } -> Element msg
-removableChip device theme config =
-    removableChipWithLeading device
-        theme
-        { leading = Nothing
-        , label = config.label
-        , onRemove = config.onRemove
-        }
-
-
-removableChipWithLeading :
-    Device
-    -> Theme
-    -> { leading : Maybe (Element msg), label : String, onRemove : msg }
-    -> Element msg
-removableChipWithLeading device theme config =
-    let
-        removeSize =
-            if isSmall device then
-                28
-
-            else
-                20
-    in
-    Element.row
-        [ Element.width Element.shrink
-        , Element.htmlAttribute (Html.Attributes.style "flex" "0 1 auto")
-        , Element.htmlAttribute (Html.Attributes.style "max-width" "100%")
-        , Background.color theme.chipBg
-        , Font.color theme.chipFg
-        , Border.rounded radiusPill
-        , Border.width 1
-        , Border.color theme.chipBorder
-        , Element.paddingEach { top = 4, right = 4, bottom = 4, left = 10 }
-        , Element.spacing space8
-        , caption
-        , Font.medium
-        ]
-        [ Element.row
-            [ Element.width Element.shrink
-            , Element.htmlAttribute (Html.Attributes.style "flex" "0 1 auto")
-            , Element.htmlAttribute (Html.Attributes.style "max-width" "100%")
-            , Element.spacing space4
-            , minWidthZero
-            ]
-            (Maybe.map List.singleton config.leading
-                |> Maybe.withDefault []
-                |> (\leading ->
-                        leading
-                            ++ [ Element.el
-                                    [ minWidthZero
-                                    , Element.htmlAttribute (Html.Attributes.style "flex" "0 1 auto")
-                                    , uiClass "ui-text-ellipsis"
-                                    ]
-                                    (Element.text config.label)
-                               ]
-                   )
-            )
-        , Input.button
-            [ Element.width (Element.px removeSize)
-            , Element.height (Element.px removeSize)
-            , Border.rounded radiusPill
-            , Background.color theme.cardBg
-            , Border.width 1
-            , Border.color theme.divider
-            , Element.htmlAttribute (Html.Attributes.title "Remove")
-            ]
-            { onPress = Just config.onRemove
-            , label =
-                Icon.view
-                    { icon = Icon.Close
-                    , size = 14
-                    , color = theme.dangerFg
-                    }
-            }
-        ]
 
 
 coloredPill :
@@ -1008,312 +693,6 @@ statusToneColors theme tone =
             { bg = theme.chipBg, fg = theme.chipFg }
 
 
-modalOverlay :
-    Theme
-    ->
-        { title : String
-        , body : List (Element msg)
-        , actions : Element msg
-        , onBackgroundPress : Maybe msg
-        }
-    -> Element msg
-modalOverlay theme config =
-    Element.el
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Element.inFront
-            (Element.el
-                [ Element.centerX
-                , Element.centerY
-                , Element.width (Element.fill |> Element.maximum 480)
-                , Element.padding space16
-                ]
-                (card theme (sectionTitle theme config.title :: config.body ++ [ config.actions ]))
-            )
-        ]
-        (scrimOverlay config.onBackgroundPress)
-
-
-scrimOverlay : Maybe msg -> Element msg
-scrimOverlay onPress =
-    Input.button
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color (Element.rgba255 0 0 0 0.32)
-        ]
-        { onPress = onPress
-        , label = Element.none
-        }
-
-
-drawerPanel : Theme -> List (Element msg) -> Element msg
-drawerPanel theme children =
-    Element.column
-        [ Element.width (Element.fill |> Element.maximum 320)
-        , Element.height Element.fill
-        , Element.paddingXY space16 10
-        , Element.spacing space12
-        , Background.color theme.cardBg
-        , uiClass "ui-card-shadow ui-surface"
-        , Region.navigation
-        ]
-        children
-
-
-completionDropdown :
-    Theme
-    -> { height : Int, rows : List (Element msg) }
-    -> Element msg
-completionDropdown theme config =
-    optionList theme
-        { maxHeight = Just config.height
-        , rows = config.rows
-        }
-
-
-completionRow :
-    Device
-    -> Theme
-    ->
-        { label : String
-        , trailing : Maybe (Element msg)
-        , onPress : msg
-        }
-    -> Element msg
-completionRow device theme config =
-    completionRowWithLeading device
-        theme
-        { label = config.label
-        , leading = Nothing
-        , trailing = config.trailing
-        , onPress = config.onPress
-        }
-
-
-completionRowWithLeading :
-    Device
-    -> Theme
-    ->
-        { leading : Maybe (Element msg)
-        , label : String
-        , trailing : Maybe (Element msg)
-        , onPress : msg
-        }
-    -> Element msg
-completionRowWithLeading device theme config =
-    optionRowWithLeading device
-        theme
-        { label = config.label
-        , leading = config.leading
-        , trailing = config.trailing
-        , selected = False
-        , onPress = config.onPress
-        }
-
-
-optionRow :
-    Device
-    -> Theme
-    ->
-        { label : String
-        , trailing : Maybe (Element msg)
-        , selected : Bool
-        , onPress : msg
-        }
-    -> Element msg
-optionRow device theme config =
-    optionRowWithLeading device
-        theme
-        { leading = Nothing
-        , label = config.label
-        , trailing = config.trailing
-        , selected = config.selected
-        , onPress = config.onPress
-        }
-
-
-optionRowWithLeading :
-    Device
-    -> Theme
-    ->
-        { leading : Maybe (Element msg)
-        , label : String
-        , trailing : Maybe (Element msg)
-        , selected : Bool
-        , onPress : msg
-        }
-    -> Element msg
-optionRowWithLeading device theme config =
-    let
-        foreground =
-            if config.selected then
-                theme.chipSelectedFg
-
-            else
-                theme.textPrimary
-
-        background =
-            if config.selected then
-                theme.chipSelectedBg
-
-            else
-                theme.cardBg
-    in
-    Input.button
-        [ Element.width Element.fill
-        , Element.paddingXY space12 (smallAware device 12 10)
-        , Border.rounded radiusControl
-        , Background.color background
-        , Font.color foreground
-        , uiClass "ui-motion"
-        , hoverEffect device [ Background.color theme.hoverBg ]
-        ]
-        { onPress = Just config.onPress
-        , label =
-            Element.row
-                [ Element.width Element.fill
-                , Element.spacing space8
-                , minWidthZero
-                ]
-                (Maybe.map List.singleton config.leading
-                    |> Maybe.withDefault []
-                    |> (\leading ->
-                            leading
-                                ++ [ Element.el
-                                        [ Element.width Element.fill
-                                        , Font.medium
-                                        , minWidthZero
-                                        , uiClass "ui-text-ellipsis"
-                                        ]
-                                        (Element.text config.label)
-                                   , Maybe.withDefault Element.none config.trailing
-                                   ]
-                       )
-                )
-        }
-
-
-suggestionList : Theme -> List (Element msg) -> Element msg
-suggestionList theme rows =
-    optionList theme
-        { maxHeight = Nothing
-        , rows = rows
-        }
-
-
-selectDropdown :
-    Device
-    -> Theme
-    ->
-        { label : String
-        , selected : a
-        , options : List ( a, String )
-        , onChange : a -> msg
-        , isOpen : Bool
-        , onToggle : msg
-        }
-    -> Element msg
-selectDropdown device theme config =
-    let
-        selectedLabel =
-            config.options
-                |> List.filter (\( value, _ ) -> value == config.selected)
-                |> List.head
-                |> Maybe.map Tuple.second
-                |> Maybe.withDefault ""
-
-        dropdown =
-            Element.el [ Element.moveDown 4 ]
-                (optionList theme
-                    { maxHeight = Nothing
-                    , rows =
-                        List.map
-                            (\( value, label ) ->
-                                optionRow device
-                                    theme
-                                    { label = label
-                                    , trailing = Nothing
-                                    , selected = value == config.selected
-                                    , onPress = config.onChange value
-                                    }
-                            )
-                            config.options
-                    }
-                )
-
-        anchorAttrs =
-            if config.isOpen then
-                [ Element.width Element.fill, Element.below dropdown ]
-
-            else
-                [ Element.width Element.fill ]
-    in
-    Element.column [ Element.width Element.fill, Element.spacing space4 ]
-        [ fieldLabel theme config.label
-        , Element.el anchorAttrs
-            (Input.button
-                [ Element.width Element.fill
-                , Border.rounded radiusControl
-                , Background.color theme.inputFill
-                , Border.width 1
-                , Border.color theme.divider
-                , Element.padding space12
-                , uiClass "ui-motion"
-                , hoverEffect device [ Border.color theme.primary ]
-                ]
-                { onPress = Just config.onToggle
-                , label =
-                    Element.row
-                        [ Element.width Element.fill
-                        , Element.spacing space8
-                        , minWidthZero
-                        ]
-                        [ Element.el
-                            [ Element.width Element.fill
-                            , Font.color
-                                (if selectedLabel == "" then
-                                    theme.textMuted
-
-                                 else
-                                    theme.textPrimary
-                                )
-                            , minWidthZero
-                            ]
-                            (Element.text
-                                (if selectedLabel == "" then
-                                    "Select..."
-
-                                 else
-                                    selectedLabel
-                                )
-                            )
-                        , Icon.view
-                            { icon =
-                                if config.isOpen then
-                                    Icon.ChevronUp
-
-                                else
-                                    Icon.ChevronDown
-                            , size = 18
-                            , color = theme.textMuted
-                            }
-                        ]
-                }
-            )
-        ]
-
-
-detailRow : Theme -> String -> Element msg -> Element msg
-detailRow theme label value =
-    Element.row
-        [ Element.spacing space4
-        , Element.width Element.fill
-        ]
-        [ Element.el [ Font.color theme.textMedium, caption ] (Element.text (label ++ ":"))
-        , Element.el [ Element.width Element.fill, minWidthZero ] value
-        ]
-
-
 rowSurfaceAttrs : Theme -> Bool -> List (Attribute msg)
 rowSurfaceAttrs theme selected =
     [ Element.width Element.fill
@@ -1354,11 +733,6 @@ accentDot color =
         Element.none
 
 
-dotSeparated : List (Maybe String) -> String
-dotSeparated =
-    Lib.Text.dotSeparated
-
-
 optionalWithDivider : Theme -> Maybe (Element msg) -> List (Element msg)
 optionalWithDivider theme maybeElement =
     case maybeElement of
@@ -1377,36 +751,6 @@ optionalFooter theme maybeElement =
 
         Nothing ->
             []
-
-
-leadingSlot : List (Element msg) -> Element msg
-leadingSlot leading =
-    Element.el
-        [ Element.width (Element.px 12)
-        , Element.paddingEach { top = space2, right = 0, bottom = 0, left = 0 }
-        , Element.alignTop
-        ]
-        (case leading of
-            first :: _ ->
-                first
-
-            [] ->
-                Element.none
-        )
-
-
-trailingSlot : List (Element msg) -> Element msg
-trailingSlot trailing =
-    if List.isEmpty trailing then
-        Element.none
-
-    else
-        Element.row
-            [ Element.spacing space12
-            , Element.alignTop
-            , Element.paddingEach { top = space8, right = 0, bottom = 0, left = 0 }
-            ]
-            trailing
 
 
 buttonBase :
@@ -1533,38 +877,6 @@ chipAttrs theme selected =
     ]
 
 
-optionList :
-    Theme
-    -> { maxHeight : Maybe Int, rows : List (Element msg) }
-    -> Element msg
-optionList theme config =
-    if List.isEmpty config.rows then
-        Element.none
-
-    else
-        Element.column
-            ([ Element.width Element.fill
-             , Element.spacing space2
-             , Element.padding space4
-             , Border.rounded radiusControl
-             , Background.color theme.cardBg
-             , Border.width 1
-             , Border.color theme.divider
-             , uiClass "ui-card-shadow ui-surface"
-             ]
-                ++ (case config.maxHeight of
-                        Just height ->
-                            [ Element.height (Element.px height)
-                            , Element.scrollbarY
-                            ]
-
-                        Nothing ->
-                            []
-                   )
-            )
-            config.rows
-
-
 hoverEffect : Device -> List Element.Decoration -> Attribute msg
 hoverEffect device attrs =
     if isSmall device then
@@ -1572,12 +884,3 @@ hoverEffect device attrs =
 
     else
         Element.mouseOver attrs
-
-
-smallAware : Device -> Int -> Int -> Int
-smallAware device phoneValue desktopValue =
-    if isSmall device then
-        phoneValue
-
-    else
-        desktopValue
