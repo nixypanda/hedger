@@ -8,6 +8,7 @@ module View.Formatting exposing
     , roundedString
     )
 
+import Char
 import Data.Decimal as Decimal
 import Data.Quantity as Quantity exposing (Quantity)
 
@@ -102,8 +103,20 @@ formatAmountDisplay symbol amount =
 
         ( value, suffix ) =
             compactValue symbol absoluteAmount
+
+        separator =
+            case String.right 1 symbol |> String.uncons of
+                Just ( c, "" ) ->
+                    if Char.isAlpha c then
+                        " "
+
+                    else
+                        ""
+
+                _ ->
+                    ""
     in
-    sign ++ symbol ++ value ++ suffix
+    sign ++ symbol ++ separator ++ value ++ suffix
 
 
 compactValue : String -> Float -> ( String, String )

@@ -39,6 +39,7 @@ type alias Theme =
     , successSolid : Color
     , warningBg : Color
     , warningFg : Color
+    , warningSolid : Color
     , selectedBg : Color
     , hoverBg : Color
     , focusRing : Color
@@ -91,6 +92,7 @@ light =
     , successSolid = rgb255 5 150 105
     , warningBg = rgb255 255 251 235
     , warningFg = rgb255 146 64 14
+    , warningSolid = rgb255 245 158 11
     , selectedBg = rgb255 239 233 255
     , hoverBg = rgb255 247 244 255
     , focusRing = rgb255 124 58 237
@@ -154,6 +156,7 @@ dark =
     , successSolid = rgb255 52 211 153
     , warningBg = rgb255 71 50 20
     , warningFg = rgb255 251 191 36
+    , warningSolid = rgb255 251 191 36
     , selectedBg = rgb255 30 58 95
     , hoverBg = rgb255 39 51 73
     , focusRing = rgb255 96 165 250

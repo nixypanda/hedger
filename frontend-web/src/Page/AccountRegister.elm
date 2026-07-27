@@ -393,7 +393,7 @@ registerHeader theme device model =
                     )
                 ]
             , Element.column [ Element.width Element.fill, Element.spacing 8, Typography.minWidthZero ]
-                [ Typography.pageTitle theme (breakAccountPath account)
+                [ Typography.delimitedPageTitle theme ":" account
                 , Typography.mutedParagraph theme "Account register"
                 ]
             ]
@@ -401,7 +401,7 @@ registerHeader theme device model =
     else
         Ui.pageHeader theme
             { leading = Just (Ui.backButton device theme { onPress = BackToAccounts })
-            , title = Typography.pageTitle theme account
+            , title = Typography.delimitedPageTitle theme ":" account
             , subtitle = Just "Account register"
             , actions =
                 [ Ui.iconButton device
@@ -409,11 +409,6 @@ registerHeader theme device model =
                     { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                 ]
             }
-
-
-breakAccountPath : String -> String
-breakAccountPath =
-    String.replace ":" ":\u{200B}"
 
 
 filters : Theme -> Model -> Element Msg
@@ -574,21 +569,13 @@ entryRow theme device model commodity entry =
                             [ description
                             , chevron
                             ]
-                        , Element.row
+                        , Element.column
                             [ Element.width Element.fill
-                            , Element.spacing 12
+                            , Element.spacing 4
                             , Typography.minWidthZero
                             ]
-                            [ Element.el
-                                [ Element.width (Element.fillPortion 1)
-                                , Typography.minWidthZero
-                                ]
-                                amount
-                            , Element.el
-                                [ Element.width (Element.fillPortion 1)
-                                , Typography.minWidthZero
-                                ]
-                                balance
+                            [ labeledValue theme "Amount" amount
+                            , labeledValue theme "Balance" balance
                             ]
                         ]
 
@@ -609,6 +596,19 @@ entryRow theme device model commodity entry =
 
     else
         rowContent
+
+
+labeledValue : Theme -> String -> Element msg -> Element msg
+labeledValue theme label valueEl =
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing 8
+        , Typography.minWidthZero
+        ]
+        [ Element.text label
+            |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+        , Element.el [ Element.width Element.fill, Typography.minWidthZero ] valueEl
+        ]
 
 
 valueDisplay : Theme -> Device -> String -> Bool -> Value -> Element msg

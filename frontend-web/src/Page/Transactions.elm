@@ -832,7 +832,7 @@ transactionRow theme device selected transaction =
     let
         rowContent =
             Element.column
-                (Ui.rowSurfaceAttrs theme (selected == Just transaction) ++ [ Element.spacing 6 ])
+                (Ui.rowSurfaceAttrs theme (selected == Just transaction) ++ [ Element.spacing 8 ])
                 [ if Ui.isSmall device then
                     phonePrimaryRow theme transaction
 
@@ -862,8 +862,8 @@ transactionRow theme device selected transaction =
 
 desktopPrimaryRow : Theme -> Transaction -> Element msg
 desktopPrimaryRow theme transaction =
-    Element.row [ Element.width Element.fill, Element.spacing 8 ]
-        [ Element.el [ Typography.rowDate, Font.color theme.textMuted, Element.width (Element.px 90) ]
+    Element.row [ Element.width Element.fill, Element.spacing 12 ]
+        [ Element.el [ Typography.rowDate, Font.color theme.textMuted, Element.width (Element.px 92) ]
             (Element.text (Date.toString transaction.primaryDate))
         , Element.el
             [ Typography.rowTitle

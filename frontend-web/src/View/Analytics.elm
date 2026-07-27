@@ -1102,14 +1102,12 @@ activityTransactionList theme device title transactions onSelect =
                                     , Element.spacing 14
                                     , Element.paddingXY 4 10
                                     ]
-                                    [ Element.el [ Font.color theme.textMuted, Font.size 15 ]
-                                        (Element.text (Date.toString transaction.primaryDate))
-                                    , Element.el
+                                    [ Element.paragraph
                                         [ Element.width Element.fill
                                         , Typography.minWidthZero
                                         , Font.size 15
                                         ]
-                                        (Element.text transaction.description)
+                                        [ Element.text transaction.description ]
                                     , Element.text "›"
                                     ]
                             }

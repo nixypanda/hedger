@@ -700,7 +700,14 @@ detailBalance theme balance =
         , Element.spacing 8
         ]
         [ Element.text (Quantity.commodity balance)
-            |> Element.el [ Element.width (Element.fillPortion 1), Font.color theme.textMedium ]
+            |> Element.el
+                [ Element.width Element.fill
+                , Typography.minWidthZero
+                , Element.clip
+                , Element.htmlAttribute (Html.Attributes.style "white-space" "nowrap")
+                , Element.htmlAttribute (Html.Attributes.style "text-overflow" "ellipsis")
+                , Font.color theme.textMedium
+                ]
         , Element.text (Formatting.formatBalance balance)
             |> Element.el [ Element.alignRight, Font.semiBold, Font.color theme.textPrimary ]
         ]

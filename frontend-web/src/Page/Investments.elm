@@ -528,10 +528,10 @@ allocationPerformanceColor theme current target =
                     clamp 0 1 (deviation / 15)
             in
             if distance <= 0.5 then
-                mixColor theme.positive theme.warningFg (distance * 2)
+                mixColor theme.positive theme.warningSolid (distance * 2)
 
             else
-                mixColor theme.warningFg theme.negative ((distance - 0.5) * 2)
+                mixColor theme.warningSolid theme.negative ((distance - 0.5) * 2)
 
 
 mixColor : Element.Color -> Element.Color -> Float -> Element.Color
