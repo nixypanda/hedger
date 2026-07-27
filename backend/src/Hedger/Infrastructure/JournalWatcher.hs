@@ -31,7 +31,7 @@ where
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, writeTVar)
 import Control.Exception (finally)
-import Control.Monad (forever, void, when)
+import Control.Monad (forever, when)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (nub)
 import Data.Map.Strict (Map)
@@ -40,6 +40,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import System.Directory qualified as Directory
 import System.FSNotify (
     Event,
@@ -52,6 +53,7 @@ import System.FilePath (takeDirectory)
 
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
+    SnapshotLoadError (..),
     SnapshotStore,
     readCurrentSnapshot,
     reloadSnapshot,
@@ -94,8 +96,16 @@ runReloader store journalPath manager watchedDirs targets requestReload wakeRelo
         -- covered by the reload below; any that arrive afterwards set it again
         -- and drive a fresh cycle, so no change is missed.
         atomically (writeTVar wakeReloader False)
-        void (reloadSnapshot store journalPath)
+        result <- reloadSnapshot store journalPath
+        Text.putStrLn (reloadMessage result)
         reconcileWatches manager store journalPath watchedDirs targets requestReload
+
+reloadMessage :: Either SnapshotLoadError Snapshot -> Text
+reloadMessage result = case result of
+    Right snapshot ->
+        "Reloaded journal after a file change (revision " <> snapshot.revision <> ")."
+    Left (JournalReadFailed problem) ->
+        "Journal reload after a file change failed; keeping the previous snapshot: " <> problem
 
 reconcileWatches ::
     WatchManager ->
