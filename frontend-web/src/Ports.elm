@@ -1,5 +1,6 @@
 port module Ports exposing
     ( configLoaded
+    , journalChanged
     , promptInstall
     , promptInstallReady
     , registerServiceWorker
@@ -22,6 +23,9 @@ port registerServiceWorker : () -> Cmd msg
 
 
 port swStatus : (String -> msg) -> Sub msg
+
+
+port journalChanged : (String -> msg) -> Sub msg
 
 
 port promptInstallReady : (() -> msg) -> Sub msg

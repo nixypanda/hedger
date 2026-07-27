@@ -114,6 +114,7 @@ type Msg
     | Resized Int Int
     | BootstrapLoaded (Result ApiError Bootstrap)
     | RefreshBootstrap
+    | JournalChanged String
     | ConfigLoaded Decode.Value
     | PwaMsg Pwa.Msg
     | GotPageMsg Page.Msg
@@ -165,6 +166,28 @@ update msg model =
         RefreshBootstrap ->
             ( { model | bootstrap = RemoteData.beginLoading model.bootstrap }
             , Api.getBootstrap BootstrapLoaded
+            )
+
+        JournalChanged _ ->
+            let
+                ( pageModel, pageCmd, outMsg ) =
+                    Page.init
+                        (pageContext model.route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
+                        (Just model.page)
+
+                ( finalModel, outCmd ) =
+                    applyPageOutMsg outMsg
+                        { model
+                            | page = pageModel
+                            , bootstrap = RemoteData.beginLoading model.bootstrap
+                        }
+            in
+            ( finalModel
+            , Cmd.batch
+                [ Cmd.map GotPageMsg pageCmd
+                , outCmd
+                , Api.getBootstrap BootstrapLoaded
+                ]
             )
 
         ConfigLoaded value ->
@@ -411,6 +434,7 @@ subscriptions _ =
     Sub.batch
         [ Browser.Events.onResize Resized
         , Ports.configLoaded ConfigLoaded
+        , Ports.journalChanged JournalChanged
         , Ports.swStatus (Pwa.SwStatus >> PwaMsg)
         , Ports.promptInstallReady (\_ -> PwaMsg Pwa.PromptInstallReady)
         ]

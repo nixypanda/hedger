@@ -52,3 +52,8 @@ app.ports.skipWaiting.subscribe(() => waitingWorker?.postMessage({ type: "SKIP_W
 let deferredPrompt;
 addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); deferredPrompt = event; app.ports.promptInstallReady.send(null); });
 app.ports.promptInstall.subscribe(() => { if (deferredPrompt) deferredPrompt.prompt().finally(() => { deferredPrompt = null; }); });
+
+// The backend streams a "revision" event whenever the ledger is reloaded on
+// disk. EventSource reconnects on its own, so no retry logic is needed here.
+const journalEvents = new EventSource("/api/v1/events");
+journalEvents.addEventListener("revision", (event) => app.ports.journalChanged.send(event.data));

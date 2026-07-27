@@ -35,6 +35,11 @@ polling. The watched set is re-derived from the live snapshot after each reload,
 so newly added or removed `include`s are tracked. `SIGHUP` remains available as
 a manual trigger.
 
+On each reload the server publishes the new snapshot revision on a Server-Sent
+Events stream at `/api/v1/events`. The frontend subscribes to it and refreshes
+the current view in place when the revision changes, so edits to the journal
+show up in the browser without a manual reload.
+
 Internally the backend follows a functional-core / imperative-shell design: all
 ledger calculations live as pure functions in `Hedger.Domain.*` (net worth,
 cashflow, activity, investment performance, valuation), behind a thin
