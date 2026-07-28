@@ -97,10 +97,16 @@ investments request = do
     let commodity = fromMaybe config.defaultDisplayCommodity (request.displayCommodity >>= nonEmpty)
         latest = fromMaybe epoch snapshot.latestJournalDate
         summaryFor selectedScope selectedDay =
-            summaryAt snapshot config.investmentMappings commodity selectedScope selectedDay
+            summaryAt
+                snapshot
+                config.assetClassMappings
+                config.investmentMappings
+                commodity
+                selectedScope
+                selectedDay
         current = summaryFor scope latest
         hasInvestments = current.summary.marketValue /= Nothing || current.summary.purchaseCost /= Nothing
-        dataTransactions = investmentDataTransactions snapshot config.investmentMappings scope
+        dataTransactions = investmentDataTransactions snapshot config.assetClassMappings scope
         points =
             if hasInvestments
                 then
@@ -108,7 +114,7 @@ investments request = do
                     | (key, start, end) <- reportPeriods request.granularity dataTransactions latest
                     ]
                 else []
-        childAccounts = immediateChildren snapshot config.investmentMappings scope
+        childAccounts = immediateChildren snapshot config.assetClassMappings scope
         children = fmap childReport childAccounts
         allocations =
             if scope == Nothing
@@ -128,7 +134,7 @@ investments request = do
                     , hasChildren =
                         not
                             ( null
-                                (immediateChildren snapshot config.investmentMappings (Just child))
+                                (immediateChildren snapshot config.assetClassMappings (Just child))
                             )
                     , assetClass = Investment.assetClassForAccount child config.assetClassMappings
                     , allocationPercentage =

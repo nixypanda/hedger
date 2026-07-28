@@ -138,7 +138,7 @@ investments:
 | `defaultDisplayCommodity`| `--display-commodity C` | `display.commodity`           | `INR`     |
 | `fiscalYearStartMonth`   | `--fiscal-year-start M` | `display.fiscalYearStartMonth`| `4`       |
 | `investmentMappings`     | (none)                  | `investments.gainMappings`    | empty     |
-| `assetClassMappings`     | (none)                  | `investments.assetClasses`    | empty (`other`) |
+| `assetClassMappings`     | (none)                  | `investments.assetClasses`    | empty portfolio |
 
 ### Validation
 
@@ -151,6 +151,10 @@ investments:
   a child account out of a broader parent mapping.
 - Asset-class mappings use `equity`, `debt`, `cash`, `gold`, `hybrid`,
   `property`, or `other`.
+- Asset-class account prefixes form the Investments portfolio allowlist.
+  Configured prefixes include all descendants; omitted asset accounts do not
+  contribute to investment holdings, performance, allocation, or drilldown.
+  An empty list therefore produces an empty Investments view.
 - Every asset-class mapping requires a qualified `assets:` account prefix.
   Duplicate and component-prefix-overlapping mappings are rejected.
 - `targetPercent` is optional. When any asset-class targets are configured,
@@ -270,7 +274,8 @@ POST /api/v1/investments/query -> InvestmentsResponse
 ```
 
 Supports account-prefix drilldown, monthly/yearly granularity, and breadcrumb
-navigation.
+navigation within the account prefixes configured under
+`investments.assetClasses`.
 
 ## Error Shape
 

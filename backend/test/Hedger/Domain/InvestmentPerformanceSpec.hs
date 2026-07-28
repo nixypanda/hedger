@@ -10,10 +10,15 @@ import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Domain.Investment (
+    AssetClass (Cash, Equity),
+    AssetClassMapping (..),
+    AssetClassMappings,
     InvestmentMapping (..),
     PerformanceAccount (..),
     PerformanceRole (Fee, Interest, RealisedGain),
+    emptyAssetClassMappings,
     emptyInvestmentMappings,
+    mkAssetClassMappings,
     mkInvestmentMappings,
  )
 import Hedger.Domain.InvestmentPerformance (
@@ -51,6 +56,7 @@ investmentsSpec =
             "XIRR cash flows cancel reinvestment and transfers while retaining external income and fees"
             externalCashFlows
         , testCase "investment summary reports annualised XIRR instead of absolute return" summaryXirr
+        , testCase "asset-class configuration is the investment portfolio allowlist" assetClassAllowlist
         , testCase "settled accounts have complete empty summaries" settledAccount
         , testCase "monthly periods include months without transactions" contiguousMonthlyPeriods
         ]
@@ -67,6 +73,7 @@ retainedFdInterest = do
             let summary =
                     investmentSummaryAt
                         snapshot
+                        testAssetClasses
                         mappings
                         "INR"
                         (Just "assets:investments:fd:hdfc")
@@ -103,6 +110,7 @@ descendantFdInterest = do
             let summary =
                     investmentSummaryAt
                         snapshot
+                        testAssetClasses
                         mappings
                         "INR"
                         (Just "assets:investments:fd:hdfc")
@@ -138,6 +146,7 @@ partialDisposal = do
             let summary =
                     investmentSummaryAt
                         snapshot
+                        testAssetClasses
                         mappings
                         "INR"
                         (Just "assets:investments:equity:xyz")
@@ -145,6 +154,7 @@ partialDisposal = do
                 flows =
                     externalCashFlowsAt
                         snapshot
+                        testAssetClasses
                         mappings
                         "INR"
                         (Just "assets:investments:equity:xyz")
@@ -171,6 +181,7 @@ foreignAcquisitionCost = do
             let summary =
                     investmentSummaryAt
                         snapshot
+                        testAssetClasses
                         mappings
                         "INR"
                         (Just "assets:investments:equity:foreign")
@@ -193,6 +204,7 @@ foreignCashHistoricalCost = do
             let summary =
                     investmentSummaryAt
                         snapshot
+                        testAssetClasses
                         mappings
                         "INR"
                         (Just "assets:cash:brokerage")
@@ -230,6 +242,7 @@ externalCashFlows = do
             let flows =
                     externalCashFlowsAt
                         snapshot
+                        testAssetClasses
                         mappings
                         "INR"
                         (Just "assets:investments:fund")
@@ -255,11 +268,40 @@ summaryXirr = do
             let summary =
                     investmentSummaryAt
                         snapshot
+                        testAssetClasses
                         mappings
                         "INR"
                         (Just "assets:investments:fund")
                         (fromGregorian 2025 6 1)
             assertAnnualRate "summary XIRR" summary.xirr 0.2 0.3
+
+assetClassAllowlist :: IO ()
+assetClassAllowlist = do
+    snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
+    assetClasses <-
+        case mkAssetClassMappings
+            [AssetClassMapping Equity ["assets:investments:equity:xyz"] Nothing] of
+            Left message -> assertFailure (show message) >> pure emptyAssetClassMappings
+            Right value -> pure value
+    mappings <- case mkInvestmentMappings [equityMapping] of
+        Left message -> assertFailure (show message) >> pure emptyInvestmentMappings
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let summary =
+                    investmentSummaryAt
+                        snapshot
+                        assetClasses
+                        mappings
+                        "INR"
+                        Nothing
+                        (fromGregorian 2026 3 31)
+            assertEqual "only the configured account contributes market value" (Just 900) summary.marketValue
+            assertEqual
+                "only the configured account contributes purchase cost"
+                (Just 600)
+                summary.purchaseCost
 
 settledAccount :: IO ()
 settledAccount = do
@@ -272,6 +314,7 @@ settledAccount = do
                 Complete
                 ( investmentSummaryAt
                     snapshot
+                    testAssetClasses
                     emptyInvestmentMappings
                     "INR"
                     (Just "assets:investments:equity:xyz")
@@ -321,3 +364,12 @@ equityMapping =
         { assetAccount = "assets:investments:equity:xyz"
         , performanceAccounts = [PerformanceAccount "income:investments:xyz:gains" RealisedGain]
         }
+
+testAssetClasses :: AssetClassMappings
+testAssetClasses =
+    case mkAssetClassMappings
+        [ AssetClassMapping Equity ["assets:investments"] Nothing
+        , AssetClassMapping Cash ["assets:cash:brokerage"] Nothing
+        ] of
+        Left _ -> emptyAssetClassMappings
+        Right value -> value

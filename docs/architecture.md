@@ -129,7 +129,7 @@ Composition root and server startup.
 
 CLI and YAML configuration parsed once at startup. Fields: `journalPath`,
 `listenAddress`, `listenPort`, `defaultDisplayCommodity`,
-`fiscalYearStartMonth`, `investmentMappings`.
+`fiscalYearStartMonth`, `investmentMappings`, `assetClassMappings`.
 
 ## Snapshot System
 

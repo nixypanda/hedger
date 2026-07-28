@@ -23,7 +23,14 @@ import Network.Wai.Test (
 import Test.Tasty.HUnit (assertBool)
 
 import Hedger.Config (Config (..))
-import Hedger.Domain.Investment (emptyAssetClassMappings, emptyInvestmentMappings)
+import Hedger.Domain.Investment (
+    AssetClass (Equity),
+    AssetClassMapping (..),
+    AssetClassMappings,
+    emptyAssetClassMappings,
+    emptyInvestmentMappings,
+    mkAssetClassMappings,
+ )
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 
 configuration :: Config
@@ -35,8 +42,15 @@ configuration =
         , defaultDisplayCommodity = "INR"
         , fiscalYearStartMonth = 4
         , investmentMappings = emptyInvestmentMappings
-        , assetClassMappings = emptyAssetClassMappings
+        , assetClassMappings = configuredAssetClasses
         }
+
+configuredAssetClasses :: AssetClassMappings
+configuredAssetClasses =
+    either
+        (const emptyAssetClassMappings)
+        id
+        (mkAssetClassMappings [AssetClassMapping Equity ["assets:investments"] Nothing])
 
 loadedStore :: IO SnapshotStore
 loadedStore = do

@@ -194,12 +194,20 @@ investmentsProjection app = do
                 [ "granularity" .= ("monthly" :: String)
                 , "accountPrefix" .= ("assets:cash" :: String)
                 ]
-    (_, assetRootRaw) <- postJson "/api/v1/investments/query" (Aeson.encode assetRootRequest) app
-    assertEqual "any asset root is accepted" status200 assetRootRaw.simpleStatus
+    (Just assetRootResponse, assetRootRaw) <-
+        postJson "/api/v1/investments/query" (Aeson.encode assetRootRequest) app
+    assertEqual "an omitted asset root is accepted" status200 assetRootRaw.simpleStatus
+    case field "summary" assetRootResponse of
+        Just omittedSummary ->
+            assertEqual
+                "an omitted asset root has no investment market value"
+                (Just Null)
+                (field "marketValue" omittedSummary)
+        _ -> assertFailure "expected omitted asset summary"
 
 hasAssetClassAndAllocation :: Value -> Bool
 hasAssetClassAndAllocation child =
-    field "assetClass" child == Just (String "other")
+    field "assetClass" child == Just (String "equity")
         && field "allocationPercentage" child /= Nothing
 
 analyticsRequest :: String -> Value

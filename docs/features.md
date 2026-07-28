@@ -167,7 +167,9 @@ Investment calculations support:
 - Gain/loss decomposition: attributed income, realised gain, unrealised gain.
 - Return percentage only for positive, complete cost basis.
 - Account-prefix drilldown with breadcrumb navigation.
-- All `assets:` roots participate without requiring gain mappings.
+- `investments.assetClasses` is the portfolio allowlist; configured account
+  prefixes and their descendants participate without requiring gain mappings.
+- Asset accounts omitted from `investments.assetClasses` are ignored.
 - Structured warnings for missing prices, missing costs, missing performance
   mappings, and foreign costs.
 

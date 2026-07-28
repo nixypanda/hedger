@@ -99,9 +99,11 @@ Configure one instance per ledger:
 The module creates `/var/lib/hedger/personal` as `root:hedger-personal` with
 mode `0750`. Provision the journal tree there with group-readable files. For a
 journal managed elsewhere, set `supplementaryGroups` to a group that can read
-the complete include tree. `configFile` may point to a version-1 YAML file when
-investment gain mappings are needed; the instance options still control the
-journal, listener, and display defaults.
+the complete include tree. `configFile` may point to a version-1 YAML file for
+investment portfolio and gain mappings; the instance options still control
+the journal, listener, and display defaults. The configured
+`investments.assetClasses` account prefixes define which accounts appear in
+the Investments view.
 
 The backend listens only on `127.0.0.1`. nginx preserves `/api/*`, prevents API
 errors from falling through to the PWA, provides SPA route fallback elsewhere,

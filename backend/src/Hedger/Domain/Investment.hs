@@ -8,6 +8,8 @@ module Hedger.Domain.Investment (
     PerformanceRole (..),
     assetClassForAccount,
     assetClassMappingsList,
+    isAssetClassAccount,
+    assetClassScopeOverlaps,
     emptyAssetClassMappings,
     emptyInvestmentMappings,
     mkAssetClassMappings,
@@ -115,6 +117,18 @@ assetClassForAccount account (AssetClassMappings mappings) =
          ] of
         assetClass : _ -> assetClass
         [] -> Other
+
+isAssetClassAccount :: Text -> AssetClassMappings -> Bool
+isAssetClassAccount account (AssetClassMappings mappings) =
+    any
+        (\prefix -> prefix `accountWithin` account)
+        (concatMap (.accountPrefixes) mappings)
+
+assetClassScopeOverlaps :: Text -> AssetClassMappings -> Bool
+assetClassScopeOverlaps account (AssetClassMappings mappings) =
+    any
+        (\prefix -> prefix `accountWithin` account || account `accountWithin` prefix)
+        (concatMap (.accountPrefixes) mappings)
 
 mkInvestmentMappings :: [InvestmentMapping] -> Either Text InvestmentMappings
 mkInvestmentMappings mappings
