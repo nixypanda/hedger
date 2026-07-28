@@ -26,7 +26,6 @@ import Api.Error as ApiError exposing (ApiError)
 import Api.Register exposing (Entry, Response, Value)
 import Data.Completeness exposing (Completeness(..))
 import Data.Date as Date
-import Data.Decimal as Decimal
 import Data.Paginated as Paginated exposing (Paginated)
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Device, Element)
@@ -710,5 +709,6 @@ rawRow theme quantity =
         ]
         [ Element.text (Quantity.commodity quantity)
             |> Element.el [ Element.width Element.fill, Font.color theme.textMedium ]
-        , Element.text (Decimal.toString (Quantity.quantity quantity)) |> Element.el [ Font.semiBold ]
+        , Element.text (Formatting.formatFullValue (Quantity.quantity quantity))
+            |> Element.el [ Font.semiBold ]
         ]

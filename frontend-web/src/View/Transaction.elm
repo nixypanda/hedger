@@ -1,7 +1,6 @@
 module View.Transaction exposing (amountsText, classificationLabel, classificationTone, transactionDetail)
 
 import Data.Date as Date
-import Data.Decimal as Decimal
 import Data.Status as Status
 import Data.Transaction exposing (Amount, Posting, Tag, Transaction)
 import Element exposing (Element)
@@ -11,6 +10,7 @@ import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
+import View.Formatting as Formatting
 
 
 classificationTone : String -> Ui.FinancialTone
@@ -214,9 +214,7 @@ postingAmountLine theme amount =
                       else
                         "Unit cost "
                      )
-                        ++ Decimal.toString cost.quantity
-                        ++ " "
-                        ++ cost.commodity
+                        ++ Formatting.formatFullAmount cost.commodity cost.quantity
                     )
 
             Nothing ->
@@ -236,7 +234,7 @@ tagsText =
 
 amountText : Amount -> String
 amountText amount =
-    Decimal.toString amount.quantity ++ " " ++ amount.commodity
+    Formatting.formatFullAmount amount.commodity amount.quantity
 
 
 amountsText : List Amount -> String
