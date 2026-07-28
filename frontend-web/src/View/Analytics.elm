@@ -225,23 +225,21 @@ positiveNegativeTimelineChart theme config =
         , selectedPoint
             |> Maybe.map
                 (\point ->
-                    Ui.wrappingStatusBadge theme
-                        Ui.StatusPrimary
-                        ("Selected "
-                            ++ periodName point.period
-                            ++ ": "
-                            ++ String.toLower config.positiveLabel
-                            ++ " "
-                            ++ money config.commodity point.positive
-                            ++ ", "
-                            ++ String.toLower config.negativeLabel
-                            ++ " "
-                            ++ money config.commodity point.negative
-                            ++ ", "
-                            ++ String.toLower config.netLabel
-                            ++ " "
-                            ++ money config.commodity point.net
-                        )
+                    selectedPeriodDetails theme
+                        (periodName point.period)
+                        [ { label = config.positiveLabel
+                          , value = money config.commodity point.positive
+                          , color = theme.positive
+                          }
+                        , { label = config.negativeLabel
+                          , value = money config.commodity point.negative
+                          , color = theme.negative
+                          }
+                        , { label = config.netLabel
+                          , value = money config.commodity point.net
+                          , color = theme.primary
+                          }
+                        ]
                 )
             |> Maybe.withDefault Element.none
         ]
@@ -316,32 +314,77 @@ netWorthPerformanceChart theme config =
                         gainLoss =
                             decimalFloat point.gainLoss
 
-                        label =
+                        gainLossLabel =
                             if gainLoss >= 0 then
-                                "gain "
+                                "Gain"
 
                             else
-                                "loss "
-                    in
-                    Ui.wrappingStatusBadge theme
-                        (if gainLoss >= 0 then
-                            Ui.StatusSuccess
+                                "Loss"
 
-                         else
-                            Ui.StatusDanger
-                        )
-                        ("Selected "
-                            ++ periodName point.period
-                            ++ ": net investment "
-                            ++ money config.commodity point.netInvestment
-                            ++ ", net worth "
-                            ++ money config.commodity point.netWorth
-                            ++ ", "
-                            ++ label
-                            ++ moneyFloat config.commodity (abs gainLoss)
-                        )
+                        gainLossColor =
+                            if gainLoss >= 0 then
+                                theme.positive
+
+                            else
+                                theme.negative
+                    in
+                    selectedPeriodDetails theme
+                        (periodName point.period)
+                        [ { label = "Net investment"
+                          , value = money config.commodity point.netInvestment
+                          , color = theme.positive
+                          }
+                        , { label = "Net worth"
+                          , value = money config.commodity point.netWorth
+                          , color = theme.primary
+                          }
+                        , { label = gainLossLabel
+                          , value = moneyFloat config.commodity (abs gainLoss)
+                          , color = gainLossColor
+                          }
+                        ]
                 )
             |> Maybe.withDefault Element.none
+        ]
+
+
+selectedPeriodDetails :
+    Theme
+    -> String
+    -> List { label : String, value : String, color : Element.Color }
+    -> Element msg
+selectedPeriodDetails theme period metrics =
+    Element.column
+        [ Element.width Element.fill
+        , Element.spacing 8
+        , Element.padding 12
+        , Background.color theme.primarySoft
+        ]
+        [ Element.el [ Font.semiBold ] (Element.text period)
+        , Element.wrappedRow
+            [ Element.width Element.fill
+            , Element.spacing 18
+            ]
+            (List.map (selectedPeriodMetric theme) metrics)
+        ]
+
+
+selectedPeriodMetric :
+    Theme
+    -> { label : String, value : String, color : Element.Color }
+    -> Element msg
+selectedPeriodMetric theme metric =
+    Element.column
+        [ Element.spacing 4
+        , Element.width (Element.fillPortion 1)
+        ]
+        [ Typography.mutedCaption theme metric.label
+        , Element.el
+            [ Typography.financeNumber
+            , Font.semiBold
+            , Font.color metric.color
+            ]
+            (Element.text metric.value)
         ]
 
 
