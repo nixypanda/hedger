@@ -12,6 +12,7 @@ module Hedger.Infrastructure.SnapshotStore (
 where
 
 import Control.Applicative ((<|>))
+import Control.Concurrent.MVar (MVar, newMVar, withMVar)
 import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, readTVarIO, writeTVar)
 import Control.Exception (SomeAsyncException, SomeException, displayException, fromException, tryJust)
 import Crypto.Hash.MD5 qualified as MD5
@@ -38,40 +39,47 @@ data SnapshotState = SnapshotState
     , lastReloadError :: Maybe SnapshotLoadError
     }
 
-data SnapshotStore = SnapshotStore (IORef SnapshotState) (TVar Text)
+{- | The @IORef@ snapshot and the @TVar@ revision are only ever written together
+while holding @updateLock@, so a reader never observes a revision published
+for a different reload than the snapshot it accompanies.
+-}
+data SnapshotStore = SnapshotStore (IORef SnapshotState) (TVar Text) (MVar ())
 
 newSnapshotStore :: IO SnapshotStore
 newSnapshotStore =
     SnapshotStore
         <$> newIORef SnapshotState{currentSnapshot = Nothing, lastReloadError = Nothing}
         <*> newTVarIO ""
+        <*> newMVar ()
 
 readCurrentSnapshot :: SnapshotStore -> IO (Maybe Snapshot)
-readCurrentSnapshot (SnapshotStore stateReference _) = (.currentSnapshot) <$> readIORef stateReference
+readCurrentSnapshot (SnapshotStore stateReference _ _) = (.currentSnapshot) <$> readIORef stateReference
 
 readLastReloadError :: SnapshotStore -> IO (Maybe SnapshotLoadError)
-readLastReloadError (SnapshotStore stateReference _) = (.lastReloadError) <$> readIORef stateReference
+readLastReloadError (SnapshotStore stateReference _ _) = (.lastReloadError) <$> readIORef stateReference
 
 reloadSnapshot :: SnapshotStore -> Text -> IO (Either SnapshotLoadError Snapshot)
-reloadSnapshot (SnapshotStore stateReference revisionVar) path = do
+reloadSnapshot (SnapshotStore stateReference revisionVar updateLock) path = do
     result <- loadSnapshot path
-    atomicModifyIORef' stateReference $ \state ->
+    withMVar updateLock $ \_ -> do
+        atomicModifyIORef' stateReference $ \state ->
+            case result of
+                Left loadError -> (state{lastReloadError = Just loadError}, ())
+                Right snapshot ->
+                    (SnapshotState{currentSnapshot = Just snapshot, lastReloadError = Nothing}, ())
         case result of
-            Left loadError -> (state{lastReloadError = Just loadError}, ())
-            Right snapshot -> (SnapshotState{currentSnapshot = Just snapshot, lastReloadError = Nothing}, ())
-    case result of
-        Right snapshot -> atomically (writeTVar revisionVar snapshot.revision)
-        Left _ -> pure ()
+            Right snapshot -> atomically (writeTVar revisionVar snapshot.revision)
+            Left _ -> pure ()
     pure result
 
 -- | The revision currently published, or @""@ before the first successful load.
 currentRevision :: SnapshotStore -> IO Text
-currentRevision (SnapshotStore _ revisionVar) = readTVarIO revisionVar
+currentRevision (SnapshotStore _ revisionVar _) = readTVarIO revisionVar
 
 -- Blocks until a revision different from @seen@ is published, so a caller can
 -- react to reloads without polling.
 awaitRevisionChange :: SnapshotStore -> Text -> IO Text
-awaitRevisionChange (SnapshotStore _ revisionVar) seen =
+awaitRevisionChange (SnapshotStore _ revisionVar _) seen =
     atomically $ do
         revision <- readTVar revisionVar
         check (revision /= seen)
