@@ -20,7 +20,7 @@ type alias ErrorDetails =
 
 decoder : Decoder ApiError
 decoder =
-    Decode.field "errorPayload" <|
+    Decode.field "error" <|
         Decode.map4 ApiError
             (Decode.field "code" Decode.string)
             (Decode.field "message" Decode.string)

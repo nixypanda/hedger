@@ -80,7 +80,7 @@ suite =
             \_ ->
                 Decode.decodeString ApiError.decoder
                     """
-                    {"errorPayload":{"code":"journal_unavailable",
+                    {"error":{"code":"journal_unavailable",
                     "message":"No snapshot",
                     "requestId":"req-1",
                     "details":null}}
