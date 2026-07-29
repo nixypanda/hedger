@@ -6,12 +6,19 @@ module Hedger.Application.AppM (
 )
 where
 
+import Control.Exception (
+    SomeAsyncException,
+    evaluate,
+    fromException,
+    throwIO,
+    try,
+ )
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 
 import Hedger.Config (Config (..))
-import Hedger.Domain.Error (AppError (JournalUnavailable))
+import Hedger.Domain.Error (AppError (InternalError, JournalUnavailable))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, readCurrentSnapshot)
 
@@ -23,7 +30,17 @@ data Env = Env
 type AppM = ReaderT Env (ExceptT AppError IO)
 
 runAppM :: Env -> AppM value -> IO (Either AppError value)
-runAppM environment action = runExceptT (runReaderT action environment)
+runAppM environment action = do
+    result <- try (runExceptT (runReaderT action environment) >>= evaluate)
+    case result of
+        Right value -> pure value
+        Left e
+            | isAsynchronous e -> throwIO e
+            | otherwise -> pure (Left InternalError)
+  where
+    isAsynchronous e = case fromException e :: Maybe SomeAsyncException of
+        Just _ -> True
+        Nothing -> False
 
 requireSnapshot :: AppM Snapshot
 requireSnapshot = do

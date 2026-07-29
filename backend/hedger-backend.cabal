@@ -128,6 +128,7 @@ test-suite hedger-backend-test
   main-is: Main.hs
   hs-source-dirs: test
   other-modules:
+    Hedger.Application.AppMSpec
     Hedger.Application.TransactionQuerySpec
     Hedger.Domain.AccountSpec
     Hedger.Domain.ActivitySpec
