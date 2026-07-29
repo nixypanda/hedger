@@ -23,6 +23,7 @@ Three cases need care and are handled here:
 parent directory and filter events down to the exact set of journal files.
 -}
 module Hedger.Infrastructure.JournalWatcher (
+    guardReloaderStep,
     watchTargets,
     withJournalWatcher,
 )
@@ -30,7 +31,15 @@ where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, writeTVar)
-import Control.Exception (finally)
+import Control.Exception (
+    SomeAsyncException,
+    SomeException,
+    displayException,
+    finally,
+    fromException,
+    throwIO,
+    try,
+ )
 import Control.Monad (forever, when)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (nub)
@@ -79,6 +88,11 @@ withJournalWatcher store journalPath action =
             forkIO (runReloader store journalPath manager watchedDirs targets requestReload wakeReloader)
         action `finally` killThread reloader
 
+{- | Runs 'reloadCycle' forever, guarding each iteration with 'guardReloaderStep'
+so a synchronous exception (e.g. a watched path vanishing mid-reconcile during
+an atomic-rename storm) is logged and the loop keeps going instead of the
+reloader thread dying silently.
+-}
 runReloader ::
     SnapshotStore ->
     Text ->
@@ -89,16 +103,52 @@ runReloader ::
     TVar Bool ->
     IO ()
 runReloader store journalPath manager watchedDirs targets requestReload wakeReloader =
-    forever $ do
-        atomically (readTVar wakeReloader >>= check)
-        threadDelay debounceMicroseconds
-        -- Clear the flag so events coalesced during the debounce window are
-        -- covered by the reload below; any that arrive afterwards set it again
-        -- and drive a fresh cycle, so no change is missed.
-        atomically (writeTVar wakeReloader False)
-        result <- reloadSnapshot store journalPath
-        Text.putStrLn (reloadMessage result)
-        reconcileWatches manager store journalPath watchedDirs targets requestReload
+    forever (guardReloaderStep step)
+  where
+    step = reloadCycle store journalPath manager watchedDirs targets requestReload wakeReloader
+
+reloadCycle ::
+    SnapshotStore ->
+    Text ->
+    WatchManager ->
+    IORef (Map FilePath (IO ())) ->
+    IORef (Set FilePath) ->
+    IO () ->
+    TVar Bool ->
+    IO ()
+reloadCycle store journalPath manager watchedDirs targets requestReload wakeReloader = do
+    atomically (readTVar wakeReloader >>= check)
+    threadDelay debounceMicroseconds
+    -- Clear the flag so events coalesced during the debounce window are
+    -- covered by the reload below; any that arrive afterwards set it again
+    -- and drive a fresh cycle, so no change is missed.
+    atomically (writeTVar wakeReloader False)
+    result <- reloadSnapshot store journalPath
+    Text.putStrLn (reloadMessage result)
+    reconcileWatches manager store journalPath watchedDirs targets requestReload
+
+{- | Runs an action, catching and logging a synchronous exception so the
+caller (the reloader's @forever@ loop) can continue instead of dying.
+Asynchronous exceptions — notably the @ThreadKilled@ that 'withJournalWatcher'
+delivers via @killThread@ to stop the watcher — are rethrown untouched so the
+reloader thread stays killable.
+-}
+guardReloaderStep :: IO () -> IO ()
+guardReloaderStep action = do
+    outcome <- try action
+    case outcome of
+        Right () -> pure ()
+        Left exception
+            | isAsynchronous exception -> throwIO exception
+            | otherwise ->
+                Text.putStrLn
+                    ("Journal watcher reconcile failed; retrying: " <> Text.pack (displayException exception))
+
+isAsynchronous :: SomeException -> Bool
+isAsynchronous exception =
+    case fromException exception :: Maybe SomeAsyncException of
+        Just _ -> True
+        Nothing -> False
 
 reloadMessage :: Either SnapshotLoadError Snapshot -> Text
 reloadMessage result = case result of
