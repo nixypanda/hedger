@@ -75,6 +75,11 @@ check-contracts:
 serve-backend:
     cabal run hedger-server -- --config ../hedger.example.yaml
 
+[working-directory("backend")]
+serve-backend-real:
+    cabal run hedger-server -- --config '/Users/nixypanda/Library/Mobile Documents/com~apple~CloudDocs/Money/ledger/hedger/hedger-mine.yaml' --journal '/Users/nixypanda/Library/Mobile Documents/com~apple~CloudDocs/Money/ledger/journals/main-mine.journal'
+
+
 [working-directory("frontend-web")]
 serve-frontend:
     npm run dev

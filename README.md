@@ -1,121 +1,71 @@
 # Hedger
 
-Hedger is a backend-backed, read-only replica of eLedger. The repository has
-completed Phase 2 of the implementation roadmap.
+Hedger is a responsive, read-only personal finance dashboard for
+[hledger](https://hledger.org/) journals.
 
-```sh
+## Features
+
+### Net worth
+
+Net worth, asset, and liability KPIs; monthly and yearly performance charts;
+account composition; activity calendars; and transaction drill-down.
+
+![Desktop Net Worth dashboard](docs/images/readme/net-worth-desktop.png)
+
+### Investments
+
+Portfolio value, XIRR, total profit, target allocation, account drill-down,
+value and return history, and realised/unrealised gain analysis.
+
+![Tablet Investments dashboard](docs/images/readme/investments-tablet.png)
+
+### Cashflow
+
+hledger query filtering, income/expense timelines, category composition, and
+monthly or fiscal-year activity.
+
+![Desktop Cashflow dashboard](docs/images/readme/cashflow-desktop.png)
+
+![Monthly income and expense composition with daily activity calendars](docs/images/readme/cashflow-month-analysis-desktop.png)
+
+![Fiscal-year income and expense composition with monthly activity](docs/images/readme/cashflow-year-analysis-desktop.png)
+
+### Accounts and transactions
+
+Expandable account trees, direct and subtree balances, account registers,
+month-grouped transactions, complete postings, query filtering, and cursor
+pagination.
+
+![Mobile Transactions view](docs/images/readme/transactions-mobile.png)
+
+Hedger is an installable PWA with desktop, tablet, and mobile layouts,
+light/dark themes, automatic journal reloads, and live frontend refresh.
+
+## Run the example
+
+Start the backend with `hedger.example.yaml`:
+
+```console
 nix develop
-just check
-just serve
+just serve-backend
 ```
 
-The API contract is in `contracts/openapi.json`; Release 1 decisions are in
-`docs/api-decisions.md`; and the shared synthetic journal is in
-`backend/test/fixtures/shared.journal`.
+Start the frontend in another terminal:
 
-Pass a YAML configuration with `hedger-server --config hedger.yaml`; the
-supported shape is documented in `hedger.example.yaml`. Journal, server, and
-display settings may also be passed as command-line options, which take
-precedence over YAML. Investment gain mappings are YAML-only. Run
-`hedger-server --help` for the command-line options. The journal is always
-supplied as a runtime path and is never embedded in the Nix package.
-
-Release 1 uses the stock WAI access logger. Possible future structured logging
-requirements are recorded in `docs/future-logging.md`.
-
-The backend parses the configured journal into an immutable hledger snapshot
-containing complete transactions and their postings. Reload failures retain
-the last usable snapshot.
-Send the server `SIGHUP` to parse, validate, and atomically publish a replacement.
-
-The server also watches the journal and every file it `include`s and reloads
-automatically when any of them changes on disk. Watching is event-driven (via
-`fsnotify` — FSEvents on macOS, inotify on Linux), so an idle server does no
-polling. The watched set is re-derived from the live snapshot after each reload,
-so newly added or removed `include`s are tracked. `SIGHUP` remains available as
-a manual trigger.
-
-On each reload the server publishes the new snapshot revision on a Server-Sent
-Events stream at `/api/v1/events`. The frontend subscribes to it and refreshes
-the current view in place when the revision changes, so edits to the journal
-show up in the browser without a manual reload.
-
-Internally the backend follows a functional-core / imperative-shell design: all
-ledger calculations live as pure functions in `Hedger.Domain.*` (net worth,
-cashflow, activity, investment performance, valuation), behind a thin
-application/query layer and a Servant HTTP layer. See `AGENTS.md` for the module
-layout and layering rules.
-
-## NixOS deployment
-
-The flake exports:
-
-- `packages.<system>.hedger-backend` — the Haskell server;
-- `packages.<system>.hedger-frontend` — the production PWA in
-  `share/hedger/`;
-- `nixosModules.default` — the `services.hedger` NixOS module.
-
-The module runs each ledger as a dedicated system user and serves its frontend
-and `/api/*` backend under one nginx origin. It does not copy journals into the
-Nix store. Add the flake and module to a NixOS host:
-
-```nix
-{
-  inputs.hedger.url = "github:nixypanda/hedger";
-  inputs.hedger.inputs.nixpkgs.follows = "nixpkgs";
-
-  outputs = { nixpkgs, hedger, ... }: {
-    nixosConfigurations.homelab = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        hedger.nixosModules.default
-        ./hosts/homelab
-      ];
-    };
-  };
-}
+```console
+nix develop
+just serve-frontend
 ```
 
-Configure one instance per ledger:
+Open <http://localhost:1234>. The example portfolio and all displayed data are
+synthetic.
 
-```nix
-{
-  services.hedger = {
-    openFirewall = true;
-    instances.personal = {
-      enable = true;
-      hostName = "ledger.example.net";
-      journalPath = "/var/lib/hedger/personal/main.journal";
-      port = 8080;
-      defaultCommodity = "INR";
-      fiscalYearStartMonth = 4;
-      enableACME = true;
-      forceSSL = true;
-    };
-  };
-}
-```
+## Documentation
 
-The module creates `/var/lib/hedger/personal` as `root:hedger-personal` with
-mode `0750`. Provision the journal tree there with group-readable files. For a
-journal managed elsewhere, set `supplementaryGroups` to a group that can read
-the complete include tree. `configFile` may point to a version-1 YAML file for
-investment portfolio and gain mappings; the instance options still control
-the journal, listener, and display defaults. The configured
-`investments.assetClasses` account prefixes define which accounts appear in
-the Investments view.
-
-The backend listens only on `127.0.0.1`. nginx preserves `/api/*`, prevents API
-errors from falling through to the PWA, provides SPA route fallback elsewhere,
-and marks hashed assets immutable. Set `openFirewall = false` when an upstream
-proxy owns ingress. Authentication remains a deployment concern; merge access
-control into `services.nginx.virtualHosts.<host>` or use `nginxExtraConfig`.
-
-Useful operations for the example instance are:
-
-```sh
-systemctl status hedger-personal
-systemctl reload hedger-personal
-journalctl -u hedger-personal
-curl --fail https://ledger.example.net/api/v1/health/ready
-```
+- [Configuration example](hedger.example.yaml)
+- [Feature reference](docs/features.md)
+- [Architecture](docs/architecture.md)
+- [Backend](docs/backend.md)
+- [Frontend](docs/frontend.md)
+- [OpenAPI contract](contracts/openapi.json)
+- [NixOS deployment](docs/nixos-deployment.md)
