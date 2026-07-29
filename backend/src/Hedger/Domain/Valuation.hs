@@ -49,12 +49,18 @@ valueMixedAt snapshot commodity day =
     Account.valueAt (Account.mkValuationContext snapshot.journal commodity day)
 
 {- | Sum the display-commodity components of an already-valued amount, recording
-any foreign commodities as missing.
+any non-negligible foreign commodities as missing.
 -}
 conversionFromMixed :: Text -> Hledger.MixedAmount -> Conversion Decimal
 conversionFromMixed commodity amount =
     let projected = HledgerAmount.amountsRaw amount
-        missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
+        missing =
+            Set.fromList
+                [ item.acommodity
+                | item <- projected
+                , abs item.aquantity >= negligibleQuantity
+                , item.acommodity /= commodity
+                ]
      in Conversion
             { value = Just (sum [item.aquantity | item <- projected, item.acommodity == commodity])
             , missing
@@ -65,7 +71,13 @@ convertMixedAt :: Snapshot -> Text -> Day -> Hledger.MixedAmount -> Conversion D
 convertMixedAt snapshot commodity day amount =
     let valued = valueMixedAt snapshot commodity day amount
         projected = HledgerAmount.amountsRaw valued
-        missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
+        missing =
+            Set.fromList
+                [ item.acommodity
+                | item <- projected
+                , abs item.aquantity >= negligibleQuantity
+                , item.acommodity /= commodity
+                ]
      in Conversion
             { value = if Set.null missing then Just (sum (fmap (.aquantity) projected)) else Nothing
             , missing
@@ -98,8 +110,12 @@ completeDecimal commodity amount
     | Set.null missing = Just (sum [item.aquantity | item <- projected])
     | otherwise = Nothing
   where
-    projected = filter ((>= 0.000001) . abs . (.aquantity)) (HledgerAmount.amountsRaw amount)
+    projected = filter ((>= negligibleQuantity) . abs . (.aquantity)) (HledgerAmount.amountsRaw amount)
     missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
+
+-- | Quantities smaller than this are treated as rounding dust, not a real balance.
+negligibleQuantity :: Decimal
+negligibleQuantity = 0.000001
 
 {- | A structured data-quality condition: the display-commodity conversion was
 incomplete for these commodities. Rendering to prose is a boundary concern.
@@ -113,6 +129,6 @@ missingCommodities commodity amount =
     Set.fromList
         [ item.acommodity
         | item <- HledgerAmount.amountsRaw amount
-        , abs item.aquantity >= 0.000001
+        , abs item.aquantity >= negligibleQuantity
         , item.acommodity /= commodity
         ]

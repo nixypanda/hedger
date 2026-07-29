@@ -1,0 +1,13 @@
+commodity INR
+
+2024-01-01 Contribute to investment
+    assets:investments:ambiguous          INR 1000
+    assets:cash:checking                 INR -1000
+
+2025-01-01 Withdraw from investment
+    assets:cash:checking                  INR 2300
+    assets:investments:ambiguous          INR -2300
+
+2026-01-01 Contribute to investment
+    assets:investments:ambiguous          INR 1320
+    assets:cash:checking                 INR -1320

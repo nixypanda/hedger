@@ -42,7 +42,7 @@ files may add to or override them within their directory.
   - `OverloadedRecordDot`.
   - `OverloadedStrings`.
   - `RecordWildCards`.
-  - `TemplateHaskell` for Aeson derivation.
+  - `DeriveAnyClass` for Aeson derivation.
 - Add another extension to the shared Cabal list only when it is used broadly.
   Keep a genuinely local extension in the module that needs it.
 
@@ -75,9 +75,12 @@ files may add to or override them within their directory.
 - Define command-line configuration with `optparse-applicative`. Keep parsing,
   environment fallback, defaults, and validation testable without executing the
   process parser.
-- Derive Aeson encoders and decoders with `Data.Aeson.TH` (`deriveJSON`) rather
-  than handwritten instances. Put wire-name transformations in the derivation
-  options and cover them with golden or round-trip tests.
+- Derive Aeson encoders and decoders with `deriving anyclass (ToJSON, FromJSON)`
+  (via `Generic`) rather than handwritten instances or Template Haskell. Wire
+  names follow the Haskell record field names, so when a wire name must differ
+  from an idiomatic Haskell name, name the field to match the wire (for example
+  the error envelope's `error` field). Cover shapes with golden or round-trip
+  tests.
 - Return complete transaction DTOs, including postings, in transaction list
   responses. Do not introduce transaction summary/detail endpoint pairs or
   Hedger-specific transaction identifiers; the frontend uses the selected

@@ -7,6 +7,7 @@ import Hedgehog (Gen, Property, assert, failure, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (assertEqual, testCase)
 import Test.Tasty.Hedgehog (testProperty)
 
 import Hledger.Data.Amount (amountsRaw, mixed, num)
@@ -44,6 +45,9 @@ valuationSpec =
             , testProperty
                 "value is the sum of quantities when nothing is missing"
                 conversionFromMixedSumWhenComplete
+            , testCase
+                "a sub-epsilon foreign residual is not flagged missing"
+                conversionFromMixedIgnoresDustResidual
             ]
         , testGroup
             "foldMapConversion"
@@ -139,8 +143,9 @@ conversionFromMixedMissing = property $ do
     assert (displayCommodity `Set.notMember` missing)
     -- everything reported missing is a foreign commodity that is actually present
     assert (all (\commodity -> commodity /= displayCommodity && commodity `elem` commodities) missing)
-    -- nothing is missing exactly when every component is already the display commodity
-    Set.null missing === all (== displayCommodity) commodities
+    -- conversionFromMixed and missingCommodities agree on which commodities are missing,
+    -- so a non-negligible foreign commodity is missing and a dust residual is not
+    missing === missingCommodities displayCommodity amount
 
 conversionFromMixedSumWhenComplete :: Property
 conversionFromMixedSumWhenComplete = property $ do
@@ -148,6 +153,24 @@ conversionFromMixedSumWhenComplete = property $ do
     let conversion = conversionFromMixed displayCommodity amount
         expected = sum [item.aquantity | item <- amountsRaw amount]
     conversion.value === Just (expected :: Decimal)
+
+{- | A foreign-commodity residual below the 1e-6 magnitude epsilon that
+'completeDecimal' and 'missingCommodities' ignore should not appear in
+'conversionFromMixed''s missing set either; today it has no epsilon at all,
+so this dust component is spuriously flagged missing.
+-}
+conversionFromMixedIgnoresDustResidual :: IO ()
+conversionFromMixedIgnoresDustResidual =
+    let amount =
+            mixed
+                [ (num 500000){Hledger.acommodity = displayCommodity}
+                , (num 0.0000004){Hledger.acommodity = "EUR"}
+                ]
+        conversion = conversionFromMixed displayCommodity amount
+     in assertEqual
+            "a sub-1e-6 foreign residual should not be reported as missing"
+            Set.empty
+            conversion.missing
 
 -- foldMapConversion
 

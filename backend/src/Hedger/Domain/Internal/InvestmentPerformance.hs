@@ -90,6 +90,8 @@ data WarningKind
       MissingPerformanceMapping
     | -- | Acquisition cost is in a foreign commodity (display commodity, symbol).
       ForeignCost Text Text
+    | -- | The XIRR could not be resolved to a single, convergent rate.
+      UnresolvedReturn
     deriving stock (Eq, Show)
 
 data SummaryResult = SummaryResult
@@ -155,10 +157,12 @@ summaryAt snapshot assetClasses mappings commodity scope day =
         realised = attributed >>= (Just . (\(_, value, _) -> value))
         fees = attributed >>= (Just . (\(_, _, value) -> value))
         total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
-        annualisedReturn =
+        xirrResult =
             if mappingComplete
                 then xirrAt snapshot assetClasses mappings commodity scope day market
                 else Nothing
+        annualisedReturn = xirrResult >>= either (const Nothing) Just
+        unresolvedReturn = maybe False (either isNonTrivialXirrError (const False)) xirrResult
         missingValue = missingCommodities commodity valueRaw
         missingCost = missingCommodities commodity costValued <> rawMissingCost
         warnings =
@@ -173,6 +177,9 @@ summaryAt snapshot assetClasses mappings commodity scope day =
                    ]
                 <> [ InvestmentWarning (ForeignCost commodity symbol) scope
                    | symbol <- Set.toList foreignCost
+                   ]
+                <> [ InvestmentWarning UnresolvedReturn scope
+                   | unresolvedReturn
                    ]
         complete =
             if market == Nothing && cost == Nothing
@@ -476,6 +483,11 @@ externalCashFlowsAt snapshot assetClasses mappings commodity scope day =
             )
             selectedMappings
 
+{- | The terminal XIRR, exposing the underlying 'Xirr.XirrError' when the rate
+could not be resolved so that callers can distinguish a genuine ambiguity from
+plain data insufficiency. 'Nothing' means the cash flows or terminal value
+were themselves unavailable, so no rate could even be attempted.
+-}
 xirrAt ::
     Snapshot ->
     Investment.AssetClassMappings ->
@@ -484,12 +496,23 @@ xirrAt ::
     Maybe Text ->
     Day ->
     Maybe Decimal ->
-    Maybe Decimal
+    Maybe (Either Xirr.XirrError Decimal)
 xirrAt snapshot assetClasses mappings commodity scope day terminalMarket = do
     flows <- externalCashFlowsAt snapshot assetClasses mappings commodity scope day
     terminal <- terminalMarket
-    annualRate <- either (const Nothing) Just (Xirr.xirr (flows <> [Xirr.cashFlow day terminal]))
-    pure (Xirr.annualRate annualRate)
+    pure (Xirr.annualRate <$> Xirr.xirr (flows <> [Xirr.cashFlow day terminal]))
+
+{- | Whether an 'Xirr.XirrError' represents a genuine ambiguity or failure to
+converge, as opposed to the ordinary "not enough data" cases that should stay
+silent.
+-}
+isNonTrivialXirrError :: Xirr.XirrError -> Bool
+isNonTrivialXirrError err = case err of
+    Xirr.InsufficientCashFlows -> False
+    Xirr.CashFlowsDoNotChangeSign -> False
+    Xirr.CashFlowOutsideNumericalRange -> True
+    Xirr.NoConvergentRate -> True
+    Xirr.AmbiguousRates -> True
 
 transactionMatchesScope :: Maybe Text -> Investment.InvestmentMapping -> Hledger.Transaction -> Bool
 transactionMatchesScope scope mapping transaction = case scope of

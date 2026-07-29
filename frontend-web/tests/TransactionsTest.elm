@@ -260,7 +260,7 @@ suite =
             \_ ->
                 Decode.decodeString ApiError.decoder
                     """
-                    {"errorPayload":{"code":"invalid_query",
+                    {"error":{"code":"invalid_query",
                     "message":"The query is invalid.",
                     "requestId":"request-1",
                     "details":{"reason":"expected a closing parenthesis",

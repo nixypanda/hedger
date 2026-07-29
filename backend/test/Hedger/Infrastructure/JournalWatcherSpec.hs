@@ -1,17 +1,19 @@
 module Hedger.Infrastructure.JournalWatcherSpec (journalWatcherSpec) where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (bracket)
+import Control.Exception (AsyncException (ThreadKilled), SomeException, bracket, throwIO, try)
 import Control.Monad (when)
+import Data.Either (isRight)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import System.Directory qualified as Directory
 import System.FilePath ((</>))
+import System.IO.Error (userError)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
+import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.JournalWatcher (watchTargets, withJournalWatcher)
+import Hedger.Infrastructure.JournalWatcher (guardReloaderStep, watchTargets, withJournalWatcher)
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotStore,
     newSnapshotStore,
@@ -27,6 +29,12 @@ journalWatcherSpec =
         , testCase "watches every file the journal includes" watchesIncludedFiles
         , testCase "reloads the snapshot when the root journal changes" reloadsOnChange
         , testCase "reloads the snapshot when an included file changes" reloadsOnIncludedChange
+        , testCase
+            "guardReloaderStep logs and swallows a synchronous exception"
+            guardReloaderStepSwallowsSynchronousException
+        , testCase
+            "guardReloaderStep rethrows an asynchronous exception"
+            guardReloaderStepRethrowsAsynchronousException
         ]
 
 watchesRootOnly :: IO ()
@@ -80,6 +88,38 @@ reloadsOnIncludedChange =
             appendFile includedPath ("\n" <> thirdTransaction <> "\n")
             changed <- waitForRevisionChange store revisionBefore
             assertBool "the watcher should reload after an included file changes" changed
+
+{- | Regression test for the reloader dying silently on a transient error.
+
+@runReloader@ used to run its whole body (reconcile included) inside a bare
+@forever@ with no exception handler: a watched file or directory vanishing
+mid-reconcile (an editor's atomic-rename) could throw, killing the reloader
+thread outright and leaving the server serving a stale snapshot forever with
+no further warning.
+
+The fix wraps each iteration in 'guardReloaderStep', the exact guard
+'runReloader' uses in production, so this test exercises the guard directly
+rather than trying to force a genuine filesystem race (which would make the
+test flaky by construction). A synchronous exception should be caught,
+logged, and swallowed so the loop can continue.
+-}
+guardReloaderStepSwallowsSynchronousException :: IO ()
+guardReloaderStepSwallowsSynchronousException = do
+    outcome <- try (guardReloaderStep (throwIO (userError "boom"))) :: IO (Either SomeException ())
+    assertBool "a synchronous exception should be caught and logged, not rethrown" (isRight outcome)
+
+{- | The watcher is stopped via @killThread@, which delivers 'ThreadKilled' (an
+asynchronous exception). 'guardReloaderStep' must let it propagate, or the
+reloader thread becomes unkillable and 'withJournalWatcher' can no longer
+tear it down.
+-}
+guardReloaderStepRethrowsAsynchronousException :: IO ()
+guardReloaderStepRethrowsAsynchronousException = do
+    outcome <- try (guardReloaderStep (throwIO ThreadKilled)) :: IO (Either AsyncException ())
+    case outcome of
+        Left ThreadKilled -> pure ()
+        Left other -> assertFailure ("expected ThreadKilled, got: " <> show other)
+        Right () -> assertFailure "an asynchronous exception should not be swallowed"
 
 currentRevision :: SnapshotStore -> IO (Maybe Text)
 currentRevision store = fmap (.revision) <$> readCurrentSnapshot store
