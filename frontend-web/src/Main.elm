@@ -283,10 +283,6 @@ view model =
 
 pageView : Theme -> Model -> Element Msg
 pageView theme model =
-    let
-        device =
-            Element.classifyDevice model.viewport
-    in
     if isRealPage model.route then
         Element.map GotPageMsg
             (Page.view (pageContext model.route model.viewport theme model.preferences.themeMode) model.page)
@@ -296,14 +292,14 @@ pageView theme model =
             [ Element.width Element.fill
             , Element.htmlAttribute (Html.Attributes.class "page-scroll")
             ]
-            [ Ui.pageHeaderBand theme device <|
+            [ Ui.pageHeaderBand theme <|
                 Ui.pageHeader theme
                     { leading = Nothing
                     , title = Typography.pageTitle theme (pageTitle model.route)
                     , subtitle = Nothing
                     , actions = []
                     }
-            , Ui.pageContainer device <|
+            , Ui.pageContainer <|
                 bootstrapStatus theme model.bootstrap
                     :: placeholder theme model.route
             ]

@@ -33,7 +33,7 @@ import Data.Freshness exposing (Freshness(..))
 import Data.Paginated as Paginated exposing (Paginated)
 import Data.Revision as Revision
 import Data.Transaction exposing (Posting, Transaction)
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
@@ -44,6 +44,7 @@ import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
+import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -490,44 +491,44 @@ view :
     -> Element Msg
 view theme viewport model =
     let
-        device =
-            Element.classifyDevice viewport
-
         response =
             visibleResponse model
 
         currentSelection =
             selectedTransaction model
 
+        compact =
+            Responsive.isCompact (Responsive.contentLayout viewport)
+
         wideSelected =
-            viewport.width >= 1000 && currentSelection /= Nothing
+            Responsive.usesMasterDetail viewport && currentSelection /= Nothing
     in
     if wideSelected then
         case ( response, currentSelection ) of
             ( Just current, Just selected ) ->
-                wideLayout theme device model current selected
+                wideLayout theme model current selected
 
             _ ->
-                listPage theme device model
+                listPage theme compact model
 
-    else if currentSelection /= Nothing && Ui.isSmall device then
+    else if currentSelection /= Nothing then
         case currentSelection of
             Just selected ->
-                detailPage theme device (Just Back) selected
+                detailPage theme (Just Back) selected
 
             Nothing ->
-                listPage theme device model
+                listPage theme compact model
 
     else
-        listPage theme device model
+        listPage theme compact model
 
 
 listPage :
     Theme
-    -> Device
+    -> Bool
     -> Model
     -> Element Msg
-listPage theme device model =
+listPage theme compact model =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -535,22 +536,21 @@ listPage theme device model =
         , Element.scrollbarY
         , Element.htmlAttribute (Html.Attributes.class "page-scroll transactions-page")
         ]
-        [ transactionsHeader theme device
-        , Ui.pageContainer device
-            [ queryPanel theme device model
-            , remoteContent theme device model
+        [ transactionsHeader theme
+        , Ui.pageContainer
+            [ queryPanel theme compact model
+            , remoteContent theme compact model
             ]
         ]
 
 
 wideLayout :
     Theme
-    -> Device
     -> Model
     -> Response
     -> Transaction
     -> Element Msg
-wideLayout theme device model response selected =
+wideLayout theme model response selected =
     Element.row
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -564,13 +564,13 @@ wideLayout theme device model response selected =
             , Background.color theme.pageBg
             , Element.htmlAttribute (Html.Attributes.class "transactions-master-pane transactions-page")
             ]
-            [ transactionsHeader theme device
-            , Ui.pageContainer device
-                [ queryPanel theme device model
+            [ transactionsHeader theme
+            , Ui.pageContainer
+                [ queryPanel theme True model
                 , remoteNotice theme (remoteData model) response
                 , transactionCount theme response.transactions
                 , transactionsList theme
-                    device
+                    True
                     (selectedTransaction model)
                     response.transactions
                 , pagingControls theme model response
@@ -582,30 +582,29 @@ wideLayout theme device model response selected =
             , Element.clipY
             , Element.htmlAttribute (Html.Attributes.class "transactions-detail-pane")
             ]
-            (detailPage theme device (Just Back) selected)
+            (detailPage theme (Just Back) selected)
         ]
 
 
-transactionsHeader : Theme -> Device -> Element Msg
-transactionsHeader theme device =
-    Ui.pageHeaderBand theme device <|
+transactionsHeader : Theme -> Element Msg
+transactionsHeader theme =
+    Ui.pageHeaderBand theme <|
         Ui.pageHeader theme
             { leading = Nothing
             , title = Typography.pageTitle theme "Transactions"
             , subtitle = Just "Browse your ledger activity"
             , actions =
-                [ Ui.iconButton device
-                    theme
+                [ Ui.iconButton theme
                     { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                 ]
             }
 
 
-queryPanel : Theme -> Device -> Model -> Element Msg
-queryPanel theme device model =
+queryPanel : Theme -> Bool -> Model -> Element Msg
+queryPanel theme compact model =
     QueryPanel.view
         { theme = theme
-        , compact = Ui.isSmall device
+        , compact = compact
         , draftQuery = draftQuery model
         , onDraftChanged = DraftChanged
         , onApply = ApplyDraft
@@ -646,10 +645,10 @@ queryError remote =
 
 remoteContent :
     Theme
-    -> Device
+    -> Bool
     -> Model
     -> Element Msg
-remoteContent theme device model =
+remoteContent theme compact model =
     case remoteData model of
         NotAsked ->
             Ui.card theme [ Ui.loading theme "Loading transactions…" ]
@@ -658,15 +657,15 @@ remoteContent theme device model =
             transactionsSkeleton theme
 
         Loading (Just response) ->
-            transactionContent theme device model response
+            transactionContent theme compact model response
 
         Success response ->
-            transactionContent theme device model response
+            transactionContent theme compact model response
 
         Failure error stale ->
             case stale of
                 Just response ->
-                    transactionContent theme device model response
+                    transactionContent theme compact model response
 
                 Nothing ->
                     if queryError (remoteData model) /= Nothing then
@@ -684,11 +683,11 @@ remoteContent theme device model =
 
 transactionContent :
     Theme
-    -> Device
+    -> Bool
     -> Model
     -> Response
     -> Element Msg
-transactionContent theme device model response =
+transactionContent theme compact model response =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
         [ remoteNotice theme (remoteData model) response
         , transactionCount theme response.transactions
@@ -697,7 +696,7 @@ transactionContent theme device model response =
 
           else
             transactionsList theme
-                device
+                compact
                 (selectedTransaction model)
                 response.transactions
         , pagingControls theme model response
@@ -792,48 +791,48 @@ transactionCount theme transactions =
 
 transactionsList :
     Theme
-    -> Device
+    -> Bool
     -> Maybe Transaction
     -> List Transaction
     -> Element Msg
-transactionsList theme device selected transactions =
+transactionsList theme compact selected transactions =
     Element.column
         [ Element.width Element.fill
         , Element.spacing 12
         , Element.htmlAttribute (Html.Attributes.id "transaction-list")
         ]
         (List.map
-            (monthSection theme device selected)
+            (monthSection theme compact selected)
             (TimeExtra.groupByKey (Date.toString << .primaryDate) transactions)
         )
 
 
 monthSection :
     Theme
-    -> Device
+    -> Bool
     -> Maybe Transaction
     -> ( String, List Transaction )
     -> Element Msg
-monthSection theme device selected ( month, transactions ) =
+monthSection theme compact selected ( month, transactions ) =
     Element.column [ Element.width Element.fill, Element.spacing 4 ]
         (Element.el [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
             (Typography.subsectionTitle theme (TimeExtra.monthLabel month))
-            :: List.map (transactionRow theme device selected) transactions
+            :: List.map (transactionRow theme compact selected) transactions
         )
 
 
 transactionRow :
     Theme
-    -> Device
+    -> Bool
     -> Maybe Transaction
     -> Transaction
     -> Element Msg
-transactionRow theme device selected transaction =
+transactionRow theme compact selected transaction =
     let
         rowContent =
             Element.column
                 (Ui.rowSurfaceAttrs theme (selected == Just transaction) ++ [ Element.spacing 8 ])
-                [ if Ui.isSmall device then
+                [ if compact then
                     phonePrimaryRow theme transaction
 
                   else
@@ -944,8 +943,8 @@ postingPreviewRow theme posting =
         ]
 
 
-detailPage : Theme -> Device -> Maybe Msg -> Transaction -> Element Msg
-detailPage theme device onBack transaction =
+detailPage : Theme -> Maybe Msg -> Transaction -> Element Msg
+detailPage theme onBack transaction =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -954,17 +953,17 @@ detailPage theme device onBack transaction =
         , Element.htmlAttribute (Html.Attributes.class "page-scroll transaction-detail-page")
         , Element.htmlAttribute (Html.Attributes.id "transaction-detail")
         ]
-        [ Ui.pageHeaderBand theme device <|
+        [ Ui.pageHeaderBand theme <|
             Element.row [ Element.width Element.fill, Element.spacing 8 ]
                 [ case onBack of
                     Just message ->
-                        Ui.backButton device theme { onPress = message }
+                        Ui.backButton theme { onPress = message }
 
                     Nothing ->
                         Element.none
                 , Typography.sectionTitle theme "Transaction Detail"
                 ]
-        , Ui.pageContainer device [ TransactionView.transactionDetail theme transaction ]
+        , Ui.pageContainer [ TransactionView.transactionDetail theme transaction ]
         ]
 
 

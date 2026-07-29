@@ -17,7 +17,7 @@ import Api.Investments as Investments
 import Data.Completeness exposing (Completeness(..))
 import Data.Decimal as Decimal exposing (Decimal)
 import Data.Granularity exposing (Granularity(..))
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -175,10 +175,6 @@ latestPeriod =
 
 view : Theme -> Viewport -> Model -> Element Msg
 view theme viewport (Model data) =
-    let
-        device =
-            Element.classifyDevice viewport
-    in
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -186,17 +182,17 @@ view theme viewport (Model data) =
         , Element.scrollbarY
         , Element.htmlAttribute (Attr.class "page-scroll analytics-page")
         ]
-        [ Ui.pageHeaderBand theme device <|
+        [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Investments"
                 , subtitle = Just "Value, invested capital, and investment performance"
                 , actions =
                     [ granularityControl theme data.granularity
-                    , Ui.iconButton device theme { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                    , Ui.iconButton theme { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
-        , Ui.pageContainer device (content theme viewport device data)
+        , Ui.pageContainer (content theme viewport data)
         ]
 
 
@@ -210,8 +206,8 @@ granularityControl theme selected =
         ]
 
 
-content : Theme -> Viewport -> Device -> ModelData -> List (Element Msg)
-content theme viewport device data =
+content : Theme -> Viewport -> ModelData -> List (Element Msg)
+content theme viewport data =
     case RemoteData.value data.response of
         Nothing ->
             case data.response of
@@ -229,7 +225,7 @@ content theme viewport device data =
                 Ui.emptyState theme "No investment holdings were found in this account scope."
 
               else
-                investmentDashboard theme viewport device data.chartMode data.selectedPeriod response
+                investmentDashboard theme viewport data.chartMode data.selectedPeriod response
             ]
 
 
@@ -244,22 +240,21 @@ isEmpty response =
 investmentDashboard :
     Theme
     -> Viewport
-    -> Device
     -> ChartMode
     -> Maybe String
     -> Investments.Response
     -> Element Msg
-investmentDashboard theme viewport device selectedMode selected response =
+investmentDashboard theme viewport selectedMode selected response =
     let
         layout =
-            Responsive.contentLayout viewport device
+            Responsive.contentLayout viewport
 
         chartWidth =
             if Responsive.isCompact layout then
-                min 1200 (max 320 (Responsive.usableContentWidth viewport device - 40))
+                min 1200 (max 320 (Responsive.usableContentWidth viewport - 40))
 
             else
-                min 1200 (max 320 (Responsive.usableContentWidth viewport device - 376))
+                min 1200 (max 320 (Responsive.usableContentWidth viewport - 376))
     in
     Element.column [ Element.width Element.fill, Element.spacing 16 ]
         [ investmentSummaryGrid layout theme response.displayCommodity response.summary
@@ -954,13 +949,14 @@ investmentNavigatorPath theme breadcrumbs =
 investmentNavigatorPathButton : Theme -> String -> Msg -> Element Msg
 investmentNavigatorPathButton theme label onPress =
     Input.button
-        [ Element.htmlAttribute (Attr.title ("Open " ++ label))
-        , Element.paddingXY 10 8
-        , Border.rounded 8
-        , Font.color theme.primary
-        , Font.medium
-        , Element.mouseOver [ Background.color theme.primarySoft ]
-        ]
+        ([ Element.htmlAttribute (Attr.title ("Open " ++ label))
+         , Element.paddingXY 10 8
+         , Border.rounded 8
+         , Font.color theme.primary
+         , Font.medium
+         ]
+            ++ Ui.hoverBackground theme.primarySoft
+        )
         { onPress = Just onPress, label = Element.text label }
 
 
@@ -1231,7 +1227,7 @@ investmentsSkeleton : Theme -> Viewport -> Element Msg
 investmentsSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport (Element.classifyDevice viewport)
+            Responsive.contentLayout viewport
 
         isCompact =
             Responsive.isCompact layout

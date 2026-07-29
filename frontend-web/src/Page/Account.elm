@@ -24,7 +24,7 @@ import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date
 import Data.Freshness exposing (Freshness)
 import Data.Quantity as Quantity exposing (Quantity)
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -37,6 +37,7 @@ import State.Viewport exposing (Viewport)
 import String
 import Ui
 import Ui.Icon as Icon
+import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -148,11 +149,11 @@ update props msg (Model model) =
             ( Model model, Cmd.none, Navigate (Account (Account.accountPathToString path)) )
 
         OpenAccountValue path ->
-            if Ui.isSmall (Element.classifyDevice props.viewport) then
-                ( Model model, Cmd.none, Navigate (AccountValue (Account.accountPathToString path)) )
+            if Responsive.usesMasterDetail props.viewport then
+                ( selectValue path (Model model), Cmd.none, NoOutMsg )
 
             else
-                ( selectValue path (Model model), Cmd.none, NoOutMsg )
+                ( Model model, Cmd.none, Navigate (AccountValue (Account.accountPathToString path)) )
 
         CloseAccountValue ->
             ( clearValue (Model model), Cmd.none, NoOutMsg )
@@ -266,32 +267,29 @@ view :
     -> Element Msg
 view theme viewport (Model model) =
     let
-        device =
-            Element.classifyDevice viewport
-
         page =
             Element.column
                 [ Element.width Element.fill
                 , Element.spacing 16
                 , Element.htmlAttribute (Html.Attributes.class "page-scroll")
                 ]
-                [ Ui.pageHeaderBand theme device <|
+                [ Ui.pageHeaderBand theme <|
                     Ui.pageHeader theme
                         { leading = Nothing
                         , title = Typography.pageTitle theme "Accounts"
                         , subtitle = Nothing
                         , actions = []
                         }
-                , Ui.pageContainer device [ content theme device model ]
+                , Ui.pageContainer [ content theme model ]
                 ]
 
         wideSelected =
-            viewport.width >= 1000 && detailAccount model.detail /= Nothing
+            Responsive.usesMasterDetail viewport && detailAccount model.detail /= Nothing
     in
     if wideSelected then
         case detailAccount model.detail of
             Just account ->
-                wideLayout theme device page account
+                wideLayout theme page account
 
             _ ->
                 page
@@ -302,11 +300,10 @@ view theme viewport (Model model) =
 
 wideLayout :
     Theme
-    -> Device
     -> Element Msg
     -> AccountNode
     -> Element Msg
-wideLayout theme device page account =
+wideLayout theme page account =
     Element.row
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -324,20 +321,19 @@ wideLayout theme device page account =
             , Element.height Element.fill
             , Element.clipY
             ]
-            (accountDetailPage theme device (Just BackToAccounts) account)
+            (accountDetailPage theme (Just BackToAccounts) account)
         ]
 
 
 content :
     Theme
-    -> Device
     ->
         { accounts : AccountsState
         , expanded : Set String
         , detail : DetailState
         }
     -> Element Msg
-content theme device model =
+content theme model =
     case model.accounts of
         NotRequested ->
             Ui.loading theme "Loading accounts…"
@@ -563,17 +559,17 @@ balanceText theme valuation symbolCount =
         ]
 
 
-valueView : Theme -> Device -> String -> Model -> Element Msg
-valueView theme device path (Model model) =
+valueView : Theme -> String -> Model -> Element Msg
+valueView theme path (Model model) =
     case model.accounts of
         Loaded response ->
-            detailForPath theme device path response
+            detailForPath theme path response
 
         Refreshing response ->
-            detailForPath theme device path response
+            detailForPath theme path response
 
         FailedWithStale _ response ->
-            detailForPath theme device path response
+            detailForPath theme path response
 
         _ ->
             Element.column
@@ -583,14 +579,14 @@ valueView theme device path (Model model) =
                 , Element.scrollbarY
                 , Element.htmlAttribute (Html.Attributes.class "page-scroll account-detail-page")
                 ]
-                [ Ui.pageHeaderBand theme device <|
-                    accountDetailHeader theme device (Just BackToAccounts)
-                , Ui.pageContainer device [ Ui.card theme [ Ui.loading theme "Loading account value…" ] ]
+                [ Ui.pageHeaderBand theme <|
+                    accountDetailHeader theme (Just BackToAccounts)
+                , Ui.pageContainer [ Ui.card theme [ Ui.loading theme "Loading account value…" ] ]
                 ]
 
 
-accountDetailPage : Theme -> Device -> Maybe Msg -> AccountNode -> Element Msg
-accountDetailPage theme device onBack account =
+accountDetailPage : Theme -> Maybe Msg -> AccountNode -> Element Msg
+accountDetailPage theme onBack account =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -598,18 +594,18 @@ accountDetailPage theme device onBack account =
         , Element.scrollbarY
         , Element.htmlAttribute (Html.Attributes.class "page-scroll account-detail-page")
         ]
-        [ Ui.pageHeaderBand theme device <|
-            accountDetailHeader theme device onBack
-        , Ui.pageContainer device [ Ui.card theme (valuePanel theme account) ]
+        [ Ui.pageHeaderBand theme <|
+            accountDetailHeader theme onBack
+        , Ui.pageContainer [ Ui.card theme (valuePanel theme account) ]
         ]
 
 
-accountDetailHeader : Theme -> Device -> Maybe Msg -> Element Msg
-accountDetailHeader theme device onBack =
+accountDetailHeader : Theme -> Maybe Msg -> Element Msg
+accountDetailHeader theme onBack =
     Element.row [ Element.width Element.fill, Element.spacing 8 ]
         [ case onBack of
             Just message ->
-                Ui.backButton device theme { onPress = message }
+                Ui.backButton theme { onPress = message }
 
             Nothing ->
                 Element.none
@@ -645,11 +641,11 @@ valuePanel theme (AccountNode account) =
     ]
 
 
-detailForPath : Theme -> Device -> String -> Response -> Element Msg
-detailForPath theme device path response =
+detailForPath : Theme -> String -> Response -> Element Msg
+detailForPath theme path response =
     case findAccount (Account.accountPath path) response.accounts of
         Just account ->
-            accountDetailPage theme device (Just BackToAccounts) account
+            accountDetailPage theme (Just BackToAccounts) account
 
         Nothing ->
             Element.column
@@ -659,9 +655,9 @@ detailForPath theme device path response =
                 , Element.scrollbarY
                 , Element.htmlAttribute (Html.Attributes.class "page-scroll account-detail-page")
                 ]
-                [ Ui.pageHeaderBand theme device <|
-                    accountDetailHeader theme device (Just BackToAccounts)
-                , Ui.pageContainer device
+                [ Ui.pageHeaderBand theme <|
+                    accountDetailHeader theme (Just BackToAccounts)
+                , Ui.pageContainer
                     [ Ui.card theme
                         [ Ui.errorBanner theme "That account is no longer present in the current snapshot." ]
                     ]

@@ -23,7 +23,7 @@ import Data.Calendar as Calendar
 import Data.Granularity exposing (Granularity(..))
 import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..), Period(..))
 import Data.Transaction exposing (Transaction)
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Element.Font as Font
 import State.Viewport exposing (Viewport)
 import Ui
@@ -498,18 +498,33 @@ controlsView theme (Model data) =
 view : Theme -> Viewport -> Config -> Report -> Model -> Element Msg
 view theme viewport config report (Model data) =
     let
-        device =
-            Element.classifyDevice viewport
-
         layout =
-            Responsive.contentLayout viewport device
+            Responsive.contentLayout viewport
 
         chartWidth =
             let
                 maxContainerWidth =
-                    1280 - 2 * Responsive.contentPadding device - 40
+                    1280 - 2 * Responsive.contentPadding - 40
             in
-            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport device - 40))
+            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport - 40))
+
+        activityColumns =
+            let
+                cardWidth =
+                    if Responsive.isCompact layout then
+                        Responsive.usableContentWidth viewport
+
+                    else
+                        (Responsive.usableContentWidth viewport - 16) // 2
+            in
+            if cardWidth < 360 then
+                3
+
+            else if cardWidth < 540 then
+                4
+
+            else
+                6
     in
     Element.column [ Element.width Element.fill, Element.spacing 16 ]
         [ Typography.sectionTitle theme config.timelineSectionTitle
@@ -517,7 +532,7 @@ view theme viewport config report (Model data) =
         , AnalyticsView.warningList theme report.warnings
         , compositionHeader theme layout data
         , breakdownsView theme layout config report data
-        , activityViews theme layout device config report data
+        , activityViews theme layout activityColumns config report data
         ]
 
 
@@ -648,16 +663,45 @@ categoryView theme config side commodity breakdown sideState =
         }
 
 
-activityViews : Theme -> Responsive.ContentLayout -> Device -> Config -> Report -> ModelData -> Element Msg
-activityViews theme layout device config report data =
+activityViews :
+    Theme
+    -> Responsive.ContentLayout
+    -> Int
+    -> Config
+    -> Report
+    -> ModelData
+    -> Element Msg
+activityViews theme layout columns config report data =
     responsiveGrid layout
-        [ activityView theme device data.granularity config.positive Positive report.displayCommodity data
-        , activityView theme device data.granularity config.negative Negative report.displayCommodity data
+        [ activityView
+            theme
+            columns
+            data.granularity
+            config.positive
+            Positive
+            report.displayCommodity
+            data
+        , activityView
+            theme
+            columns
+            data.granularity
+            config.negative
+            Negative
+            report.displayCommodity
+            data
         ]
 
 
-activityView : Theme -> Device -> Granularity -> SideConfig -> Side -> String -> ModelData -> Element Msg
-activityView theme device granularity config side commodity data =
+activityView :
+    Theme
+    -> Int
+    -> Granularity
+    -> SideConfig
+    -> Side
+    -> String
+    -> ModelData
+    -> Element Msg
+activityView theme columns granularity config side commodity data =
     let
         sideState =
             sideFor side data
@@ -678,7 +722,6 @@ activityView theme device granularity config side commodity data =
                 , selectedBucket = selectedBucketFor side data.mode
                 , onSelect = BucketSelected side
                 , onTransaction = TransactionSelected
-                , device = device
                 , legendState = sideState.legendState
                 , onLegendToggle = LegendToggled side
                 , highlightedCategory = sideState.calendarHighlight
@@ -693,7 +736,7 @@ activityView theme device granularity config side commodity data =
                 , response = activityValue sideState.activity
                 , selectedBucket = sideState.selectedYearBucket
                 , onSelect = YearBucketSelected side
-                , device = device
+                , columns = columns
                 , legendState = sideState.legendState
                 , onLegendToggle = LegendToggled side
                 , highlightedCategory = sideState.calendarHighlight

@@ -3,7 +3,6 @@ module FoundationTest exposing (suite)
 import Api.Error as ApiError
 import Data.Decimal as Decimal
 import Data.Revision as Revision
-import Element
 import Expect
 import Json.Decode as Decode
 import Preferences exposing (ThemeMode(..))
@@ -87,19 +86,63 @@ suite =
                     """
                     |> Result.map .code
                     |> Expect.equal (Ok "journal_unavailable")
-        , test "responsive layouts use tablet width efficiently" <|
-            \_ ->
-                [ { width = 390, height = 844 }
-                , { width = 768, height = 1024 }
-                , { width = 1024, height = 768 }
-                ]
-                    |> List.map
-                        (\viewport ->
-                            Responsive.contentLayout viewport (Element.classifyDevice viewport)
-                        )
-                    |> Expect.equal
-                        [ Responsive.Compact
-                        , Responsive.Medium
-                        , Responsive.Wide
-                        ]
+        , test "responsive layouts use available width efficiently" <|
+            responsiveLayoutsUseWidth
+        , test "viewport height does not change structural layout" <|
+            responsiveLayoutIgnoresHeight
+        , test "full navigation does not shrink usable content" <|
+            navigationTransitionPreservesContentWidth
         ]
+
+
+responsiveLayoutsUseWidth : () -> Expect.Expectation
+responsiveLayoutsUseWidth _ =
+    [ { width = 390, height = 844 }
+    , { width = 768, height = 1024 }
+    , { width = 1024, height = 768 }
+    ]
+        |> List.map Responsive.contentLayout
+        |> Expect.equal
+            [ Responsive.Compact
+            , Responsive.Medium
+            , Responsive.Wide
+            ]
+
+
+responsiveLayoutIgnoresHeight : () -> Expect.Expectation
+responsiveLayoutIgnoresHeight _ =
+    [ { width = 768, height = 500 }
+    , { width = 768, height = 1366 }
+    ]
+        |> List.map
+            (\viewport ->
+                ( Responsive.contentLayout viewport
+                , Responsive.usesMasterDetail viewport
+                )
+            )
+        |> Expect.equal
+            [ ( Responsive.Medium, False )
+            , ( Responsive.Medium, False )
+            ]
+
+
+navigationTransitionPreservesContentWidth : () -> Expect.Expectation
+navigationTransitionPreservesContentWidth _ =
+    let
+        before =
+            { width = 1543, height = 900 }
+
+        after =
+            { width = 1544, height = 900 }
+    in
+    { beforeUsesBottomNavigation = Responsive.usesBottomNavigation before
+    , afterUsesBottomNavigation = Responsive.usesBottomNavigation after
+    , beforeContentWidth = Responsive.usableContentWidth before
+    , afterContentWidth = Responsive.usableContentWidth after
+    }
+        |> Expect.equal
+            { beforeUsesBottomNavigation = True
+            , afterUsesBottomNavigation = False
+            , beforeContentWidth = 1280
+            , afterContentWidth = 1280
+            }

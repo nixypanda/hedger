@@ -28,7 +28,7 @@ import Data.Completeness exposing (Completeness(..))
 import Data.Date as Date
 import Data.Paginated as Paginated exposing (Paginated)
 import Data.Quantity as Quantity exposing (Quantity)
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -39,6 +39,7 @@ import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon
+import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -322,18 +323,18 @@ visibleResponse (Model data) =
 view : Theme -> Viewport -> Model -> Element Msg
 view theme viewport (Model data) =
     let
-        device =
-            Element.classifyDevice viewport
-
         commodity =
             visibleResponse (Model data)
                 |> Maybe.map .displayCommodity
                 |> Maybe.withDefault ""
+
+        compact =
+            Responsive.isCompact (Responsive.contentLayout viewport)
     in
-    if viewport.width >= 1000 then
+    if Responsive.usesMasterDetail viewport then
         case data.selection of
             NoSelection ->
-                listPage theme device (Model data)
+                listPage theme compact (Model data)
 
             Selected entry ->
                 Element.row [ Element.width Element.fill, Element.height Element.fill, Element.clip ]
@@ -342,26 +343,26 @@ view theme viewport (Model data) =
                         , Element.height Element.fill
                         , Element.scrollbarY
                         ]
-                        (listPage theme device (Model data))
+                        (listPage theme True (Model data))
                     , Element.el
                         [ Element.width (Element.fillPortion 3)
                         , Element.height Element.fill
                         , Element.scrollbarY
                         ]
-                        (detailPage theme device CloseDetail commodity entry)
+                        (detailPage theme CloseDetail commodity entry)
                     ]
 
     else
         case data.selection of
             NoSelection ->
-                listPage theme device (Model data)
+                listPage theme compact (Model data)
 
             Selected entry ->
-                detailPage theme device CloseDetail commodity entry
+                detailPage theme CloseDetail commodity entry
 
 
-listPage : Theme -> Device -> Model -> Element Msg
-listPage theme device model =
+listPage : Theme -> Bool -> Model -> Element Msg
+listPage theme compact model =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -369,25 +370,24 @@ listPage theme device model =
         , Background.color theme.pageBg
         , Element.htmlAttribute (Html.Attributes.class "page-scroll account-register-page")
         ]
-        [ Ui.pageHeaderBand theme device <|
-            registerHeader theme device model
-        , Ui.pageContainer device [ filters theme model, content theme device model ]
+        [ Ui.pageHeaderBand theme <|
+            registerHeader theme compact model
+        , Ui.pageContainer [ filters theme model, content theme compact model ]
         ]
 
 
-registerHeader : Theme -> Device -> Model -> Element Msg
-registerHeader theme device model =
+registerHeader : Theme -> Bool -> Model -> Element Msg
+registerHeader theme compact model =
     let
         account =
             modelAccount model
     in
-    if Ui.isSmall device then
+    if compact then
         Element.column [ Element.width Element.fill, Element.spacing 16, Typography.minWidthZero ]
             [ Element.row [ Element.width Element.fill, Element.spacing 8 ]
-                [ Ui.backButton device theme { onPress = BackToAccounts }
+                [ Ui.backButton theme { onPress = BackToAccounts }
                 , Element.el [ Element.alignRight ]
-                    (Ui.iconButton device
-                        theme
+                    (Ui.iconButton theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     )
                 ]
@@ -399,12 +399,11 @@ registerHeader theme device model =
 
     else
         Ui.pageHeader theme
-            { leading = Just (Ui.backButton device theme { onPress = BackToAccounts })
+            { leading = Just (Ui.backButton theme { onPress = BackToAccounts })
             , title = Typography.delimitedPageTitle theme ":" account
             , subtitle = Just "Account register"
             , actions =
-                [ Ui.iconButton device
-                    theme
+                [ Ui.iconButton theme
                     { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                 ]
             }
@@ -430,8 +429,8 @@ filters theme model =
         ]
 
 
-content : Theme -> Device -> Model -> Element Msg
-content theme device (Model data) =
+content : Theme -> Bool -> Model -> Element Msg
+content theme compact (Model data) =
     case ( Paginated.status data.paginated, visibleResponse (Model data) ) of
         ( Paginated.NotAsked, _ ) ->
             Ui.card theme [ Ui.loading theme "Loading register…" ]
@@ -455,18 +454,18 @@ content theme device (Model data) =
             Element.column [ Element.width Element.fill, Element.spacing 12 ]
                 [ Ui.errorBanner theme
                     ("Refresh failed; showing stale register: " ++ failureMessage data.paginated)
-                , registerContent theme device (Model data) response
+                , registerContent theme compact (Model data) response
                 ]
 
         ( Paginated.LoadMoreFailure, Just response ) ->
             Element.column [ Element.width Element.fill, Element.spacing 12 ]
                 [ Ui.errorBanner theme
                     ("Loading more entries failed: " ++ failureMessage data.paginated)
-                , registerContent theme device (Model data) response
+                , registerContent theme compact (Model data) response
                 ]
 
         ( _, Just response ) ->
-            registerContent theme device (Model data) response
+            registerContent theme compact (Model data) response
 
         ( _, Nothing ) ->
             Ui.card theme [ Ui.loading theme "Loading register…" ]
@@ -479,15 +478,15 @@ failureMessage paginated =
         |> Maybe.withDefault "Unknown error"
 
 
-registerContent : Theme -> Device -> Model -> Response -> Element Msg
-registerContent theme device model response =
+registerContent : Theme -> Bool -> Model -> Response -> Element Msg
+registerContent theme compact model response =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
         [ States.freshnessBanner theme response.metadata.freshness
         , if List.isEmpty response.entries then
             Ui.card theme [ Ui.emptyState theme "No register entries match this date range." ]
 
           else
-            registerRows theme device model response.displayCommodity response.entries
+            registerRows theme compact model response.displayCommodity response.entries
         , paging theme model response
         ]
 
@@ -506,33 +505,33 @@ paging theme (Model data) response =
                 Typography.mutedCaption theme "All matching entries are loaded."
 
 
-registerRows : Theme -> Device -> Model -> String -> List Entry -> Element Msg
-registerRows theme device model commodity entries =
+registerRows : Theme -> Bool -> Model -> String -> List Entry -> Element Msg
+registerRows theme compact model commodity entries =
     Element.column [ Element.width Element.fill, Element.spacing 12 ]
         (List.map
-            (monthSection theme device model commodity)
+            (monthSection theme compact model commodity)
             (TimeExtra.groupByKey (Date.toString << .date) entries)
         )
 
 
-monthSection : Theme -> Device -> Model -> String -> ( String, List Entry ) -> Element Msg
-monthSection theme device model commodity ( month, entries ) =
+monthSection : Theme -> Bool -> Model -> String -> ( String, List Entry ) -> Element Msg
+monthSection theme compact model commodity ( month, entries ) =
     Element.column [ Element.width Element.fill, Element.spacing 4 ]
         (Element.el
             [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
             (Typography.subsectionTitle theme month)
-            :: List.map (entryRow theme device model commodity) entries
+            :: List.map (entryRow theme compact model commodity) entries
         )
 
 
-entryRow : Theme -> Device -> Model -> String -> Entry -> Element Msg
-entryRow theme device model commodity entry =
+entryRow : Theme -> Bool -> Model -> String -> Entry -> Element Msg
+entryRow theme compact model commodity entry =
     let
         amount =
-            valueDisplay theme device commodity True entry.amount
+            valueDisplay theme commodity True entry.amount
 
         balance =
-            valueDisplay theme device commodity False entry.balance
+            valueDisplay theme commodity False entry.balance
 
         description =
             Element.column
@@ -540,7 +539,7 @@ entryRow theme device model commodity entry =
                 , Element.spacing 3
                 , Typography.minWidthZero
                 ]
-                [ Ui.truncatedText device entry.description
+                [ Ui.truncatedText entry.description
                 , Element.text entry.account |> Element.el [ Font.size 12, Font.color theme.textMuted ]
                 ]
 
@@ -556,7 +555,7 @@ entryRow theme device model commodity entry =
 
         rowContent =
             Element.column (Ui.rowSurfaceAttrs theme False ++ [ Element.spacing 8 ])
-                [ if Ui.isSmall device then
+                [ if compact then
                     Element.column [ Element.width Element.fill, Element.spacing 8 ]
                         [ Element.text (Date.toString entry.date)
                             |> Element.el [ Font.size 12, Font.color theme.textMuted ]
@@ -610,10 +609,10 @@ labeledValue theme label valueEl =
         ]
 
 
-valueDisplay : Theme -> Device -> String -> Bool -> Value -> Element msg
-valueDisplay theme device commodity isMovement value =
+valueDisplay : Theme -> String -> Bool -> Value -> Element msg
+valueDisplay theme commodity isMovement value =
     Element.row [ Element.width Element.fill, Element.spacing 4, Typography.minWidthZero ]
-        [ Ui.truncatedText device (displayValue commodity value)
+        [ Ui.truncatedText (displayValue commodity value)
             |> Element.el
                 ([ Element.width Element.fill, Font.alignRight ]
                     ++ (if isMovement then
@@ -650,8 +649,8 @@ displayValue commodity value =
         |> Maybe.withDefault "—"
 
 
-detailPage : Theme -> Device -> Msg -> String -> Entry -> Element Msg
-detailPage theme device onClose commodity entry =
+detailPage : Theme -> Msg -> String -> Entry -> Element Msg
+detailPage theme onClose commodity entry =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -659,12 +658,12 @@ detailPage theme device onClose commodity entry =
         , Background.color theme.pageBg
         , Element.htmlAttribute (Html.Attributes.class "page-scroll register-detail-page")
         ]
-        [ Ui.pageHeaderBand theme device <|
+        [ Ui.pageHeaderBand theme <|
             Element.row [ Element.width Element.fill, Element.spacing 8 ]
-                [ Ui.backButton device theme { onPress = onClose }
+                [ Ui.backButton theme { onPress = onClose }
                 , Typography.sectionTitle theme "Details"
                 ]
-        , Ui.pageContainer device
+        , Ui.pageContainer
             [ Ui.card theme
                 [ Typography.sectionTitle theme entry.description
                 , Element.text (Date.toString entry.date ++ " · " ++ entry.account)

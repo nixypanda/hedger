@@ -5,6 +5,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Element.Region as Region
 import Html.Attributes
 import Pwa
     exposing
@@ -231,7 +232,7 @@ tabBar : Config msg -> Element msg
 tabBar config =
     Element.row
         [ Element.width Element.fill
-        , Element.height (Element.px 64)
+        , Element.height (Element.px 72)
         , Background.color config.theme.surface
         , Border.color config.theme.divider
         , Border.widthEach { top = 1, right = 0, bottom = 0, left = 0 }
@@ -273,9 +274,21 @@ tabItem config destination =
             )
         , Border.rounded 6
         , Font.color foreground
+        , Region.description destination.label
         ]
         { onPress = Just (config.onNavigate destination.route)
         , label =
-            Icon.view { icon = destination.icon, size = 18, color = foreground }
-                |> Element.el [ Element.centerX, Element.centerY ]
+            Element.column
+                [ Element.centerX
+                , Element.centerY
+                , Element.spacing 4
+                ]
+                [ Icon.view { icon = destination.icon, size = 18, color = foreground }
+                , Element.el
+                    [ Font.size 9
+                    , Font.center
+                    , Element.width Element.fill
+                    ]
+                    (Element.text destination.label)
+                ]
         }

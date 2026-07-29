@@ -1,6 +1,6 @@
 module Page.Settings exposing (Model, Msg(..), OutMsg(..), init, update, view)
 
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Html.Attributes
 import Preferences exposing (ThemeMode(..))
 import Ui
@@ -47,20 +47,20 @@ update msg model =
 -- VIEW
 
 
-view : Theme -> Device -> Model -> Element Msg
-view theme device model =
+view : Theme -> Model -> Element Msg
+view theme model =
     Element.column
         [ Element.width Element.fill
         , Element.htmlAttribute (Html.Attributes.class "page-scroll")
         ]
-        [ Ui.pageHeaderBand theme device <|
+        [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Settings"
                 , subtitle = Nothing
                 , actions = []
                 }
-        , Ui.pageContainer device
+        , Ui.pageContainer
             [ appearanceSection theme model
             ]
         ]

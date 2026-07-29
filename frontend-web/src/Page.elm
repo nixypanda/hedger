@@ -260,14 +260,10 @@ update context msg model =
 
 view : Context -> Model -> Element Msg
 view context model =
-    let
-        device =
-            Element.classifyDevice context.viewport
-    in
     case ( context.route, model ) of
         ( AccountValue accountName, AccountsPage subModel ) ->
             Element.map GotAccountsMsg
-                (AccountPage.valueView context.theme device accountName subModel)
+                (AccountPage.valueView context.theme accountName subModel)
 
         ( _, AccountsPage subModel ) ->
             Element.map GotAccountsMsg
@@ -292,7 +288,7 @@ view context model =
 
         ( _, SettingsPage subModel ) ->
             Element.map GotSettingsMsg
-                (SettingsPage.view context.theme device subModel)
+                (SettingsPage.view context.theme subModel)
 
         _ ->
             Element.none

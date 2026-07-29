@@ -4,7 +4,7 @@ import Api.Analytics as Analytics
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Data.Transaction exposing (Transaction)
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Element.Background as Background
 import Html.Attributes
 import Page.Shared.Analysis as Analysis
@@ -220,44 +220,39 @@ isReportEffect effect =
 
 view : Theme -> Viewport -> Model -> Element Msg
 view theme viewport (Model data) =
-    let
-        device =
-            Element.classifyDevice viewport
-    in
     case Analysis.transaction data.analysis of
         Just selectedTransaction ->
-            transactionView theme device selectedTransaction
+            transactionView theme selectedTransaction
 
         Nothing ->
-            dashboard theme viewport device data
+            dashboard theme viewport data
 
 
-transactionView : Theme -> Device -> Transaction -> Element Msg
-transactionView theme device selectedTransaction =
+transactionView : Theme -> Transaction -> Element Msg
+transactionView theme selectedTransaction =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
         ]
-        [ Ui.pageHeaderBand theme device <|
+        [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
                 { leading =
                     Just
-                        (Ui.backButton device
-                            theme
+                        (Ui.backButton theme
                             { onPress = AnalysisMsg Analysis.Back }
                         )
                 , title = Typography.pageTitle theme "Transaction Detail"
                 , subtitle = Nothing
                 , actions = []
                 }
-        , Ui.pageContainer device [ TransactionView.transactionDetail theme selectedTransaction ]
+        , Ui.pageContainer [ TransactionView.transactionDetail theme selectedTransaction ]
         ]
 
 
-dashboard : Theme -> Viewport -> Device -> ModelData -> Element Msg
-dashboard theme viewport device data =
+dashboard : Theme -> Viewport -> ModelData -> Element Msg
+dashboard theme viewport data =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -265,30 +260,29 @@ dashboard theme viewport device data =
         , Element.scrollbarY
         , Element.htmlAttribute (Html.Attributes.class "page-scroll analytics-page")
         ]
-        [ Ui.pageHeaderBand theme device <|
+        [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Cashflow"
                 , subtitle = Just "Income, expenses, categories, and daily activity"
                 , actions =
                     [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                    , Ui.iconButton device
-                        theme
+                    , Ui.iconButton theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
-        , Ui.pageContainer device
-            (queryPanel theme viewport device data
+        , Ui.pageContainer
+            (queryPanel theme viewport data
                 :: dashboardContent theme viewport data
             )
         ]
 
 
-queryPanel : Theme -> Viewport -> Device -> ModelData -> Element Msg
-queryPanel theme viewport device data =
+queryPanel : Theme -> Viewport -> ModelData -> Element Msg
+queryPanel theme viewport data =
     QueryPanel.view
         { theme = theme
-        , compact = Responsive.isCompact (Responsive.contentLayout viewport device)
+        , compact = Responsive.isCompact (Responsive.contentLayout viewport)
         , draftQuery = data.draftQuery
         , onDraftChanged = DraftChanged
         , onApply = ApplyQuery
@@ -346,7 +340,7 @@ cashflowSkeleton : Theme -> Viewport -> Element Msg
 cashflowSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport (Element.classifyDevice viewport)
+            Responsive.contentLayout viewport
 
         isCompact =
             Responsive.isCompact layout

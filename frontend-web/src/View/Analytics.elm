@@ -29,7 +29,7 @@ import Data.Date as Date
 import Data.Decimal as Decimal exposing (Decimal)
 import Data.Granularity exposing (Granularity(..))
 import Data.Transaction exposing (Transaction)
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -672,7 +672,6 @@ activityMonth :
         , selectedBucket : Maybe ActivityBucket
         , onSelect : ActivityBucket -> msg
         , onTransaction : Transaction -> msg
-        , device : Device
         , legendState : LegendState
         , onLegendToggle : msg
         , highlightedCategory : Maybe Int
@@ -732,7 +731,6 @@ activityMonth theme config =
 
             Just bucket ->
                 activityTransactionList theme
-                    config.device
                     ("Transactions · " ++ bucket.key)
                     bucket.transactions
                     config.onTransaction
@@ -1124,8 +1122,8 @@ activityCategoryColor theme tone index =
         index
 
 
-activityTransactionList : Theme -> Device -> String -> List Transaction -> (Transaction -> msg) -> Element msg
-activityTransactionList theme device title transactions onSelect =
+activityTransactionList : Theme -> String -> List Transaction -> (Transaction -> msg) -> Element msg
+activityTransactionList theme title transactions onSelect =
     Element.column [ Element.width Element.fill, Element.spacing 8 ]
         [ Typography.subsectionTitle theme title
         , if List.isEmpty transactions then
@@ -1170,7 +1168,7 @@ activityYear :
         , response : Maybe ActivityResponse
         , selectedBucket : Maybe ActivityBucket
         , onSelect : ActivityBucket -> msg
-        , device : Device
+        , columns : Int
         , legendState : LegendState
         , onLegendToggle : msg
         , highlightedCategory : Maybe Int
@@ -1196,24 +1194,10 @@ activityYear theme config =
                     displayBuckets =
                         ActivityCalendar.yearBuckets response.period response.buckets
 
-                    cols =
-                        case config.device.class of
-                            Element.Phone ->
-                                3
-
-                            Element.Tablet ->
-                                4
-
-                            Element.Desktop ->
-                                6
-
-                            Element.BigDesktop ->
-                                6
-
                     slots =
                         displayBuckets
                             |> List.map Just
-                            |> padToMultiple cols Nothing
+                            |> padToMultiple config.columns Nothing
                 in
                 Element.column [ Element.width Element.fill, Element.spacing 12 ]
                     [ activityCategoryLegend theme
@@ -1224,7 +1208,7 @@ activityYear theme config =
                         config.highlightedCategory
                         config.onCategoryHighlight
                     , Element.column [ Element.width Element.fill, Element.spacing 16 ]
-                        (chunks cols slots
+                        (chunks config.columns slots
                             |> List.map
                                 (\row ->
                                     Element.row [ Element.width Element.fill, Element.spacing 16 ]

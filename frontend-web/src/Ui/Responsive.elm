@@ -5,9 +5,9 @@ module Ui.Responsive exposing
     , isCompact
     , usableContentWidth
     , usesBottomNavigation
+    , usesMasterDetail
     )
 
-import Element exposing (Device)
 import State.Viewport exposing (Viewport)
 
 
@@ -19,20 +19,16 @@ type ContentLayout
 
 usesBottomNavigation : Viewport -> Bool
 usesBottomNavigation viewport =
-    viewport.width < 1200
+    viewport.width < 1544
 
 
-contentPadding : Device -> Int
-contentPadding device =
-    if device.class == Element.Phone then
-        16
-
-    else
-        24
+contentPadding : Int
+contentPadding =
+    16
 
 
-usableContentWidth : Viewport -> Device -> Int
-usableContentWidth viewport device =
+usableContentWidth : Viewport -> Int
+usableContentWidth viewport =
     let
         navigationWidth =
             if usesBottomNavigation viewport then
@@ -41,14 +37,14 @@ usableContentWidth viewport device =
             else
                 232
     in
-    max 0 (viewport.width - navigationWidth - 2 * contentPadding device)
+    min 1280 (max 0 (viewport.width - navigationWidth - 2 * contentPadding))
 
 
-contentLayout : Viewport -> Device -> ContentLayout
-contentLayout viewport device =
+contentLayout : Viewport -> ContentLayout
+contentLayout viewport =
     let
         availableWidth =
-            usableContentWidth viewport device
+            usableContentWidth viewport
     in
     if availableWidth < 700 then
         Compact
@@ -63,3 +59,8 @@ contentLayout viewport device =
 isCompact : ContentLayout -> Bool
 isCompact layout =
     layout == Compact
+
+
+usesMasterDetail : Viewport -> Bool
+usesMasterDetail viewport =
+    contentLayout viewport == Wide

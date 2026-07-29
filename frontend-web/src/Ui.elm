@@ -16,8 +16,8 @@ module Ui exposing
     , formSection
     , ghostButton
     , hairline
+    , hoverBackground
     , iconButton
-    , isSmall
     , layout
     , loading
     , pageContainer
@@ -37,12 +37,14 @@ module Ui exposing
     , wrappingStatusBadge
     )
 
-import Element exposing (Attribute, Device, Element)
+import Element exposing (Attribute, Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Element.Region as Region
 import Html.Attributes
+import Ui.Css as Css
 import Ui.DesignTokens
     exposing
         ( radiusCard
@@ -85,27 +87,19 @@ layout theme content =
         [ content ]
 
 
-pageContainer : Device -> List (Element msg) -> Element msg
-pageContainer device children =
-    let
-        padding =
-            Responsive.contentPadding device
-    in
+pageContainer : List (Element msg) -> Element msg
+pageContainer children =
     Element.column
         [ Element.centerX
         , Element.width (Element.fill |> Element.maximum 1280)
         , Element.spacing space16
-        , Element.padding padding
+        , Element.padding Responsive.contentPadding
         ]
         children
 
 
-pageHeaderBand : Theme -> Device -> Element msg -> Element msg
-pageHeaderBand theme device content =
-    let
-        padding =
-            Responsive.contentPadding device
-    in
+pageHeaderBand : Theme -> Element msg -> Element msg
+pageHeaderBand theme content =
     Element.el
         [ Element.width Element.fill
         , Background.color theme.pageBg
@@ -115,19 +109,14 @@ pageHeaderBand theme device content =
         (Element.el
             [ Element.centerX
             , Element.width (Element.fill |> Element.maximum 1280)
-            , Element.padding padding
+            , Element.padding Responsive.contentPadding
             ]
             content
         )
 
 
-isSmall : Device -> Bool
-isSmall device =
-    device.class == Element.Phone || device.class == Element.Tablet
-
-
-truncatedText : Device -> String -> Element msg
-truncatedText _ value =
+truncatedText : String -> Element msg
+truncatedText value =
     Element.el
         [ Element.width Element.fill
         , Element.clip
@@ -361,10 +350,9 @@ ghostButtonWithLabel theme config =
         }
 
 
-iconButton : Device -> Theme -> { icon : Icon, title : String, onPress : msg } -> Element msg
-iconButton device theme config =
-    iconButtonBase device
-        theme
+iconButton : Theme -> { icon : Icon, title : String, onPress : msg } -> Element msg
+iconButton theme config =
+    iconButtonBase theme
         { icon = config.icon
         , title = config.title
         , onPress = Just config.onPress
@@ -376,10 +364,9 @@ iconButton device theme config =
         }
 
 
-backButton : Device -> Theme -> { onPress : msg } -> Element msg
-backButton device theme config =
-    iconButton device
-        theme
+backButton : Theme -> { onPress : msg } -> Element msg
+backButton theme config =
+    iconButton theme
         { icon = Icon.ChevronLeft
         , title = "Back"
         , onPress = config.onPress
@@ -713,13 +700,9 @@ rowSurfaceAttrs theme selected =
          else
             theme.divider
         )
-    , hoverEffect
-        { class = Element.Desktop
-        , orientation = Element.Landscape
-        }
-        [ Background.color theme.hoverBg ]
-    , uiClass "ui-motion"
     ]
+        ++ hoverBackground theme.hoverBg
+        ++ [ uiClass "ui-motion" ]
 
 
 accentDot : Element.Color -> Element msg
@@ -766,30 +749,26 @@ buttonBase :
     -> Element msg
 buttonBase _ config =
     Input.button
-        [ Element.paddingEach { top = 11, right = 16, bottom = 11, left = 16 }
-        , Border.rounded radiusControl
-        , Border.width 1
-        , Border.color config.border
-        , Background.color config.background
-        , Font.color config.foreground
-        , Font.medium
-        , Font.center
-        , uiClass "ui-motion"
-        , hoverEffect
-            { class = Element.Desktop
-            , orientation = Element.Landscape
-            }
-            [ Background.color config.hoverBackground ]
-        , Element.htmlAttribute (Html.Attributes.style "min-height" "40px")
-        ]
+        ([ Element.paddingEach { top = 11, right = 16, bottom = 11, left = 16 }
+         , Border.rounded radiusControl
+         , Border.width 1
+         , Border.color config.border
+         , Background.color config.background
+         , Font.color config.foreground
+         , Font.medium
+         , Font.center
+         , uiClass "ui-motion"
+         ]
+            ++ hoverBackground config.hoverBackground
+            ++ [ Element.htmlAttribute (Html.Attributes.style "min-height" "40px") ]
+        )
         { onPress = config.onPress
         , label = Element.el [ Element.centerX ] config.label
         }
 
 
 iconButtonBase :
-    Device
-    -> Theme
+    Theme
     ->
         { icon : Icon
         , title : String
@@ -801,23 +780,24 @@ iconButtonBase :
         , hoverBorder : Element.Color
         }
     -> Element msg
-iconButtonBase device _ config =
+iconButtonBase _ config =
     Input.button
-        [ Element.width (Element.px 40)
-        , Element.height (Element.px 40)
-        , Background.color config.background
-        , Font.color config.foreground
-        , Font.center
-        , Border.rounded radiusPill
-        , Border.width 1
-        , Border.color config.border
-        , uiClass "ui-motion"
-        , hoverEffect device
-            [ Background.color config.hoverBackground
-            , Border.color config.hoverBorder
-            ]
-        , Element.htmlAttribute (Html.Attributes.title config.title)
-        ]
+        ([ Element.width (Element.px 40)
+         , Element.height (Element.px 40)
+         , Background.color config.background
+         , Font.color config.foreground
+         , Font.center
+         , Border.rounded radiusPill
+         , Border.width 1
+         , Border.color config.border
+         , uiClass "ui-motion"
+         ]
+            ++ hoverBackground config.hoverBackground
+            ++ hoverBorder config.hoverBorder
+            ++ [ Element.htmlAttribute (Html.Attributes.title config.title)
+               , Region.description config.title
+               ]
+        )
         { onPress = config.onPress
         , label =
             Icon.view
@@ -877,10 +857,17 @@ chipAttrs theme selected =
     ]
 
 
-hoverEffect : Device -> List Element.Decoration -> Attribute msg
-hoverEffect device attrs =
-    if isSmall device then
-        Element.mouseOver []
+hoverBackground : Element.Color -> List (Attribute msg)
+hoverBackground color =
+    [ Element.htmlAttribute (Html.Attributes.class "ui-hover-background")
+    , Element.htmlAttribute
+        (Html.Attributes.style "--ui-hover-background" (Css.toCssColor color))
+    ]
 
-    else
-        Element.mouseOver attrs
+
+hoverBorder : Element.Color -> List (Attribute msg)
+hoverBorder color =
+    [ Element.htmlAttribute (Html.Attributes.class "ui-hover-border")
+    , Element.htmlAttribute
+        (Html.Attributes.style "--ui-hover-border" (Css.toCssColor color))
+    ]

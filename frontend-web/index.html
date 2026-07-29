@@ -37,6 +37,10 @@
       .ui-text-ellipsis { min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .ui-text-wrap { min-width:0; max-width:100%; white-space:normal; overflow-wrap:anywhere; }
       .ui-motion,.ui-surface { transition:background-color 160ms ease,border-color 160ms ease,color 160ms ease,box-shadow 180ms ease,opacity 180ms ease,transform 180ms ease; }
+      @media (hover:hover) and (pointer:fine) {
+        .ui-hover-background:hover { background-color:var(--ui-hover-background)!important; }
+        .ui-hover-border:hover { border-color:var(--ui-hover-border)!important; }
+      }
       .ui-skeleton { position:relative; overflow:hidden; }
       .ui-skeleton::after { content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,rgba(255,255,255,.36),transparent); animation:ui-shimmer 1.5s ease-in-out infinite; }
       @keyframes ui-shimmer { 100% { transform:translateX(100%); } }

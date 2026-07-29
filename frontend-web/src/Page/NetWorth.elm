@@ -4,7 +4,7 @@ import Api.Analytics as Analytics
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Data.Transaction exposing (Transaction)
-import Element exposing (Device, Element)
+import Element exposing (Element)
 import Element.Background as Background
 import Element.Font as Font
 import Html.Attributes
@@ -202,44 +202,39 @@ isReportEffect effect =
 
 view : Theme -> Viewport -> Model -> Element Msg
 view theme viewport (Model data) =
-    let
-        device =
-            Element.classifyDevice viewport
-    in
     case Analysis.transaction data.analysis of
         Just transaction ->
-            transactionView theme device transaction
+            transactionView theme transaction
 
         Nothing ->
-            dashboard theme viewport device data
+            dashboard theme viewport data
 
 
-transactionView : Theme -> Device -> Transaction -> Element Msg
-transactionView theme device transaction =
+transactionView : Theme -> Transaction -> Element Msg
+transactionView theme transaction =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
         ]
-        [ Ui.pageHeaderBand theme device <|
+        [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
                 { leading =
                     Just
-                        (Ui.backButton device
-                            theme
+                        (Ui.backButton theme
                             { onPress = AnalysisMsg Analysis.Back }
                         )
                 , title = Typography.pageTitle theme "Transaction Detail"
                 , subtitle = Nothing
                 , actions = []
                 }
-        , Ui.pageContainer device [ TransactionView.transactionDetail theme transaction ]
+        , Ui.pageContainer [ TransactionView.transactionDetail theme transaction ]
         ]
 
 
-dashboard : Theme -> Viewport -> Device -> ModelData -> Element Msg
-dashboard theme viewport device data =
+dashboard : Theme -> Viewport -> ModelData -> Element Msg
+dashboard theme viewport data =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -247,35 +242,34 @@ dashboard theme viewport device data =
         , Element.scrollbarY
         , Element.htmlAttribute (Html.Attributes.class "page-scroll analytics-page")
         ]
-        [ Ui.pageHeaderBand theme device <|
+        [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Net Worth"
                 , subtitle = Just "Assets, liabilities, performance, and activity"
                 , actions =
                     [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                    , Ui.iconButton device
-                        theme
+                    , Ui.iconButton theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
-        , Ui.pageContainer device
-            (dashboardContent theme viewport device data)
+        , Ui.pageContainer
+            (dashboardContent theme viewport data)
         ]
 
 
-dashboardContent : Theme -> Viewport -> Device -> ModelData -> List (Element Msg)
-dashboardContent theme viewport device data =
+dashboardContent : Theme -> Viewport -> ModelData -> List (Element Msg)
+dashboardContent theme viewport data =
     let
         layout =
-            Responsive.contentLayout viewport device
+            Responsive.contentLayout viewport
 
         chartWidth =
             let
                 maxContainerWidth =
-                    1280 - 2 * Responsive.contentPadding device - 40
+                    1280 - 2 * Responsive.contentPadding - 40
             in
-            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport device - 40))
+            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport - 40))
     in
     case RemoteData.value data.response of
         Nothing ->
@@ -360,7 +354,7 @@ netWorthSkeleton : Theme -> Viewport -> Element Msg
 netWorthSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport (Element.classifyDevice viewport)
+            Responsive.contentLayout viewport
     in
     Element.column [ Element.width Element.fill, Element.spacing 16 ]
         [ responsiveGrid layout
