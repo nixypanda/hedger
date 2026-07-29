@@ -24,9 +24,11 @@ import Hedger.Domain.Investment (
 import Hedger.Domain.InvestmentPerformance (
     InvestmentCompleteness (Complete),
     InvestmentSummary (..),
+    SummaryResult (..),
     externalCashFlowsAt,
     investmentSummaryAt,
     reportPeriods,
+    summaryAt,
  )
 import Hedger.Domain.Period (Granularity (Monthly))
 import Hedger.Domain.Xirr (cashFlowAmount, cashFlowDate)
@@ -56,6 +58,7 @@ investmentsSpec =
             "XIRR cash flows cancel reinvestment and transfers while retaining external income and fees"
             externalCashFlows
         , testCase "investment summary reports annualised XIRR instead of absolute return" summaryXirr
+        , testCase "an ambiguous XIRR is surfaced rather than silently swallowed" ambiguousXirr
         , testCase "asset-class configuration is the investment portfolio allowlist" assetClassAllowlist
         , testCase "settled accounts have complete empty summaries" settledAccount
         , testCase "monthly periods include months without transactions" contiguousMonthlyPeriods
@@ -274,6 +277,35 @@ summaryXirr = do
                         (Just "assets:investments:fund")
                         (fromGregorian 2025 6 1)
             assertAnnualRate "summary XIRR" summary.xirr 0.2 0.3
+
+ambiguousXirr :: IO ()
+ambiguousXirr = do
+    snapshotResult <- loadSnapshot "test/fixtures/investment-ambiguous-xirr.journal"
+    mappings <- case mkInvestmentMappings [ambiguousMapping] of
+        Left message -> assertFailure (show message) >> fail "invalid mapping"
+        Right value -> pure value
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let result =
+                    summaryAt
+                        snapshot
+                        testAssetClasses
+                        mappings
+                        "INR"
+                        (Just "assets:investments:ambiguous")
+                        (fromGregorian 2026 1 1)
+            assertEqual "ambiguous XIRR yields no rate" Nothing result.summary.xirr
+            assertBool
+                "an ambiguous XIRR must surface a warning or leave the summary incomplete"
+                (not (null result.warnings) || result.summary.completeness /= Complete)
+
+ambiguousMapping :: InvestmentMapping
+ambiguousMapping =
+    InvestmentMapping
+        { assetAccount = "assets:investments:ambiguous"
+        , performanceAccounts = []
+        }
 
 assetClassAllowlist :: IO ()
 assetClassAllowlist = do

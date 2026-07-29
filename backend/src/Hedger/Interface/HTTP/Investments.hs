@@ -225,6 +225,10 @@ renderWarning kind = case kind of
         ( "foreign-cost"
         , "Acquisition cost in " <> symbol <> " cannot be reported as historical " <> commodity <> " cost."
         )
+    Performance.UnresolvedReturn ->
+        ( "unresolved-return"
+        , "The internal rate of return could not be resolved (no unique or convergent rate)."
+        )
 
 decimal :: Decimal -> Text
 decimal = Text.pack . show
