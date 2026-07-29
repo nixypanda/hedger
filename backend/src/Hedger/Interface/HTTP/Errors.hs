@@ -32,7 +32,7 @@ data ValidationDetails = ValidationDetails
     deriving anyclass (ToJSON, FromJSON)
 
 data ErrorEnvelope = ErrorEnvelope
-    { errorPayload :: ErrorPayload
+    { error :: ErrorPayload
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON, FromJSON)
@@ -52,7 +52,7 @@ appErrorStatus InternalError = HTTP.status500
 toEnvelope :: Text -> AppError -> ErrorEnvelope
 toEnvelope requestIdentifier appError =
     ErrorEnvelope
-        { errorPayload =
+        { error =
             ErrorPayload
                 { code = errorCode appError
                 , message = errorMessage appError
