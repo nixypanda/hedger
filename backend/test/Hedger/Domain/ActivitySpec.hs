@@ -1,18 +1,35 @@
 module Hedger.Domain.ActivitySpec (activitySpec) where
 
+import Data.Decimal (Decimal)
 import Data.Either (isLeft)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (addDays, addGregorianMonthsClip, fromGregorian)
+import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian)
 import Hedgehog (Gen, Property, assert, failure, footnote, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (Assertion, assertEqual, testCase)
 import Test.Tasty.Hedgehog (testProperty)
 
-import Hedger.Domain.Activity (ActivityRange (..), parseActivityPeriod)
+import Hledger.Data.Amount (mixed, num)
+import Hledger.Data.Posting (nullposting)
+import Hledger.Data.Transaction (nulltransaction)
+import Hledger.Data.Types qualified as Hledger
+
+import Hedger.Domain.Activity (
+    ActivityBucketFigures (..),
+    ActivityDirection (..),
+    ActivityFigures (..),
+    ActivityKind (..),
+    ActivityRange (..),
+    BreakdownItem (..),
+    computeActivity,
+    parseActivityPeriod,
+ )
 import Hedger.Domain.Period (ReportPeriod (..), monthKey)
 import Hedger.Generators (formatYearMonth, genMonth, genYear)
+import Hedger.SyntheticTransactions (mkSnapshot)
 
 activitySpec :: TestTree
 activitySpec =
@@ -29,7 +46,82 @@ activitySpec =
             , testProperty "a month other than the fiscal start is rejected" fiscalYearMismatch
             , testProperty "a malformed YYYY-MM is rejected" fiscalYearMalformed
             ]
+        , testGroup
+            "computeActivity direction breakdown"
+            [ testCase "asset activity splits a day into acquire/rebalance/dispose" assetDirections
+            , testCase "liability activity splits borrowing from pay-off" liabilityDirections
+            ]
         ]
+
+assetDirections :: Assertion
+assetDirections =
+    assertEqual
+        "asset directions"
+        [ (Increase, [("assets:equity", 100)])
+        , (Reallocate, [("assets:debt", 30), ("assets:equity", 30)])
+        , (Decrease, [("assets:equity", 50)])
+        ]
+        (directionBreakdown AssetActivity assetTransactions)
+
+liabilityDirections :: Assertion
+liabilityDirections =
+    assertEqual
+        "liability directions"
+        [ (Increase, [("liabilities:card", 200)])
+        , (Decrease, [("liabilities:card", 200)])
+        ]
+        (directionBreakdown LiabilityActivity liabilityTransactions)
+
+activityDay :: Day
+activityDay = fromGregorian 2024 5 24
+
+posting :: Text -> Integer -> Hledger.Posting
+posting account amount =
+    nullposting
+        { Hledger.paccount = account
+        , Hledger.pamount = mixed [(num (fromInteger amount)){Hledger.acommodity = "R"}]
+        }
+
+transactionOn :: [Hledger.Posting] -> Hledger.Transaction
+transactionOn postings =
+    nulltransaction{Hledger.tdate = activityDay, Hledger.tpostings = postings}
+
+assetTransactions :: [Hledger.Transaction]
+assetTransactions =
+    [ transactionOn [posting "assets:equity" 100, posting "assets:cash" (-100)]
+    , transactionOn [posting "assets:equity" (-50), posting "assets:cash" 50]
+    , transactionOn [posting "assets:equity" (-30), posting "assets:debt" 30]
+    ]
+
+liabilityTransactions :: [Hledger.Transaction]
+liabilityTransactions =
+    [ transactionOn [posting "liabilities:card" (-200), posting "assets:cash" 200]
+    , transactionOn [posting "liabilities:card" 200, posting "assets:cash" (-200)]
+    ]
+
+directionBreakdown ::
+    ActivityKind -> [Hledger.Transaction] -> [(ActivityDirection, [(Text, Decimal)])]
+directionBreakdown kind transactions =
+    case parseActivityPeriod 1 MonthActivity "2024-05" of
+        Left _ -> []
+        Right activityPeriod ->
+            let figures :: ActivityFigures
+                figures =
+                    computeActivity
+                        (mkSnapshot transactions)
+                        transactions
+                        "R"
+                        kind
+                        MonthActivity
+                        3
+                        activityPeriod
+             in case figures.buckets of
+                    bucket : _ -> fmap summariseDirection bucket.directionItems
+                    [] -> []
+
+summariseDirection :: (ActivityDirection, [BreakdownItem]) -> (ActivityDirection, [(Text, Decimal)])
+summariseDirection (direction, items) =
+    (direction, [(item.account, item.quantity) | item <- items])
 
 genFiscalStart :: Gen Int
 genFiscalStart = Gen.integral (Range.linear 1 12)

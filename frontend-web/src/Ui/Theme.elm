@@ -64,6 +64,9 @@ type alias Theme =
     , assetBg : Color
     , assetFg : Color
     , chartSeries : List Color
+    , acquireScale : List Color
+    , rebalanceScale : List Color
+    , disposeScale : List Color
     , cardShadow : String
     }
 
@@ -128,6 +131,30 @@ light =
         , rgb255 194 65 12
         , rgb255 217 70 239
         ]
+    , acquireScale =
+        [ rgb255 4 120 87
+        , rgb255 13 148 136
+        , rgb255 22 163 74
+        , rgb255 77 124 15
+        , rgb255 14 116 144
+        , rgb255 21 128 61
+        ]
+    , rebalanceScale =
+        [ rgb255 29 78 216
+        , rgb255 14 165 233
+        , rgb255 79 70 229
+        , rgb255 8 145 178
+        , rgb255 37 99 235
+        , rgb255 2 132 199
+        ]
+    , disposeScale =
+        [ rgb255 190 18 60
+        , rgb255 220 38 38
+        , rgb255 219 39 119
+        , rgb255 234 88 12
+        , rgb255 159 18 57
+        , rgb255 225 29 72
+        ]
     , cardShadow = "0 1px 2px rgba(76, 29, 149, 0.04), 0 10px 30px rgba(76, 29, 149, 0.07)"
     }
 
@@ -191,6 +218,30 @@ dark =
         , rgb255 45 212 191
         , rgb255 251 146 60
         , rgb255 216 180 254
+        ]
+    , acquireScale =
+        [ rgb255 52 211 153
+        , rgb255 110 231 183
+        , rgb255 74 222 128
+        , rgb255 45 212 191
+        , rgb255 163 230 53
+        , rgb255 16 185 129
+        ]
+    , rebalanceScale =
+        [ rgb255 96 165 250
+        , rgb255 56 189 248
+        , rgb255 129 140 248
+        , rgb255 147 197 253
+        , rgb255 59 130 246
+        , rgb255 6 182 212
+        ]
+    , disposeScale =
+        [ rgb255 251 113 133
+        , rgb255 248 113 113
+        , rgb255 244 114 182
+        , rgb255 251 146 60
+        , rgb255 253 164 175
+        , rgb255 239 68 68
         ]
     , cardShadow = "0 1px 2px rgba(0, 0, 0, 0.24), 0 10px 28px rgba(0, 0, 0, 0.32)"
     }

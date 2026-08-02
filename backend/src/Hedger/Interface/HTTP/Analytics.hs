@@ -131,7 +131,15 @@ data ActivityBucketDto = ActivityBucketDto
     , decrease :: Text
     , reallocated :: Text
     , categories :: [BreakdownItemDto]
+    , directions :: [DirectionBreakdownDto]
     , transactions :: [TransactionDto]
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (ToJSON)
+
+data DirectionBreakdownDto = DirectionBreakdownDto
+    { direction :: Text
+    , categories :: [BreakdownItemDto]
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON)
@@ -331,8 +339,22 @@ toActivityBucket classify value =
         , decrease = decimal value.decrease
         , reallocated = decimal value.reallocated
         , categories = fmap (toBreakdownItem classify) value.categories
+        , directions = fmap (toDirectionBreakdown classify) value.directions
         , transactions = fmap (toTransactionDto classify) value.transactions
         }
+
+toDirectionBreakdown :: AccountTypeClassifier -> Analytics.DirectionBreakdown -> DirectionBreakdownDto
+toDirectionBreakdown classify value =
+    DirectionBreakdownDto
+        { direction = directionText value.direction
+        , categories = fmap (toBreakdownItem classify) value.categories
+        }
+
+directionText :: Analytics.ActivityDirection -> Text
+directionText direction = case direction of
+    Analytics.Increase -> "increase"
+    Analytics.Reallocate -> "reallocate"
+    Analytics.Decrease -> "decrease"
 
 granularityText :: Analytics.Granularity -> Text
 granularityText Analytics.Monthly = "monthly"

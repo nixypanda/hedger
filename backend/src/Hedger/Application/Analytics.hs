@@ -14,6 +14,8 @@ module Hedger.Application.Analytics (
     NetWorthReport (..),
     CashflowReport (..),
     ActivityBucket (..),
+    ActivityDirection (..),
+    DirectionBreakdown (..),
     ActivityReport (..),
 
     -- * Use cases
@@ -47,6 +49,7 @@ import Hedger.Application.TransactionQuery (parseHledgerQuery)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Activity (
     ActivityBucketFigures (..),
+    ActivityDirection (..),
     ActivityFigures (..),
     ActivityKind (..),
     ActivityRange (..),
@@ -138,7 +141,13 @@ data ActivityBucket = ActivityBucket
     , decrease :: Decimal
     , reallocated :: Decimal
     , categories :: [BreakdownItem]
+    , directions :: [DirectionBreakdown]
     , transactions :: [Hledger.Transaction]
+    }
+
+data DirectionBreakdown = DirectionBreakdown
+    { direction :: ActivityDirection
+    , categories :: [BreakdownItem]
     }
 
 data ActivityReport = ActivityReport
@@ -344,6 +353,10 @@ toActivityBucket figures =
         , decrease = figures.decrease
         , reallocated = figures.reallocated
         , categories = fst (groupOther figures.categoryItems)
+        , directions =
+            [ DirectionBreakdown{direction, categories = fst (groupOther items)}
+            | (direction, items) <- figures.directionItems
+            ]
         , transactions = figures.transactions
         }
 

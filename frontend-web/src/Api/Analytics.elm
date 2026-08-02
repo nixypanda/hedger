@@ -1,5 +1,6 @@
 module Api.Analytics exposing
     ( ActivityBucket
+    , ActivityDirection
     , ActivityKind(..)
     , ActivityRange(..)
     , ActivityRequest
@@ -8,6 +9,7 @@ module Api.Analytics exposing
     , BreakdownItem
     , CashflowResponse
     , CategoryBreakdown
+    , DirectionBreakdown
     , NetWorthResponse
     , PerformancePoint
     , Report
@@ -117,6 +119,14 @@ type alias CashflowResponse =
 
 type alias ActivityBucket =
     AnalyticsData.ActivityBucket
+
+
+type alias DirectionBreakdown =
+    AnalyticsData.DirectionBreakdown
+
+
+type alias ActivityDirection =
+    AnalyticsData.ActivityDirection
 
 
 type alias ActivityResponse =
@@ -297,7 +307,35 @@ activityBucketDecoder =
         |> required "decrease" Decimal.decoder
         |> required "reallocated" Decimal.decoder
         |> required "categories" (Decode.list breakdownDecoder)
+        |> required "directions" (Decode.list directionBreakdownDecoder)
         |> required "transactions" (Decode.list Transaction.transactionDecoder)
+
+
+directionBreakdownDecoder : Decoder DirectionBreakdown
+directionBreakdownDecoder =
+    Decode.succeed AnalyticsData.DirectionBreakdown
+        |> required "direction" activityDirectionDecoder
+        |> required "categories" (Decode.list breakdownDecoder)
+
+
+activityDirectionDecoder : Decoder ActivityDirection
+activityDirectionDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\value ->
+                case value of
+                    "increase" ->
+                        Decode.succeed AnalyticsData.Increase
+
+                    "reallocate" ->
+                        Decode.succeed AnalyticsData.Reallocate
+
+                    "decrease" ->
+                        Decode.succeed AnalyticsData.Decrease
+
+                    other ->
+                        Decode.fail ("Unknown activity direction: " ++ other)
+            )
 
 
 activityKindDecoder : Decoder ActivityKind

@@ -1,4 +1,11 @@
-module Data.Analytics exposing (ActivityBucket, BreakdownItem, Kpi, TimelinePoint)
+module Data.Analytics exposing
+    ( ActivityBucket
+    , ActivityDirection(..)
+    , BreakdownItem
+    , DirectionBreakdown
+    , Kpi
+    , TimelinePoint
+    )
 
 import Data.AccountType exposing (AccountType)
 import Data.Date exposing (Date)
@@ -13,6 +20,18 @@ type alias BreakdownItem =
     }
 
 
+type ActivityDirection
+    = Increase
+    | Reallocate
+    | Decrease
+
+
+type alias DirectionBreakdown =
+    { direction : ActivityDirection
+    , categories : List BreakdownItem
+    }
+
+
 type alias ActivityBucket =
     { key : String
     , startDate : Date
@@ -21,6 +40,7 @@ type alias ActivityBucket =
     , decrease : Decimal
     , reallocated : Decimal
     , categories : List BreakdownItem
+    , directions : List DirectionBreakdown
     , transactions : List Transaction
     }
 

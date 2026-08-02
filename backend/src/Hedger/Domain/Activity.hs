@@ -5,6 +5,7 @@ over a period.
 -}
 module Hedger.Domain.Activity (
     ActivityKind (..),
+    ActivityDirection (..),
     ActivityRange (..),
     BreakdownItem (..),
     ActivityBucketFigures (..),
@@ -41,6 +42,12 @@ data ActivityKind
     | LiabilityActivity
     deriving stock (Eq, Show)
 
+data ActivityDirection
+    = Increase
+    | Reallocate
+    | Decrease
+    deriving stock (Eq, Ord, Show, Enum, Bounded)
+
 data ActivityRange = MonthActivity | FiscalYearActivity
     deriving stock (Eq, Show)
 
@@ -58,6 +65,7 @@ data ActivityBucketFigures = ActivityBucketFigures
     , decrease :: Decimal
     , reallocated :: Decimal
     , categoryItems :: [BreakdownItem]
+    , directionItems :: [(ActivityDirection, [BreakdownItem])]
     , transactions :: [Hledger.Transaction]
     }
 
@@ -105,7 +113,8 @@ toBucketFigures depth activityRange (key, contributions) =
         , increase = sum (fmap (.increase) contributions)
         , decrease = sum (fmap (.decrease) contributions)
         , reallocated = sum (fmap (.reallocated) contributions)
-        , categoryItems = categoryItems
+        , categoryItems = itemsFrom movements
+        , directionItems = directionItems
         , transactions = fmap (.transaction) contributions
         }
   where
@@ -114,16 +123,19 @@ toBucketFigures depth activityRange (key, contributions) =
         MonthActivity -> fromMaybe epoch (readMaybe (Text.unpack key))
         FiscalYearActivity ->
             maybe epoch (\(year, month) -> fromGregorian year month 1) (parseYearMonth key)
-    categoryTotals =
-        Map.fromListWith
-            (+)
-            [ (Account.atDepth depth movement.account, movement.quantity)
-            | movement <- movements
-            ]
-    categoryItems =
+    itemsFrom ms =
         [ BreakdownItem{account, quantity = abs quantity}
-        | (account, quantity) <- Map.toList categoryTotals
+        | (account, quantity) <-
+            Map.toList
+                (Map.fromListWith (+) [(Account.atDepth depth m.account, m.quantity) | m <- ms])
         ]
+    directionItems =
+        [ (direction, items)
+        | direction <- [minBound .. maxBound]
+        , let items = itemsFrom (concatMap (.categories) (contributionsFor direction))
+        , not (null items)
+        ]
+    contributionsFor direction = filter ((== Just direction) . (.direction)) contributions
 
 belongsTo :: Text -> Hledger.Posting -> Bool
 belongsTo category posting = Account.accountLabel (Account.accountInfo posting.paccount) == category
@@ -150,9 +162,19 @@ data ActivityContribution = ActivityContribution
     , increase :: Decimal
     , decrease :: Decimal
     , reallocated :: Decimal
+    , direction :: Maybe ActivityDirection
     , categories :: [Movement]
     , transaction :: Hledger.Transaction
     }
+
+directionFor :: Transaction.TransactionClassification -> Maybe ActivityDirection
+directionFor classification = case classification of
+    Transaction.AssetAcquisition -> Just Increase
+    Transaction.Borrowing -> Just Increase
+    Transaction.AssetReallocation -> Just Reallocate
+    Transaction.AssetDisposal -> Just Decrease
+    Transaction.Repayment -> Just Decrease
+    _ -> Nothing
 
 activityContribution ::
     Snapshot ->
@@ -200,6 +222,7 @@ flowActivity snapshot commodity category change transaction =
                             , increase = 0
                             , decrease = 0
                             , reallocated = 0
+                            , direction = Nothing
                             , categories = movements
                             , transaction
                             }
@@ -252,6 +275,7 @@ assetActivity snapshot commodity classification transaction =
                             , increase = acquired
                             , decrease = disposed
                             , reallocated = realloc
+                            , direction = directionFor classification
                             , categories = categoryValues
                             , transaction
                             }
@@ -293,6 +317,7 @@ liabilityActivity snapshot commodity classification transaction =
                             , increase = borrowed
                             , decrease = repaid
                             , reallocated = 0
+                            , direction = directionFor classification
                             , categories = fmap absoluteMovement movements
                             , transaction
                             }

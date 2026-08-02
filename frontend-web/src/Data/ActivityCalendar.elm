@@ -65,6 +65,7 @@ emptyBucket key =
     , decrease = Decimal.zero
     , reallocated = Decimal.zero
     , categories = []
+    , directions = []
     , transactions = []
     }
 

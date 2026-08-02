@@ -573,7 +573,7 @@
       },
       "ActivityBucket": {
         "type": "object",
-        "required": ["key", "startDate", "total", "increase", "decrease", "reallocated", "categories", "transactions"],
+        "required": ["key", "startDate", "total", "increase", "decrease", "reallocated", "categories", "directions", "transactions"],
         "properties": {
           "key": { "type": "string" },
           "startDate": { "type": "string", "format": "date" },
@@ -582,7 +582,17 @@
           "decrease": { "$ref": "#/components/schemas/Decimal" },
           "reallocated": { "$ref": "#/components/schemas/Decimal" },
           "categories": { "type": "array", "items": { "$ref": "#/components/schemas/BreakdownItem" } },
+          "directions": { "type": "array", "items": { "$ref": "#/components/schemas/DirectionBreakdown" } },
           "transactions": { "type": "array", "items": { "$ref": "#/components/schemas/Transaction" } }
+        },
+        "additionalProperties": false
+      },
+      "DirectionBreakdown": {
+        "type": "object",
+        "required": ["direction", "categories"],
+        "properties": {
+          "direction": { "type": "string", "enum": ["increase", "reallocate", "decrease"] },
+          "categories": { "type": "array", "items": { "$ref": "#/components/schemas/BreakdownItem" } }
         },
         "additionalProperties": false
       },
