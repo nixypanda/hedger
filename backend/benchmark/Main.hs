@@ -4,21 +4,41 @@ import Control.DeepSeq (NFData (rnf))
 import Control.Exception (evaluate)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
+import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian, toGregorian)
+import Hedger.Application.AccountRegisterQuery (
+    RegisterEntry (..),
+    RegisterPage (..),
+    RegisterPageRequest (..),
+    registerPage,
+ )
+import Hedger.Application.Common (AccountTypeClassifier, accountTypeClassifier)
 import Hedger.Application.TransactionQuery (
     TransactionPage (transactions),
     TransactionPageRequest (..),
     transactionPage,
  )
+import Hedger.Domain.Account qualified as Account
+import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
 import Hedger.Domain.Investment (
     InvestmentMapping (..),
     PerformanceAccount (..),
     PerformanceRole (..),
+    emptyAssetClassMappings,
     mkInvestmentMappings,
  )
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance qualified as Performance
+import Hedger.Domain.NetWorth (
+    BreakdownItem (..),
+    NetWorthFigures (..),
+    PerformancePoint (..),
+    TimelinePoint (..),
+    computeNetWorth,
+ )
+import Hedger.Domain.Period (Granularity (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Xirr qualified as Xirr
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
@@ -33,114 +53,155 @@ import Hedger.Interface.HTTP.Transactions (
     TransactionsResponse (..),
     toTransactions,
  )
+import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 import Test.Tasty.Bench (Benchmark, bench, bgroup, defaultMain, env, nf, nfIO)
+
+-- | Only sizes with enough transactions to exercise scaling behaviour. Each
+-- fixture is loaded once and shared across every benchmark group below.
+fixtures :: [(String, Text.Text)]
+fixtures =
+    [ ("medium-5000", "../examples/performance/india-us-portfolio-medium-5000.journal")
+    , ("large-50000", "../examples/performance/india-us-portfolio-large-50000.journal")
+    ]
 
 main :: IO ()
 main =
     defaultMain
-        [ bench "snapshot/parse-shared-13" $ nfIO loadAndForceFixture
-        , queryBenchmarks "shared-13" "test/fixtures/shared.journal"
-        , queryBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
-        , investmentBenchmarks "shared-13" "test/fixtures/shared.journal"
-        , investmentBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
-        , bench "xirr/small" $ nf xirrWeight smallXirrCashFlows
-        , xirrBenchmarks "shared-13" "test/fixtures/shared.journal"
-        , xirrBenchmarks "large-50000" "../examples/performance/india-us-portfolio-large-50000.journal"
-        , env loadTransactions $ \transactions ->
-            bgroup
-                "transactions"
-                [ bench "project/shared-13" $ nf (projectionWeight . toTransactions) transactions
-                , bench "project/scaled-1300" $
-                    nf (projectionWeight . toTransactions) (concat (replicate 100 transactions))
-                , bench "encode/shared-13" $
-                    nf (LazyByteString.length . Aeson.encode . responseFor) transactions
-                , bench "encode/scaled-1300" $
-                    nf
-                        (LazyByteString.length . Aeson.encode . responseFor)
-                        (concat (replicate 100 transactions))
+        ( bgroup "parse" [bench name $ nfIO (loadAndForce path) | (name, path) <- fixtures]
+            : fmap fixtureBenchmarks fixtures
+        )
+
+fixtureBenchmarks :: (String, Text.Text) -> Benchmark
+fixtureBenchmarks (name, path) =
+    env (loadFixtureInput path) $ \input ->
+        let snapshot = input.snapshot
+            classify = accountTypeClassifier snapshot.journal
+         in bgroup
+                name
+                [ bgroup
+                    "query"
+                    [ bench "account" $ nf (queryWeight snapshot) "acct:assets"
+                    , bench "boolean" $ nf (queryWeight snapshot) "expr:'(acct:expenses OR desc:Salary)'"
+                    ]
+                , bgroup
+                    "investments"
+                    [ bench "current" $ nf (summaryWeight . investmentSummary snapshot) input.latest
+                    , bench "monthly-24" $
+                        nf (sum . fmap (summaryWeight . investmentSummary snapshot)) input.monthEnds
+                    ]
+                , bgroup
+                    "analytics"
+                    [ bench "networth" $ nf netWorthWeight snapshot
+                    , bench "cashflow" $ nf cashflowWeight snapshot
+                    ]
+                , bgroup
+                    "accounts"
+                    [ bench "tree" $ nf accountTreeWeight snapshot
+                    , bench "register" $ nf (registerWeight snapshot) "assets"
+                    ]
+                , bgroup "xirr" [bench "journal-derived" $ nf xirrWeight input.xirrFlows]
+                , bgroup
+                    "transactions"
+                    [ bench "project" $ nf (projectionWeight . toTransactions classify) input.page
+                    , bench "encode" $ nf (LazyByteString.length . Aeson.encode . responseFor classify) input.page
+                    ]
                 ]
-        ]
 
-newtype BenchSnapshot = BenchSnapshot Snapshot
-
-instance NFData BenchSnapshot where
-    rnf (BenchSnapshot snapshot) = rnf (sum (length . Hledger.tpostings <$> snapshot.transactions))
-
-newtype BenchXirrCashFlows = BenchXirrCashFlows [Xirr.CashFlow]
-
-instance NFData BenchXirrCashFlows where
-    rnf (BenchXirrCashFlows flows) = rnf (length (show flows))
-
-data InvestmentInput = InvestmentInput
+-- | The inputs a fixture's benchmarks need, precomputed so 'env' forces them
+-- (and the parse cost) out of the timed region. A classifier is derived per
+-- use inside 'fixtureBenchmarks' since functions have no 'NFData'.
+data FixtureInput = FixtureInput
     { snapshot :: Snapshot
     , latest :: Day
     , monthEnds :: [Day]
+    , xirrFlows :: [Xirr.CashFlow]
+    , page :: [Hledger.Transaction]
     }
 
-instance NFData InvestmentInput where
+instance NFData FixtureInput where
     rnf input =
-        rnf (sum (length . Hledger.tpostings <$> input.snapshot.transactions)) `seq`
-            rnf input.latest `seq`
-                rnf input.monthEnds
+        rnf (forceSnapshot input.snapshot)
+            `seq` rnf input.latest
+            `seq` rnf input.monthEnds
+            `seq` rnf (length (show input.xirrFlows))
+            `seq` rnf (forcePostingContents input.page)
 
-queryBenchmarks :: String -> Text.Text -> Benchmark
-queryBenchmarks fixtureName fixturePath =
-    env (BenchSnapshot <$> loadFixtureAt fixturePath) $ \(BenchSnapshot snapshot) ->
-        bgroup
-            ("query/" <> fixtureName)
-            [ bench "account" $ nf (queryWeight snapshot) "acct:assets"
-            , bench "boolean" $ nf (queryWeight snapshot) "expr:'(acct:expenses OR desc:Salary)'"
-            ]
+-- | Force everything a fixture's benchmarks read out of a snapshot, so 'env'
+-- pays derivation cost up front rather than inside a timed benchmark. hledger
+-- parses strictly, so in practice the one field this materialises is the
+-- lazily built 'accountTree'; forcing it keeps the parse benchmark honest. Since
+-- hledger-lib has no 'NFData', we force by summing numeric leaves rather than via
+-- 'show', which would drag in amount-display machinery no benchmark exercises.
+forceSnapshot :: Snapshot -> Int
+forceSnapshot snapshot =
+    forcePostingContents snapshot.transactions
+        + forceAccountTree snapshot.accountTree
+        + maybe 0 (const 1) snapshot.latestJournalDate
 
-investmentBenchmarks :: String -> Text.Text -> Benchmark
-investmentBenchmarks fixtureName fixturePath =
-    env (loadInvestmentInput fixturePath) $ \input ->
-        bgroup
-            ("investments/" <> fixtureName)
-            [ bench "current" $
-                nf
-                    (summaryWeight . investmentSummary input.snapshot)
-                    input.latest
-            , bench "monthly-24" $
-                nf
-                    (sum . fmap (summaryWeight . investmentSummary input.snapshot))
-                    input.monthEnds
-            ]
+forcePostingContents :: [Hledger.Transaction] -> Int
+forcePostingContents txns =
+    sum
+        [ Text.length (Hledger.paccount posting) + forceAmounts (Hledger.pamount posting)
+        | txn <- txns
+        , posting <- Hledger.tpostings txn
+        ]
 
-xirrBenchmarks :: String -> Text.Text -> Benchmark
-xirrBenchmarks fixtureName fixturePath =
-    env (BenchXirrCashFlows <$> loadDerivedXirrCashFlows fixturePath) $ \(BenchXirrCashFlows flows) ->
-        bgroup ("xirr/" <> fixtureName) [bench "journal-derived" $ nf xirrWeight flows]
+forceAccountTree :: Hledger.Account Hledger.BalanceData -> Int
+forceAccountTree account =
+    Text.length account.aname
+        + forceAmounts (Hledger.bdincludingsubs account.adata.pdpre)
+        + sum (forceAmounts . Hledger.bdincludingsubs <$> account.adata.pdperiods)
+        + sum (forceAccountTree <$> account.asubs)
 
-xirrWeight :: [Xirr.CashFlow] -> Int
-xirrWeight = length . show . Xirr.xirr
+forceAmounts :: Hledger.MixedAmount -> Int
+forceAmounts mixed =
+    sum [fromInteger (truncate (Hledger.aquantity amount)) | amount <- HledgerAmount.amounts mixed]
 
-smallXirrCashFlows :: [Xirr.CashFlow]
-smallXirrCashFlows =
-    [ Xirr.cashFlow (fromGregorian 2024 1 1) (-1000)
-    , Xirr.cashFlow (fromGregorian 2024 7 1) (-500)
-    , Xirr.cashFlow (fromGregorian 2025 1 1) 1800
-    ]
+loadFixtureInput :: Text.Text -> IO FixtureInput
+loadFixtureInput path = do
+    snapshot <- loadFixtureAt path
+    let latest = fromMaybe (error "benchmark fixture has no date") snapshot.latestJournalDate
+    pure
+        FixtureInput
+            { snapshot
+            , latest
+            , monthEnds = monthlyPeriodEnds latest
+            , xirrFlows = deriveXirrFlows snapshot
+            , -- A production transactions page is capped at 'maximumPageLimit' (200),
+              -- so projection/encoding never see more than that many rows.
+              page = take 200 snapshot.transactions
+            }
 
-loadDerivedXirrCashFlows :: Text.Text -> IO [Xirr.CashFlow]
-loadDerivedXirrCashFlows fixturePath = do
-    snapshot <- loadFixtureAt fixturePath
-    let dates = (.tdate) <$> snapshot.transactions
-        flows = case dates of
-            [] -> smallXirrCashFlows
-            first : rest ->
-                let contributionCount = length rest + 1
-                    terminal = addDays 365 (maximum dates)
-                 in Xirr.cashFlow first (-1)
-                        : [Xirr.cashFlow day (-1) | day <- rest]
-                            <> [Xirr.cashFlow terminal (fromIntegral (contributionCount + 1000))]
-    _ <- evaluate (sum (length . show <$> flows))
-    pure flows
+loadAndForce :: Text.Text -> IO Int
+loadAndForce path = do
+    result <- loadSnapshot path
+    case result of
+        Left loadError -> fail (show loadError)
+        Right snapshot -> evaluate (forceSnapshot snapshot)
+
+loadFixtureAt :: Text.Text -> IO Snapshot
+loadFixtureAt path = do
+    result <- loadSnapshot path
+    case result of
+        Left loadError -> fail (show loadError)
+        Right snapshot -> do
+            _ <- evaluate (forceSnapshot snapshot)
+            pure snapshot
+
+-- * Query
+
+queryWeight :: Snapshot -> Text.Text -> Int
+queryWeight snapshot query =
+    case transactionPage snapshot TransactionPageRequest{query = Just query, limit = 50, cursor = Nothing} of
+        Left _ -> 0
+        Right page -> projectionWeight (toTransactions (accountTypeClassifier snapshot.journal) page.transactions)
+
+-- * Investments
 
 investmentSummary :: Snapshot -> Day -> Performance.InvestmentSummary
 investmentSummary snapshot day =
-    Performance.investmentSummaryAt snapshot benchmarkMappings "INR" Nothing day
+    Performance.investmentSummaryAt snapshot emptyAssetClassMappings benchmarkMappings "INR" Nothing day
 
 summaryWeight :: Performance.InvestmentSummary -> Int
 summaryWeight summary =
@@ -168,14 +229,6 @@ benchmarkMappings =
                 }
             ]
 
-loadInvestmentInput :: Text.Text -> IO InvestmentInput
-loadInvestmentInput fixturePath = do
-    snapshot <- loadFixtureAt fixturePath
-    let latest = maybe (error "investment benchmark fixture has no date") id snapshot.latestJournalDate
-        monthEnds = monthlyPeriodEnds latest
-    _ <- evaluate (rnf latest `seq` rnf monthEnds)
-    pure InvestmentInput{snapshot, latest, monthEnds}
-
 monthlyPeriodEnds :: Day -> [Day]
 monthlyPeriodEnds latest =
     [ min latest (addDays (-1) (addGregorianMonthsClip 1 (addGregorianMonthsClip offset finalStart)))
@@ -185,42 +238,100 @@ monthlyPeriodEnds latest =
     (year, month, _) = toGregorian latest
     finalStart = fromGregorian year month 1
 
-loadAndForceFixture :: IO Int
-loadAndForceFixture = do
-    result <- loadSnapshot "test/fixtures/shared.journal"
-    case result of
-        Left loadError -> fail (show loadError)
-        Right snapshot -> evaluate (sum (length . Hledger.tpostings <$> snapshot.transactions))
+-- * Analytics: net worth and cashflow both iterate every period across the
+-- whole journal, so their cost scales with transaction count.
 
-loadTransactions :: IO [Hledger.Transaction]
-loadTransactions = do
-    (.transactions) <$> loadFixture
+netWorthWeight :: Snapshot -> Int
+netWorthWeight snapshot =
+    let figures = computeNetWorth snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+     in sum (timelineWeight <$> figures.timeline)
+            + sum (breakdownWeight <$> figures.assetsBreakdownItems)
+            + sum (breakdownWeight <$> figures.liabilitiesBreakdownItems)
+            + sum (performanceWeight <$> figures.performance)
+            + figures.incompletePeriods
 
-loadFixture :: IO Snapshot
-loadFixture = loadFixtureAt "test/fixtures/shared.journal"
+cashflowWeight :: Snapshot -> Int
+cashflowWeight snapshot =
+    let figures = computeCashflow snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+     in sum (timelineWeight <$> figures.timeline)
+            + sum (breakdownWeight <$> figures.incomeBreakdownItems)
+            + sum (breakdownWeight <$> figures.expenseBreakdownItems)
+            + figures.totalCount
+            + figures.filteredCount
 
-loadFixtureAt :: Text.Text -> IO Snapshot
-loadFixtureAt fixturePath = do
-    result <- loadSnapshot fixturePath
-    case result of
-        Left loadError -> fail (show loadError)
-        Right snapshot -> do
-            _ <- evaluate (sum (length . Hledger.tpostings <$> snapshot.transactions))
-            pure snapshot
+timelineWeight :: TimelinePoint -> Int
+timelineWeight point =
+    length (show point.positive) + length (show point.negative) + length (show point.net)
 
-responseFor :: [Hledger.Transaction] -> TransactionsResponse
-responseFor transactions =
+breakdownWeight :: BreakdownItem -> Int
+breakdownWeight item = Text.length item.account + length (show item.quantity)
+
+performanceWeight :: PerformancePoint -> Int
+performanceWeight point =
+    length (show point.netInvestment) + length (show point.netWorth) + length (show point.gainLoss)
+
+-- * Accounts: the tree values every account against the price oracle; the
+-- register builds an account-transactions report over every matching posting.
+
+accountTreeWeight :: Snapshot -> Int
+accountTreeWeight snapshot =
+    sum (nodeWeight context <$> snapshot.accountTree.asubs)
+  where
+    valuationDate = fromMaybe (fromGregorian 1970 1 1) snapshot.latestJournalDate
+    context = Account.mkValuationContext snapshot.journal "INR" valuationDate
+
+nodeWeight :: Account.ValuationContext -> Hledger.Account Hledger.BalanceData -> Int
+nodeWeight context account =
+    let total = foldMap id (account.adata.pdpre : Map.elems account.adata.pdperiods)
+        valued = Account.valueBalances context (Hledger.bdexcludingsubs total) (Hledger.bdincludingsubs total)
+     in length (show valued.directBalance)
+            + length (show valued.subtreeBalance)
+            + sum (nodeWeight context <$> account.asubs)
+
+registerWeight :: Snapshot -> Text.Text -> Int
+registerWeight snapshot account =
+    case registerPage snapshot "INR" request of
+        Left _ -> 0
+        Right page -> sum (entryWeight <$> page.entries)
+  where
+    request =
+        RegisterPageRequest
+            { account
+            , commodity = Just "INR"
+            , start = Nothing
+            , end = Nothing
+            , limit = 50
+            , cursor = Nothing
+            }
+
+entryWeight :: RegisterEntry -> Int
+entryWeight entry = sum (Text.length <$> entry.matchedAccounts) + length (show entry.displayItem)
+
+-- * Xirr
+
+xirrWeight :: [Xirr.CashFlow] -> Int
+xirrWeight = length . show . Xirr.xirr
+
+deriveXirrFlows :: Snapshot -> [Xirr.CashFlow]
+deriveXirrFlows snapshot =
+    case (.tdate) <$> snapshot.transactions of
+        [] -> [Xirr.cashFlow (fromGregorian 2024 1 1) (-1000), Xirr.cashFlow (fromGregorian 2025 1 1) 1100]
+        dates@(first : rest) ->
+            let contributionCount = length rest + 1
+                terminal = addDays 365 (maximum dates)
+             in Xirr.cashFlow first (-1)
+                    : [Xirr.cashFlow day (-1) | day <- rest]
+                        <> [Xirr.cashFlow terminal (fromIntegral (contributionCount + 1000))]
+
+-- * Transactions projection and JSON encoding
+
+responseFor :: AccountTypeClassifier -> [Hledger.Transaction] -> TransactionsResponse
+responseFor classify transactions =
     TransactionsResponse
         { metadata = ResponseMetadata{revision = "benchmark", freshness = "fresh", warnings = []}
-        , transactions = toTransactions transactions
+        , transactions = toTransactions classify transactions
         , nextCursor = Nothing
         }
-
-queryWeight :: Snapshot -> Text.Text -> Int
-queryWeight snapshot query =
-    case transactionPage snapshot TransactionPageRequest{query = Just query, limit = 50, cursor = Nothing} of
-        Left _ -> 0
-        Right page -> projectionWeight (toTransactions page.transactions)
 
 projectionWeight :: [TransactionDto] -> Int
 projectionWeight = sum . fmap transactionWeight

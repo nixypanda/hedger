@@ -184,6 +184,7 @@ benchmark snapshot-bench
     aeson >=2.2 && <2.3,
     base >=4.18 && <5,
     bytestring >=0.11 && <0.13,
+    containers >=0.7 && <0.8,
     deepseq >=1.4 && <1.6,
     hedger-backend,
     hledger-lib >=1.52 && <1.53,
