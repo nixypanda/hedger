@@ -53,6 +53,7 @@ import Hedger.Interface.HTTP.Transactions (
     TransactionsResponse (..),
     toTransactions,
  )
+import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 import Test.Tasty.Bench (Benchmark, bench, bgroup, defaultMain, env, nf, nfIO)
 
@@ -120,14 +121,42 @@ data FixtureInput = FixtureInput
 
 instance NFData FixtureInput where
     rnf input =
-        rnf (forceTransactions input.snapshot.transactions)
+        rnf (forceSnapshot input.snapshot)
             `seq` rnf input.latest
             `seq` rnf input.monthEnds
             `seq` rnf (length (show input.xirrFlows))
-            `seq` rnf (forceTransactions input.page)
+            `seq` rnf (forcePostingContents input.page)
 
-forceTransactions :: [Hledger.Transaction] -> Int
-forceTransactions = sum . fmap (length . Hledger.tpostings)
+-- | Force everything a fixture's benchmarks read out of a snapshot, so 'env'
+-- pays derivation cost up front rather than inside a timed benchmark. hledger
+-- parses strictly, so in practice the one field this materialises is the
+-- lazily built 'accountTree'; forcing it keeps the parse benchmark honest. Since
+-- hledger-lib has no 'NFData', we force by summing numeric leaves rather than via
+-- 'show', which would drag in amount-display machinery no benchmark exercises.
+forceSnapshot :: Snapshot -> Int
+forceSnapshot snapshot =
+    forcePostingContents snapshot.transactions
+        + forceAccountTree snapshot.accountTree
+        + maybe 0 (const 1) snapshot.latestJournalDate
+
+forcePostingContents :: [Hledger.Transaction] -> Int
+forcePostingContents txns =
+    sum
+        [ Text.length (Hledger.paccount posting) + forceAmounts (Hledger.pamount posting)
+        | txn <- txns
+        , posting <- Hledger.tpostings txn
+        ]
+
+forceAccountTree :: Hledger.Account Hledger.BalanceData -> Int
+forceAccountTree account =
+    Text.length account.aname
+        + forceAmounts (Hledger.bdincludingsubs account.adata.pdpre)
+        + sum (forceAmounts . Hledger.bdincludingsubs <$> account.adata.pdperiods)
+        + sum (forceAccountTree <$> account.asubs)
+
+forceAmounts :: Hledger.MixedAmount -> Int
+forceAmounts mixed =
+    sum [fromInteger (truncate (Hledger.aquantity amount)) | amount <- HledgerAmount.amounts mixed]
 
 loadFixtureInput :: Text.Text -> IO FixtureInput
 loadFixtureInput path = do
@@ -149,7 +178,7 @@ loadAndForce path = do
     result <- loadSnapshot path
     case result of
         Left loadError -> fail (show loadError)
-        Right snapshot -> evaluate (forceTransactions snapshot.transactions)
+        Right snapshot -> evaluate (forceSnapshot snapshot)
 
 loadFixtureAt :: Text.Text -> IO Snapshot
 loadFixtureAt path = do
@@ -157,7 +186,7 @@ loadFixtureAt path = do
     case result of
         Left loadError -> fail (show loadError)
         Right snapshot -> do
-            _ <- evaluate (forceTransactions snapshot.transactions)
+            _ <- evaluate (forceSnapshot snapshot)
             pure snapshot
 
 -- * Query
