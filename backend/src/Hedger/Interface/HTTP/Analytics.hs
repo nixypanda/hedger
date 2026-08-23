@@ -1,7 +1,6 @@
 module Hedger.Interface.HTTP.Analytics (AnalyticsAPI, analyticsServer) where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Decimal (Decimal)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -16,6 +15,9 @@ import Hedger.Domain.Error (AppError (..))
 import Hedger.Interface.HTTP.Common (
     ResponseMetadata,
     accountTypeText,
+    decimalText,
+    granularityText,
+    parseGranularity,
     runAction,
     servantError,
     toResponseMetadata,
@@ -212,12 +214,6 @@ toActivityRequest request = do
             , depth
             }
 
-parseGranularity :: Text -> Either AppError Analytics.Granularity
-parseGranularity value = case Text.toLower value of
-    "monthly" -> Right Analytics.Monthly
-    "yearly" -> Right Analytics.Yearly
-    _ -> Left (InvalidRequest "Granularity must be monthly or yearly.")
-
 parseActivityKind :: Text -> Either AppError Analytics.ActivityKind
 parseActivityKind value = case Text.toLower value of
     "income" -> Right Analytics.IncomeActivity
@@ -286,10 +282,10 @@ toActivity report =
 toKpi :: Analytics.Kpi -> KpiDto
 toKpi value =
     KpiDto
-        { value = decimal value.value
-        , absoluteChange = decimal <$> value.absoluteChange
-        , percentageChange = decimal <$> value.percentageChange
-        , trend = decimal <$> value.trend
+        { value = decimalText value.value
+        , absoluteChange = decimalText <$> value.absoluteChange
+        , percentageChange = decimalText <$> value.percentageChange
+        , trend = decimalText <$> value.trend
         }
 
 toTimeline :: Analytics.TimelinePoint -> TimelinePointDto
@@ -297,16 +293,16 @@ toTimeline value =
     TimelinePointDto
         { period = value.period
         , startDate = value.startDate
-        , positive = decimal value.positive
-        , negative = decimal value.negative
-        , net = decimal value.net
+        , positive = decimalText value.positive
+        , negative = decimalText value.negative
+        , net = decimalText value.net
         }
 
 toBreakdown :: AccountTypeClassifier -> Analytics.CategoryBreakdown -> CategoryBreakdownDto
 toBreakdown classify value =
     CategoryBreakdownDto
         { period = value.period
-        , total = decimal value.total
+        , total = decimalText value.total
         , items = fmap (toBreakdownItem classify) value.items
         , otherItems = fmap (toBreakdownItem classify) value.otherItems
         }
@@ -316,7 +312,7 @@ toBreakdownItem classify value =
     BreakdownItemDto
         { account = value.account
         , accountType = accountTypeText <$> classify value.account
-        , quantity = decimal value.quantity
+        , quantity = decimalText value.quantity
         }
 
 toPerformance :: Analytics.PerformancePoint -> PerformancePointDto
@@ -324,9 +320,9 @@ toPerformance value =
     PerformancePointDto
         { period = value.period
         , startDate = value.startDate
-        , netInvestment = decimal value.netInvestment
-        , netWorth = decimal value.netWorth
-        , gainLoss = decimal value.gainLoss
+        , netInvestment = decimalText value.netInvestment
+        , netWorth = decimalText value.netWorth
+        , gainLoss = decimalText value.gainLoss
         }
 
 toActivityBucket :: AccountTypeClassifier -> Analytics.ActivityBucket -> ActivityBucketDto
@@ -334,10 +330,10 @@ toActivityBucket classify value =
     ActivityBucketDto
         { key = value.key
         , startDate = value.startDate
-        , total = decimal value.total
-        , increase = decimal value.increase
-        , decrease = decimal value.decrease
-        , reallocated = decimal value.reallocated
+        , total = decimalText value.total
+        , increase = decimalText value.increase
+        , decrease = decimalText value.decrease
+        , reallocated = decimalText value.reallocated
         , categories = fmap (toBreakdownItem classify) value.categories
         , directions = fmap (toDirectionBreakdown classify) value.directions
         , transactions = fmap (toTransactionDto classify) value.transactions
@@ -356,10 +352,6 @@ directionText direction = case direction of
     Analytics.Reallocate -> "reallocate"
     Analytics.Decrease -> "decrease"
 
-granularityText :: Analytics.Granularity -> Text
-granularityText Analytics.Monthly = "monthly"
-granularityText Analytics.Yearly = "yearly"
-
 activityKindText :: Analytics.ActivityKind -> Text
 activityKindText kind = case kind of
     Analytics.IncomeActivity -> "income"
@@ -375,6 +367,3 @@ activityRangeText range = case range of
 renderWarning :: Analytics.ConversionWarning -> Text
 renderWarning (Analytics.MissingConversion missing) =
     "Missing dated conversion to the display commodity for: " <> Text.intercalate ", " (Set.toAscList missing)
-
-decimal :: Decimal -> Text
-decimal = Text.pack . show

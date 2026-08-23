@@ -3,7 +3,13 @@ module Hedger.Interface.HTTP.Common (
     ResponseMetadata (..),
     accountTypeText,
     commodityQuantities,
+    decimalText,
+    granularityText,
+    investmentCompletenessText,
+    parseGranularity,
+    projectedCompletenessText,
     toResponseMetadata,
+    valuationCompletenessText,
     runAction,
     servantError,
     effectiveRequestId,
@@ -19,6 +25,7 @@ where
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
+import Data.Decimal (Decimal)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
@@ -32,7 +39,10 @@ import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AppM (AppM, Env, runAppM)
 import Hedger.Application.Common (SnapshotMetadata (..))
+import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
+import Hedger.Domain.InvestmentPerformance qualified as Performance
+import Hedger.Domain.Period (Granularity (..))
 import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
 
 runAction :: Env -> Maybe Text -> AppM value -> Handler value
@@ -104,6 +114,39 @@ commodityQuantities =
     fmap toCommodityQuantity
         . HledgerAmount.amountsRaw
         . HledgerAmount.mixedAmountStripCosts
+
+decimalText :: Decimal -> Text
+decimalText = Text.pack . show
+
+parseGranularity :: Text -> Either AppError Granularity
+parseGranularity value = case Text.toLower value of
+    "monthly" -> Right Monthly
+    "yearly" -> Right Yearly
+    _ -> Left (InvalidRequest "Granularity must be monthly or yearly.")
+
+granularityText :: Granularity -> Text
+granularityText Monthly = "monthly"
+granularityText Yearly = "yearly"
+
+valuationCompletenessText :: Account.ValuationCompleteness -> Text
+valuationCompletenessText status = case status of
+    Account.Complete -> "complete"
+    Account.Partial -> "partial"
+    Account.Unavailable -> "unavailable"
+
+investmentCompletenessText :: Performance.InvestmentCompleteness -> Text
+investmentCompletenessText status = case status of
+    Performance.Complete -> "complete"
+    Performance.Partial -> "partial"
+    Performance.Unavailable -> "unavailable"
+
+projectedCompletenessText :: Text -> Hledger.MixedAmount -> Text
+projectedCompletenessText displayCommodity valuedAmount
+    | all ((== displayCommodity) . (.commodity)) projected = "complete"
+    | any ((== displayCommodity) . (.commodity)) projected = "partial"
+    | otherwise = "unavailable"
+  where
+    projected = commodityQuantities valuedAmount
 
 toCommodityQuantity :: Hledger.Amount -> CommodityQuantity
 toCommodityQuantity amount =

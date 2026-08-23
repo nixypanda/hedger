@@ -31,10 +31,12 @@ import Hedger.Interface.HTTP.Common (
     parseCanonicalAccountPath,
     parseDay,
     parseLimit,
+    projectedCompletenessText,
     runAction,
     servantError,
     toResponseMetadata,
     validateDateRange,
+    valuationCompletenessText,
  )
 
 -- DTO declaration
@@ -169,14 +171,8 @@ valuationDto displayCommodity valuationDate valued =
         , commodity = displayCommodity
         , directBalances = commodityQuantities valued.directBalance
         , subtreeBalances = commodityQuantities valued.subtreeBalance
-        , completeness = completenessText valued.completeness
+        , completeness = valuationCompletenessText valued.completeness
         }
-
-completenessText :: Account.ValuationCompleteness -> Text
-completenessText status = case status of
-    Account.Complete -> "complete"
-    Account.Partial -> "partial"
-    Account.Unavailable -> "unavailable"
 
 toAccountRegisterResponse :: AccountRegister -> AccountRegisterResponse
 toAccountRegisterResponse value =
@@ -208,13 +204,5 @@ valueDto displayCommodity rawAmount valuedAmount =
     RegisterValueDto
         { raw = commodityQuantities rawAmount
         , display = commodityQuantities valuedAmount
-        , completeness = completenessForRaw displayCommodity valuedAmount
+        , completeness = projectedCompletenessText displayCommodity valuedAmount
         }
-
-completenessForRaw :: Text -> Hledger.MixedAmount -> Text
-completenessForRaw displayCommodity valuedAmount
-    | all ((== displayCommodity) . (.commodity)) projected = "complete"
-    | any ((== displayCommodity) . (.commodity)) projected = "partial"
-    | otherwise = "unavailable"
-  where
-    projected = commodityQuantities valuedAmount
