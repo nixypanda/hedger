@@ -7,14 +7,13 @@ module Hedger.Application.AccountRegisterQuery (
 where
 
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Time (Day, addDays, fromGregorian)
 
+import Hledger.Data.AccountName qualified as HledgerAccountName
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Query qualified as HledgerQuery
 import Hledger.Reports.AccountTransactionsReport qualified as AccountReport
 import Hledger.Reports.ReportOptions qualified as ReportOptions
-import Hledger.Utils.Regex qualified as HledgerRegex
 
 import Hedger.Application.Internal.Cursor (decodeRegisterCursor, encodeRegisterCursor)
 import Hedger.Domain.Error (AppError (..))
@@ -50,8 +49,8 @@ registerPage snapshot resolvedCommodity request = do
             (Right 0)
             (decodeRegisterCursor snapshot.revision canonicalAccount resolvedCommodity start end)
             request.cursor
-    accountQuery <- accountQueryFor canonicalAccount
-    let reportSpec = reportSpecFor snapshot start end
+    let accountQuery = accountQueryFor canonicalAccount
+        reportSpec = reportSpecFor snapshot start end
         rawReport = AccountReport.accountTransactionsReport reportSpec snapshot.journal accountQuery
         valuedReport =
             AccountReport.accountTransactionsReport
@@ -80,18 +79,8 @@ registerPage snapshot resolvedCommodity request = do
                         else Nothing
             pure RegisterPage{entries = page, nextCursor = cursor}
 
-accountQueryFor :: Text -> Either AppError HledgerQuery.Query
-accountQueryFor account =
-    case HledgerRegex.toRegex ("^" <> escapeRegex account <> "(:|$)") of
-        Left _ -> Left (InvalidRequest "The account path is invalid.")
-        Right pattern -> Right (HledgerQuery.Acct pattern)
-
-escapeRegex :: Text -> Text
-escapeRegex = Text.concatMap escape
-  where
-    escape character
-        | character `elem` ("\\.^$|?*+()[]{}" :: String) = "\\" <> Text.singleton character
-        | otherwise = Text.singleton character
+accountQueryFor :: Text -> HledgerQuery.Query
+accountQueryFor = HledgerQuery.Acct . HledgerAccountName.accountNameToAccountRegex
 
 reportSpecFor :: Snapshot -> Maybe Day -> Maybe Day -> ReportOptions.ReportSpec
 reportSpecFor snapshot start end =
