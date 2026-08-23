@@ -14,9 +14,9 @@ module Hedger.Domain.Account (
 where
 
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Time (Day)
 
+import Hledger.Data.AccountName qualified as HledgerAccountName
 import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Journal qualified as HledgerJournal
 import Hledger.Data.Types qualified as Hledger
@@ -26,7 +26,9 @@ import Hedger.Domain.Internal.Account
 
 -- | Collapse an account path to the first @depth@ components (clamped to 1..4).
 atDepth :: Int -> Text -> Text
-atDepth depth account = Text.intercalate ":" (take (max 1 (min 4 depth)) (Text.splitOn ":" account))
+atDepth depth =
+    HledgerAccountName.clipAccountName
+        (Hledger.DepthSpec (Just (max 1 (min 4 depth))) [])
 
 data ValuationCompleteness
     = Complete
