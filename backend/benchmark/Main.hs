@@ -57,8 +57,9 @@ import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 import Test.Tasty.Bench (Benchmark, bench, bgroup, defaultMain, env, nf, nfIO)
 
--- | Only sizes with enough transactions to exercise scaling behaviour. Each
--- fixture is loaded once and shared across every benchmark group below.
+{- | Only sizes with enough transactions to exercise scaling behaviour. Each
+fixture is loaded once and shared across every benchmark group below.
+-}
 fixtures :: [(String, Text.Text)]
 fixtures =
     [ ("medium-5000", "../examples/performance/india-us-portfolio-medium-5000.journal")
@@ -104,13 +105,15 @@ fixtureBenchmarks (name, path) =
                 , bgroup
                     "transactions"
                     [ bench "project" $ nf (projectionWeight . toTransactions classify) input.page
-                    , bench "encode" $ nf (LazyByteString.length . Aeson.encode . responseFor classify) input.page
+                    , bench "encode" $
+                        nf (LazyByteString.length . Aeson.encode . responseFor classify) input.page
                     ]
                 ]
 
--- | The inputs a fixture's benchmarks need, precomputed so 'env' forces them
--- (and the parse cost) out of the timed region. A classifier is derived per
--- use inside 'fixtureBenchmarks' since functions have no 'NFData'.
+{- | The inputs a fixture's benchmarks need, precomputed so 'env' forces them
+(and the parse cost) out of the timed region. A classifier is derived per
+use inside 'fixtureBenchmarks' since functions have no 'NFData'.
+-}
 data FixtureInput = FixtureInput
     { snapshot :: Snapshot
     , latest :: Day
@@ -121,18 +124,19 @@ data FixtureInput = FixtureInput
 
 instance NFData FixtureInput where
     rnf input =
-        rnf (forceSnapshot input.snapshot)
-            `seq` rnf input.latest
-            `seq` rnf input.monthEnds
-            `seq` rnf (length (show input.xirrFlows))
-            `seq` rnf (forcePostingContents input.page)
+        rnf (forceSnapshot input.snapshot) `seq`
+            rnf input.latest `seq`
+                rnf input.monthEnds `seq`
+                    rnf (length (show input.xirrFlows)) `seq`
+                        rnf (forcePostingContents input.page)
 
--- | Force everything a fixture's benchmarks read out of a snapshot, so 'env'
--- pays derivation cost up front rather than inside a timed benchmark. hledger
--- parses strictly, so in practice the one field this materialises is the
--- lazily built 'accountTree'; forcing it keeps the parse benchmark honest. Since
--- hledger-lib has no 'NFData', we force by summing numeric leaves rather than via
--- 'show', which would drag in amount-display machinery no benchmark exercises.
+{- | Force everything a fixture's benchmarks read out of a snapshot, so 'env'
+pays derivation cost up front rather than inside a timed benchmark. hledger
+parses strictly, so in practice the one field this materialises is the
+lazily built 'accountTree'; forcing it keeps the parse benchmark honest. Since
+hledger-lib has no 'NFData', we force by summing numeric leaves rather than via
+'show', which would drag in amount-display machinery no benchmark exercises.
+-}
 forceSnapshot :: Snapshot -> Int
 forceSnapshot snapshot =
     forcePostingContents snapshot.transactions
@@ -195,7 +199,9 @@ queryWeight :: Snapshot -> Text.Text -> Int
 queryWeight snapshot query =
     case transactionPage snapshot TransactionPageRequest{query = Just query, limit = 50, cursor = Nothing} of
         Left _ -> 0
-        Right page -> projectionWeight (toTransactions (accountTypeClassifier snapshot.journal) page.transactions)
+        Right page ->
+            projectionWeight
+                (toTransactions (accountTypeClassifier snapshot.journal) page.transactions)
 
 -- * Investments
 
@@ -239,6 +245,7 @@ monthlyPeriodEnds latest =
     finalStart = fromGregorian year month 1
 
 -- * Analytics: net worth and cashflow both iterate every period across the
+
 -- whole journal, so their cost scales with transaction count.
 
 netWorthWeight :: Snapshot -> Int
@@ -271,6 +278,7 @@ performanceWeight point =
     length (show point.netInvestment) + length (show point.netWorth) + length (show point.gainLoss)
 
 -- * Accounts: the tree values every account against the price oracle; the
+
 -- register builds an account-transactions report over every matching posting.
 
 accountTreeWeight :: Snapshot -> Int
