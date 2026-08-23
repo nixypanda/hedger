@@ -1,20 +1,26 @@
 module Hedger.Interface.HTTP.Investments (InvestmentsAPI, investmentsServer) where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Decimal (Decimal)
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Servant
 
-import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Investments qualified as Investments
-import Hedger.Domain.Error (AppError (..))
+import Hedger.Domain.Error (AppError)
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance qualified as Performance
-import Hedger.Interface.HTTP.Common (ResponseMetadata, runAction, servantError, toResponseMetadata)
+import Hedger.Interface.HTTP.Common (
+    ResponseMetadata,
+    decimalText,
+    granularityText,
+    investmentCompletenessText,
+    parseGranularity,
+    runAction,
+    servantError,
+    toResponseMetadata,
+ )
 
 data InvestmentsRequestDto = InvestmentsRequestDto
     { granularity :: Text
@@ -113,10 +119,7 @@ investmentsServer env requestId request =
 
 toRequest :: InvestmentsRequestDto -> Either AppError Investments.InvestmentsRequest
 toRequest request = do
-    granularity <- case Text.toLower request.granularity of
-        "monthly" -> Right Analytics.Monthly
-        "yearly" -> Right Analytics.Yearly
-        _ -> Left (InvalidRequest "Granularity must be monthly or yearly.")
+    granularity <- parseGranularity request.granularity
     pure
         Investments.InvestmentsRequest
             { granularity
@@ -129,9 +132,7 @@ toResponse report =
     InvestmentsResponse
         { metadata = toResponseMetadata report.metadata
         , displayCommodity = report.displayCommodity
-        , granularity = case report.granularity of
-            Analytics.Monthly -> "monthly"
-            Analytics.Yearly -> "yearly"
+        , granularity = granularityText report.granularity
         , accountPrefix = report.accountPrefix
         , summary = toSummary report.summary
         , timeline = fmap toPoint report.timeline
@@ -144,17 +145,14 @@ toResponse report =
 toSummary :: Performance.InvestmentSummary -> InvestmentSummaryDto
 toSummary value =
     InvestmentSummaryDto
-        { marketValue = decimal <$> value.marketValue
-        , purchaseCost = decimal <$> value.purchaseCost
-        , gainLoss = decimal <$> value.gainLoss
-        , xirr = decimal <$> value.xirr
-        , attributedIncome = decimal <$> value.attributedIncome
-        , realisedGain = decimal <$> value.realisedGain
-        , totalProfit = decimal <$> value.totalProfit
-        , completeness = case value.completeness of
-            Performance.Complete -> "complete"
-            Performance.Partial -> "partial"
-            Performance.Unavailable -> "unavailable"
+        { marketValue = decimalText <$> value.marketValue
+        , purchaseCost = decimalText <$> value.purchaseCost
+        , gainLoss = decimalText <$> value.gainLoss
+        , xirr = decimalText <$> value.xirr
+        , attributedIncome = decimalText <$> value.attributedIncome
+        , realisedGain = decimalText <$> value.realisedGain
+        , totalProfit = decimalText <$> value.totalProfit
+        , completeness = investmentCompletenessText value.completeness
         }
 
 toPoint :: Investments.InvestmentPoint -> InvestmentPointDto
@@ -184,16 +182,16 @@ toChild value =
         , summary = toSummary value.summary
         , hasChildren = value.hasChildren
         , assetClass = assetClassText value.assetClass
-        , allocationPercentage = decimal <$> value.allocationPercentage
+        , allocationPercentage = decimalText <$> value.allocationPercentage
         }
 
 toAssetClassAllocation :: Investments.AssetClassAllocation -> AssetClassAllocationDto
 toAssetClassAllocation value =
     AssetClassAllocationDto
         { assetClass = assetClassText value.assetClass
-        , marketValue = decimal <$> value.marketValue
-        , currentPercentage = decimal <$> value.currentPercentage
-        , targetPercentage = decimal <$> value.targetPercentage
+        , marketValue = decimalText <$> value.marketValue
+        , currentPercentage = decimalText <$> value.currentPercentage
+        , targetPercentage = decimalText <$> value.targetPercentage
         }
 
 assetClassText :: Investment.AssetClass -> Text
@@ -229,6 +227,3 @@ renderWarning kind = case kind of
         ( "unresolved-return"
         , "The internal rate of return could not be resolved (no unique or convergent rate)."
         )
-
-decimal :: Decimal -> Text
-decimal = Text.pack . show

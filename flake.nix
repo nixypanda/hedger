@@ -74,6 +74,7 @@
               (haskellPackages.ghcWithPackages (
                 haskell: with haskell; [
                   aeson
+                  async
                   fsnotify
                   hedgehog
                   tasty
@@ -83,6 +84,7 @@
                   http-types
                   mtl
                   math-functions
+                  network
                   optparse-applicative
                   servant
                   servant-server
@@ -126,6 +128,7 @@
           backendGhc = pkgs.haskellPackages.ghcWithPackages (
             haskell: with haskell; [
               aeson
+              async
               fsnotify
               hedgehog
               tasty
@@ -134,6 +137,7 @@
               hledger-lib
               http-types
               math-functions
+              network
               mtl
               optparse-applicative
               servant

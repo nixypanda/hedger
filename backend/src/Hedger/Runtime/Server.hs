@@ -1,5 +1,6 @@
 module Hedger.Runtime.Server (
     makeApplication,
+    productionMiddleware,
     runServer,
     snapshotAvailable,
 )
@@ -10,7 +11,7 @@ import Data.String (fromString)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
-import Network.Wai (Application)
+import Network.Wai (Application, Middleware)
 import Network.Wai.Handler.Warp (
     defaultSettings,
     runSettings,
@@ -37,7 +38,10 @@ import Hedger.Interface.HTTP.Middleware (redactQueryForLogging, requestContextMi
 
 makeApplication :: Config -> SnapshotStore -> Application
 makeApplication configuration store =
-    requestContextMiddleware (coreApplication configuration store)
+    productionMiddleware id (coreApplication configuration store)
+
+productionMiddleware :: Middleware -> Middleware
+productionMiddleware logger = requestContextMiddleware . redactQueryForLogging logger
 
 coreApplication :: Config -> SnapshotStore -> Application
 coreApplication configuration store =
@@ -59,9 +63,7 @@ runServer configuration = do
     withJournalWatcher store configuration.journalPath $
         runSettings
             settings
-            ( requestContextMiddleware
-                (redactQueryForLogging RequestLogger.logStdout (coreApplication configuration store))
-            )
+            (productionMiddleware RequestLogger.logStdout (coreApplication configuration store))
 
 installShutdownHandler :: IO () -> IO ()
 installShutdownHandler closeSocket = void (installHandler sigTERM (Catch closeSocket) Nothing)

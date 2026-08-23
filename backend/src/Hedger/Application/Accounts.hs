@@ -20,7 +20,7 @@ import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AccountRegisterQuery (RegisterPageRequest (..))
 import Hedger.Application.AccountRegisterQuery qualified as AccountRegisterQuery
-import Hedger.Application.AppM (AppM, Env (..), requireSnapshot)
+import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot)
 import Hedger.Application.Common (SnapshotMetadata, metadataFor)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Account qualified as Account
@@ -53,10 +53,11 @@ data AccountRegister = AccountRegister
 
 accountsTree :: Maybe Text -> AppM AccountsTree
 accountsTree requestedCommodity = do
-    snapshot <- requireSnapshot
+    snapshotContext <- requireSnapshot
     configuredCommodity <- asks (.config.defaultDisplayCommodity)
-    responseMetadata <- metadataFor snapshot
-    let displayCommodity = fromMaybe configuredCommodity (nonEmpty requestedCommodity)
+    let snapshot = snapshotContext.snapshot
+        responseMetadata = metadataFor snapshotContext
+        displayCommodity = fromMaybe configuredCommodity (nonEmpty requestedCommodity)
         valuationDate = fromMaybe (fromGregorian 1970 1 1) snapshot.latestJournalDate
         valuationContext = Account.mkValuationContext snapshot.journal displayCommodity valuationDate
     pure
@@ -97,13 +98,14 @@ accountLeafName name = case Text.splitOn ":" name of
 
 accountRegister :: RegisterPageRequest -> AppM AccountRegister
 accountRegister request = do
-    snapshot <- requireSnapshot
+    snapshotContext <- requireSnapshot
     configuredCommodity <- asks (.config.defaultDisplayCommodity)
-    let resolvedCommodity = fromMaybe configuredCommodity (nonEmpty request.commodity)
+    let snapshot = snapshotContext.snapshot
+        responseMetadata = metadataFor snapshotContext
+        resolvedCommodity = fromMaybe configuredCommodity (nonEmpty request.commodity)
     page <-
         either throwError pure $
             AccountRegisterQuery.registerPage snapshot resolvedCommodity request
-    responseMetadata <- metadataFor snapshot
     pure
         AccountRegister
             { metadata = responseMetadata

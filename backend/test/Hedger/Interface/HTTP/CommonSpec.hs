@@ -8,8 +8,19 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
-import Hedger.Interface.HTTP.Common (CommodityQuantity (..), commodityQuantities)
+import Hedger.Domain.InvestmentPerformance qualified as Performance
+import Hedger.Domain.Period (Granularity (..))
+import Hedger.Interface.HTTP.Common (
+    CommodityQuantity (..),
+    commodityQuantities,
+    decimalText,
+    granularityText,
+    investmentCompletenessText,
+    parseGranularity,
+    valuationCompletenessText,
+ )
 import Hedger.Interface.HTTP.Errors (toEnvelope)
 
 commonSpec :: TestTree
@@ -17,6 +28,14 @@ commonSpec =
     testGroup
         "HTTP common projections"
         [ testCase "aggregates priced and unpriced lots sharing a commodity" aggregatesSameCommodity
+        , testCase "renders decimals consistently" $ assertEqual "" "12.5" (decimalText 12.5)
+        , testCase "parses granularity case-insensitively" $
+            assertEqual "" (Right Monthly) (parseGranularity "MONTHLY")
+        , testCase "renders granularity consistently" $ assertEqual "" "yearly" (granularityText Yearly)
+        , testCase "renders account completeness consistently" $
+            assertEqual "" "partial" (valuationCompletenessText Account.Partial)
+        , testCase "renders investment completeness consistently" $
+            assertEqual "" "unavailable" (investmentCompletenessText Performance.Unavailable)
         , testCase "error envelope serializes its payload under the error key" errorEnvelopeUsesErrorKey
         ]
 

@@ -28,9 +28,9 @@ readiness = requireSnapshot >> pure ()
 
 bootstrap :: AppM BootstrapInfo
 bootstrap = do
-    snapshot <- requireSnapshot
+    snapshotContext <- requireSnapshot
     fiscal <- asks (.config.fiscalYearStartMonth)
-    responseMetadata <- metadataFor snapshot
+    let responseMetadata = metadataFor snapshotContext
     pure
         BootstrapInfo
             { apiVersion = "v1"

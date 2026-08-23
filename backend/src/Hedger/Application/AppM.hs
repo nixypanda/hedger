@@ -1,6 +1,7 @@
 module Hedger.Application.AppM (
     AppM,
     Env (..),
+    SnapshotContext (..),
     runAppM,
     requireSnapshot,
 )
@@ -20,7 +21,12 @@ import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (InternalError, JournalUnavailable))
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.SnapshotStore (SnapshotStore, readCurrentSnapshot)
+import Hedger.Infrastructure.SnapshotStore (
+    SnapshotLoadError,
+    SnapshotStore,
+    SnapshotStoreRead (..),
+    readSnapshotStore,
+ )
 
 data Env = Env
     { config :: Config
@@ -28,6 +34,11 @@ data Env = Env
     }
 
 type AppM = ReaderT Env (ExceptT AppError IO)
+
+data SnapshotContext = SnapshotContext
+    { snapshot :: Snapshot
+    , reloadError :: Maybe SnapshotLoadError
+    }
 
 runAppM :: Env -> AppM value -> IO (Either AppError value)
 runAppM environment action = do
@@ -42,10 +53,10 @@ runAppM environment action = do
         Just _ -> True
         Nothing -> False
 
-requireSnapshot :: AppM Snapshot
+requireSnapshot :: AppM SnapshotContext
 requireSnapshot = do
     store <- asks (.snapshotStore)
-    maybeSnapshot <- liftIO (readCurrentSnapshot store)
-    case maybeSnapshot of
-        Just snapshot -> pure snapshot
+    storeRead <- liftIO (readSnapshotStore store)
+    case storeRead.snapshot of
+        Just snapshot -> pure SnapshotContext{snapshot, reloadError = storeRead.reloadError}
         Nothing -> throwError JournalUnavailable
