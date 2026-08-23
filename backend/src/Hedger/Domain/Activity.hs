@@ -22,7 +22,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian)
+import Data.Time (Day, fromGregorian)
 import Text.Read (readMaybe)
 
 import Hledger.Data.Types qualified as Hledger
@@ -30,7 +30,15 @@ import Hledger.Data.Types qualified as Hledger
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Internal.PeriodReport (BreakdownItem (..))
-import Hedger.Domain.Period (ReportPeriod (..), dayKey, epoch, monthKey, monthPeriod, parseYearMonth)
+import Hedger.Domain.Period (
+    ReportPeriod (..),
+    dayKey,
+    epoch,
+    fiscalYearPeriod,
+    monthKey,
+    monthPeriod,
+    parseYearMonth,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Transaction qualified as Transaction
 import Hedger.Domain.Valuation (Conversion (..), completeNothing, convertMixedAt, foldMapConversion)
@@ -354,13 +362,7 @@ parseActivityPeriod fiscalStart activityRange raw =
                 Just (year, month)
                     | month == fiscalStart ->
                         let first = fromGregorian year month 1
-                            next = addGregorianMonthsClip 12 first
-                         in Right
-                                ReportPeriod
-                                    { key = monthKey first
-                                    , start = first
-                                    , end = addDays (-1) next
-                                    }
+                         in Right (fiscalYearPeriod fiscalStart first)
                 _ ->
                     Left
                         ( InvalidRequest

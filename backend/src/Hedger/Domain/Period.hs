@@ -9,6 +9,9 @@ module Hedger.Domain.Period (
     monthKey,
     dayKey,
     monthPeriod,
+    fiscalYearPeriod,
+    periodsFromDateSpan,
+    periodsFromReport,
     parseYearMonth,
 
     -- * List helpers
@@ -22,8 +25,12 @@ where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian, toGregorian)
+import Data.Time (Day, addDays, fromGregorian, toGregorian)
 import Text.Read (readMaybe)
+
+import Hledger.Data.DayPartition qualified as HledgerDayPartition
+import Hledger.Data.Types qualified as Hledger
+import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
 -- | The reporting cadence shared by the analytics and investment timelines.
 data Granularity = Monthly | Yearly
@@ -41,9 +48,7 @@ epoch :: Day
 epoch = fromGregorian 1970 1 1
 
 monthStart :: Day -> Day
-monthStart day =
-    let (year, month, _) = toGregorian day
-     in fromGregorian year month 1
+monthStart = HledgerDayPartition.intervalBoundaryBefore (Hledger.Months 1)
 
 monthKey :: Day -> Text
 monthKey day =
@@ -54,10 +59,61 @@ dayKey :: Day -> Text
 dayKey = Text.pack . show
 
 monthPeriod :: Day -> ReportPeriod
-monthPeriod day =
-    let first = monthStart day
-        next = addGregorianMonthsClip 1 first
-     in ReportPeriod{key = monthKey first, start = first, end = addDays (-1) next}
+monthPeriod = periodContaining (Hledger.Months 1) monthKey
+
+fiscalYearPeriod :: Int -> Day -> ReportPeriod
+fiscalYearPeriod startMonth = periodContaining (Hledger.MonthAndDay startMonth 1) monthKey
+
+periodsFromDateSpan :: Granularity -> Hledger.DateSpan -> [ReportPeriod]
+periodsFromDateSpan granularity dateSpan =
+    maybe
+        []
+        (fmap (uncurry (reportPeriod granularity)) . HledgerDayPartition.dayPartitionToList)
+        (HledgerDayPartition.splitSpan True (intervalFor granularity) dateSpan)
+
+periodsFromReport :: Granularity -> Hledger.Journal -> HledgerReportOptions.ReportSpec -> [ReportPeriod]
+periodsFromReport granularity journal reportSpec =
+    maybe
+        []
+        (fmap (uncurry (reportPeriod granularity)) . HledgerDayPartition.dayPartitionToList)
+        partition
+  where
+    options =
+        reportSpec._rsReportOpts
+            { HledgerReportOptions.interval_ = intervalFor granularity
+            }
+    (_, partition) =
+        HledgerReportOptions.reportSpan
+            journal
+            reportSpec{HledgerReportOptions._rsReportOpts = options}
+
+periodContaining :: Hledger.Interval -> (Day -> Text) -> Day -> ReportPeriod
+periodContaining interval keyFor day =
+    case HledgerDayPartition.splitSpan True interval enclosingSpan of
+        Just partition ->
+            let (start, end) = HledgerDayPartition.dayPartitionFind day partition
+             in ReportPeriod
+                    { key = keyFor (maybe day id start)
+                    , start = maybe day id start
+                    , end
+                    }
+        Nothing -> ReportPeriod{key = keyFor day, start = day, end = day}
+  where
+    enclosingSpan = Hledger.DateSpan (Just (Hledger.Exact day)) (Just (Hledger.Exact (addDays 1 day)))
+
+intervalFor :: Granularity -> Hledger.Interval
+intervalFor Monthly = Hledger.Months 1
+intervalFor Yearly = Hledger.Years 1
+
+reportPeriod :: Granularity -> Day -> Day -> ReportPeriod
+reportPeriod granularity start end =
+    ReportPeriod
+        { key = case granularity of
+            Monthly -> monthKey start
+            Yearly -> let (year, _, _) = toGregorian start in Text.pack (show year)
+        , start
+        , end
+        }
 
 parseYearMonth :: Text -> Maybe (Integer, Int)
 parseYearMonth raw =
