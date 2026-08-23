@@ -1,5 +1,6 @@
 module Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
+    SnapshotStoreRead (..),
     SnapshotStore,
     awaitRevisionChange,
     currentRevision,
@@ -7,6 +8,7 @@ module Hedger.Infrastructure.SnapshotStore (
     newSnapshotStore,
     readCurrentSnapshot,
     readLastReloadError,
+    readSnapshotStore,
     reloadSnapshot,
 )
 where
@@ -39,6 +41,11 @@ data SnapshotState = SnapshotState
     , lastReloadError :: Maybe SnapshotLoadError
     }
 
+data SnapshotStoreRead = SnapshotStoreRead
+    { snapshot :: Maybe Snapshot
+    , reloadError :: Maybe SnapshotLoadError
+    }
+
 {- | The @IORef@ snapshot and the @TVar@ revision are only ever written together
 while holding @updateLock@, so a reader never observes a revision published
 for a different reload than the snapshot it accompanies.
@@ -57,6 +64,15 @@ readCurrentSnapshot (SnapshotStore stateReference _ _) = (.currentSnapshot) <$> 
 
 readLastReloadError :: SnapshotStore -> IO (Maybe SnapshotLoadError)
 readLastReloadError (SnapshotStore stateReference _ _) = (.lastReloadError) <$> readIORef stateReference
+
+readSnapshotStore :: SnapshotStore -> IO SnapshotStoreRead
+readSnapshotStore (SnapshotStore stateReference _ _) = do
+    state <- readIORef stateReference
+    pure
+        SnapshotStoreRead
+            { snapshot = state.currentSnapshot
+            , reloadError = state.lastReloadError
+            }
 
 reloadSnapshot :: SnapshotStore -> Text -> IO (Either SnapshotLoadError Snapshot)
 reloadSnapshot (SnapshotStore stateReference revisionVar updateLock) path = do

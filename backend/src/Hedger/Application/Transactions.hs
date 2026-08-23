@@ -9,7 +9,7 @@ import Data.Text (Text)
 
 import Hledger.Data.Types qualified as Hledger
 
-import Hedger.Application.AppM (AppM, requireSnapshot)
+import Hedger.Application.AppM (AppM, SnapshotContext (..), requireSnapshot)
 import Hedger.Application.Common (
     AccountTypeClassifier,
     SnapshotMetadata,
@@ -29,9 +29,10 @@ data TransactionList = TransactionList
 
 transactionList :: TransactionPageRequest -> AppM TransactionList
 transactionList request = do
-    snapshot <- requireSnapshot
+    snapshotContext <- requireSnapshot
+    let snapshot = snapshotContext.snapshot
+        responseMetadata = metadataFor snapshotContext
     page <- either throwError pure (TransactionQuery.transactionPage snapshot request)
-    responseMetadata <- metadataFor snapshot
     pure
         TransactionList
             { metadata = responseMetadata

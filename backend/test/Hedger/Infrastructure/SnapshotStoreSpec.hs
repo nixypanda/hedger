@@ -15,11 +15,13 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
+    SnapshotStoreRead (..),
     currentRevision,
     loadSnapshot,
     newSnapshotStore,
     readCurrentSnapshot,
     readLastReloadError,
+    readSnapshotStore,
     reloadSnapshot,
  )
 import Hedger.TestHelpers (loadedStore)
@@ -41,6 +43,7 @@ snapshotStoreSpec =
             result <- loadSnapshot "test/fixtures/malformed.journal"
             assertBool "malformed journal should fail" (isLeft result)
         , testCase "keeps the last good immutable snapshot when a reload fails" keepsSnapshotOnFailedReload
+        , testCase "reads the snapshot and reload error as one store view" readsCoherentStoreView
         , testCase
             "keeps the published revision matching the returned snapshot under concurrent reloads"
             concurrentReloadsKeepRevisionInSyncWithSnapshot
@@ -75,6 +78,14 @@ keepsSnapshotOnFailedReload = do
         (fmap (length . (.transactions)) snapshotAfter)
     reloadError <- readLastReloadError store
     assertBool "should have a reload error" (isJust reloadError)
+
+readsCoherentStoreView :: IO ()
+readsCoherentStoreView = do
+    store <- loadedStore
+    _ <- reloadSnapshot store (Text.pack "test/fixtures/does-not-exist.journal")
+    storeRead <- readSnapshotStore store
+    assertBool "should retain the usable snapshot" (isJust storeRead.snapshot)
+    assertBool "should report the failed reload from the same read" (isJust storeRead.reloadError)
 
 -- Stress-tests the invariant that the revision published via `currentRevision`
 -- always agrees with the revision of the snapshot `readCurrentSnapshot` returns.

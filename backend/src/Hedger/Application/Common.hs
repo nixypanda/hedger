@@ -6,16 +6,13 @@ module Hedger.Application.Common (
 )
 where
 
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Reader (asks)
 import Data.Text (Text)
 
 import Hledger.Data.AccountName qualified as HledgerAccountName
 import Hledger.Data.Types qualified as Hledger
 
-import Hedger.Application.AppM (AppM, Env (..))
+import Hedger.Application.AppM (SnapshotContext (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.SnapshotStore (readLastReloadError)
 
 {- | Classify an account name into its hledger 'Hledger.AccountType', honouring
 both explicit journal @type:@ declarations and hledger's built-in regex
@@ -33,17 +30,14 @@ data SnapshotMetadata = SnapshotMetadata
     , warnings :: [Text]
     }
 
-metadataFor :: Snapshot -> AppM SnapshotMetadata
-metadataFor snapshot = do
-    store <- asks (.snapshotStore)
-    reloadError <- liftIO (readLastReloadError store)
-    pure
-        SnapshotMetadata
-            { revision = snapshot.revision
-            , freshness = maybe "fresh" (const "stale") reloadError
-            , warnings =
-                maybe
-                    []
-                    (const ["The latest journal reload failed; the last usable snapshot is shown."])
-                    reloadError
-            }
+metadataFor :: SnapshotContext -> SnapshotMetadata
+metadataFor context =
+    SnapshotMetadata
+        { revision = context.snapshot.revision
+        , freshness = maybe "fresh" (const "stale") context.reloadError
+        , warnings =
+            maybe
+                []
+                (const ["The latest journal reload failed; the last usable snapshot is shown."])
+                context.reloadError
+        }
