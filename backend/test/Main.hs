@@ -3,6 +3,7 @@ module Main (main) where
 import Test.Tasty (defaultMain, testGroup)
 
 import Hedger.Application.AppMSpec (appMSpec)
+import Hedger.Application.EventsSpec (eventsSpec)
 import Hedger.Application.TransactionQuerySpec (transactionQuerySpec)
 import Hedger.ConfigSpec (configSpec)
 import Hedger.Domain.AccountSpec (accountSpec)
@@ -25,6 +26,7 @@ main =
         testGroup
             "hedger"
             [ configSpec
+            , eventsSpec
             , investmentsSpec
             , investmentSpec
             , activitySpec
