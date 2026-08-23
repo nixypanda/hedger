@@ -325,7 +325,15 @@ percentageFrom current previous
     | otherwise = Just (((current - previous) / abs previous) * 100)
 
 zeroTimeline :: TimelinePoint
-zeroTimeline = TimelinePoint{period = "", startDate = epoch, positive = 0, negative = 0, net = 0}
+zeroTimeline =
+    TimelinePoint
+        { period = ""
+        , startDate = epoch
+        , positive = 0
+        , negative = 0
+        , net = 0
+        , missing = Set.empty
+        }
 
 categoryBreakdown :: Text -> [BreakdownItem] -> CategoryBreakdown
 categoryBreakdown period items =

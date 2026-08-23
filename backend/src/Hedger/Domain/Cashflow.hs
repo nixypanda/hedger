@@ -123,4 +123,5 @@ cashflowPointFrom period incomeResult expenseResult =
             , positive = income
             , negative = expenses
             , net = income - expenses
+            , missing = incomeResult.missing <> expenseResult.missing
             }

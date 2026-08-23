@@ -6,6 +6,7 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian, toGregorian)
 import Hedger.Application.AccountRegisterQuery (
@@ -268,7 +269,10 @@ cashflowWeight snapshot =
 
 timelineWeight :: TimelinePoint -> Int
 timelineWeight point =
-    length (show point.positive) + length (show point.negative) + length (show point.net)
+    length (show point.positive)
+        + length (show point.negative)
+        + length (show point.net)
+        + Set.size point.missing
 
 breakdownWeight :: BreakdownItem -> Int
 breakdownWeight item = Text.length item.account + length (show item.quantity)

@@ -26,6 +26,7 @@ import Api.Metadata as Metadata exposing (Metadata)
 import Api.Transaction as Transaction
 import Data.AccountType as AccountType
 import Data.Analytics as AnalyticsData exposing (Kpi, TimelinePoint)
+import Data.Completeness as Completeness
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
 import Data.Granularity as Granularity exposing (Granularity)
@@ -268,6 +269,8 @@ timelineDecoder =
         |> required "positive" Decimal.decoder
         |> required "negative" Decimal.decoder
         |> required "net" Decimal.decoder
+        |> required "completeness" Completeness.decoder
+        |> required "missingCommodities" (Decode.list Decode.string)
 
 
 categoryBreakdownDecoder : Decoder CategoryBreakdown

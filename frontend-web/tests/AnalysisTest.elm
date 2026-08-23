@@ -1,6 +1,7 @@
 module AnalysisTest exposing (suite)
 
 import Api.Analytics as Analytics exposing (Timeline(..))
+import Data.Completeness exposing (Completeness(..))
 import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
 import Data.Granularity exposing (Granularity(..))
@@ -103,6 +104,8 @@ point period month =
     , positive = Decimal.zero
     , negative = Decimal.zero
     , net = Decimal.zero
+    , completeness = Complete
+    , missingCommodities = []
     }
 
 

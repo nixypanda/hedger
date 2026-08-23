@@ -62,6 +62,8 @@ data TimelinePointDto = TimelinePointDto
     , positive :: Text
     , negative :: Text
     , net :: Text
+    , completeness :: Text
+    , missingCommodities :: [Text]
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON)
@@ -296,6 +298,8 @@ toTimeline value =
         , positive = decimalText value.positive
         , negative = decimalText value.negative
         , net = decimalText value.net
+        , completeness = if Set.null value.missing then "complete" else "partial"
+        , missingCommodities = Set.toAscList value.missing
         }
 
 toBreakdown :: AccountTypeClassifier -> Analytics.CategoryBreakdown -> CategoryBreakdownDto

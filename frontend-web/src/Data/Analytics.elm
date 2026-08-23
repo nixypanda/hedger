@@ -8,6 +8,7 @@ module Data.Analytics exposing
     )
 
 import Data.AccountType exposing (AccountType)
+import Data.Completeness exposing (Completeness)
 import Data.Date exposing (Date)
 import Data.Decimal exposing (Decimal)
 import Data.Transaction exposing (Transaction)
@@ -59,4 +60,6 @@ type alias TimelinePoint =
     , positive : Decimal
     , negative : Decimal
     , net : Decimal
+    , completeness : Completeness
+    , missingCommodities : List String
     }

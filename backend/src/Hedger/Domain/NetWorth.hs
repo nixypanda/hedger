@@ -161,6 +161,7 @@ netWorthPointFrom period assetsResult liabilitiesResult =
             , positive = assets
             , negative = liabilities
             , net = assets - liabilities
+            , missing = assetsResult.missing <> liabilitiesResult.missing
             }
 
 performanceFrom ::

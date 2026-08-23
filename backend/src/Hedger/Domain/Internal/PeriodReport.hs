@@ -53,6 +53,7 @@ data TimelinePoint = TimelinePoint
     , positive :: Decimal
     , negative :: Decimal
     , net :: Decimal
+    , missing :: Set Text
     }
 
 data BreakdownItem = BreakdownItem

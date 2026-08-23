@@ -4,6 +4,8 @@ import Data.Aeson (Value (..), object, (.=))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Key (Key)
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
 import Data.Vector qualified as Vector
 import Network.HTTP.Types (status200, status400)
@@ -101,6 +103,7 @@ netWorthProjection app = do
     (Just response, raw) <- postJson "/api/v1/net-worth/query" (Aeson.encode (analyticsRequest "")) app
     assertEqual "net worth status" status200 raw.simpleStatus
     assertArrayLength "net worth monthly timeline excludes empty months" 5 "timeline" response
+    assertTimelineCompleteness "2023-04" "partial" ["FUND", "JPY"] response
     assertObjectFields
         ["netWorth", "assets", "liabilities", "assetsBreakdown", "liabilitiesBreakdown", "performance"]
         response
@@ -234,3 +237,19 @@ assertArrayLength label expected name value =
     case field name value of
         Just (Array values) -> assertEqual label expected (Vector.length values)
         _ -> assertFailure (label <> ": expected array")
+
+assertTimelineCompleteness :: Text -> Text -> [Text] -> Value -> IO ()
+assertTimelineCompleteness period expectedCompleteness expectedMissing response =
+    case field "timeline" response of
+        Just (Array points) -> case Vector.find ((== Just (String period)) . field "period") points of
+            Just point -> do
+                assertEqual
+                    "timeline point completeness"
+                    (Just (String expectedCompleteness))
+                    (field "completeness" point)
+                assertEqual
+                    "timeline point missing commodities"
+                    (Just (Aeson.toJSON expectedMissing))
+                    (field "missingCommodities" point)
+            Nothing -> assertFailure ("expected timeline point " <> Text.unpack period)
+        _ -> assertFailure "expected timeline array"
