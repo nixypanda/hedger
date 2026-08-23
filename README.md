@@ -67,5 +67,4 @@ synthetic.
 - [Architecture](docs/architecture.md)
 - [Backend](docs/backend.md)
 - [Frontend](docs/frontend.md)
-- [OpenAPI contract](contracts/openapi.json)
 - [NixOS deployment](docs/nixos-deployment.md)

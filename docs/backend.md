@@ -100,7 +100,7 @@ file. CLI flags override YAML values.
 version: 1
 
 journal:
-  path: "../examples/journal.journal"
+  path: "../examples/india-us-portfolio-2023-2025.journal"
 
 server:
   listenAddress: "127.0.0.1"

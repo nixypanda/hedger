@@ -1,0 +1,3974 @@
+; Synthetic India/US personal finance portfolio, 2023-2025
+; Dummy data for hledger-web and iLedger testing. Names, prices, and transactions are fictional.
+
+account assets:cash:bank:neev
+account assets:cash:bank:varuna
+account assets:cash:us:cedar
+account assets:cash:wallet:physical
+account assets:debt:epf:india:nimbusworks
+account assets:debt:eps:india:nimbusworks
+account assets:debt:fd:india:neev
+account assets:debt:fd:india:varuna
+account assets:debt:ppf:india:varuna
+account assets:debt:bond:india:mutual:riverstone
+account assets:hybrid:india:nps:monsoon
+account assets:liquid:india:mutual:kaveri
+account assets:liquid:india:mutual:bluepeak
+account assets:gold:india:mutual:saffron
+account assets:equity:flexi:india:mutual:aranya
+account assets:equity:index:india:mutual:northstar
+account assets:equity:large:india:mutual:cedarcrest
+account assets:equity:mid:india:mutual:monsoon
+account assets:equity:small:india:mutual:riverstone
+account assets:equity:hybrid:india:mutual:bluepeak
+account assets:equity:index:us:etf:spy
+account assets:equity:stock:us:alder
+account assets:equity:stock:us:brightlane
+account assets:equity:stock:us:cygnus
+account assets:equity:stock:us:dorado
+account assets:equity:stock:us:ember
+account assets:equity:stock:us:fenwick
+account assets:property:jewelry
+account assets:property:realestate:apartment
+account assets:receivables:loan:family
+account liabilities:loan:home:varuna
+account liabilities:loan:car:neev
+account liabilities:creditcard:lotus
+account equity:openingbalances
+account expenses:car:insurance
+account expenses:car:maintenance
+account expenses:car:service
+account expenses:financial:bank:fees
+account expenses:financial:brokerage:india
+account expenses:financial:brokerage:us
+account expenses:financial:forex
+account expenses:food:self
+account expenses:food:social
+account expenses:fun:games
+account expenses:fun:movie
+account expenses:gifts
+account expenses:government:tax
+account expenses:health:fitness:membership:gym
+account expenses:health:medical
+account expenses:house:bills:electricity
+account expenses:house:bills:internet
+account expenses:house:bills:water
+account expenses:house:groceries
+account expenses:house:househelp
+account expenses:house:maintenance
+account expenses:house:misc
+account expenses:house:rent
+account expenses:personalcare:grooming
+account expenses:subscriptions:ai
+account expenses:subscriptions:streaming
+account expenses:transport:cab
+account expenses:transport:parking
+account expenses:transport:petrol
+account expenses:transport:tolls
+account expenses:travel
+account expenses:travel:food
+account expenses:interest:home-loan
+account expenses:interest:car-loan
+account expenses:unknown
+account income:cashback
+account income:dividend:india
+account income:dividend:us
+account income:gifts
+account income:interest
+account income:interest:fd
+account income:interest:epf
+account income:interest:eps
+account income:interest:liquid
+account income:interest:nps
+account income:interest:ppf
+account income:salary:nimbusworks
+
+; commodity declarations
+commodity INR
+commodity USD
+commodity ARANYA
+commodity NORTHSTAR
+commodity CEDARCREST
+commodity MONSOONMID
+commodity RIVERSTONE
+commodity BLUEHYB
+commodity KAVERILIQ
+commodity BLUEPLIQ
+commodity SAFFGOLD
+commodity RIVERBOND
+commodity NPSMON
+commodity EPFNIM
+commodity EPSNIM
+commodity PPFVAR
+commodity SPY
+commodity ALDR
+commodity BLTX
+commodity CYGN
+commodity DORO
+commodity EMBR
+commodity FNWK
+
+; monthly dummy prices and USD-INR rates
+P 2023-01-01 USD 81.88 INR
+P 2023-01-01 ARANYA 403.13 INR
+P 2023-01-01 NORTHSTAR 154.32 INR
+P 2023-01-01 CEDARCREST 87.60 INR
+P 2023-01-01 MONSOONMID 71.66 INR
+P 2023-01-01 RIVERSTONE 45.75 INR
+P 2023-01-01 BLUEHYB 63.80 INR
+P 2023-01-01 KAVERILIQ 998.78 INR
+P 2023-01-01 BLUEPLIQ 998.88 INR
+P 2023-01-01 SAFFGOLD 51.68 INR
+P 2023-01-01 RIVERBOND 111.85 INR
+P 2023-01-01 NPSMON 37.87 INR
+P 2023-01-01 EPFNIM 99.78 INR
+P 2023-01-01 EPSNIM 99.84 INR
+P 2023-01-01 PPFVAR 99.80 INR
+P 2023-01-01 SPY 378.49 USD
+P 2023-01-01 ALDR 41.71 USD
+P 2023-01-01 BLTX 67.62 USD
+P 2023-01-01 CYGN 23.80 USD
+P 2023-01-01 DORO 90.50 USD
+P 2023-01-01 EMBR 34.75 USD
+P 2023-01-01 FNWK 57.68 USD
+
+P 2023-02-01 USD 82.14 INR
+P 2023-02-01 ARANYA 409.26 INR
+P 2023-02-01 NORTHSTAR 156.56 INR
+P 2023-02-01 CEDARCREST 88.90 INR
+P 2023-02-01 MONSOONMID 72.78 INR
+P 2023-02-01 RIVERSTONE 46.57 INR
+P 2023-02-01 BLUEHYB 64.45 INR
+P 2023-02-01 KAVERILIQ 1002.79 INR
+P 2023-02-01 BLUEPLIQ 1002.54 INR
+P 2023-02-01 SAFFGOLD 52.74 INR
+P 2023-02-01 RIVERBOND 112.34 INR
+P 2023-02-01 NPSMON 38.30 INR
+P 2023-02-01 EPFNIM 100.51 INR
+P 2023-02-01 EPSNIM 100.37 INR
+P 2023-02-01 PPFVAR 100.45 INR
+P 2023-02-01 SPY 383.44 USD
+P 2023-02-01 ALDR 42.66 USD
+P 2023-02-01 BLTX 68.86 USD
+P 2023-02-01 CYGN 24.45 USD
+P 2023-02-01 DORO 92.15 USD
+P 2023-02-01 EMBR 35.57 USD
+P 2023-02-01 FNWK 58.74 USD
+
+P 2023-03-01 USD 82.40 INR
+P 2023-03-01 ARANYA 415.40 INR
+P 2023-03-01 NORTHSTAR 158.80 INR
+P 2023-03-01 CEDARCREST 90.20 INR
+P 2023-03-01 MONSOONMID 73.90 INR
+P 2023-03-01 RIVERSTONE 47.40 INR
+P 2023-03-01 BLUEHYB 65.10 INR
+P 2023-03-01 KAVERILIQ 1006.80 INR
+P 2023-03-01 BLUEPLIQ 1006.20 INR
+P 2023-03-01 SAFFGOLD 53.80 INR
+P 2023-03-01 RIVERBOND 112.84 INR
+P 2023-03-01 NPSMON 38.72 INR
+P 2023-03-01 EPFNIM 101.24 INR
+P 2023-03-01 EPSNIM 100.90 INR
+P 2023-03-01 PPFVAR 101.10 INR
+P 2023-03-01 SPY 388.40 USD
+P 2023-03-01 ALDR 43.60 USD
+P 2023-03-01 BLTX 70.10 USD
+P 2023-03-01 CYGN 25.10 USD
+P 2023-03-01 DORO 93.80 USD
+P 2023-03-01 EMBR 36.40 USD
+P 2023-03-01 FNWK 59.80 USD
+
+P 2023-04-01 USD 82.66 INR
+P 2023-04-01 ARANYA 421.54 INR
+P 2023-04-01 NORTHSTAR 161.04 INR
+P 2023-04-01 CEDARCREST 91.50 INR
+P 2023-04-01 MONSOONMID 75.02 INR
+P 2023-04-01 RIVERSTONE 48.23 INR
+P 2023-04-01 BLUEHYB 65.75 INR
+P 2023-04-01 KAVERILIQ 1010.81 INR
+P 2023-04-01 BLUEPLIQ 1009.86 INR
+P 2023-04-01 SAFFGOLD 54.86 INR
+P 2023-04-01 RIVERBOND 113.34 INR
+P 2023-04-01 NPSMON 39.14 INR
+P 2023-04-01 EPFNIM 101.97 INR
+P 2023-04-01 EPSNIM 101.43 INR
+P 2023-04-01 PPFVAR 101.75 INR
+P 2023-04-01 SPY 393.36 USD
+P 2023-04-01 ALDR 44.54 USD
+P 2023-04-01 BLTX 71.34 USD
+P 2023-04-01 CYGN 25.75 USD
+P 2023-04-01 DORO 95.45 USD
+P 2023-04-01 EMBR 37.23 USD
+P 2023-04-01 FNWK 60.86 USD
+
+P 2023-05-01 USD 82.60 INR
+P 2023-05-01 ARANYA 427.67 INR
+P 2023-05-01 NORTHSTAR 163.28 INR
+P 2023-05-01 CEDARCREST 92.80 INR
+P 2023-05-01 MONSOONMID 76.14 INR
+P 2023-05-01 RIVERSTONE 49.05 INR
+P 2023-05-01 BLUEHYB 66.40 INR
+P 2023-05-01 KAVERILIQ 1014.82 INR
+P 2023-05-01 BLUEPLIQ 1013.52 INR
+P 2023-05-01 SAFFGOLD 55.92 INR
+P 2023-05-01 RIVERBOND 113.83 INR
+P 2023-05-01 NPSMON 39.57 INR
+P 2023-05-01 EPFNIM 102.70 INR
+P 2023-05-01 EPSNIM 101.96 INR
+P 2023-05-01 PPFVAR 102.40 INR
+P 2023-05-01 SPY 398.31 USD
+P 2023-05-01 ALDR 45.49 USD
+P 2023-05-01 BLTX 72.58 USD
+P 2023-05-01 CYGN 26.40 USD
+P 2023-05-01 DORO 97.10 USD
+P 2023-05-01 EMBR 38.05 USD
+P 2023-05-01 FNWK 61.92 USD
+
+P 2023-06-01 USD 82.86 INR
+P 2023-06-01 ARANYA 429.13 INR
+P 2023-06-01 NORTHSTAR 163.82 INR
+P 2023-06-01 CEDARCREST 93.10 INR
+P 2023-06-01 MONSOONMID 76.41 INR
+P 2023-06-01 RIVERSTONE 49.25 INR
+P 2023-06-01 BLUEHYB 66.55 INR
+P 2023-06-01 KAVERILIQ 1015.78 INR
+P 2023-06-01 BLUEPLIQ 1014.38 INR
+P 2023-06-01 SAFFGOLD 56.18 INR
+P 2023-06-01 RIVERBOND 113.95 INR
+P 2023-06-01 NPSMON 39.67 INR
+P 2023-06-01 EPFNIM 102.88 INR
+P 2023-06-01 EPSNIM 102.09 INR
+P 2023-06-01 PPFVAR 102.55 INR
+P 2023-06-01 SPY 399.49 USD
+P 2023-06-01 ALDR 45.71 USD
+P 2023-06-01 BLTX 72.87 USD
+P 2023-06-01 CYGN 26.55 USD
+P 2023-06-01 DORO 97.50 USD
+P 2023-06-01 EMBR 38.25 USD
+P 2023-06-01 FNWK 62.18 USD
+
+P 2023-07-01 USD 83.12 INR
+P 2023-07-01 ARANYA 435.26 INR
+P 2023-07-01 NORTHSTAR 166.06 INR
+P 2023-07-01 CEDARCREST 94.40 INR
+P 2023-07-01 MONSOONMID 77.53 INR
+P 2023-07-01 RIVERSTONE 50.07 INR
+P 2023-07-01 BLUEHYB 67.20 INR
+P 2023-07-01 KAVERILIQ 1019.79 INR
+P 2023-07-01 BLUEPLIQ 1018.04 INR
+P 2023-07-01 SAFFGOLD 57.24 INR
+P 2023-07-01 RIVERBOND 114.44 INR
+P 2023-07-01 NPSMON 40.10 INR
+P 2023-07-01 EPFNIM 103.61 INR
+P 2023-07-01 EPSNIM 102.62 INR
+P 2023-07-01 PPFVAR 103.20 INR
+P 2023-07-01 SPY 404.44 USD
+P 2023-07-01 ALDR 46.66 USD
+P 2023-07-01 BLTX 74.11 USD
+P 2023-07-01 CYGN 27.20 USD
+P 2023-07-01 DORO 99.15 USD
+P 2023-07-01 EMBR 39.07 USD
+P 2023-07-01 FNWK 63.24 USD
+
+P 2023-08-01 USD 83.38 INR
+P 2023-08-01 ARANYA 441.40 INR
+P 2023-08-01 NORTHSTAR 168.30 INR
+P 2023-08-01 CEDARCREST 95.70 INR
+P 2023-08-01 MONSOONMID 78.65 INR
+P 2023-08-01 RIVERSTONE 50.90 INR
+P 2023-08-01 BLUEHYB 67.85 INR
+P 2023-08-01 KAVERILIQ 1023.80 INR
+P 2023-08-01 BLUEPLIQ 1021.70 INR
+P 2023-08-01 SAFFGOLD 58.30 INR
+P 2023-08-01 RIVERBOND 114.94 INR
+P 2023-08-01 NPSMON 40.52 INR
+P 2023-08-01 EPFNIM 104.34 INR
+P 2023-08-01 EPSNIM 103.15 INR
+P 2023-08-01 PPFVAR 103.85 INR
+P 2023-08-01 SPY 409.40 USD
+P 2023-08-01 ALDR 47.60 USD
+P 2023-08-01 BLTX 75.35 USD
+P 2023-08-01 CYGN 27.85 USD
+P 2023-08-01 DORO 100.80 USD
+P 2023-08-01 EMBR 39.90 USD
+P 2023-08-01 FNWK 64.30 USD
+
+P 2023-09-01 USD 83.32 INR
+P 2023-09-01 ARANYA 447.54 INR
+P 2023-09-01 NORTHSTAR 170.54 INR
+P 2023-09-01 CEDARCREST 97.00 INR
+P 2023-09-01 MONSOONMID 79.77 INR
+P 2023-09-01 RIVERSTONE 51.73 INR
+P 2023-09-01 BLUEHYB 68.50 INR
+P 2023-09-01 KAVERILIQ 1027.81 INR
+P 2023-09-01 BLUEPLIQ 1025.36 INR
+P 2023-09-01 SAFFGOLD 59.36 INR
+P 2023-09-01 RIVERBOND 115.44 INR
+P 2023-09-01 NPSMON 40.94 INR
+P 2023-09-01 EPFNIM 105.07 INR
+P 2023-09-01 EPSNIM 103.68 INR
+P 2023-09-01 PPFVAR 104.50 INR
+P 2023-09-01 SPY 414.36 USD
+P 2023-09-01 ALDR 48.54 USD
+P 2023-09-01 BLTX 76.59 USD
+P 2023-09-01 CYGN 28.50 USD
+P 2023-09-01 DORO 102.45 USD
+P 2023-09-01 EMBR 40.73 USD
+P 2023-09-01 FNWK 65.36 USD
+
+P 2023-10-01 USD 83.58 INR
+P 2023-10-01 ARANYA 453.67 INR
+P 2023-10-01 NORTHSTAR 172.78 INR
+P 2023-10-01 CEDARCREST 98.30 INR
+P 2023-10-01 MONSOONMID 80.89 INR
+P 2023-10-01 RIVERSTONE 52.55 INR
+P 2023-10-01 BLUEHYB 69.15 INR
+P 2023-10-01 KAVERILIQ 1031.82 INR
+P 2023-10-01 BLUEPLIQ 1029.02 INR
+P 2023-10-01 SAFFGOLD 60.42 INR
+P 2023-10-01 RIVERBOND 115.93 INR
+P 2023-10-01 NPSMON 41.37 INR
+P 2023-10-01 EPFNIM 105.80 INR
+P 2023-10-01 EPSNIM 104.21 INR
+P 2023-10-01 PPFVAR 105.15 INR
+P 2023-10-01 SPY 419.31 USD
+P 2023-10-01 ALDR 49.49 USD
+P 2023-10-01 BLTX 77.83 USD
+P 2023-10-01 CYGN 29.15 USD
+P 2023-10-01 DORO 104.10 USD
+P 2023-10-01 EMBR 41.55 USD
+P 2023-10-01 FNWK 66.42 USD
+
+P 2023-11-01 USD 83.84 INR
+P 2023-11-01 ARANYA 455.13 INR
+P 2023-11-01 NORTHSTAR 173.32 INR
+P 2023-11-01 CEDARCREST 98.60 INR
+P 2023-11-01 MONSOONMID 81.16 INR
+P 2023-11-01 RIVERSTONE 52.75 INR
+P 2023-11-01 BLUEHYB 69.30 INR
+P 2023-11-01 KAVERILIQ 1032.78 INR
+P 2023-11-01 BLUEPLIQ 1029.88 INR
+P 2023-11-01 SAFFGOLD 60.68 INR
+P 2023-11-01 RIVERBOND 116.05 INR
+P 2023-11-01 NPSMON 41.47 INR
+P 2023-11-01 EPFNIM 105.98 INR
+P 2023-11-01 EPSNIM 104.34 INR
+P 2023-11-01 PPFVAR 105.30 INR
+P 2023-11-01 SPY 420.49 USD
+P 2023-11-01 ALDR 49.71 USD
+P 2023-11-01 BLTX 78.12 USD
+P 2023-11-01 CYGN 29.30 USD
+P 2023-11-01 DORO 104.50 USD
+P 2023-11-01 EMBR 41.75 USD
+P 2023-11-01 FNWK 66.68 USD
+
+P 2023-12-01 USD 84.10 INR
+P 2023-12-01 ARANYA 461.26 INR
+P 2023-12-01 NORTHSTAR 175.56 INR
+P 2023-12-01 CEDARCREST 99.90 INR
+P 2023-12-01 MONSOONMID 82.28 INR
+P 2023-12-01 RIVERSTONE 53.57 INR
+P 2023-12-01 BLUEHYB 69.95 INR
+P 2023-12-01 KAVERILIQ 1036.79 INR
+P 2023-12-01 BLUEPLIQ 1033.54 INR
+P 2023-12-01 SAFFGOLD 61.74 INR
+P 2023-12-01 RIVERBOND 116.54 INR
+P 2023-12-01 NPSMON 41.90 INR
+P 2023-12-01 EPFNIM 106.71 INR
+P 2023-12-01 EPSNIM 104.87 INR
+P 2023-12-01 PPFVAR 105.95 INR
+P 2023-12-01 SPY 425.44 USD
+P 2023-12-01 ALDR 50.66 USD
+P 2023-12-01 BLTX 79.36 USD
+P 2023-12-01 CYGN 29.95 USD
+P 2023-12-01 DORO 106.15 USD
+P 2023-12-01 EMBR 42.57 USD
+P 2023-12-01 FNWK 67.74 USD
+
+P 2024-01-01 USD 84.04 INR
+P 2024-01-01 ARANYA 467.40 INR
+P 2024-01-01 NORTHSTAR 177.80 INR
+P 2024-01-01 CEDARCREST 101.20 INR
+P 2024-01-01 MONSOONMID 83.40 INR
+P 2024-01-01 RIVERSTONE 54.40 INR
+P 2024-01-01 BLUEHYB 70.60 INR
+P 2024-01-01 KAVERILIQ 1040.80 INR
+P 2024-01-01 BLUEPLIQ 1037.20 INR
+P 2024-01-01 SAFFGOLD 62.80 INR
+P 2024-01-01 RIVERBOND 117.04 INR
+P 2024-01-01 NPSMON 42.32 INR
+P 2024-01-01 EPFNIM 107.44 INR
+P 2024-01-01 EPSNIM 105.40 INR
+P 2024-01-01 PPFVAR 106.60 INR
+P 2024-01-01 SPY 430.40 USD
+P 2024-01-01 ALDR 51.60 USD
+P 2024-01-01 BLTX 80.60 USD
+P 2024-01-01 CYGN 30.60 USD
+P 2024-01-01 DORO 107.80 USD
+P 2024-01-01 EMBR 43.40 USD
+P 2024-01-01 FNWK 68.80 USD
+
+P 2024-02-01 USD 84.30 INR
+P 2024-02-01 ARANYA 473.54 INR
+P 2024-02-01 NORTHSTAR 180.04 INR
+P 2024-02-01 CEDARCREST 102.50 INR
+P 2024-02-01 MONSOONMID 84.52 INR
+P 2024-02-01 RIVERSTONE 55.23 INR
+P 2024-02-01 BLUEHYB 71.25 INR
+P 2024-02-01 KAVERILIQ 1044.81 INR
+P 2024-02-01 BLUEPLIQ 1040.86 INR
+P 2024-02-01 SAFFGOLD 63.86 INR
+P 2024-02-01 RIVERBOND 117.54 INR
+P 2024-02-01 NPSMON 42.74 INR
+P 2024-02-01 EPFNIM 108.17 INR
+P 2024-02-01 EPSNIM 105.93 INR
+P 2024-02-01 PPFVAR 107.25 INR
+P 2024-02-01 SPY 435.36 USD
+P 2024-02-01 ALDR 52.54 USD
+P 2024-02-01 BLTX 81.84 USD
+P 2024-02-01 CYGN 31.25 USD
+P 2024-02-01 DORO 109.45 USD
+P 2024-02-01 EMBR 44.23 USD
+P 2024-02-01 FNWK 69.86 USD
+
+P 2024-03-01 USD 84.56 INR
+P 2024-03-01 ARANYA 479.67 INR
+P 2024-03-01 NORTHSTAR 182.28 INR
+P 2024-03-01 CEDARCREST 103.80 INR
+P 2024-03-01 MONSOONMID 85.64 INR
+P 2024-03-01 RIVERSTONE 56.05 INR
+P 2024-03-01 BLUEHYB 71.90 INR
+P 2024-03-01 KAVERILIQ 1048.82 INR
+P 2024-03-01 BLUEPLIQ 1044.52 INR
+P 2024-03-01 SAFFGOLD 64.92 INR
+P 2024-03-01 RIVERBOND 118.03 INR
+P 2024-03-01 NPSMON 43.17 INR
+P 2024-03-01 EPFNIM 108.90 INR
+P 2024-03-01 EPSNIM 106.46 INR
+P 2024-03-01 PPFVAR 107.90 INR
+P 2024-03-01 SPY 440.31 USD
+P 2024-03-01 ALDR 53.49 USD
+P 2024-03-01 BLTX 83.08 USD
+P 2024-03-01 CYGN 31.90 USD
+P 2024-03-01 DORO 111.10 USD
+P 2024-03-01 EMBR 45.05 USD
+P 2024-03-01 FNWK 70.92 USD
+
+P 2024-04-01 USD 84.82 INR
+P 2024-04-01 ARANYA 481.13 INR
+P 2024-04-01 NORTHSTAR 182.82 INR
+P 2024-04-01 CEDARCREST 104.10 INR
+P 2024-04-01 MONSOONMID 85.91 INR
+P 2024-04-01 RIVERSTONE 56.25 INR
+P 2024-04-01 BLUEHYB 72.05 INR
+P 2024-04-01 KAVERILIQ 1049.78 INR
+P 2024-04-01 BLUEPLIQ 1045.38 INR
+P 2024-04-01 SAFFGOLD 65.18 INR
+P 2024-04-01 RIVERBOND 118.15 INR
+P 2024-04-01 NPSMON 43.27 INR
+P 2024-04-01 EPFNIM 109.08 INR
+P 2024-04-01 EPSNIM 106.59 INR
+P 2024-04-01 PPFVAR 108.05 INR
+P 2024-04-01 SPY 441.49 USD
+P 2024-04-01 ALDR 53.71 USD
+P 2024-04-01 BLTX 83.37 USD
+P 2024-04-01 CYGN 32.05 USD
+P 2024-04-01 DORO 111.50 USD
+P 2024-04-01 EMBR 45.25 USD
+P 2024-04-01 FNWK 71.18 USD
+
+P 2024-05-01 USD 84.76 INR
+P 2024-05-01 ARANYA 487.26 INR
+P 2024-05-01 NORTHSTAR 185.06 INR
+P 2024-05-01 CEDARCREST 105.40 INR
+P 2024-05-01 MONSOONMID 87.03 INR
+P 2024-05-01 RIVERSTONE 57.07 INR
+P 2024-05-01 BLUEHYB 72.70 INR
+P 2024-05-01 KAVERILIQ 1053.79 INR
+P 2024-05-01 BLUEPLIQ 1049.04 INR
+P 2024-05-01 SAFFGOLD 66.24 INR
+P 2024-05-01 RIVERBOND 118.64 INR
+P 2024-05-01 NPSMON 43.70 INR
+P 2024-05-01 EPFNIM 109.81 INR
+P 2024-05-01 EPSNIM 107.12 INR
+P 2024-05-01 PPFVAR 108.70 INR
+P 2024-05-01 SPY 446.44 USD
+P 2024-05-01 ALDR 54.66 USD
+P 2024-05-01 BLTX 84.61 USD
+P 2024-05-01 CYGN 32.70 USD
+P 2024-05-01 DORO 113.15 USD
+P 2024-05-01 EMBR 46.07 USD
+P 2024-05-01 FNWK 72.24 USD
+
+P 2024-06-01 USD 85.02 INR
+P 2024-06-01 ARANYA 493.40 INR
+P 2024-06-01 NORTHSTAR 187.30 INR
+P 2024-06-01 CEDARCREST 106.70 INR
+P 2024-06-01 MONSOONMID 88.15 INR
+P 2024-06-01 RIVERSTONE 57.90 INR
+P 2024-06-01 BLUEHYB 73.35 INR
+P 2024-06-01 KAVERILIQ 1057.80 INR
+P 2024-06-01 BLUEPLIQ 1052.70 INR
+P 2024-06-01 SAFFGOLD 67.30 INR
+P 2024-06-01 RIVERBOND 119.14 INR
+P 2024-06-01 NPSMON 44.12 INR
+P 2024-06-01 EPFNIM 110.54 INR
+P 2024-06-01 EPSNIM 107.65 INR
+P 2024-06-01 PPFVAR 109.35 INR
+P 2024-06-01 SPY 451.40 USD
+P 2024-06-01 ALDR 55.60 USD
+P 2024-06-01 BLTX 85.85 USD
+P 2024-06-01 CYGN 33.35 USD
+P 2024-06-01 DORO 114.80 USD
+P 2024-06-01 EMBR 46.90 USD
+P 2024-06-01 FNWK 73.30 USD
+
+P 2024-07-01 USD 85.28 INR
+P 2024-07-01 ARANYA 499.54 INR
+P 2024-07-01 NORTHSTAR 189.54 INR
+P 2024-07-01 CEDARCREST 108.00 INR
+P 2024-07-01 MONSOONMID 89.27 INR
+P 2024-07-01 RIVERSTONE 58.73 INR
+P 2024-07-01 BLUEHYB 74.00 INR
+P 2024-07-01 KAVERILIQ 1061.81 INR
+P 2024-07-01 BLUEPLIQ 1056.36 INR
+P 2024-07-01 SAFFGOLD 68.36 INR
+P 2024-07-01 RIVERBOND 119.64 INR
+P 2024-07-01 NPSMON 44.54 INR
+P 2024-07-01 EPFNIM 111.27 INR
+P 2024-07-01 EPSNIM 108.18 INR
+P 2024-07-01 PPFVAR 110.00 INR
+P 2024-07-01 SPY 456.36 USD
+P 2024-07-01 ALDR 56.54 USD
+P 2024-07-01 BLTX 87.09 USD
+P 2024-07-01 CYGN 34.00 USD
+P 2024-07-01 DORO 116.45 USD
+P 2024-07-01 EMBR 47.73 USD
+P 2024-07-01 FNWK 74.36 USD
+
+P 2024-08-01 USD 85.54 INR
+P 2024-08-01 ARANYA 505.67 INR
+P 2024-08-01 NORTHSTAR 191.78 INR
+P 2024-08-01 CEDARCREST 109.30 INR
+P 2024-08-01 MONSOONMID 90.39 INR
+P 2024-08-01 RIVERSTONE 59.55 INR
+P 2024-08-01 BLUEHYB 74.65 INR
+P 2024-08-01 KAVERILIQ 1065.82 INR
+P 2024-08-01 BLUEPLIQ 1060.02 INR
+P 2024-08-01 SAFFGOLD 69.42 INR
+P 2024-08-01 RIVERBOND 120.13 INR
+P 2024-08-01 NPSMON 44.97 INR
+P 2024-08-01 EPFNIM 112.00 INR
+P 2024-08-01 EPSNIM 108.71 INR
+P 2024-08-01 PPFVAR 110.65 INR
+P 2024-08-01 SPY 461.31 USD
+P 2024-08-01 ALDR 57.49 USD
+P 2024-08-01 BLTX 88.33 USD
+P 2024-08-01 CYGN 34.65 USD
+P 2024-08-01 DORO 118.10 USD
+P 2024-08-01 EMBR 48.55 USD
+P 2024-08-01 FNWK 75.42 USD
+
+P 2024-09-01 USD 85.48 INR
+P 2024-09-01 ARANYA 507.13 INR
+P 2024-09-01 NORTHSTAR 192.32 INR
+P 2024-09-01 CEDARCREST 109.60 INR
+P 2024-09-01 MONSOONMID 90.66 INR
+P 2024-09-01 RIVERSTONE 59.75 INR
+P 2024-09-01 BLUEHYB 74.80 INR
+P 2024-09-01 KAVERILIQ 1066.78 INR
+P 2024-09-01 BLUEPLIQ 1060.88 INR
+P 2024-09-01 SAFFGOLD 69.68 INR
+P 2024-09-01 RIVERBOND 120.25 INR
+P 2024-09-01 NPSMON 45.07 INR
+P 2024-09-01 EPFNIM 112.18 INR
+P 2024-09-01 EPSNIM 108.84 INR
+P 2024-09-01 PPFVAR 110.80 INR
+P 2024-09-01 SPY 462.49 USD
+P 2024-09-01 ALDR 57.71 USD
+P 2024-09-01 BLTX 88.62 USD
+P 2024-09-01 CYGN 34.80 USD
+P 2024-09-01 DORO 118.50 USD
+P 2024-09-01 EMBR 48.75 USD
+P 2024-09-01 FNWK 75.68 USD
+
+P 2024-10-01 USD 85.74 INR
+P 2024-10-01 ARANYA 513.26 INR
+P 2024-10-01 NORTHSTAR 194.56 INR
+P 2024-10-01 CEDARCREST 110.90 INR
+P 2024-10-01 MONSOONMID 91.78 INR
+P 2024-10-01 RIVERSTONE 60.57 INR
+P 2024-10-01 BLUEHYB 75.45 INR
+P 2024-10-01 KAVERILIQ 1070.79 INR
+P 2024-10-01 BLUEPLIQ 1064.54 INR
+P 2024-10-01 SAFFGOLD 70.74 INR
+P 2024-10-01 RIVERBOND 120.74 INR
+P 2024-10-01 NPSMON 45.50 INR
+P 2024-10-01 EPFNIM 112.91 INR
+P 2024-10-01 EPSNIM 109.37 INR
+P 2024-10-01 PPFVAR 111.45 INR
+P 2024-10-01 SPY 467.44 USD
+P 2024-10-01 ALDR 58.66 USD
+P 2024-10-01 BLTX 89.86 USD
+P 2024-10-01 CYGN 35.45 USD
+P 2024-10-01 DORO 120.15 USD
+P 2024-10-01 EMBR 49.57 USD
+P 2024-10-01 FNWK 76.74 USD
+
+P 2024-11-01 USD 86.00 INR
+P 2024-11-01 ARANYA 519.40 INR
+P 2024-11-01 NORTHSTAR 196.80 INR
+P 2024-11-01 CEDARCREST 112.20 INR
+P 2024-11-01 MONSOONMID 92.90 INR
+P 2024-11-01 RIVERSTONE 61.40 INR
+P 2024-11-01 BLUEHYB 76.10 INR
+P 2024-11-01 KAVERILIQ 1074.80 INR
+P 2024-11-01 BLUEPLIQ 1068.20 INR
+P 2024-11-01 SAFFGOLD 71.80 INR
+P 2024-11-01 RIVERBOND 121.24 INR
+P 2024-11-01 NPSMON 45.92 INR
+P 2024-11-01 EPFNIM 113.64 INR
+P 2024-11-01 EPSNIM 109.90 INR
+P 2024-11-01 PPFVAR 112.10 INR
+P 2024-11-01 SPY 472.40 USD
+P 2024-11-01 ALDR 59.60 USD
+P 2024-11-01 BLTX 91.10 USD
+P 2024-11-01 CYGN 36.10 USD
+P 2024-11-01 DORO 121.80 USD
+P 2024-11-01 EMBR 50.40 USD
+P 2024-11-01 FNWK 77.80 USD
+
+P 2024-12-01 USD 86.26 INR
+P 2024-12-01 ARANYA 525.54 INR
+P 2024-12-01 NORTHSTAR 199.04 INR
+P 2024-12-01 CEDARCREST 113.50 INR
+P 2024-12-01 MONSOONMID 94.02 INR
+P 2024-12-01 RIVERSTONE 62.23 INR
+P 2024-12-01 BLUEHYB 76.75 INR
+P 2024-12-01 KAVERILIQ 1078.81 INR
+P 2024-12-01 BLUEPLIQ 1071.86 INR
+P 2024-12-01 SAFFGOLD 72.86 INR
+P 2024-12-01 RIVERBOND 121.74 INR
+P 2024-12-01 NPSMON 46.34 INR
+P 2024-12-01 EPFNIM 114.37 INR
+P 2024-12-01 EPSNIM 110.43 INR
+P 2024-12-01 PPFVAR 112.75 INR
+P 2024-12-01 SPY 477.36 USD
+P 2024-12-01 ALDR 60.54 USD
+P 2024-12-01 BLTX 92.34 USD
+P 2024-12-01 CYGN 36.75 USD
+P 2024-12-01 DORO 123.45 USD
+P 2024-12-01 EMBR 51.23 USD
+P 2024-12-01 FNWK 78.86 USD
+
+P 2025-01-01 USD 86.20 INR
+P 2025-01-01 ARANYA 531.67 INR
+P 2025-01-01 NORTHSTAR 201.28 INR
+P 2025-01-01 CEDARCREST 114.80 INR
+P 2025-01-01 MONSOONMID 95.14 INR
+P 2025-01-01 RIVERSTONE 63.05 INR
+P 2025-01-01 BLUEHYB 77.40 INR
+P 2025-01-01 KAVERILIQ 1082.82 INR
+P 2025-01-01 BLUEPLIQ 1075.52 INR
+P 2025-01-01 SAFFGOLD 73.92 INR
+P 2025-01-01 RIVERBOND 122.23 INR
+P 2025-01-01 NPSMON 46.77 INR
+P 2025-01-01 EPFNIM 115.10 INR
+P 2025-01-01 EPSNIM 110.96 INR
+P 2025-01-01 PPFVAR 113.40 INR
+P 2025-01-01 SPY 482.31 USD
+P 2025-01-01 ALDR 61.49 USD
+P 2025-01-01 BLTX 93.58 USD
+P 2025-01-01 CYGN 37.40 USD
+P 2025-01-01 DORO 125.10 USD
+P 2025-01-01 EMBR 52.05 USD
+P 2025-01-01 FNWK 79.92 USD
+
+P 2025-02-01 USD 86.46 INR
+P 2025-02-01 ARANYA 533.13 INR
+P 2025-02-01 NORTHSTAR 201.82 INR
+P 2025-02-01 CEDARCREST 115.10 INR
+P 2025-02-01 MONSOONMID 95.41 INR
+P 2025-02-01 RIVERSTONE 63.25 INR
+P 2025-02-01 BLUEHYB 77.55 INR
+P 2025-02-01 KAVERILIQ 1083.78 INR
+P 2025-02-01 BLUEPLIQ 1076.38 INR
+P 2025-02-01 SAFFGOLD 74.18 INR
+P 2025-02-01 RIVERBOND 122.35 INR
+P 2025-02-01 NPSMON 46.87 INR
+P 2025-02-01 EPFNIM 115.28 INR
+P 2025-02-01 EPSNIM 111.09 INR
+P 2025-02-01 PPFVAR 113.55 INR
+P 2025-02-01 SPY 483.49 USD
+P 2025-02-01 ALDR 61.71 USD
+P 2025-02-01 BLTX 93.87 USD
+P 2025-02-01 CYGN 37.55 USD
+P 2025-02-01 DORO 125.50 USD
+P 2025-02-01 EMBR 52.25 USD
+P 2025-02-01 FNWK 80.18 USD
+
+P 2025-03-01 USD 86.72 INR
+P 2025-03-01 ARANYA 539.26 INR
+P 2025-03-01 NORTHSTAR 204.06 INR
+P 2025-03-01 CEDARCREST 116.40 INR
+P 2025-03-01 MONSOONMID 96.53 INR
+P 2025-03-01 RIVERSTONE 64.07 INR
+P 2025-03-01 BLUEHYB 78.20 INR
+P 2025-03-01 KAVERILIQ 1087.79 INR
+P 2025-03-01 BLUEPLIQ 1080.04 INR
+P 2025-03-01 SAFFGOLD 75.24 INR
+P 2025-03-01 RIVERBOND 122.84 INR
+P 2025-03-01 NPSMON 47.30 INR
+P 2025-03-01 EPFNIM 116.01 INR
+P 2025-03-01 EPSNIM 111.62 INR
+P 2025-03-01 PPFVAR 114.20 INR
+P 2025-03-01 SPY 488.44 USD
+P 2025-03-01 ALDR 62.66 USD
+P 2025-03-01 BLTX 95.11 USD
+P 2025-03-01 CYGN 38.20 USD
+P 2025-03-01 DORO 127.15 USD
+P 2025-03-01 EMBR 53.07 USD
+P 2025-03-01 FNWK 81.24 USD
+
+P 2025-04-01 USD 86.98 INR
+P 2025-04-01 ARANYA 545.40 INR
+P 2025-04-01 NORTHSTAR 206.30 INR
+P 2025-04-01 CEDARCREST 117.70 INR
+P 2025-04-01 MONSOONMID 97.65 INR
+P 2025-04-01 RIVERSTONE 64.90 INR
+P 2025-04-01 BLUEHYB 78.85 INR
+P 2025-04-01 KAVERILIQ 1091.80 INR
+P 2025-04-01 BLUEPLIQ 1083.70 INR
+P 2025-04-01 SAFFGOLD 76.30 INR
+P 2025-04-01 RIVERBOND 123.34 INR
+P 2025-04-01 NPSMON 47.72 INR
+P 2025-04-01 EPFNIM 116.74 INR
+P 2025-04-01 EPSNIM 112.15 INR
+P 2025-04-01 PPFVAR 114.85 INR
+P 2025-04-01 SPY 493.40 USD
+P 2025-04-01 ALDR 63.60 USD
+P 2025-04-01 BLTX 96.35 USD
+P 2025-04-01 CYGN 38.85 USD
+P 2025-04-01 DORO 128.80 USD
+P 2025-04-01 EMBR 53.90 USD
+P 2025-04-01 FNWK 82.30 USD
+
+P 2025-05-01 USD 86.92 INR
+P 2025-05-01 ARANYA 551.54 INR
+P 2025-05-01 NORTHSTAR 208.54 INR
+P 2025-05-01 CEDARCREST 119.00 INR
+P 2025-05-01 MONSOONMID 98.77 INR
+P 2025-05-01 RIVERSTONE 65.73 INR
+P 2025-05-01 BLUEHYB 79.50 INR
+P 2025-05-01 KAVERILIQ 1095.81 INR
+P 2025-05-01 BLUEPLIQ 1087.36 INR
+P 2025-05-01 SAFFGOLD 77.36 INR
+P 2025-05-01 RIVERBOND 123.84 INR
+P 2025-05-01 NPSMON 48.14 INR
+P 2025-05-01 EPFNIM 117.47 INR
+P 2025-05-01 EPSNIM 112.68 INR
+P 2025-05-01 PPFVAR 115.50 INR
+P 2025-05-01 SPY 498.36 USD
+P 2025-05-01 ALDR 64.54 USD
+P 2025-05-01 BLTX 97.59 USD
+P 2025-05-01 CYGN 39.50 USD
+P 2025-05-01 DORO 130.45 USD
+P 2025-05-01 EMBR 54.73 USD
+P 2025-05-01 FNWK 83.36 USD
+
+P 2025-06-01 USD 87.18 INR
+P 2025-06-01 ARANYA 557.67 INR
+P 2025-06-01 NORTHSTAR 210.78 INR
+P 2025-06-01 CEDARCREST 120.30 INR
+P 2025-06-01 MONSOONMID 99.89 INR
+P 2025-06-01 RIVERSTONE 66.55 INR
+P 2025-06-01 BLUEHYB 80.15 INR
+P 2025-06-01 KAVERILIQ 1099.82 INR
+P 2025-06-01 BLUEPLIQ 1091.02 INR
+P 2025-06-01 SAFFGOLD 78.42 INR
+P 2025-06-01 RIVERBOND 124.33 INR
+P 2025-06-01 NPSMON 48.57 INR
+P 2025-06-01 EPFNIM 118.20 INR
+P 2025-06-01 EPSNIM 113.21 INR
+P 2025-06-01 PPFVAR 116.15 INR
+P 2025-06-01 SPY 503.31 USD
+P 2025-06-01 ALDR 65.49 USD
+P 2025-06-01 BLTX 98.83 USD
+P 2025-06-01 CYGN 40.15 USD
+P 2025-06-01 DORO 132.10 USD
+P 2025-06-01 EMBR 55.55 USD
+P 2025-06-01 FNWK 84.42 USD
+
+P 2025-07-01 USD 87.44 INR
+P 2025-07-01 ARANYA 559.13 INR
+P 2025-07-01 NORTHSTAR 211.32 INR
+P 2025-07-01 CEDARCREST 120.60 INR
+P 2025-07-01 MONSOONMID 100.16 INR
+P 2025-07-01 RIVERSTONE 66.75 INR
+P 2025-07-01 BLUEHYB 80.30 INR
+P 2025-07-01 KAVERILIQ 1100.78 INR
+P 2025-07-01 BLUEPLIQ 1091.88 INR
+P 2025-07-01 SAFFGOLD 78.68 INR
+P 2025-07-01 RIVERBOND 124.45 INR
+P 2025-07-01 NPSMON 48.67 INR
+P 2025-07-01 EPFNIM 118.38 INR
+P 2025-07-01 EPSNIM 113.34 INR
+P 2025-07-01 PPFVAR 116.30 INR
+P 2025-07-01 SPY 504.49 USD
+P 2025-07-01 ALDR 65.71 USD
+P 2025-07-01 BLTX 99.12 USD
+P 2025-07-01 CYGN 40.30 USD
+P 2025-07-01 DORO 132.50 USD
+P 2025-07-01 EMBR 55.75 USD
+P 2025-07-01 FNWK 84.68 USD
+
+P 2025-08-01 USD 87.70 INR
+P 2025-08-01 ARANYA 565.26 INR
+P 2025-08-01 NORTHSTAR 213.56 INR
+P 2025-08-01 CEDARCREST 121.90 INR
+P 2025-08-01 MONSOONMID 101.28 INR
+P 2025-08-01 RIVERSTONE 67.57 INR
+P 2025-08-01 BLUEHYB 80.95 INR
+P 2025-08-01 KAVERILIQ 1104.79 INR
+P 2025-08-01 BLUEPLIQ 1095.54 INR
+P 2025-08-01 SAFFGOLD 79.74 INR
+P 2025-08-01 RIVERBOND 124.94 INR
+P 2025-08-01 NPSMON 49.10 INR
+P 2025-08-01 EPFNIM 119.11 INR
+P 2025-08-01 EPSNIM 113.87 INR
+P 2025-08-01 PPFVAR 116.95 INR
+P 2025-08-01 SPY 509.44 USD
+P 2025-08-01 ALDR 66.66 USD
+P 2025-08-01 BLTX 100.36 USD
+P 2025-08-01 CYGN 40.95 USD
+P 2025-08-01 DORO 134.15 USD
+P 2025-08-01 EMBR 56.57 USD
+P 2025-08-01 FNWK 85.74 USD
+
+P 2025-09-01 USD 87.64 INR
+P 2025-09-01 ARANYA 571.40 INR
+P 2025-09-01 NORTHSTAR 215.80 INR
+P 2025-09-01 CEDARCREST 123.20 INR
+P 2025-09-01 MONSOONMID 102.40 INR
+P 2025-09-01 RIVERSTONE 68.40 INR
+P 2025-09-01 BLUEHYB 81.60 INR
+P 2025-09-01 KAVERILIQ 1108.80 INR
+P 2025-09-01 BLUEPLIQ 1099.20 INR
+P 2025-09-01 SAFFGOLD 80.80 INR
+P 2025-09-01 RIVERBOND 125.44 INR
+P 2025-09-01 NPSMON 49.52 INR
+P 2025-09-01 EPFNIM 119.84 INR
+P 2025-09-01 EPSNIM 114.40 INR
+P 2025-09-01 PPFVAR 117.60 INR
+P 2025-09-01 SPY 514.40 USD
+P 2025-09-01 ALDR 67.60 USD
+P 2025-09-01 BLTX 101.60 USD
+P 2025-09-01 CYGN 41.60 USD
+P 2025-09-01 DORO 135.80 USD
+P 2025-09-01 EMBR 57.40 USD
+P 2025-09-01 FNWK 86.80 USD
+
+P 2025-10-01 USD 87.90 INR
+P 2025-10-01 ARANYA 577.54 INR
+P 2025-10-01 NORTHSTAR 218.04 INR
+P 2025-10-01 CEDARCREST 124.50 INR
+P 2025-10-01 MONSOONMID 103.52 INR
+P 2025-10-01 RIVERSTONE 69.23 INR
+P 2025-10-01 BLUEHYB 82.25 INR
+P 2025-10-01 KAVERILIQ 1112.81 INR
+P 2025-10-01 BLUEPLIQ 1102.86 INR
+P 2025-10-01 SAFFGOLD 81.86 INR
+P 2025-10-01 RIVERBOND 125.94 INR
+P 2025-10-01 NPSMON 49.94 INR
+P 2025-10-01 EPFNIM 120.57 INR
+P 2025-10-01 EPSNIM 114.93 INR
+P 2025-10-01 PPFVAR 118.25 INR
+P 2025-10-01 SPY 519.36 USD
+P 2025-10-01 ALDR 68.54 USD
+P 2025-10-01 BLTX 102.84 USD
+P 2025-10-01 CYGN 42.25 USD
+P 2025-10-01 DORO 137.45 USD
+P 2025-10-01 EMBR 58.23 USD
+P 2025-10-01 FNWK 87.86 USD
+
+P 2025-11-01 USD 88.16 INR
+P 2025-11-01 ARANYA 583.67 INR
+P 2025-11-01 NORTHSTAR 220.28 INR
+P 2025-11-01 CEDARCREST 125.80 INR
+P 2025-11-01 MONSOONMID 104.64 INR
+P 2025-11-01 RIVERSTONE 70.05 INR
+P 2025-11-01 BLUEHYB 82.90 INR
+P 2025-11-01 KAVERILIQ 1116.82 INR
+P 2025-11-01 BLUEPLIQ 1106.52 INR
+P 2025-11-01 SAFFGOLD 82.92 INR
+P 2025-11-01 RIVERBOND 126.43 INR
+P 2025-11-01 NPSMON 50.37 INR
+P 2025-11-01 EPFNIM 121.30 INR
+P 2025-11-01 EPSNIM 115.46 INR
+P 2025-11-01 PPFVAR 118.90 INR
+P 2025-11-01 SPY 524.31 USD
+P 2025-11-01 ALDR 69.49 USD
+P 2025-11-01 BLTX 104.08 USD
+P 2025-11-01 CYGN 42.90 USD
+P 2025-11-01 DORO 139.10 USD
+P 2025-11-01 EMBR 59.05 USD
+P 2025-11-01 FNWK 88.92 USD
+
+P 2025-12-01 USD 88.42 INR
+P 2025-12-01 ARANYA 585.13 INR
+P 2025-12-01 NORTHSTAR 220.82 INR
+P 2025-12-01 CEDARCREST 126.10 INR
+P 2025-12-01 MONSOONMID 104.91 INR
+P 2025-12-01 RIVERSTONE 70.25 INR
+P 2025-12-01 BLUEHYB 83.05 INR
+P 2025-12-01 KAVERILIQ 1117.78 INR
+P 2025-12-01 BLUEPLIQ 1107.38 INR
+P 2025-12-01 SAFFGOLD 83.18 INR
+P 2025-12-01 RIVERBOND 126.55 INR
+P 2025-12-01 NPSMON 50.47 INR
+P 2025-12-01 EPFNIM 121.48 INR
+P 2025-12-01 EPSNIM 115.59 INR
+P 2025-12-01 PPFVAR 119.05 INR
+P 2025-12-01 SPY 525.49 USD
+P 2025-12-01 ALDR 69.71 USD
+P 2025-12-01 BLTX 104.37 USD
+P 2025-12-01 CYGN 43.05 USD
+P 2025-12-01 DORO 139.50 USD
+P 2025-12-01 EMBR 59.25 USD
+P 2025-12-01 FNWK 89.18 USD
+
+2023-01-01 * opening balances
+    assets:cash:bank:neev                                   160000.00 INR
+    assets:cash:bank:varuna                                 120000.00 INR
+    assets:cash:us:cedar                                     500.00 USD
+    assets:cash:wallet:physical                             12000.00 INR
+    assets:debt:epf:india:nimbusworks                        45000.00 INR
+    assets:debt:eps:india:nimbusworks                         8000.00 INR
+    assets:debt:fd:india:neev                                25000.00 INR
+    assets:debt:ppf:india:varuna                             20000.00 INR
+    assets:property:jewelry                                  20000.00 INR
+    assets:property:realestate:apartment                     620000.00 INR
+    liabilities:loan:home:varuna                            -650000.00 INR
+    liabilities:loan:car:neev                               -190000.00 INR
+    equity:openingbalances
+
+2023-01-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-01-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-01-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        3780.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-01-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2023-01-05 * home loan emi
+    liabilities:loan:home:varuna                             9000.00 INR
+    expenses:interest:home-loan                              7800.00 INR
+    assets:cash:bank:varuna
+
+2023-01-06 * car loan emi
+    liabilities:loan:car:neev                                4200.00 INR
+    expenses:interest:car-loan                               1600.00 INR
+    assets:cash:bank:neev
+
+2023-01-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2023-01-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 29.7672 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              58.3219 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             97.0275 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  97.6862 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             142.0827 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              94.0409 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-01-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         237.6526 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-01-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       18.0221 KAVERILIQ @@ 8000.00 INR
+    assets:cash:bank:varuna                                  -8000.00 INR
+
+2023-01-15 * quarterly fixed deposit
+    assets:debt:fd:india:neev  30000.00 INR
+    assets:cash:bank:neev                                   -30000.00 INR
+
+2023-01-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 2600.00 INR
+    liabilities:creditcard:lotus
+
+2023-01-24 * credit card payment
+    liabilities:creditcard:lotus                            5850.00 INR
+    assets:cash:bank:neev
+
+2023-02-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-02-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-02-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        3960.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-02-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2023-02-05 * home loan emi
+    liabilities:loan:home:varuna                             9045.00 INR
+    expenses:interest:home-loan                              7765.00 INR
+    assets:cash:bank:varuna
+
+2023-02-06 * car loan emi
+    liabilities:loan:car:neev                                4220.00 INR
+    expenses:interest:car-loan                               1582.00 INR
+    assets:cash:bank:neev
+
+2023-02-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2023-02-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 29.3209 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              57.4867 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             95.6109 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  96.1816 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             139.5628 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              93.0940 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-02-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         235.0164 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-02-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     19.9493 BLUEPLIQ @@ 9000.00 INR
+    assets:cash:bank:varuna                                  -9000.00 INR
+
+2023-02-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 3000.00 INR
+    liabilities:creditcard:lotus
+
+2023-02-24 * credit card payment
+    liabilities:creditcard:lotus                            6800.00 INR
+    assets:cash:bank:neev
+
+2023-02-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1450.00 USD @@ 119103.00 INR
+    expenses:financial:forex                                714.62 INR
+    assets:cash:bank:neev                                   -119817.62 INR
+
+2023-02-21 * buy SPY in cedar brokerage
+    assets:equity:index:us:etf:spy                          3.5546 SPY @@ 1363.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2023-03-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -325000.00 INR
+    assets:cash:bank:neev                                   325000.00 INR
+
+2023-03-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-03-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        4140.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-03-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2050.00 INR
+    assets:cash:bank:neev
+
+2023-03-05 * home loan emi
+    liabilities:loan:home:varuna                             9090.00 INR
+    expenses:interest:home-loan                              7730.00 INR
+    assets:cash:bank:varuna
+
+2023-03-06 * car loan emi
+    liabilities:loan:car:neev                                4240.00 INR
+    expenses:interest:car-loan                               1564.00 INR
+    assets:cash:bank:neev
+
+2023-03-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9100.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2023-03-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 28.8878 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              56.6751 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             94.2350 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  94.7226 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             137.1308 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              92.1659 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-03-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         232.4380 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-03-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       21.8514 KAVERILIQ @@ 10000.00 INR
+    assets:cash:bank:varuna                                 -10000.00 INR
+
+2023-03-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 3400.00 INR
+    liabilities:creditcard:lotus
+
+2023-03-24 * credit card payment
+    liabilities:creditcard:lotus                            7000.00 INR
+    assets:cash:bank:neev
+
+2023-03-22 * tax saving and insurance
+    expenses:government:tax                                 42000.00 INR
+    expenses:car:insurance                                  18500.00 INR
+    assets:cash:bank:varuna
+
+2023-04-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-04-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-04-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        4320.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-04-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2200.00 INR
+    assets:cash:bank:neev
+
+2023-04-05 * home loan emi
+    liabilities:loan:home:varuna                             9135.00 INR
+    expenses:interest:home-loan                              7695.00 INR
+    assets:cash:bank:varuna
+
+2023-04-06 * car loan emi
+    liabilities:loan:car:neev                                4260.00 INR
+    expenses:interest:car-loan                               1546.00 INR
+    assets:cash:bank:neev
+
+2023-04-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9600.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2023-04-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 28.4673 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              55.8860 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             92.8982 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  93.3072 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             134.7821 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              91.2561 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-04-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         229.9156 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-04-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     23.7657 BLUEPLIQ @@ 11000.00 INR
+    assets:cash:bank:varuna                                 -11000.00 INR
+
+2023-04-15 * quarterly fixed deposit
+    assets:debt:fd:india:varuna  30000.00 INR
+    assets:cash:bank:varuna                                 -30000.00 INR
+
+2023-04-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 3800.00 INR
+    liabilities:creditcard:lotus
+
+2023-04-24 * credit card payment
+    liabilities:creditcard:lotus                            6750.00 INR
+    assets:cash:bank:neev
+
+2023-04-25 * interest and dividends
+    assets:cash:bank:varuna                                 6770.00 INR
+    income:interest                                         -6770.00 INR
+    assets:cash:bank:neev                                   1920.00 INR
+    income:dividend:india                                   -1920.00 INR
+
+2023-05-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-05-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-05-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        4500.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-05-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1600.00 INR
+    assets:cash:bank:neev
+
+2023-05-05 * home loan emi
+    liabilities:loan:home:varuna                             9180.00 INR
+    expenses:interest:home-loan                              7660.00 INR
+    assets:cash:bank:varuna
+
+2023-05-06 * car loan emi
+    liabilities:loan:car:neev                                4280.00 INR
+    expenses:interest:car-loan                               1528.00 INR
+    assets:cash:bank:neev
+
+2023-05-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      7600.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2023-05-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 28.0589 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              55.1187 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             91.5988 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  91.9335 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             132.5124 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              90.3642 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-05-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         227.4473 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-05-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       25.6202 KAVERILIQ @@ 12000.00 INR
+    assets:cash:bank:varuna                                 -12000.00 INR
+
+2023-05-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 4200.00 INR
+    liabilities:creditcard:lotus
+
+2023-05-24 * credit card payment
+    liabilities:creditcard:lotus                            7700.00 INR
+    assets:cash:bank:neev
+
+2023-05-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1200.00 USD @@ 99120.00 INR
+    expenses:financial:forex                                594.72 INR
+    assets:cash:bank:neev                                   -99714.72 INR
+
+2023-05-21 * buy ALDR in cedar brokerage
+    assets:equity:stock:us:alder                            24.7977 ALDR @@ 1128.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2023-06-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-06-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-06-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        3600.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-06-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2023-06-05 * home loan emi
+    liabilities:loan:home:varuna                             9225.00 INR
+    expenses:interest:home-loan                              7625.00 INR
+    assets:cash:bank:varuna
+
+2023-06-06 * car loan emi
+    liabilities:loan:car:neev                                4300.00 INR
+    expenses:interest:car-loan                               1510.00 INR
+    assets:cash:bank:neev
+
+2023-06-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2023-06-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 27.9637 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              54.9397 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             91.2958 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  91.6134 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             131.9851 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              90.1551 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-06-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         226.8694 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-06-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     27.6030 BLUEPLIQ @@ 13000.00 INR
+    assets:cash:bank:varuna                                 -13000.00 INR
+
+2023-06-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 2200.00 INR
+    liabilities:creditcard:lotus
+
+2023-06-24 * credit card payment
+    liabilities:creditcard:lotus                            5500.00 INR
+    assets:cash:bank:neev
+
+2023-06-23 * travel booking
+    expenses:travel                                         48000.00 INR
+    expenses:travel:food                                    9500.00 INR
+    assets:cash:bank:neev
+
+2023-06-30 * opening fixed deposit maturity
+    assets:debt:fd:india:neev                               -25000.00 INR
+    income:interest:fd                                       -1750.00 INR
+    assets:cash:bank:neev                                    26750.00 INR
+
+2023-07-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-07-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-07-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        3780.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-07-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2023-07-05 * home loan emi
+    liabilities:loan:home:varuna                             9270.00 INR
+    expenses:interest:home-loan                              7590.00 INR
+    assets:cash:bank:varuna
+
+2023-07-06 * car loan emi
+    liabilities:loan:car:neev                                4320.00 INR
+    expenses:interest:car-loan                               1492.00 INR
+    assets:cash:bank:neev
+
+2023-07-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2023-07-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 27.5695 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              54.1979 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             90.0405 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  90.2888 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             129.8079 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              89.2844 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-07-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         224.4658 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-07-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       17.6507 KAVERILIQ @@ 8000.00 INR
+    assets:cash:bank:varuna                                  -8000.00 INR
+
+2023-07-15 * quarterly fixed deposit
+    assets:debt:fd:india:neev  32000.00 INR
+    assets:cash:bank:neev                                   -32000.00 INR
+
+2023-07-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 2600.00 INR
+    liabilities:creditcard:lotus
+
+2023-07-24 * credit card payment
+    liabilities:creditcard:lotus                            6450.00 INR
+    assets:cash:bank:neev
+
+2023-08-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-08-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-08-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        3960.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-08-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2050.00 INR
+    assets:cash:bank:neev
+
+2023-08-05 * home loan emi
+    liabilities:loan:home:varuna                             9315.00 INR
+    expenses:interest:home-loan                              7555.00 INR
+    assets:cash:bank:varuna
+
+2023-08-06 * car loan emi
+    liabilities:loan:car:neev                                4340.00 INR
+    expenses:interest:car-loan                               1474.00 INR
+    assets:cash:bank:neev
+
+2023-08-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9100.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2023-08-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 27.1862 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              53.4759 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             88.8192 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  89.0019 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             127.7014 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              88.4304 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-08-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         222.1125 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-08-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     19.5752 BLUEPLIQ @@ 9000.00 INR
+    assets:cash:bank:varuna                                  -9000.00 INR
+
+2023-08-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 3000.00 INR
+    liabilities:creditcard:lotus
+
+2023-08-24 * credit card payment
+    liabilities:creditcard:lotus                            6200.00 INR
+    assets:cash:bank:neev
+
+2023-08-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1950.00 USD @@ 162591.00 INR
+    expenses:financial:forex                                975.55 INR
+    assets:cash:bank:neev                                   -163566.55 INR
+
+2023-08-21 * buy BLTX in cedar brokerage
+    assets:equity:stock:us:brightlane                       24.3265 BLTX @@ 1833.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2023-08-25 * interest and dividends
+    assets:cash:bank:varuna                                 7130.00 INR
+    income:interest                                         -7130.00 INR
+    assets:cash:bank:neev                                   2080.00 INR
+    income:dividend:india                                   -2080.00 INR
+
+2023-09-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -325000.00 INR
+    assets:cash:bank:neev                                   325000.00 INR
+
+2023-09-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-09-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        4140.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-09-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2200.00 INR
+    assets:cash:bank:neev
+
+2023-09-05 * home loan emi
+    liabilities:loan:home:varuna                             9360.00 INR
+    expenses:interest:home-loan                              7520.00 INR
+    assets:cash:bank:varuna
+
+2023-09-06 * car loan emi
+    liabilities:loan:car:neev                                4360.00 INR
+    expenses:interest:car-loan                               1456.00 INR
+    assets:cash:bank:neev
+
+2023-09-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9600.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2023-09-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 26.8135 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              52.7729 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             87.6307 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  87.7512 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             125.6621 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              87.5925 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-09-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         219.8081 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-09-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       21.4047 KAVERILIQ @@ 10000.00 INR
+    assets:cash:bank:varuna                                 -10000.00 INR
+
+2023-09-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 3400.00 INR
+    liabilities:creditcard:lotus
+
+2023-09-24 * credit card payment
+    liabilities:creditcard:lotus                            6400.00 INR
+    assets:cash:bank:neev
+
+2023-09-22 * tax saving and insurance
+    expenses:government:tax                                 42000.00 INR
+    expenses:car:insurance                                  18500.00 INR
+    assets:cash:bank:varuna
+
+2023-10-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-10-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-10-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        4320.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-10-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1600.00 INR
+    assets:cash:bank:neev
+
+2023-10-05 * home loan emi
+    liabilities:loan:home:varuna                             9405.00 INR
+    expenses:interest:home-loan                              7485.00 INR
+    assets:cash:bank:varuna
+
+2023-10-06 * car loan emi
+    liabilities:loan:car:neev                                4380.00 INR
+    expenses:interest:car-loan                               1438.00 INR
+    assets:cash:bank:neev
+
+2023-10-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      7600.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2023-10-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 26.4508 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              52.0882 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             86.4735 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  86.5351 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             123.6870 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              86.7704 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-10-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         217.5511 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-10-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     23.3233 BLUEPLIQ @@ 11000.00 INR
+    assets:cash:bank:varuna                                 -11000.00 INR
+
+2023-10-15 * quarterly fixed deposit
+    assets:debt:fd:india:varuna  34000.00 INR
+    assets:cash:bank:varuna                                 -34000.00 INR
+
+2023-10-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 3800.00 INR
+    liabilities:creditcard:lotus
+
+2023-10-24 * credit card payment
+    liabilities:creditcard:lotus                            7350.00 INR
+    assets:cash:bank:neev
+
+2023-11-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-11-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-11-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        4500.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-11-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2023-11-05 * home loan emi
+    liabilities:loan:home:varuna                             9450.00 INR
+    expenses:interest:home-loan                              7450.00 INR
+    assets:cash:bank:varuna
+
+2023-11-06 * car loan emi
+    liabilities:loan:car:neev                                4400.00 INR
+    expenses:interest:car-loan                               1420.00 INR
+    assets:cash:bank:neev
+
+2023-11-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2023-11-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 26.3662 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              51.9283 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             86.2034 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  86.2515 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             123.2274 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              86.5776 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-11-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         217.0223 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-11-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       25.1749 KAVERILIQ @@ 12000.00 INR
+    assets:cash:bank:varuna                                 -12000.00 INR
+
+2023-11-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 4200.00 INR
+    liabilities:creditcard:lotus
+
+2023-11-24 * credit card payment
+    liabilities:creditcard:lotus                            8300.00 INR
+    assets:cash:bank:neev
+
+2023-11-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1700.00 USD @@ 142528.00 INR
+    expenses:financial:forex                                855.17 INR
+    assets:cash:bank:neev                                   -143383.17 INR
+
+2023-11-21 * buy CYGN in cedar brokerage
+    assets:equity:stock:us:cygnus                           54.5355 CYGN @@ 1598.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2023-12-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -245000.00 INR
+    assets:cash:bank:neev                                   245000.00 INR
+
+2023-12-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2023-12-03 * monthly household expenses
+    expenses:house:rent                                     42000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        3600.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                6500.00 INR
+    assets:cash:bank:neev
+
+2023-12-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2023-12-05 * home loan emi
+    liabilities:loan:home:varuna                             9495.00 INR
+    expenses:interest:home-loan                              7415.00 INR
+    assets:cash:bank:varuna
+
+2023-12-06 * car loan emi
+    liabilities:loan:car:neev                                4420.00 INR
+    expenses:interest:car-loan                               1402.00 INR
+    assets:cash:bank:neev
+
+2023-12-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2023-12-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 26.0155 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              51.2651 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             85.0834 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  85.0764 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             121.3275 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              85.7743 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2023-12-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         214.8217 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2023-12-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     27.0913 BLUEPLIQ @@ 13000.00 INR
+    assets:cash:bank:varuna                                 -13000.00 INR
+
+2023-12-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 2200.00 INR
+    liabilities:creditcard:lotus
+
+2023-12-24 * credit card payment
+    liabilities:creditcard:lotus                            4900.00 INR
+    assets:cash:bank:neev
+
+2023-12-23 * travel booking
+    expenses:travel                                         73000.00 INR
+    expenses:travel:food                                    13000.00 INR
+    assets:cash:bank:neev
+
+2023-12-25 * interest and dividends
+    assets:cash:bank:varuna                                 7490.00 INR
+    income:interest                                         -7490.00 INR
+    assets:cash:bank:neev                                   2240.00 INR
+    income:dividend:india                                   -2240.00 INR
+
+2023-12-31 * annual retirement interest accrual
+    assets:debt:epf:india:nimbusworks                       26000.00 INR
+    income:interest:epf                                     -26000.00 INR
+    assets:debt:eps:india:nimbusworks                       3800.00 INR
+    income:interest:eps                                     -3800.00 INR
+    assets:debt:ppf:india:varuna                            14500.00 INR
+    income:interest:ppf                                     -14500.00 INR
+    assets:hybrid:india:nps:monsoon                         286.4290 NPSMON @@ 12000.00 INR
+    income:interest:nps                                     -12000.00 INR
+
+2024-01-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-01-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-01-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        3780.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-01-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2024-01-05 * home loan emi
+    liabilities:loan:home:varuna                             9540.00 INR
+    expenses:interest:home-loan                              7380.00 INR
+    assets:cash:bank:varuna
+
+2024-01-06 * car loan emi
+    liabilities:loan:car:neev                                4440.00 INR
+    expenses:interest:car-loan                               1384.00 INR
+    assets:cash:bank:neev
+
+2024-01-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2024-01-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 25.6739 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              50.6187 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             83.9921 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  83.9329 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             119.4853 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              84.9858 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-01-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         212.6654 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-01-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       17.2944 KAVERILIQ @@ 8000.00 INR
+    assets:cash:bank:varuna                                  -8000.00 INR
+
+2024-01-15 * fixed deposit maturity
+    assets:debt:fd:india:neev                               -30000.00 INR
+    income:interest:fd                                       -2100.00 INR
+    assets:cash:bank:neev                                    32100.00 INR
+
+2024-01-15 * quarterly fixed deposit
+    assets:debt:fd:india:neev  36000.00 INR
+    assets:cash:bank:neev                                   -36000.00 INR
+
+2024-01-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 2600.00 INR
+    liabilities:creditcard:lotus
+
+2024-01-24 * credit card payment
+    liabilities:creditcard:lotus                            5850.00 INR
+    assets:cash:bank:neev
+
+2024-02-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-02-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-02-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        3960.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-02-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2024-02-05 * home loan emi
+    liabilities:loan:home:varuna                             9585.00 INR
+    expenses:interest:home-loan                              7345.00 INR
+    assets:cash:bank:varuna
+
+2024-02-06 * car loan emi
+    liabilities:loan:car:neev                                4460.00 INR
+    expenses:interest:car-loan                               1366.00 INR
+    assets:cash:bank:neev
+
+2024-02-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2024-02-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 25.3413 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              49.9883 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             82.9284 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  82.8197 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             117.6982 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              84.2117 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-02-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         210.5519 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-02-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     19.2149 BLUEPLIQ @@ 9000.00 INR
+    assets:cash:bank:varuna                                  -9000.00 INR
+
+2024-02-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 3000.00 INR
+    liabilities:creditcard:lotus
+
+2024-02-24 * credit card payment
+    liabilities:creditcard:lotus                            6800.00 INR
+    assets:cash:bank:neev
+
+2024-02-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1450.00 USD @@ 122235.00 INR
+    expenses:financial:forex                                733.41 INR
+    assets:cash:bank:neev                                   -122968.41 INR
+
+2024-02-21 * buy DORO in cedar brokerage
+    assets:equity:stock:us:dorado                           12.4529 DORO @@ 1363.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2024-03-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -353000.00 INR
+    assets:cash:bank:neev                                   353000.00 INR
+
+2024-03-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-03-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        4140.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-03-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2050.00 INR
+    assets:cash:bank:neev
+
+2024-03-05 * home loan emi
+    liabilities:loan:home:varuna                             9630.00 INR
+    expenses:interest:home-loan                              7310.00 INR
+    assets:cash:bank:varuna
+
+2024-03-06 * car loan emi
+    liabilities:loan:car:neev                                4480.00 INR
+    expenses:interest:car-loan                               1348.00 INR
+    assets:cash:bank:neev
+
+2024-03-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9100.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2024-03-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 25.0171 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              49.3735 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             81.8914 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  81.7356 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             115.9637 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              83.4516 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-03-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         208.4800 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-03-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       20.9759 KAVERILIQ @@ 10000.00 INR
+    assets:cash:bank:varuna                                 -10000.00 INR
+
+2024-03-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 3400.00 INR
+    liabilities:creditcard:lotus
+
+2024-03-24 * credit card payment
+    liabilities:creditcard:lotus                            7000.00 INR
+    assets:cash:bank:neev
+
+2024-03-22 * tax saving and insurance
+    expenses:government:tax                                 48000.00 INR
+    expenses:car:insurance                                  18500.00 INR
+    assets:cash:bank:varuna
+
+2024-04-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-04-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-04-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        4320.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-04-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2200.00 INR
+    assets:cash:bank:neev
+
+2024-04-05 * home loan emi
+    liabilities:loan:home:varuna                             9675.00 INR
+    expenses:interest:home-loan                              7275.00 INR
+    assets:cash:bank:varuna
+
+2024-04-06 * car loan emi
+    liabilities:loan:car:neev                                4500.00 INR
+    expenses:interest:car-loan                               1330.00 INR
+    assets:cash:bank:neev
+
+2024-04-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9600.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2024-04-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 24.9414 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              49.2298 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             81.6491 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  81.4825 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             115.5597 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              83.2732 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-04-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         207.9944 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-04-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     22.9581 BLUEPLIQ @@ 11000.00 INR
+    assets:cash:bank:varuna                                 -11000.00 INR
+
+2024-04-15 * fixed deposit maturity
+    assets:debt:fd:india:varuna                              -30000.00 INR
+    income:interest:fd                                        -2100.00 INR
+    assets:cash:bank:varuna                                   32100.00 INR
+
+2024-04-15 * quarterly fixed deposit
+    assets:debt:fd:india:varuna  36000.00 INR
+    assets:cash:bank:varuna                                 -36000.00 INR
+
+2024-04-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 3800.00 INR
+    liabilities:creditcard:lotus
+
+2024-04-24 * credit card payment
+    liabilities:creditcard:lotus                            6750.00 INR
+    assets:cash:bank:neev
+
+2024-04-25 * interest and dividends
+    assets:cash:bank:varuna                                 7850.00 INR
+    income:interest                                         -7850.00 INR
+    assets:cash:bank:neev                                   2400.00 INR
+    income:dividend:india                                   -2400.00 INR
+
+2024-05-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-05-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-05-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        4500.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-05-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1600.00 INR
+    assets:cash:bank:neev
+
+2024-05-05 * home loan emi
+    liabilities:loan:home:varuna                             9720.00 INR
+    expenses:interest:home-loan                              7240.00 INR
+    assets:cash:bank:varuna
+
+2024-05-06 * car loan emi
+    liabilities:loan:car:neev                                4520.00 INR
+    expenses:interest:car-loan                               1312.00 INR
+    assets:cash:bank:neev
+
+2024-05-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      7600.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2024-05-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 24.6273 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              48.6334 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             80.6436 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  80.4330 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             113.8872 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              82.5298 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-05-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         205.9723 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-05-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       24.6729 KAVERILIQ @@ 12000.00 INR
+    assets:cash:bank:varuna                                 -12000.00 INR
+
+2024-05-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 4200.00 INR
+    liabilities:creditcard:lotus
+
+2024-05-24 * credit card payment
+    liabilities:creditcard:lotus                            7700.00 INR
+    assets:cash:bank:neev
+
+2024-05-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1200.00 USD @@ 101712.00 INR
+    expenses:financial:forex                                610.27 INR
+    assets:cash:bank:neev                                   -102322.27 INR
+
+2024-05-21 * buy EMBR in cedar brokerage
+    assets:equity:stock:us:ember                            24.4824 EMBR @@ 1128.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2024-06-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-06-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-06-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        3600.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-06-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2024-06-05 * home loan emi
+    liabilities:loan:home:varuna                             9765.00 INR
+    expenses:interest:home-loan                              7205.00 INR
+    assets:cash:bank:varuna
+
+2024-06-06 * car loan emi
+    liabilities:loan:car:neev                                4540.00 INR
+    expenses:interest:car-loan                               1294.00 INR
+    assets:cash:bank:neev
+
+2024-06-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2024-06-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 24.3210 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              48.0513 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             79.6626 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  79.4101 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             112.2625 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              81.7996 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-06-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         203.9891 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-06-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     26.5983 BLUEPLIQ @@ 13000.00 INR
+    assets:cash:bank:varuna                                 -13000.00 INR
+
+2024-06-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 2200.00 INR
+    liabilities:creditcard:lotus
+
+2024-06-24 * credit card payment
+    liabilities:creditcard:lotus                            5500.00 INR
+    assets:cash:bank:neev
+
+2024-06-23 * travel booking
+    expenses:travel                                         53000.00 INR
+    expenses:travel:food                                    9500.00 INR
+    assets:cash:bank:neev
+
+2024-07-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-07-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-07-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        3780.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-07-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2024-07-05 * home loan emi
+    liabilities:loan:home:varuna                             9810.00 INR
+    expenses:interest:home-loan                              7170.00 INR
+    assets:cash:bank:varuna
+
+2024-07-06 * car loan emi
+    liabilities:loan:car:neev                                4560.00 INR
+    expenses:interest:car-loan                               1276.00 INR
+    assets:cash:bank:neev
+
+2024-07-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2024-07-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 24.0223 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              47.4829 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             78.7052 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  78.4129 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             110.6835 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              81.0822 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-07-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         202.0438 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-07-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       16.9522 KAVERILIQ @@ 8000.00 INR
+    assets:cash:bank:varuna                                  -8000.00 INR
+
+2024-07-15 * fixed deposit maturity
+    assets:debt:fd:india:neev                               -32000.00 INR
+    income:interest:fd                                       -2240.00 INR
+    assets:cash:bank:neev                                    34240.00 INR
+
+2024-07-15 * quarterly fixed deposit
+    assets:debt:fd:india:neev  38000.00 INR
+    assets:cash:bank:neev                                   -38000.00 INR
+
+2024-07-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 2600.00 INR
+    liabilities:creditcard:lotus
+
+2024-07-24 * credit card payment
+    liabilities:creditcard:lotus                            6450.00 INR
+    assets:cash:bank:neev
+
+2024-08-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-08-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-08-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        3960.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-08-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2050.00 INR
+    assets:cash:bank:neev
+
+2024-08-05 * home loan emi
+    liabilities:loan:home:varuna                             9855.00 INR
+    expenses:interest:home-loan                              7135.00 INR
+    assets:cash:bank:varuna
+
+2024-08-06 * car loan emi
+    liabilities:loan:car:neev                                4580.00 INR
+    expenses:interest:car-loan                               1258.00 INR
+    assets:cash:bank:neev
+
+2024-08-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9100.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2024-08-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 23.7308 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              46.9278 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             77.7705 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  77.4405 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             109.1483 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              80.3772 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-08-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         200.1352 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-08-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     18.8676 BLUEPLIQ @@ 9000.00 INR
+    assets:cash:bank:varuna                                  -9000.00 INR
+
+2024-08-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 3000.00 INR
+    liabilities:creditcard:lotus
+
+2024-08-24 * credit card payment
+    liabilities:creditcard:lotus                            6200.00 INR
+    assets:cash:bank:neev
+
+2024-08-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1950.00 USD @@ 166803.00 INR
+    expenses:financial:forex                                1000.82 INR
+    assets:cash:bank:neev                                   -167803.82 INR
+
+2024-08-21 * buy FNWK in cedar brokerage
+    assets:equity:stock:us:fenwick                          24.3026 FNWK @@ 1833.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2024-08-25 * interest and dividends
+    assets:cash:bank:varuna                                 8210.00 INR
+    income:interest                                         -8210.00 INR
+    assets:cash:bank:neev                                   2560.00 INR
+    income:dividend:india                                   -2560.00 INR
+
+2024-09-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -353000.00 INR
+    assets:cash:bank:neev                                   353000.00 INR
+
+2024-09-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-09-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        4140.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-09-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2200.00 INR
+    assets:cash:bank:neev
+
+2024-09-05 * home loan emi
+    liabilities:loan:home:varuna                             9900.00 INR
+    expenses:interest:home-loan                              7100.00 INR
+    assets:cash:bank:varuna
+
+2024-09-06 * car loan emi
+    liabilities:loan:car:neev                                4600.00 INR
+    expenses:interest:car-loan                               1240.00 INR
+    assets:cash:bank:neev
+
+2024-09-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9600.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2024-09-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 23.6627 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              46.7980 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             77.5519 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  77.2133 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             108.7903 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              80.2118 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-09-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         199.6876 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-09-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       20.6229 KAVERILIQ @@ 10000.00 INR
+    assets:cash:bank:varuna                                 -10000.00 INR
+
+2024-09-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 3400.00 INR
+    liabilities:creditcard:lotus
+
+2024-09-24 * credit card payment
+    liabilities:creditcard:lotus                            6400.00 INR
+    assets:cash:bank:neev
+
+2024-09-22 * tax saving and insurance
+    expenses:government:tax                                 48000.00 INR
+    expenses:car:insurance                                  18500.00 INR
+    assets:cash:bank:varuna
+
+2024-10-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-10-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-10-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        4320.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-10-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1600.00 INR
+    assets:cash:bank:neev
+
+2024-10-05 * home loan emi
+    liabilities:loan:home:varuna                             9945.00 INR
+    expenses:interest:home-loan                              7065.00 INR
+    assets:cash:bank:varuna
+
+2024-10-06 * car loan emi
+    liabilities:loan:car:neev                                4620.00 INR
+    expenses:interest:car-loan                               1222.00 INR
+    assets:cash:bank:neev
+
+2024-10-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      7600.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2024-10-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 23.3798 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              46.2587 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             76.6442 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  76.2702 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             107.3068 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              79.5218 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-10-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         197.8231 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-10-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     22.5449 BLUEPLIQ @@ 11000.00 INR
+    assets:cash:bank:varuna                                 -11000.00 INR
+
+2024-10-15 * fixed deposit maturity
+    assets:debt:fd:india:varuna                              -34000.00 INR
+    income:interest:fd                                        -2380.00 INR
+    assets:cash:bank:varuna                                   36380.00 INR
+
+2024-10-15 * quarterly fixed deposit
+    assets:debt:fd:india:varuna  40000.00 INR
+    assets:cash:bank:varuna                                 -40000.00 INR
+
+2024-10-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 3800.00 INR
+    liabilities:creditcard:lotus
+
+2024-10-24 * credit card payment
+    liabilities:creditcard:lotus                            7350.00 INR
+    assets:cash:bank:neev
+
+2024-11-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-11-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-11-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        4500.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-11-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2024-11-05 * home loan emi
+    liabilities:loan:home:varuna                             9990.00 INR
+    expenses:interest:home-loan                              7030.00 INR
+    assets:cash:bank:varuna
+
+2024-11-06 * car loan emi
+    liabilities:loan:car:neev                                4640.00 INR
+    expenses:interest:car-loan                               1204.00 INR
+    assets:cash:bank:neev
+
+2024-11-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2024-11-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 23.1036 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              45.7317 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             75.7576 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  75.3498 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             105.8632 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              78.8436 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-11-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         195.9930 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-11-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       24.1905 KAVERILIQ @@ 12000.00 INR
+    assets:cash:bank:varuna                                 -12000.00 INR
+
+2024-11-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 4200.00 INR
+    liabilities:creditcard:lotus
+
+2024-11-24 * credit card payment
+    liabilities:creditcard:lotus                            8300.00 INR
+    assets:cash:bank:neev
+
+2024-11-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1700.00 USD @@ 146200.00 INR
+    expenses:financial:forex                                877.20 INR
+    assets:cash:bank:neev                                   -147077.20 INR
+
+2024-11-21 * buy SPY in cedar brokerage
+    assets:equity:index:us:etf:spy                          3.3827 SPY @@ 1598.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2024-12-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -273000.00 INR
+    assets:cash:bank:neev                                   273000.00 INR
+
+2024-12-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2024-12-03 * monthly household expenses
+    expenses:house:rent                                     45000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        3600.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                7000.00 INR
+    assets:cash:bank:neev
+
+2024-12-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2024-12-05 * home loan emi
+    liabilities:loan:home:varuna                             10035.00 INR
+    expenses:interest:home-loan                              6995.00 INR
+    assets:cash:bank:varuna
+
+2024-12-06 * car loan emi
+    liabilities:loan:car:neev                                4660.00 INR
+    expenses:interest:car-loan                               1186.00 INR
+    assets:cash:bank:neev
+
+2024-12-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2024-12-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 22.8338 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              45.2166 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             74.8912 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  74.4515 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             104.4579 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              78.1769 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2024-12-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         194.1965 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2024-12-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     26.1229 BLUEPLIQ @@ 13000.00 INR
+    assets:cash:bank:varuna                                 -13000.00 INR
+
+2024-12-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 2200.00 INR
+    liabilities:creditcard:lotus
+
+2024-12-24 * credit card payment
+    liabilities:creditcard:lotus                            4900.00 INR
+    assets:cash:bank:neev
+
+2024-12-23 * travel booking
+    expenses:travel                                         78000.00 INR
+    expenses:travel:food                                    13000.00 INR
+    assets:cash:bank:neev
+
+2024-12-25 * interest and dividends
+    assets:cash:bank:varuna                                 8570.00 INR
+    income:interest                                         -8570.00 INR
+    assets:cash:bank:neev                                   2720.00 INR
+    income:dividend:india                                   -2720.00 INR
+
+2024-12-31 * annual retirement interest accrual
+    assets:debt:epf:india:nimbusworks                       30500.00 INR
+    income:interest:epf                                     -30500.00 INR
+    assets:debt:eps:india:nimbusworks                       4500.00 INR
+    income:interest:eps                                     -4500.00 INR
+    assets:debt:ppf:india:varuna                            17000.00 INR
+    income:interest:ppf                                     -17000.00 INR
+    assets:hybrid:india:nps:monsoon                         306.3990 NPSMON @@ 14200.00 INR
+    income:interest:nps                                     -14200.00 INR
+
+2025-01-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-01-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-01-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        3780.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-01-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2025-01-05 * home loan emi
+    liabilities:loan:home:varuna                             10080.00 INR
+    expenses:interest:home-loan                              6960.00 INR
+    assets:cash:bank:varuna
+
+2025-01-06 * car loan emi
+    liabilities:loan:car:neev                                4680.00 INR
+    expenses:interest:car-loan                               1168.00 INR
+    assets:cash:bank:neev
+
+2025-01-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2025-01-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 22.5703 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              44.7129 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             74.0444 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  73.5742 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             103.0895 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              77.5214 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-01-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         192.4327 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-01-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       16.6232 KAVERILIQ @@ 8000.00 INR
+    assets:cash:bank:varuna                                  -8000.00 INR
+
+2025-01-15 * fixed deposit maturity
+    assets:debt:fd:india:neev                               -36000.00 INR
+    income:interest:fd                                       -2520.00 INR
+    assets:cash:bank:neev                                    38520.00 INR
+
+2025-01-15 * quarterly fixed deposit
+    assets:debt:fd:india:neev  42000.00 INR
+    assets:cash:bank:neev                                   -42000.00 INR
+
+2025-01-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 2600.00 INR
+    liabilities:creditcard:lotus
+
+2025-01-24 * credit card payment
+    liabilities:creditcard:lotus                            5850.00 INR
+    assets:cash:bank:neev
+
+2025-02-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-02-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-02-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        3960.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-02-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2025-02-05 * home loan emi
+    liabilities:loan:home:varuna                             10125.00 INR
+    expenses:interest:home-loan                              6925.00 INR
+    assets:cash:bank:varuna
+
+2025-02-06 * car loan emi
+    liabilities:loan:car:neev                                4700.00 INR
+    expenses:interest:car-loan                               1150.00 INR
+    assets:cash:bank:neev
+
+2025-02-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2025-02-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 22.5087 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              44.5951 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             73.8463 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  73.3691 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             102.7700 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              77.3674 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-02-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         192.0188 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-02-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     18.5807 BLUEPLIQ @@ 9000.00 INR
+    assets:cash:bank:varuna                                  -9000.00 INR
+
+2025-02-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 3000.00 INR
+    liabilities:creditcard:lotus
+
+2025-02-24 * credit card payment
+    liabilities:creditcard:lotus                            6800.00 INR
+    assets:cash:bank:neev
+
+2025-02-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1450.00 USD @@ 125367.00 INR
+    expenses:financial:forex                                752.20 INR
+    assets:cash:bank:neev                                   -126119.20 INR
+
+2025-02-21 * buy ALDR in cedar brokerage
+    assets:equity:stock:us:alder                            22.0865 ALDR @@ 1363.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2025-03-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -381000.00 INR
+    assets:cash:bank:neev                                   381000.00 INR
+
+2025-03-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-03-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        4140.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-03-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2050.00 INR
+    assets:cash:bank:neev
+
+2025-03-05 * home loan emi
+    liabilities:loan:home:varuna                             10170.00 INR
+    expenses:interest:home-loan                              6890.00 INR
+    assets:cash:bank:varuna
+
+2025-03-06 * car loan emi
+    liabilities:loan:car:neev                                4720.00 INR
+    expenses:interest:car-loan                               1132.00 INR
+    assets:cash:bank:neev
+
+2025-03-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9100.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2025-03-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 22.2526 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              44.1051 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             73.0228 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  72.5171 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             101.4452 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              76.7254 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-03-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         190.2942 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-03-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       20.2245 KAVERILIQ @@ 10000.00 INR
+    assets:cash:bank:varuna                                 -10000.00 INR
+
+2025-03-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 3400.00 INR
+    liabilities:creditcard:lotus
+
+2025-03-24 * credit card payment
+    liabilities:creditcard:lotus                            7000.00 INR
+    assets:cash:bank:neev
+
+2025-03-22 * tax saving and insurance
+    expenses:government:tax                                 54000.00 INR
+    expenses:car:insurance                                  18500.00 INR
+    assets:cash:bank:varuna
+
+2025-04-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-04-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-04-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        4320.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-04-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2200.00 INR
+    assets:cash:bank:neev
+
+2025-04-05 * home loan emi
+    liabilities:loan:home:varuna                             10215.00 INR
+    expenses:interest:home-loan                              6855.00 INR
+    assets:cash:bank:varuna
+
+2025-04-06 * car loan emi
+    liabilities:loan:car:neev                                4740.00 INR
+    expenses:interest:car-loan                               1114.00 INR
+    assets:cash:bank:neev
+
+2025-04-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9600.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2025-04-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 22.0022 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              43.6258 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             72.2175 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  71.6846 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             100.1541 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              76.0938 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-04-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         188.6002 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-04-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     22.1464 BLUEPLIQ @@ 11000.00 INR
+    assets:cash:bank:varuna                                 -11000.00 INR
+
+2025-04-15 * fixed deposit maturity
+    assets:debt:fd:india:varuna                              -36000.00 INR
+    income:interest:fd                                        -2520.00 INR
+    assets:cash:bank:varuna                                   38520.00 INR
+
+2025-04-15 * quarterly fixed deposit
+    assets:debt:fd:india:varuna  42000.00 INR
+    assets:cash:bank:varuna                                 -42000.00 INR
+
+2025-04-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 3800.00 INR
+    liabilities:creditcard:lotus
+
+2025-04-24 * credit card payment
+    liabilities:creditcard:lotus                            6750.00 INR
+    assets:cash:bank:neev
+
+2025-04-25 * interest and dividends
+    assets:cash:bank:varuna                                 8930.00 INR
+    income:interest                                         -8930.00 INR
+    assets:cash:bank:neev                                   2880.00 INR
+    income:dividend:india                                   -2880.00 INR
+
+2025-05-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-05-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-05-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        4500.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-05-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1600.00 INR
+    assets:cash:bank:neev
+
+2025-05-05 * home loan emi
+    liabilities:loan:home:varuna                             10260.00 INR
+    expenses:interest:home-loan                              6820.00 INR
+    assets:cash:bank:varuna
+
+2025-05-06 * car loan emi
+    liabilities:loan:car:neev                                4760.00 INR
+    expenses:interest:car-loan                               1096.00 INR
+    assets:cash:bank:neev
+
+2025-05-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      7600.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2025-05-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 21.7574 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              43.1568 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             71.4298 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  70.8710 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             98.8954 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              75.4726 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-05-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         186.9361 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-05-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       23.7267 KAVERILIQ @@ 12000.00 INR
+    assets:cash:bank:varuna                                 -12000.00 INR
+
+2025-05-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 4200.00 INR
+    liabilities:creditcard:lotus
+
+2025-05-24 * credit card payment
+    liabilities:creditcard:lotus                            7700.00 INR
+    assets:cash:bank:neev
+
+2025-05-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1200.00 USD @@ 104304.00 INR
+    expenses:financial:forex                                625.82 INR
+    assets:cash:bank:neev                                   -104929.82 INR
+
+2025-05-21 * buy BLTX in cedar brokerage
+    assets:equity:stock:us:brightlane                       11.5587 BLTX @@ 1128.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2025-06-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-06-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-06-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        3600.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-06-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2025-06-05 * home loan emi
+    liabilities:loan:home:varuna                             10305.00 INR
+    expenses:interest:home-loan                              6785.00 INR
+    assets:cash:bank:varuna
+
+2025-06-06 * car loan emi
+    liabilities:loan:car:neev                                4780.00 INR
+    expenses:interest:car-loan                               1080.00 INR
+    assets:cash:bank:neev
+
+2025-06-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2025-06-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 21.5180 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              42.6977 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             70.6590 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  70.0757 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             97.6680 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              74.8615 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-06-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         185.3011 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-06-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     25.6642 BLUEPLIQ @@ 13000.00 INR
+    assets:cash:bank:varuna                                 -13000.00 INR
+
+2025-06-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 2200.00 INR
+    liabilities:creditcard:lotus
+
+2025-06-24 * credit card payment
+    liabilities:creditcard:lotus                            5500.00 INR
+    assets:cash:bank:neev
+
+2025-06-23 * travel booking
+    expenses:travel                                         58000.00 INR
+    expenses:travel:food                                    9500.00 INR
+    assets:cash:bank:neev
+
+2025-07-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-07-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-07-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        3780.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-07-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2025-07-05 * home loan emi
+    liabilities:loan:home:varuna                             10350.00 INR
+    expenses:interest:home-loan                              6750.00 INR
+    assets:cash:bank:varuna
+
+2025-07-06 * car loan emi
+    liabilities:loan:car:neev                                4800.00 INR
+    expenses:interest:car-loan                               1080.00 INR
+    assets:cash:bank:neev
+
+2025-07-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2025-07-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 21.4620 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              42.5902 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             70.4786 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  69.8896 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             97.3812 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              74.7179 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-07-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         184.9173 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-07-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       16.3521 KAVERILIQ @@ 8000.00 INR
+    assets:cash:bank:varuna                                  -8000.00 INR
+
+2025-07-15 * fixed deposit maturity
+    assets:debt:fd:india:neev                               -38000.00 INR
+    income:interest:fd                                       -2660.00 INR
+    assets:cash:bank:neev                                    40660.00 INR
+
+2025-07-15 * quarterly fixed deposit
+    assets:debt:fd:india:neev  44000.00 INR
+    assets:cash:bank:neev                                   -44000.00 INR
+
+2025-07-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 2600.00 INR
+    liabilities:creditcard:lotus
+
+2025-07-24 * credit card payment
+    liabilities:creditcard:lotus                            6450.00 INR
+    assets:cash:bank:neev
+
+2025-08-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-08-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-08-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        3960.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-08-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2050.00 INR
+    assets:cash:bank:neev
+
+2025-08-05 * home loan emi
+    liabilities:loan:home:varuna                             10395.00 INR
+    expenses:interest:home-loan                              6715.00 INR
+    assets:cash:bank:varuna
+
+2025-08-06 * car loan emi
+    liabilities:loan:car:neev                                4820.00 INR
+    expenses:interest:car-loan                               1080.00 INR
+    assets:cash:bank:neev
+
+2025-08-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9100.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2025-08-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 21.2290 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              42.1431 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             69.7281 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  69.1160 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             96.1908 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              74.1189 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-08-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         183.3173 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-08-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     18.2558 BLUEPLIQ @@ 9000.00 INR
+    assets:cash:bank:varuna                                  -9000.00 INR
+
+2025-08-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 3000.00 INR
+    liabilities:creditcard:lotus
+
+2025-08-24 * credit card payment
+    liabilities:creditcard:lotus                            6200.00 INR
+    assets:cash:bank:neev
+
+2025-08-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1950.00 USD @@ 171015.00 INR
+    expenses:financial:forex                                1026.09 INR
+    assets:cash:bank:neev                                   -172041.09 INR
+
+2025-08-21 * buy CYGN in cedar brokerage
+    assets:equity:stock:us:cygnus                           44.7608 CYGN @@ 1833.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2025-08-25 * interest and dividends
+    assets:cash:bank:varuna                                 9290.00 INR
+    income:interest                                         -9290.00 INR
+    assets:cash:bank:neev                                   3040.00 INR
+    income:dividend:india                                   -3040.00 INR
+
+2025-09-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -381000.00 INR
+    assets:cash:bank:neev                                   381000.00 INR
+
+2025-09-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-09-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                19400.00 INR
+    expenses:house:bills:electricity                        4140.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-09-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          2200.00 INR
+    assets:cash:bank:neev
+
+2025-09-05 * home loan emi
+    liabilities:loan:home:varuna                             10440.00 INR
+    expenses:interest:home-loan                              6700.00 INR
+    assets:cash:bank:varuna
+
+2025-09-06 * car loan emi
+    liabilities:loan:car:neev                                4840.00 INR
+    expenses:interest:car-loan                               1080.00 INR
+    assets:cash:bank:neev
+
+2025-09-07 * transport and food
+    expenses:transport:petrol                               8950.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      9600.00 INR
+    expenses:food:social                                    6050.00 INR
+    assets:cash:bank:neev
+
+2025-09-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 21.0011 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              41.7053 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             68.9935 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  68.3594 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             95.0292 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              73.5294 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-09-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         181.7447 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-09-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       19.8413 KAVERILIQ @@ 10000.00 INR
+    assets:cash:bank:varuna                                 -10000.00 INR
+
+2025-09-18 * credit card spend
+    expenses:fun:movie                                      2100.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 3400.00 INR
+    liabilities:creditcard:lotus
+
+2025-09-24 * credit card payment
+    liabilities:creditcard:lotus                            6400.00 INR
+    assets:cash:bank:neev
+
+2025-09-22 * tax saving and insurance
+    expenses:government:tax                                 54000.00 INR
+    expenses:car:insurance                                  18500.00 INR
+    assets:cash:bank:varuna
+
+2025-10-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-10-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-10-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                20300.00 INR
+    expenses:house:bills:electricity                        4320.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              860.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-10-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1600.00 INR
+    assets:cash:bank:neev
+
+2025-10-05 * home loan emi
+    liabilities:loan:home:varuna                             10485.00 INR
+    expenses:interest:home-loan                              6700.00 INR
+    assets:cash:bank:varuna
+
+2025-10-06 * car loan emi
+    liabilities:loan:car:neev                                4860.00 INR
+    expenses:interest:car-loan                               1080.00 INR
+    assets:cash:bank:neev
+
+2025-10-07 * transport and food
+    expenses:transport:petrol                               9400.00 INR
+    expenses:transport:cab                                  3550.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      7600.00 INR
+    expenses:food:social                                    6700.00 INR
+    assets:cash:bank:neev
+
+2025-10-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 20.7779 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              41.2765 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             68.2742 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  67.6191 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             93.8954 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              72.9492 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-10-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         180.1989 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-10-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     21.7616 BLUEPLIQ @@ 11000.00 INR
+    assets:cash:bank:varuna                                 -11000.00 INR
+
+2025-10-15 * fixed deposit maturity
+    assets:debt:fd:india:varuna                              -40000.00 INR
+    income:interest:fd                                        -2800.00 INR
+    assets:cash:bank:varuna                                   42800.00 INR
+
+2025-10-15 * quarterly fixed deposit
+    assets:debt:fd:india:varuna  46000.00 INR
+    assets:cash:bank:varuna                                 -46000.00 INR
+
+2025-10-18 * credit card spend
+    expenses:fun:movie                                      2400.00 INR
+    expenses:fun:games                                      1150.00 INR
+    expenses:health:medical                                 3800.00 INR
+    liabilities:creditcard:lotus
+
+2025-10-24 * credit card payment
+    liabilities:creditcard:lotus                            7350.00 INR
+    assets:cash:bank:neev
+
+2025-11-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-11-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-11-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                21200.00 INR
+    expenses:house:bills:electricity                        4500.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              920.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-11-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1750.00 INR
+    assets:cash:bank:neev
+
+2025-11-05 * home loan emi
+    liabilities:loan:home:varuna                             10530.00 INR
+    expenses:interest:home-loan                              6700.00 INR
+    assets:cash:bank:varuna
+
+2025-11-06 * car loan emi
+    liabilities:loan:car:neev                                4880.00 INR
+    expenses:interest:car-loan                               1080.00 INR
+    assets:cash:bank:neev
+
+2025-11-07 * transport and food
+    expenses:transport:petrol                               9850.00 INR
+    expenses:transport:cab                                  3900.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8100.00 INR
+    expenses:food:social                                    7350.00 INR
+    assets:cash:bank:neev
+
+2025-11-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 20.5595 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              40.8563 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             67.5697 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  66.8947 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             92.7882 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              72.3781 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-11-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         178.6792 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-11-14 * liquid fund parking
+    assets:liquid:india:mutual:kaveri                       23.2803 KAVERILIQ @@ 12000.00 INR
+    assets:cash:bank:varuna                                 -12000.00 INR
+
+2025-11-18 * credit card spend
+    expenses:fun:movie                                      2700.00 INR
+    expenses:fun:games                                      1400.00 INR
+    expenses:health:medical                                 4200.00 INR
+    liabilities:creditcard:lotus
+
+2025-11-24 * credit card payment
+    liabilities:creditcard:lotus                            8300.00 INR
+    assets:cash:bank:neev
+
+2025-11-20 * transfer INR to USD wallet
+    assets:cash:us:cedar                                    1700.00 USD @@ 149872.00 INR
+    expenses:financial:forex                                899.23 INR
+    assets:cash:bank:neev                                   -150771.23 INR
+
+2025-11-21 * buy DORO in cedar brokerage
+    assets:equity:stock:us:dorado                           11.4878 DORO @@ 1598.00 USD
+    expenses:financial:brokerage:us                         1.00 USD
+    assets:cash:us:cedar
+
+2025-12-01 * NimbusWorks salary
+    income:salary:nimbusworks                               -301000.00 INR
+    assets:cash:bank:neev                                   301000.00 INR
+
+2025-12-02 * monthly transfer to Varuna Bank
+    assets:cash:bank:varuna                                  60000.00 INR
+    assets:cash:bank:neev                                    -60000.00 INR
+
+2025-12-03 * monthly household expenses
+    expenses:house:rent                                     48000.00 INR
+    expenses:house:groceries                                18500.00 INR
+    expenses:house:bills:electricity                        3600.00 INR
+    expenses:house:bills:internet                           1499.00 INR
+    expenses:house:bills:water                              800.00 INR
+    expenses:house:househelp                                7500.00 INR
+    assets:cash:bank:neev
+
+2025-12-04 * monthly subscriptions and personal care
+    expenses:subscriptions:ai                               1999.00 INR
+    expenses:subscriptions:streaming                        899.00 INR
+    expenses:health:fitness:membership:gym                  2500.00 INR
+    expenses:personalcare:grooming                          1900.00 INR
+    assets:cash:bank:neev
+
+2025-12-05 * home loan emi
+    liabilities:loan:home:varuna                             10575.00 INR
+    expenses:interest:home-loan                              6700.00 INR
+    assets:cash:bank:varuna
+
+2025-12-06 * car loan emi
+    liabilities:loan:car:neev                                4900.00 INR
+    expenses:interest:car-loan                               1080.00 INR
+    assets:cash:bank:neev
+
+2025-12-07 * transport and food
+    expenses:transport:petrol                               8500.00 INR
+    expenses:transport:cab                                  3200.00 INR
+    expenses:transport:parking                              900.00 INR
+    expenses:transport:tolls                                700.00 INR
+    expenses:food:self                                      8600.00 INR
+    expenses:food:social                                    5400.00 INR
+    assets:cash:bank:neev
+
+2025-12-10 * monthly india mutual fund sips
+    assets:equity:flexi:india:mutual:aranya                 20.5083 ARANYA @@ 3200.00 INR
+    assets:equity:index:india:mutual:northstar              40.7579 NORTHSTAR @@ 5000.00 INR
+    assets:equity:large:india:mutual:cedarcrest             67.4047 CEDARCREST @@ 4500.00 INR
+    assets:equity:mid:india:mutual:monsoon                  66.7251 MONSOONMID @@ 3500.00 INR
+    assets:equity:small:india:mutual:riverstone             92.5293 RIVERSTONE @@ 3200.00 INR
+    assets:equity:hybrid:india:mutual:bluepeak              72.2439 BLUEHYB @@ 3000.00 INR
+    expenses:financial:brokerage:india                      35.00 INR
+    assets:cash:bank:neev
+
+2025-12-12 * retirement and debt contributions
+    assets:debt:epf:india:nimbusworks                        9000.00 INR
+    assets:debt:eps:india:nimbusworks                         750.00 INR
+    assets:hybrid:india:nps:monsoon                         178.3223 NPSMON @@ 5000.00 INR
+    assets:debt:ppf:india:varuna                             3000.00 INR
+    assets:cash:bank:neev
+
+2025-12-14 * liquid fund parking
+    assets:liquid:india:mutual:bluepeak                     25.2848 BLUEPLIQ @@ 13000.00 INR
+    assets:cash:bank:varuna                                 -13000.00 INR
+
+2025-12-18 * credit card spend
+    expenses:fun:movie                                      1800.00 INR
+    expenses:fun:games                                      900.00 INR
+    expenses:health:medical                                 2200.00 INR
+    liabilities:creditcard:lotus
+
+2025-12-24 * credit card payment
+    liabilities:creditcard:lotus                            4900.00 INR
+    assets:cash:bank:neev
+
+2025-12-23 * travel booking
+    expenses:travel                                         83000.00 INR
+    expenses:travel:food                                    13000.00 INR
+    assets:cash:bank:neev
+
+2025-12-25 * interest and dividends
+    assets:cash:bank:varuna                                 9650.00 INR
+    income:interest                                         -9650.00 INR
+    assets:cash:bank:neev                                   3200.00 INR
+    income:dividend:india                                   -3200.00 INR
+
+2025-12-31 * annual retirement interest accrual
+    assets:debt:epf:india:nimbusworks                       35000.00 INR
+    income:interest:epf                                     -35000.00 INR
+    assets:debt:eps:india:nimbusworks                       5200.00 INR
+    income:interest:eps                                     -5200.00 INR
+    assets:debt:ppf:india:varuna                            19500.00 INR
+    income:interest:ppf                                     -19500.00 INR
+    assets:hybrid:india:nps:monsoon                         324.9429 NPSMON @@ 16400.00 INR
+    income:interest:nps                                     -16400.00 INR
