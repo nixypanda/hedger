@@ -7,6 +7,7 @@ module Hedger.Application.TransactionQuery (
 where
 
 import Data.Char (isDigit)
+import Data.Function (on)
 import Data.List qualified as List
 import Data.Ord (Down (Down))
 import Data.Text (Text)
@@ -16,6 +17,8 @@ import Text.Read (readMaybe)
 
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Query qualified as Hledger
+import Hledger.Reports.EntriesReport qualified as HledgerEntries
+import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
 import Hedger.Application.Internal.Cursor (decodeTransactionCursor, encodeTransactionCursor)
 import Hedger.Domain.Error (AppError (..))
@@ -43,8 +46,17 @@ transactionPage snapshot request = do
             (Right 0)
             (decodeTransactionCursor snapshot.revision canonicalQuery referenceDate)
             request.cursor
-    let ordered = List.sortOn (\tx -> (Down tx.tdate, Down tx.tindex)) snapshot.transactions
-        matching = filter (Hledger.matchesTransaction parsedQuery) ordered
+    let reportSpec =
+            HledgerReportOptions.defreportspec
+                { HledgerReportOptions._rsDay = referenceDate
+                , HledgerReportOptions._rsQuery = parsedQuery
+                }
+        journal = snapshot.journal{Hledger.jtxns = snapshot.transactions}
+        matchingAscending = HledgerEntries.entriesReport reportSpec journal
+        matching =
+            concatMap
+                (List.sortOn (Down . (.tindex)))
+                (reverse (List.groupBy ((==) `on` (.tdate)) matchingAscending))
     if offset > length matching
         then Left (InvalidCursor "The cursor position is no longer valid.")
         else do

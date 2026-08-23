@@ -62,7 +62,7 @@ conversionFromMixed commodity amount =
                 , item.acommodity /= commodity
                 ]
      in Conversion
-            { value = Just (sum [item.aquantity | item <- projected, item.acommodity == commodity])
+            { value = Just (commodityQuantity commodity amount)
             , missing
             }
 
@@ -79,7 +79,7 @@ convertMixedAt snapshot commodity day amount =
                 , item.acommodity /= commodity
                 ]
      in Conversion
-            { value = if Set.null missing then Just (sum (fmap (.aquantity) projected)) else Nothing
+            { value = if Set.null missing then Just (commodityQuantity commodity valued) else Nothing
             , missing
             }
 
@@ -107,11 +107,24 @@ component is in another commodity.
 -}
 completeDecimal :: Text -> Hledger.MixedAmount -> Maybe Decimal
 completeDecimal commodity amount
-    | Set.null missing = Just (sum [item.aquantity | item <- projected])
+    | Set.null missing = Just displayQuantity
     | otherwise = Nothing
   where
     projected = filter ((>= negligibleQuantity) . abs . (.aquantity)) (HledgerAmount.amountsRaw amount)
     missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
+    displayQuantity =
+        sum
+            [ item.aquantity
+            | item <- HledgerAmount.amountsRaw (HledgerAmount.filterMixedAmountByCommodity commodity amount)
+            , abs item.aquantity >= negligibleQuantity
+            ]
+
+commodityQuantity :: Text -> Hledger.MixedAmount -> Decimal
+commodityQuantity commodity =
+    sum
+        . fmap (.aquantity)
+        . HledgerAmount.amountsRaw
+        . HledgerAmount.filterMixedAmountByCommodity commodity
 
 -- | Quantities smaller than this are treated as rounding dust, not a real balance.
 negligibleQuantity :: Decimal

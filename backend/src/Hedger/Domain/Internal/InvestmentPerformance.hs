@@ -38,10 +38,11 @@ import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian, toGregorian)
+import Data.Time (Day, addDays)
 
 import Hledger.Data.AccountName qualified as HledgerAccountName
 import Hledger.Data.Amount qualified as HledgerAmount
+import Hledger.Data.Journal qualified as HledgerJournal
 import Hledger.Data.Period qualified as HledgerPeriod
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Query qualified as HledgerQuery
@@ -51,7 +52,14 @@ import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Investment (accountWithin)
 import Hedger.Domain.Investment qualified as Investment
-import Hedger.Domain.Period (Granularity (..), epoch, minimumMaybe, monthKey, monthStart)
+import Hedger.Domain.Period (
+    Granularity (..),
+    ReportPeriod (..),
+    epoch,
+    minimumMaybe,
+    periodsFromDateSpan,
+    takeLast,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (completeDecimal, missingCommodities, valueMixedAt)
 import Hedger.Domain.Xirr qualified as Xirr
@@ -587,34 +595,27 @@ immediateChildren snapshot assetClasses scope =
                 else Nothing
 
 reportPeriods :: Granularity -> [Hledger.Transaction] -> Day -> [(Text, Day, Day)]
-reportPeriods granularity transactions latest = case granularity of
-    Monthly ->
-        [ let end = min latest (addDays (-1) (addGregorianMonthsClip 1 start))
-           in (monthKey start, start, end)
-        | start <- monthlyStarts
-        ]
-    Yearly ->
-        [ let start = fromGregorian year 1 1
-              end = min latest (fromGregorian year 12 31)
-           in (Text.pack (show year), start, end)
-        | year <- [firstYear .. finalYear]
-        ]
+reportPeriods granularity transactions latest =
+    [ (period.key, period.start, min reportLastDay period.end)
+    | period <- selectedPeriods
+    ]
   where
-    (finalYear, _, _) = toGregorian latest
-    finalMonth = monthStart latest
-    monthlyStarts =
-        takeWhile
-            (<= finalMonth)
-            (iterate (addGregorianMonthsClip 1) firstMonthlyStart)
-    firstMonthlyStart =
-        max
-            (addGregorianMonthsClip (-23) finalMonth)
-            (maybe finalMonth monthStart (minimumMaybe (fmap (.tdate) transactions)))
-    firstYear =
-        maybe
-            finalYear
-            (\day -> let (year, _, _) = toGregorian day in year)
-            (minimumMaybe (fmap (.tdate) transactions))
+    first = fromMaybe latest (minimumMaybe (fmap (.tdate) transactions))
+    reportPeriod = Hledger.PeriodBetween first (addDays 1 latest)
+    dateSpan = HledgerPeriod.periodAsDateSpan reportPeriod
+    periods = periodsFromDateSpan granularity dateSpan
+    selectedPeriods = case granularity of
+        Monthly -> takeLast 24 periods
+        Yearly -> periods
+    journal = HledgerJournal.nulljournal{Hledger.jtxns = transactions}
+    reportSpec =
+        HledgerReportOptions.defreportspec
+            { HledgerReportOptions._rsDay = latest
+            , HledgerReportOptions._rsReportOpts =
+                HledgerReportOptions.defreportopts{HledgerReportOptions.period_ = reportPeriod}
+            }
+    reportLastDay =
+        fromMaybe latest (HledgerReportOptions.reportPeriodOrJournalLastDay reportSpec journal)
 
 validateScope :: Investment.InvestmentMappings -> Maybe Text -> Either AppError (Maybe Text)
 validateScope _ requested = case requested >>= scopeText of
