@@ -19,6 +19,7 @@ import Hedger.Infrastructure.JournalWatcherSpec (journalWatcherSpec)
 import Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec)
 import Hedger.Interface.HTTP.APISpec (apiSpec)
 import Hedger.Interface.HTTP.CommonSpec (commonSpec)
+import Hedger.Runtime.ServerSpec (serverSpec)
 
 main :: IO ()
 main =
@@ -37,6 +38,7 @@ main =
             , transactionQuerySpec
             , apiSpec
             , commonSpec
+            , serverSpec
             , periodSpec
             , accountSpec
             , valuationSpec

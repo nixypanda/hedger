@@ -147,6 +147,7 @@ test-suite hedger-backend-test
     Hedger.Infrastructure.SnapshotStoreSpec
     Hedger.Interface.HTTP.APISpec
     Hedger.Interface.HTTP.CommonSpec
+    Hedger.Runtime.ServerSpec
     Hedger.SyntheticTransactions
     Hedger.TestHelpers
 
