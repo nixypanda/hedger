@@ -1,9 +1,13 @@
 module Hedger.Interface.HTTP.Events (
     EventsAPI,
+    HeartbeatInterval (..),
+    eventsApplicationWithHeartbeat,
     eventsServer,
 )
 where
 
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async (race)
 import Data.ByteString.Builder (Builder, byteString)
 import Data.Text (Text)
 import Data.Text.Encoding qualified as TextEncoding
@@ -15,22 +19,27 @@ import Hedger.Application.Events (RevisionSubscription, awaitNextRevision, subsc
 
 type EventsAPI = "events" :> Raw
 
+newtype HeartbeatInterval = HeartbeatInterval Int
+
 -- The request-id header is shared by the whole v1 group but does not apply to a
 -- raw streaming response, so it is ignored here.
 eventsServer :: Env -> Maybe Text -> Server EventsAPI
-eventsServer environment _requestId = Tagged (snapshotEvents environment)
+eventsServer environment _requestId = Tagged (eventsApplicationWithHeartbeat heartbeatInterval environment)
 
--- Each connection remembers the revision it last emitted and blocks until the
--- store publishes a different one, so an idle stream costs nothing.
-snapshotEvents :: Env -> Application
-snapshotEvents environment request sendResponse = do
+eventsApplicationWithHeartbeat :: HeartbeatInterval -> Env -> Application
+eventsApplicationWithHeartbeat interval environment request sendResponse = do
     subscription <- subscribeToRevisions environment
-    eventSourceAppIO (nextRevisionEvent subscription) request sendResponse
+    eventSourceAppIO (nextServerEvent interval subscription) request sendResponse
 
-nextRevisionEvent :: RevisionSubscription -> IO ServerEvent
-nextRevisionEvent subscription = do
-    revision <- awaitNextRevision subscription
-    pure (ServerEvent (Just (byteString "revision")) Nothing [textData revision])
+nextServerEvent :: HeartbeatInterval -> RevisionSubscription -> IO ServerEvent
+nextServerEvent (HeartbeatInterval interval) subscription = do
+    result <- race (awaitNextRevision subscription) (threadDelay interval)
+    pure $ case result of
+        Left revision -> ServerEvent (Just (byteString "revision")) Nothing [textData revision]
+        Right () -> CommentEvent (byteString "heartbeat")
+
+heartbeatInterval :: HeartbeatInterval
+heartbeatInterval = HeartbeatInterval 15000000
 
 textData :: Text -> Builder
 textData = byteString . TextEncoding.encodeUtf8
