@@ -71,6 +71,7 @@
               elmPackages.elm-format
               elmPackages.elm-test
               haskellPackages.fourmolu
+              haskell-language-server
               (haskellPackages.ghcWithPackages (
                 haskell: with haskell; [
                   aeson
