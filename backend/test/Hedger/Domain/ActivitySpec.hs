@@ -51,6 +51,11 @@ activitySpec =
             [ testCase "asset activity splits a day into acquire/rebalance/dispose" assetDirections
             , testCase "liability activity splits borrowing from pay-off" liabilityDirections
             ]
+        , testGroup
+            "computeActivity flow breakdown"
+            [ testCase "expense activity includes purchases funded by liabilities" liabilityFundedExpense
+            , testCase "income activity includes gains from asset disposals" disposalGainIncome
+            ]
         ]
 
 assetDirections :: Assertion
@@ -71,6 +76,20 @@ liabilityDirections =
         , (Decrease, [("liabilities:card", 200)])
         ]
         (directionBreakdown LiabilityActivity liabilityTransactions)
+
+liabilityFundedExpense :: Assertion
+liabilityFundedExpense =
+    assertEqual
+        "expense activity"
+        [(100, [("expenses:food", 100)])]
+        (activityBreakdown ExpenseActivity liabilityFundedExpenseTransactions)
+
+disposalGainIncome :: Assertion
+disposalGainIncome =
+    assertEqual
+        "income activity"
+        [(10, [("income:capital:gains", 10)])]
+        (activityBreakdown IncomeActivity disposalGainTransactions)
 
 activityDay :: Day
 activityDay = fromGregorian 2024 5 24
@@ -99,25 +118,46 @@ liabilityTransactions =
     , transactionOn [posting "liabilities:card" 200, posting "assets:cash" (-200)]
     ]
 
+liabilityFundedExpenseTransactions :: [Hledger.Transaction]
+liabilityFundedExpenseTransactions =
+    [transactionOn [posting "expenses:food" 100, posting "liabilities:card" (-100)]]
+
+disposalGainTransactions :: [Hledger.Transaction]
+disposalGainTransactions =
+    [ transactionOn
+        [ posting "assets:investments:stock" (-100)
+        , posting "assets:cash" 110
+        , posting "income:capital:gains" (-10)
+        ]
+    ]
+
+activityBreakdown :: ActivityKind -> [Hledger.Transaction] -> [(Decimal, [(Text, Decimal)])]
+activityBreakdown kind transactions =
+    case activityFigures kind transactions of
+        bucket : _ -> [(bucket.total, [(item.account, item.quantity) | item <- bucket.categoryItems])]
+        [] -> []
+
 directionBreakdown ::
     ActivityKind -> [Hledger.Transaction] -> [(ActivityDirection, [(Text, Decimal)])]
 directionBreakdown kind transactions =
+    case activityFigures kind transactions of
+        bucket : _ -> fmap summariseDirection bucket.directionItems
+        [] -> []
+
+activityFigures :: ActivityKind -> [Hledger.Transaction] -> [ActivityBucketFigures]
+activityFigures kind transactions =
     case parseActivityPeriod 1 MonthActivity "2024-05" of
         Left _ -> []
         Right activityPeriod ->
-            let figures :: ActivityFigures
-                figures =
-                    computeActivity
-                        (mkSnapshot transactions)
-                        transactions
-                        "R"
-                        kind
-                        MonthActivity
-                        3
-                        activityPeriod
-             in case figures.buckets of
-                    bucket : _ -> fmap summariseDirection bucket.directionItems
-                    [] -> []
+            ( computeActivity
+                (mkSnapshot transactions)
+                transactions
+                "R"
+                kind
+                MonthActivity
+                3
+                activityPeriod
+            ).buckets
 
 summariseDirection :: (ActivityDirection, [BreakdownItem]) -> (ActivityDirection, [(Text, Decimal)])
 summariseDirection (direction, items) =

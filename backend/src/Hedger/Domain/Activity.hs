@@ -1,7 +1,7 @@
-{- | Activity: the quantified counterpart of 'Hedger.Domain.Transaction'
-classification. Where the classifier says a transaction /is/ a borrowing or an
-asset acquisition, activity says how much it moved into which accounts, bucketed
-over a period.
+{- | Activity quantifies movements into accounts, bucketed over a period. Income
+and expense activity follows the corresponding postings because a transaction
+can contain a flow alongside an asset or liability movement. Asset and liability
+activity uses 'Hedger.Domain.Transaction' classification to determine direction.
 -}
 module Hedger.Domain.Activity (
     ActivityKind (..),
@@ -191,22 +191,22 @@ activityContribution ::
     Hledger.Transaction ->
     Conversion ActivityContribution
 activityContribution snapshot commodity activityKind transaction =
-    case (activityKind, Transaction.classificationFor transaction) of
-        (IncomeActivity, Transaction.TransactionIncome) ->
+    case activityKind of
+        IncomeActivity ->
             flowActivity snapshot commodity "income" negate transaction
-        (ExpenseActivity, Transaction.TransactionExpense) ->
+        ExpenseActivity ->
             flowActivity snapshot commodity "expenses" id transaction
-        (AssetActivity, classification@Transaction.AssetAcquisition) ->
-            assetActivity snapshot commodity classification transaction
-        (AssetActivity, classification@Transaction.AssetDisposal) ->
-            assetActivity snapshot commodity classification transaction
-        (AssetActivity, classification@Transaction.AssetReallocation) ->
-            assetActivity snapshot commodity classification transaction
-        (LiabilityActivity, classification@Transaction.Borrowing) ->
-            liabilityActivity snapshot commodity classification transaction
-        (LiabilityActivity, classification@Transaction.Repayment) ->
-            liabilityActivity snapshot commodity classification transaction
-        _ -> completeNothing
+        AssetActivity -> case classification of
+            Transaction.AssetAcquisition -> assetActivity snapshot commodity classification transaction
+            Transaction.AssetDisposal -> assetActivity snapshot commodity classification transaction
+            Transaction.AssetReallocation -> assetActivity snapshot commodity classification transaction
+            _ -> completeNothing
+        LiabilityActivity -> case classification of
+            Transaction.Borrowing -> liabilityActivity snapshot commodity classification transaction
+            Transaction.Repayment -> liabilityActivity snapshot commodity classification transaction
+            _ -> completeNothing
+  where
+    classification = Transaction.classificationFor transaction
 
 flowActivity ::
     Snapshot ->
