@@ -516,6 +516,9 @@ benchmarkAssetClassMappings =
 
 -- whole journal, so their cost scales with transaction count.
 
+{- | Every field is forced: the strict current balances are lazy 'Maybe's that
+a partial weight would silently skip, hiding two whole report passes.
+-}
 netWorthWeight :: Snapshot -> Int
 netWorthWeight snapshot =
     let figures = computeNetWorth snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
@@ -524,6 +527,13 @@ netWorthWeight snapshot =
             + sum (breakdownWeight <$> figures.liabilitiesBreakdownItems)
             + sum (performanceWeight <$> figures.performance)
             + figures.incompletePeriods
+            + maybe 0 Text.length figures.selectedKey
+            + decimalWeight figures.currentAssets
+            + decimalWeight figures.currentLiabilities
+            + decimalWeight figures.currentNetWorth
+            + Text.length figures.assetsBreakdownPeriod
+            + Text.length figures.liabilitiesBreakdownPeriod
+            + Set.size figures.missing
 
 cashflowWeight :: Snapshot -> Int
 cashflowWeight snapshot =
@@ -533,6 +543,10 @@ cashflowWeight snapshot =
             + sum (breakdownWeight <$> figures.expenseBreakdownItems)
             + figures.totalCount
             + figures.filteredCount
+            + fromEnum figures.available
+            + Text.length figures.incomeBreakdownPeriod
+            + Text.length figures.expenseBreakdownPeriod
+            + Set.size figures.missing
 
 timelineWeight :: TimelinePoint -> Int
 timelineWeight point =
