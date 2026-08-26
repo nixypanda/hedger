@@ -26,6 +26,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     -- * Building blocks (exposed for property tests)
     holdingsAt,
     holdingsAtWithJournal,
+    holdingsSeriesAtWithJournal,
     journalWithHistoricalCosts,
     investmentQuery,
     attributedAt,
@@ -50,13 +51,17 @@ import Data.Time (Day, addDays)
 
 import Hledger.Data.AccountName qualified as HledgerAccountName
 import Hledger.Data.Amount qualified as HledgerAmount
+import Hledger.Data.Dates qualified as HledgerDates
+import Hledger.Data.DayPartition qualified as HledgerDayPartition
 import Hledger.Data.Journal qualified as HledgerJournal
 import Hledger.Data.Period qualified as HledgerPeriod
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Data.Valuation qualified as HledgerValuation
 import Hledger.Query qualified as HledgerQuery
 import Hledger.Reports.BalanceReport qualified as HledgerBalance
+import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
+import Hledger.Reports.ReportTypes qualified as HledgerReportTypes
 
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Investment (accountWithin)
@@ -65,6 +70,8 @@ import Hedger.Domain.Period (
     Granularity (..),
     ReportPeriod (..),
     epoch,
+    intervalFor,
+    maximumMaybe,
     minimumMaybe,
     periodsFromDateSpan,
     takeLast,
@@ -319,6 +326,53 @@ holdingsAtWithJournal journal assetClasses scope day =
                     , HledgerQuery.Date (HledgerPeriod.periodAsDateSpan period)
                     ]
             }
+
+{- | The cumulative holdings at each requested day, in one 'HledgerMultiBalance.multiBalanceReport'
+rather than one 'HledgerBalance.balanceReport' per day.
+-}
+holdingsSeriesAtWithJournal ::
+    Hledger.Journal ->
+    Investment.AssetClassMappings ->
+    Maybe Text ->
+    Granularity ->
+    [Day] ->
+    [Hledger.MixedAmount]
+holdingsSeriesAtWithJournal journal assetClasses scope granularity days =
+    case (minimumMaybe days, maximumMaybe days) of
+        (Just earliest, Just latest) ->
+            let periodStart = HledgerDayPartition.intervalBoundaryBefore (intervalFor granularity) earliest
+                period = Hledger.PeriodBetween periodStart (addDays 1 latest)
+                options =
+                    HledgerReportOptions.defreportopts
+                        { HledgerReportOptions.period_ = period
+                        , HledgerReportOptions.interval_ = intervalFor granularity
+                        , HledgerReportOptions.balanceaccum_ = HledgerReportOptions.Historical
+                        , HledgerReportOptions.accountlistmode_ = HledgerReportOptions.ALFlat
+                        , -- Without this, hledger drops columns for periods with no activity,
+                          -- and the series would lose entries for those requested days.
+                          HledgerReportOptions.empty_ = True
+                        }
+                spec =
+                    HledgerReportOptions.defreportspec
+                        { HledgerReportOptions._rsReportOpts = options
+                        , HledgerReportOptions._rsDay = latest
+                        , HledgerReportOptions._rsQuery =
+                            HledgerQuery.And
+                                [ investmentQuery assetClasses scope
+                                , HledgerQuery.Date (HledgerPeriod.periodAsDateSpan period)
+                                ]
+                        }
+                report = HledgerMultiBalance.multiBalanceReport spec journal
+                columns = zip report.prDates report.prTotals.prrAmounts
+                -- Requested days don't correspond positionally to report columns (a clamped
+                -- final period, or a day predating any data), so look up by span membership.
+                containsDay day (columnSpan, _) = HledgerDates.spanContainsDate columnSpan day
+                amountFor day =
+                    case List.find (containsDay day) columns of
+                        Just (_, amount) -> amount
+                        Nothing -> mempty
+             in fmap amountFor days
+        _ -> []
 
 journalWithHistoricalCosts :: Snapshot -> Text -> Hledger.Journal
 journalWithHistoricalCosts snapshot commodity =

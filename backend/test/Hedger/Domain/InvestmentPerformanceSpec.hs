@@ -2,6 +2,8 @@ module Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec) where
 
 import Data.Decimal (Decimal)
 import Data.Either (isLeft, isRight)
+import Data.Maybe (fromMaybe)
+import Data.Text qualified as Text
 import Data.Time (fromGregorian)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
@@ -9,6 +11,10 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Internal.InvestmentPerformance (
+    holdingsAtWithJournal,
+    holdingsSeriesAtWithJournal,
+ )
 import Hedger.Domain.Investment (
     AssetClass (Cash, Equity),
     AssetClassMapping (..),
@@ -26,11 +32,13 @@ import Hedger.Domain.InvestmentPerformance (
     InvestmentSummary (..),
     SummaryResult (..),
     externalCashFlowsAt,
+    investmentDataTransactions,
     investmentSummaryAt,
     reportPeriods,
     summaryAt,
  )
-import Hedger.Domain.Period (Granularity (Monthly))
+import Hedger.Domain.Period (Granularity (Monthly, Yearly))
+import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Xirr (cashFlowAmount, cashFlowDate)
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
 
@@ -62,6 +70,7 @@ investmentsSpec =
         , testCase "asset-class configuration is the investment portfolio allowlist" assetClassAllowlist
         , testCase "settled accounts have complete empty summaries" settledAccount
         , testCase "monthly periods include months without transactions" contiguousMonthlyPeriods
+        , holdingsSeriesRegressionTests
         ]
 
 retainedFdInterest :: IO ()
@@ -405,3 +414,109 @@ testAssetClasses =
         ] of
         Left _ -> emptyAssetClassMappings
         Right value -> value
+
+-- | Wide enough to cover every account touched by the edge-case journals.
+edgeCaseAssetClasses :: AssetClassMappings
+edgeCaseAssetClasses =
+    case mkAssetClassMappings
+        [ AssetClassMapping Equity ["assets:investments"] Nothing
+        , AssetClassMapping Cash ["assets:cash"] Nothing
+        ] of
+        Left _ -> emptyAssetClassMappings
+        Right value -> value
+
+holdingsSeriesRegressionTests :: TestTree
+holdingsSeriesRegressionTests =
+    testGroup
+        "holdingsSeriesAtWithJournal agrees with holdingsAtWithJournal"
+        (concatMap fixtureCases fixtures)
+  where
+    fixtures =
+        [
+            ( "investments.journal"
+            , "test/fixtures/investments.journal"
+            , testAssetClasses
+            , [Nothing, Just "assets:investments:equity:xyz"]
+            )
+        ,
+            ( "investment-descendant.journal"
+            , "test/fixtures/investment-descendant.journal"
+            , testAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-foreign-cash.journal"
+            , "test/fixtures/investment-foreign-cash.journal"
+            , testAssetClasses
+            , [Nothing, Just "assets:cash:brokerage"]
+            )
+        ,
+            ( "investment-xirr.journal"
+            , "test/fixtures/investment-xirr.journal"
+            , testAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-ambiguous-xirr.journal"
+            , "test/fixtures/investment-ambiguous-xirr.journal"
+            , testAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "bug1-gapped-price.journal"
+            , "../docs/edge-case-journals/bug1-gapped-price.journal"
+            , edgeCaseAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "bug1-never-priced.journal"
+            , "../docs/edge-case-journals/bug1-never-priced.journal"
+            , edgeCaseAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "bug6-gain-fee-roles.journal"
+            , "../docs/edge-case-journals/bug6-gain-fee-roles.journal"
+            , edgeCaseAssetClasses
+            , [Nothing, Just "assets:investments:equity"]
+            )
+        ,
+            ( "bug7-ambiguous-xirr.journal"
+            , "../docs/edge-case-journals/bug7-ambiguous-xirr.journal"
+            , edgeCaseAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "bug8-dust-commodity.journal"
+            , "../docs/edge-case-journals/bug8-dust-commodity.journal"
+            , edgeCaseAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "lowsev-nested-mapping-retained.journal"
+            , "../docs/edge-case-journals/lowsev-nested-mapping-retained.journal"
+            , edgeCaseAssetClasses
+            , [Nothing, Just "assets:investments"]
+            )
+        ]
+    fixtureCases (label, path, assetClasses, scopes) =
+        [ testCase
+            (label <> " " <> show granularity <> " scope=" <> show scope)
+            (assertHoldingsSeriesMatches path assetClasses scope granularity)
+        | granularity <- [Monthly, Yearly]
+        , scope <- scopes
+        ]
+
+assertHoldingsSeriesMatches :: Text.Text -> AssetClassMappings -> Maybe Text.Text -> Granularity -> IO ()
+assertHoldingsSeriesMatches path assetClasses scope granularity = do
+    snapshotResult <- loadSnapshot path
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let latest = fromMaybe (error "fixture has no journal date") snapshot.latestJournalDate
+                transactions = investmentDataTransactions snapshot assetClasses scope
+                days = [end | (_, _, end) <- reportPeriods granularity transactions latest]
+                journal = snapshot.journal
+                bulk = holdingsSeriesAtWithJournal journal assetClasses scope granularity days
+                perDate = fmap (holdingsAtWithJournal journal assetClasses scope) days
+            assertEqual "bulk holdings series matches per-date holdings" perDate bulk
