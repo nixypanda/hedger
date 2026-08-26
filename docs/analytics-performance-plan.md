@@ -1,6 +1,6 @@
 # Analytics performance improvement plan
 
-_Status: in progress · Last updated: 2026-08-26_
+_Status: in progress · Last updated: 2026-08-27_
 
 ## Summary
 
@@ -31,13 +31,18 @@ What remains, in order of measured cost:
    XIRR, and allocation reduction. The shared traversal removed repeated list
    walks and balance reports, but still performs scope-specific work for every
    transaction and requested scope.
-2. Net-worth and cashflow report consolidation, now guided by component
-   measurements of their production report paths.
-3. API decomposition and bounded backend concurrency, only where they improve
-   the uncached request path after duplicated work has been removed.
-4. Revision-scoped derived data, bounded memoization, a database, or other
+2. Bounded backend concurrency, only where it improves the uncached request path
+   after duplicated work has been removed. API decomposition is largely spent:
+   the three analytics endpoints are already separate routes, and splitting net
+   worth further into base and breakdown would make a breakdown request rerun the
+   same hledger report unless a cross-request cache exists first.
+3. Revision-scoped derived data, bounded memoization, a database, or other
    cross-request storage only after the compute-first phase is complete and has
    been remeasured.
+
+Net-worth and cashflow report consolidation is complete. Net worth is now two
+hledger passes (one consolidated asset/liability report and the gain report) and
+cashflow is one, down from five and two.
 
 Frontend parallelism by itself is not a sufficient optimization. It can reduce
 wall-clock latency on an idle multicore server, but the remaining computations
@@ -111,11 +116,38 @@ service-level objectives.
 | 5,000 | Investment current summary | ~193 ms | ~148 ms |
 | 5,000 | Investment monthly history, 24 periods | ~3.85 s | **~289 ms** |
 | 5,000 | Investment latest-date drill-down | ~582 ms | **~321 ms** |
-| 5,000 | Net worth | ~132 ms | ~137 ms |
+| 5,000 | Net worth | ~315 ms | **~173 ms** |
+| 5,000 | Cashflow | ~39 ms | **~34 ms** |
 | 50,000 | Investment current summary | ~1.98 s | ~1.47 s |
 | 50,000 | Investment monthly history, 24 periods | >45 s, timed out | **~2.38 s** |
 | 50,000 | Investment latest-date drill-down | ~6.01 s | **~3.28 s** |
-| 50,000 | Net worth | ~698 ms | ~752 ms |
+| 50,000 | Net worth | ~1.63 s | **~670 ms** |
+| 50,000 | Cashflow | ~283 ms | **~191 ms** |
+
+### Every net-worth figure in earlier revisions of this document was wrong
+
+The net-worth rows above are not comparable with the ones this document carried
+before 2026-08-27, which reported ~132 ms and ~698 ms. Those came from a
+benchmark that did not measure the whole request.
+
+`netWorthWeight` in `backend/benchmark/Main.hs` forced the timeline, both
+breakdowns, the performance series and the incomplete-period count, but never
+touched `currentAssets`, `currentLiabilities` or `currentNetWorth`. Those are
+lazy `Maybe Decimal` fields, so the two strict current balance reports — 75% of
+the request at 50,000 transactions — were never executed by the benchmark at
+all. The tell was already visible in the component table: one component, the
+strict current asset/cash balance, was reported at ~765 ms, which is *slower
+than the whole ~752 ms request that supposedly contained it*. A component that
+costs more than its own parent is a measurement bug, not a finding.
+
+Every weight function now forces every field of the record it returns. The
+honest baseline for this round of work is ~315 ms and ~1.63 s.
+
+This is the third time measurement has corrected this document's priorities, and
+the second time it has invalidated a reported result. The risk table entry about
+optimizing from a reading of the code rather than a measurement should be read as
+also covering *trusting a measurement without checking that it measures the whole
+operation*.
 
 The drill-down baseline is the retained `summaryAtPrepared` reference path on
 the current code, not commit `b424580`. Both sides prepare one shared context
@@ -162,10 +194,14 @@ keeps this broad attribution pass short, so these figures are directional.
 | 50,000 | Cashflow: expense periodic | ~139 ms | 105 MB | 27 MB | 669 MB |
 
 Peak memory is process-level rather than uniquely attributable to a component,
-and independently measured component times are not additive. The results still
-establish where to begin: the 50,000-transaction strict current asset/cash
-balance is the largest measured net-worth component, while both cashflow passes
-are material enough for consolidation to remain worthwhile.
+and independently measured component times are not additive. Component figures
+also move by 10-20% with run order and heap state, so treat them as attribution
+rather than as results.
+
+These figures are superseded. They identified the strict current asset/cash
+balance as the largest net-worth component, which was correct and led directly to
+removing it from the request path entirely; it now survives only as a test oracle.
+The current per-component figures are in the two completed sections below.
 
 ### What the component measurements established
 
@@ -319,6 +355,39 @@ The useful version of this task is therefore narrower: make the periodic window
 end at `latestJournalDate`, and keep `requireComplete` as an application-layer
 projection, rather than deleting the reports.
 
+#### Completed: derive the current KPIs from the final periodic column
+
+This is the version of the task the section above prescribed — keep
+`requireComplete` as an application-layer projection — carried to its
+conclusion. Both standalone balance reports are gone from the request path.
+
+Once the window alignment below truncates price directives at
+`latestJournalDate`, the two valuation modes converge: `AtEnd` of the final
+interval and `AtDate latestJournalDate` resolve the same price, because no price
+exists between those dates to distinguish them. The final periodic column *is*
+the latest balance. The only thing separating it from a KPI is the completeness
+rule, and that is a projection over an already-computed column:
+
+```haskell
+strictLatest = maybe (complete 0) requireComplete . lastMaybe
+```
+
+Depth is not a confounder. hledger derives a report's totals row from the root
+account's inclusive balance (`MultiBalanceReport.hs`, `generatePeriodicReport`),
+so the totals are identical whether the report is clipped to depth 2 or not
+clipped at all.
+
+`currentAssetCashBalance` and `currentLiabilityBalance` remain in
+`Internal/NetWorth.hs` as the correctness oracle and as component benchmarks,
+following the same pattern as the retained singular investment path.
+`NetWorthSpec` asserts the projected KPIs equal those functions across nine
+journals x two granularities x two commodities, covering missing prices, foreign
+cash, dust residuals, gapped price histories and nested mappings.
+
+At 50,000 transactions this removed ~1.2 s and ~0.2 s of report work for a
+measured **1.63 s -> 733 ms** on the request, with allocation halved from 1.6 GB
+to 818 MB.
+
 #### Completed: align the periodic window to the latest journal date
 
 The monthly report-window query now carries the same explicit end date as the
@@ -341,21 +410,86 @@ variance target were:
 | 50,000 | ~698 ms | **~662 ms** | **5.2%** | **3.3%** (779 MB → 753 MB) |
 
 The timing deltas are directional and overlap the reported variance; the
-allocation reductions are deterministic. This is a useful but modest gain, so
-the current asset/cash balance and remaining report passes are still the main
-net-worth targets.
+allocation reductions are deterministic. Note that both figures were measured
+with the incomplete `netWorthWeight` described above, so they describe the
+periodic portion of the request rather than the whole request. The direction is
+sound — this change only touches the periodic reports, which that benchmark did
+force — but the percentages are not comparable with the table at the top.
 
-#### Share assets and liabilities where possible
+#### Completed: share assets and liabilities in one report
 
-Investigate running one periodic report over assets, cash, and liabilities, then
-partitioning rows using hledger account types. The shared-window finding above
-removes one obstacle. This is worthwhile only if the combined report preserves
-correct asset and liability signs, the different requested breakdown depths,
-missing-commodity reporting, and the exact row data both breakdowns need.
+Assets/cash and liabilities differed only by the account-type filter and the
+requested display depth: both use `CalcChange`, `Historical` accumulation,
+`AtEnd` valuation and `ALFlat`. They are now one report over
+`[Asset, Cash, Liability]`, split back apart by account type.
 
-The gain report uses a different balance calculation mode and is likely to
-remain separate unless hledger exposes enough data to derive both views from a
-single report without reproducing its logic.
+Two facts from hledger's source shape the implementation, and both are the
+opposite of what a reading of the report options suggests:
+
+- **The totals row is not the sum of the displayed rows.** It is the root
+  account's inclusive balance. A consolidated report's totals row therefore spans
+  both sides and is useless per side, so `reportSide` sums the retained rows
+  instead.
+- **Depth clips the account names on the postings**, before aggregation and
+  before valuation — it is not a display filter. So a clipped row's balance
+  already includes everything beneath it, which is what makes summing rows exact
+  at any depth; but it also means clipping genuinely reduces work.
+
+The consolidated report is nonetheless built *unclipped*, because a clipped name
+spanning both sides could not be attributed to either. `breakdownItemsFor`
+re-collapses rows with `atDepth` itself, so it yields identical output from an
+unclipped report.
+
+`PeriodReportSpec` pins the equivalence: for nine journals x two granularities x
+two commodities x three depths, each of the four sides must match its separately
+filtered report on column totals, missing-commodity set, and breakdown items.
+All 108 cases agree exactly.
+
+The gain report stays separate. `CalcGain` is not a different accumulation but a
+different valuation function — with `Historical` accumulation the balance
+calculation is consulted inside `mixedAmountApplyValuationAfterSum`, not in the
+accumulation step — so it cannot share a pass with `CalcChange`. Deriving it as
+market value minus cost basis would need two reports anyway, so there is nothing
+to win.
+
+#### Measured but deliberately declined: clipping the consolidated report
+
+Clipping the consolidated report to the larger of the two requested depths is
+faster: **362 ms unclipped vs 300 ms at depth 2** at 50,000 transactions, with
+identical allocation and 24 MB less GC copying.
+
+It is not implemented. Correct attribution would need a guard proving that no
+clipped prefix spans both sides (a liability declared beneath `assets:` would be
+silently merged into the asset row), plus a fallback path when the guard fails,
+plus a synthetic fixture to test the mixed case. That is a branch, a second code
+path and a new fixture for ~10% of one request. Recorded here so the option is
+not rediscovered from scratch; take it if the 200 ms target makes 62 ms matter.
+
+#### Measured and reverted: sharing the report window across reports
+
+`periodicBalanceReport` derives its own report window, so a net-worth request
+derives it twice (consolidated report, gain report). Hoisting it to be computed
+once per request looked free — hledger reads only the date terms of a query when
+deriving a report span, never the account-type terms, so one window is provably
+valid for all of them.
+
+It is a **regression**, measured twice and reverted both times:
+
+| Variant | 50,000 net worth | Allocated |
+|---|---:|---:|
+| Per-report window (kept) | ~570-627 ms | 749 MB |
+| Shared window | ~743-821 ms | 742 MB |
+| Shared window and shared filtered journal | ~615-695 ms | 741 MB |
+
+Allocation falls slightly in both variants while time rises, so this is not
+extra work — it is that hoisting materializes the filtered journal and its
+truncated price-directive list into a value retained across both reports, where
+building it per report lets GHC fuse it with its consumer and collect it
+promptly. The window derivation itself is too cheap to pay for that.
+
+The general lesson is worth keeping: in this codebase, sharing a large
+intermediate across report passes is not automatically cheaper than recomputing
+it, and the difference does not show up in allocation figures.
 
 #### Future phase: cache the base report, not the selected view
 
@@ -562,16 +696,20 @@ efficient calculation, not a replacement for one.
 | 3 | **Complete:** add net-worth component benchmarks | Identified the strict current asset/cash balance as the largest measured 50,000-transaction component | Completed |
 | 4 | **Complete:** add cashflow component benchmarks | Measured the two 50,000-transaction periodic passes at ~105 ms and ~139 ms | Completed |
 | 5 | **Complete:** align the net-worth periodic window to the latest journal date | 10.5% faster at 5,000 and 5.2% faster at 50,000 transactions in paired measurements | Completed |
-| 6 | Consolidate asset and liability net-worth passes | Medium–high if hledger semantics allow it | Medium–high, 4–8 days |
-| 7 | Consolidate income and expense cashflow passes | Potentially high; both currently use `CalcChange` and `PerPeriod` | Medium, 3–5 days |
-| 8 | Share the safe half of the XIRR grid across prefixes | Low; ~0.5 s at 50,000 transactions | Low, 1–2 days |
-| 9 | Profile and reduce remaining request-local indexing, conversion, grouping, sorting, and allocation costs | Required to determine whether cold requests can reach 200 ms | Open-ended, measurement-led |
-| 10 | Run remaining independent calculations concurrently with a request-local bound | Low–medium wall-time improvement, no CPU reduction | Medium, 2–4 days |
-| 11 | Split endpoints only where an uncached request can omit material work | Medium perceived latency when sections have genuinely different costs | Medium–high, 4–7 days |
-| 12 | Rebenchmark every cold analytics path and decide whether the compute-first phase is complete | Decision point for the 200 ms target and any storage work | Low, 1–2 days |
-| 13 | Future: cache base reports separately from selected projections | High for repeated requests, but deliberately deferred | Medium, 3–5 days |
-| 14 | Future: add revision-scoped derived rebuilds, bounded memoization, and single-flight | Very high for common and concurrent views, but deliberately deferred | High, 1–2 weeks |
-| 15 | Future: evaluate a database or persistent derived store if measurements justify it | Unknown until the compute-first phase is complete | High |
+| 6 | **Complete:** fix the benchmark forcing so a net-worth measurement covers the whole request | Corrected a 2.5x understatement; established the real baseline | Completed |
+| 7 | **Complete:** derive the current KPIs from the final periodic column | Removed both strict balance reports: 1.63 s → 733 ms at 50,000 | Completed |
+| 8 | **Complete:** consolidate asset and liability net-worth passes | Contributed to 733 ms → 670 ms; 406 ms → 287 ms on the reports alone | Completed |
+| 9 | **Complete:** consolidate income and expense cashflow passes | 283 ms → 191 ms at 50,000; 258 ms → 139 ms on the reports alone | Completed |
+| 10 | Share the safe half of the XIRR grid across prefixes | Low; ~0.5 s at 50,000 transactions | Low, 1–2 days |
+| 11 | Profile and reduce remaining request-local indexing, conversion, grouping, sorting, and allocation costs | Required to determine whether cold requests can reach 200 ms | Open-ended, measurement-led |
+| 12 | Run remaining independent calculations concurrently with a request-local bound | Low–medium wall-time improvement, no CPU reduction | Medium, 2–4 days |
+| 13 | **Declined for now:** clip the consolidated report behind a type-preservation guard | 62 ms at 50,000, but adds a branch, a fallback and a fixture | Low, 1–2 days |
+| 14 | **Rejected:** share the report window across reports | Measured regression; see the section above | Not viable |
+| 15 | Split endpoints further only where an uncached request can omit material work | Low; the three analytics endpoints are already separate routes | Medium–high, 4–7 days |
+| 16 | Rebenchmark every cold analytics path and decide whether the compute-first phase is complete | Decision point for the 200 ms target and any storage work | Low, 1–2 days |
+| 17 | Future: cache base reports separately from selected projections | High for repeated requests, but deliberately deferred | Medium, 3–5 days |
+| 18 | Future: add revision-scoped derived rebuilds, bounded memoization, and single-flight | Very high for common and concurrent views, but deliberately deferred | High, 1–2 weeks |
+| 19 | Future: evaluate a database or persistent derived store if measurements justify it | Unknown until the compute-first phase is complete | High |
 
 Effort values describe focused implementation time, not calendar promises.
 
@@ -669,10 +807,19 @@ family, normalized non-sensitive dimensions, request ID, revision, and timing.
 
 ## Recommended next slice
 
-1. Use the component benchmarks to investigate whether asset/cash and
-   liability periodic rows can come from one production report without changing
-   signs, breakdown depths, or missing-commodity behavior.
-2. Consolidate the compatible income/gain and expense cashflow passes, then
-   rebenchmark the component and whole-report paths on both fixtures.
-3. Profile the complete investment request again and reduce its remaining
-   request-local indexing, conversion, grouping, sorting, and allocation costs.
+Net worth and cashflow are now the cheap half of the analytics surface. At 50,000
+transactions net worth is ~670 ms against a 200 ms target, and the investments
+request is ~5.65 s — so the next work is on investments, not here.
+
+1. Audit the investment benchmark weight functions the same way `netWorthWeight`
+   was audited. Every net-worth figure this document carried was wrong because a
+   weight function skipped lazy fields; the investment weights have not been
+   checked for the same defect, and until they are, the ~5.65 s application
+   figure and the component attributions built on it are unverified.
+2. Profile the complete investment request and reduce its remaining request-local
+   indexing, conversion, grouping, sorting, and allocation costs.
+3. For net worth specifically, the remaining terms are the two hledger passes
+   themselves (~287 ms consolidated and ~288 ms gain at 50,000). Neither can be
+   removed without either the declined depth-clipping guard or a change in
+   valuation semantics, so net worth reaching 200 ms on this fixture probably
+   requires the deferred caching phase rather than more consolidation.
