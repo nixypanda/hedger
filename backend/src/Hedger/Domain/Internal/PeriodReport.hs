@@ -50,7 +50,7 @@ import Hedger.Domain.Period (
     takeLast,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..), conversionFromMixed)
+import Hedger.Domain.Valuation (Conversion (..), conversionFromMixed, missingCommodities)
 
 data TimelinePoint = TimelinePoint
     { period :: Text
@@ -226,7 +226,7 @@ reportTotals commodity side = fmap (conversionFromMixed commodity) side.columns
 reportMissing :: Text -> ReportSide -> Set Text
 reportMissing commodity side =
     Set.unions
-        [ (conversionFromMixed commodity amount).missing
+        [ missingCommodities commodity amount
         | amount <- side.columns <> concatMap (.prrAmounts) side.rows
         ]
 
