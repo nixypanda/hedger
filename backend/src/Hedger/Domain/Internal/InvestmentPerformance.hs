@@ -5,7 +5,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     InvestmentWarning (..),
     WarningKind (..),
     SummaryResult (..),
-    InvestmentPerformanceContext,
+    InvestmentPerformanceContext (..),
 
     -- * Performance calculation
     prepareInvestmentPerformance,
@@ -29,10 +29,14 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     journalWithHistoricalCosts,
     investmentQuery,
     attributedAt,
+    attributedAtWith,
     retainedPerformanceAt,
+    retainedPerformanceAtWith,
     hasAttributablePerformance,
     accountUsesExplicitCost,
     externalCashFlowsAt,
+    externalCashFlowsAtWith,
+    journalWithHistoricalCostsUsing,
 )
 where
 
