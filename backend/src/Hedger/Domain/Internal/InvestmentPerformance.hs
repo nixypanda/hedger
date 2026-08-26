@@ -5,8 +5,11 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     InvestmentWarning (..),
     WarningKind (..),
     SummaryResult (..),
+    InvestmentPerformanceContext,
 
     -- * Performance calculation
+    prepareInvestmentPerformance,
+    summaryAtPrepared,
     summaryAt,
     investmentSummaryAt,
     emptySummary,
@@ -45,6 +48,7 @@ import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Journal qualified as HledgerJournal
 import Hledger.Data.Period qualified as HledgerPeriod
 import Hledger.Data.Types qualified as Hledger
+import Hledger.Data.Valuation qualified as HledgerValuation
 import Hledger.Query qualified as HledgerQuery
 import Hledger.Reports.BalanceReport qualified as HledgerBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
@@ -107,6 +111,46 @@ data SummaryResult = SummaryResult
     , warnings :: [InvestmentWarning]
     }
 
+{- | Journal- and configuration-derived state shared by every summary in one
+investment report. Building this once is important: price-oracle construction
+and historical-cost conversion otherwise repeat for every timeline point and
+drill-down summary.
+-}
+data InvestmentPerformanceContext = InvestmentPerformanceContext
+    { snapshot :: Snapshot
+    , assetClasses :: Investment.AssetClassMappings
+    , mappings :: Investment.InvestmentMappings
+    , commodity :: Text
+    , valueAt :: Day -> Hledger.MixedAmount -> Hledger.MixedAmount
+    , historicalCostJournal :: Hledger.Journal
+    }
+
+prepareInvestmentPerformance ::
+    Snapshot ->
+    Investment.AssetClassMappings ->
+    Investment.InvestmentMappings ->
+    Text ->
+    InvestmentPerformanceContext
+prepareInvestmentPerformance snapshot assetClasses mappings commodity = context
+  where
+    priceOracle = HledgerValuation.journalPriceOracle False snapshot.journal
+    commodityStyles = HledgerJournal.journalCommodityStyles snapshot.journal
+    valueAt day =
+        HledgerValuation.mixedAmountValueAtDate
+            priceOracle
+            commodityStyles
+            (Just commodity)
+            day
+    context =
+        InvestmentPerformanceContext
+            { snapshot
+            , assetClasses
+            , mappings
+            , commodity
+            , valueAt
+            , historicalCostJournal = journalWithHistoricalCostsUsing valueAt snapshot commodity
+            }
+
 summaryAt ::
     Snapshot ->
     Investment.AssetClassMappings ->
@@ -116,16 +160,27 @@ summaryAt ::
     Day ->
     SummaryResult
 summaryAt snapshot assetClasses mappings commodity scope day =
-    let holdings = holdingsAt snapshot assetClasses scope day
+    summaryAtPrepared
+        (prepareInvestmentPerformance snapshot assetClasses mappings commodity)
+        scope
+        day
+
+summaryAtPrepared :: InvestmentPerformanceContext -> Maybe Text -> Day -> SummaryResult
+summaryAtPrepared context scope day =
+    let snapshot = context.snapshot
+        assetClasses = context.assetClasses
+        mappings = context.mappings
+        commodity = context.commodity
+        holdings = holdingsAt snapshot assetClasses scope day
         costHoldings =
             holdingsAtWithJournal
-                (journalWithHistoricalCosts snapshot commodity)
+                context.historicalCostJournal
                 assetClasses
                 scope
                 day
         costRaw = HledgerAmount.mixedAmountCost costHoldings
-        valueRaw = valueMixedAt snapshot commodity day holdings
-        costValued = valueMixedAt snapshot commodity day costRaw
+        valueRaw = context.valueAt day holdings
+        costValued = context.valueAt day costRaw
         hasHoldings = any ((>= 0.000001) . abs . (.aquantity)) (HledgerAmount.amountsRaw holdings)
         market = completeDecimal commodity valueRaw
         rawMissingCost =
@@ -153,13 +208,21 @@ summaryAt snapshot assetClasses mappings commodity scope day =
                 && all (hasAttributablePerformance snapshot mappings day) relevantAccounts
         retained =
             if mappingComplete
-                then retainedPerformanceAt snapshot assetClasses mappings commodity scope day
+                then
+                    retainedPerformanceAtWith
+                        context.valueAt
+                        snapshot
+                        assetClasses
+                        mappings
+                        commodity
+                        scope
+                        day
                 else Just 0
         cost = (-) <$> reportedCost <*> retained
         calculatedGain = (-) <$> market <*> reportedCost
         attributed =
             if mappingComplete
-                then attributedAt snapshot assetClasses mappings commodity scope day
+                then attributedAtWith context.valueAt snapshot assetClasses mappings commodity scope day
                 else Nothing
         income = attributed >>= (Just . (\(value, _, _) -> value))
         realised = attributed >>= (Just . (\(_, value, _) -> value))
@@ -167,7 +230,7 @@ summaryAt snapshot assetClasses mappings commodity scope day =
         total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
         xirrResult =
             if mappingComplete
-                then xirrAt snapshot assetClasses mappings commodity scope day market
+                then xirrAtWith context.valueAt snapshot assetClasses mappings commodity scope day market
                 else Nothing
         annualisedReturn = xirrResult >>= either (const Nothing) Just
         unresolvedReturn = maybe False (either isNonTrivialXirrError (const False)) xirrResult
@@ -254,6 +317,14 @@ holdingsAtWithJournal journal assetClasses scope day =
 
 journalWithHistoricalCosts :: Snapshot -> Text -> Hledger.Journal
 journalWithHistoricalCosts snapshot commodity =
+    journalWithHistoricalCostsUsing (valueMixedAt snapshot commodity) snapshot commodity
+
+journalWithHistoricalCostsUsing ::
+    (Day -> Hledger.MixedAmount -> Hledger.MixedAmount) ->
+    Snapshot ->
+    Text ->
+    Hledger.Journal
+journalWithHistoricalCostsUsing valueAt snapshot commodity =
     snapshot.journal
         { Hledger.jtxns = convertTransaction <$> snapshot.journal.jtxns
         }
@@ -283,7 +354,7 @@ journalWithHistoricalCosts snapshot commodity =
         fromMaybe
             amount
             ( HledgerAmount.unifyMixedAmount
-                (valueMixedAt snapshot commodity day (HledgerAmount.mixedAmount amount))
+                (valueAt day (HledgerAmount.mixedAmount amount))
             )
     inferredCashCost day account amount
         | "assets:cash" `accountWithin` account
@@ -293,9 +364,7 @@ journalWithHistoricalCosts snapshot commodity =
     historicalUnitPrice day amount = do
         valued <-
             HledgerAmount.unifyMixedAmount
-                ( valueMixedAt
-                    snapshot
-                    commodity
+                ( valueAt
                     day
                     ( HledgerAmount.mixedAmount
                         amount
@@ -337,6 +406,18 @@ attributedAt ::
     Day ->
     Maybe (Decimal, Decimal, Decimal)
 attributedAt snapshot assetClasses mappings commodity scope day =
+    attributedAtWith (valueMixedAt snapshot commodity) snapshot assetClasses mappings commodity scope day
+
+attributedAtWith ::
+    (Day -> Hledger.MixedAmount -> Hledger.MixedAmount) ->
+    Snapshot ->
+    Investment.AssetClassMappings ->
+    Investment.InvestmentMappings ->
+    Text ->
+    Maybe Text ->
+    Day ->
+    Maybe (Decimal, Decimal, Decimal)
+attributedAtWith valueAt snapshot assetClasses mappings commodity scope day =
     foldl combine (Just (0, 0, 0)) contributions
   where
     selectedMappings =
@@ -351,7 +432,7 @@ attributedAt snapshot assetClasses mappings commodity scope day =
             quantity <-
                 completeDecimal
                     commodity
-                    (valueMixedAt snapshot commodity transaction.tdate posting.pamount)
+                    (valueAt transaction.tdate posting.pamount)
             pure $ case performance.role of
                 Investment.RealisedGain -> (0, negate quantity, 0)
                 Investment.Fee -> (0, 0, negate quantity)
@@ -381,6 +462,25 @@ retainedPerformanceAt ::
     Day ->
     Maybe Decimal
 retainedPerformanceAt snapshot assetClasses mappings commodity scope day =
+    retainedPerformanceAtWith
+        (valueMixedAt snapshot commodity)
+        snapshot
+        assetClasses
+        mappings
+        commodity
+        scope
+        day
+
+retainedPerformanceAtWith ::
+    (Day -> Hledger.MixedAmount -> Hledger.MixedAmount) ->
+    Snapshot ->
+    Investment.AssetClassMappings ->
+    Investment.InvestmentMappings ->
+    Text ->
+    Maybe Text ->
+    Day ->
+    Maybe Decimal
+retainedPerformanceAtWith valueAt snapshot assetClasses mappings commodity scope day =
     fmap sum (traverse id retainedAmounts)
   where
     selectedMappings =
@@ -393,7 +493,7 @@ retainedPerformanceAt snapshot assetClasses mappings commodity scope day =
     retainedAmounts =
         [ fmap
             (max 0)
-            (completeDecimal commodity (valueMixedAt snapshot commodity transaction.tdate posting.pamount))
+            (completeDecimal commodity (valueAt transaction.tdate posting.pamount))
         | mapping <- selectedMappings
         , transaction <- snapshot.transactions
         , transaction.tdate <= day
@@ -437,6 +537,25 @@ externalCashFlowsAt ::
     Day ->
     Maybe [Xirr.CashFlow]
 externalCashFlowsAt snapshot assetClasses mappings commodity scope day =
+    externalCashFlowsAtWith
+        (valueMixedAt snapshot commodity)
+        snapshot
+        assetClasses
+        mappings
+        commodity
+        scope
+        day
+
+externalCashFlowsAtWith ::
+    (Day -> Hledger.MixedAmount -> Hledger.MixedAmount) ->
+    Snapshot ->
+    Investment.AssetClassMappings ->
+    Investment.InvestmentMappings ->
+    Text ->
+    Maybe Text ->
+    Day ->
+    Maybe [Xirr.CashFlow]
+externalCashFlowsAtWith valueAt snapshot assetClasses mappings commodity scope day =
     traverse transactionCashFlow relevantTransactions
   where
     selectedMappings =
@@ -480,7 +599,7 @@ externalCashFlowsAt snapshot assetClasses mappings commodity scope day =
     valuePostings transaction =
         fmap sum
             . traverse
-                (completeDecimal commodity . valueMixedAt snapshot commodity transaction.tdate . (.pamount))
+                (completeDecimal commodity . valueAt transaction.tdate . (.pamount))
     isSelectedPerformancePosting transaction posting =
         any
             ( \mapping ->
@@ -491,12 +610,8 @@ externalCashFlowsAt snapshot assetClasses mappings commodity scope day =
             )
             selectedMappings
 
-{- | The terminal XIRR, exposing the underlying 'Xirr.XirrError' when the rate
-could not be resolved so that callers can distinguish a genuine ambiguity from
-plain data insufficiency. 'Nothing' means the cash flows or terminal value
-were themselves unavailable, so no rate could even be attempted.
--}
-xirrAt ::
+xirrAtWith ::
+    (Day -> Hledger.MixedAmount -> Hledger.MixedAmount) ->
     Snapshot ->
     Investment.AssetClassMappings ->
     Investment.InvestmentMappings ->
@@ -505,8 +620,8 @@ xirrAt ::
     Day ->
     Maybe Decimal ->
     Maybe (Either Xirr.XirrError Decimal)
-xirrAt snapshot assetClasses mappings commodity scope day terminalMarket = do
-    flows <- externalCashFlowsAt snapshot assetClasses mappings commodity scope day
+xirrAtWith valueAt snapshot assetClasses mappings commodity scope day terminalMarket = do
+    flows <- externalCashFlowsAtWith valueAt snapshot assetClasses mappings commodity scope day
     terminal <- terminalMarket
     pure (Xirr.annualRate <$> Xirr.xirr (flows <> [Xirr.cashFlow day terminal]))
 

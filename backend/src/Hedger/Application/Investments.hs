@@ -13,6 +13,7 @@ import Control.Monad.Except (throwError)
 import Control.Monad.Reader (asks)
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -30,8 +31,9 @@ import Hedger.Domain.InvestmentPerformance (
     SummaryResult (..),
     immediateChildren,
     investmentDataTransactions,
+    prepareInvestmentPerformance,
     reportPeriods,
-    summaryAt,
+    summaryAtPrepared,
     validateScope,
  )
 import Hedger.Domain.Period (Granularity, epoch, lastMaybe)
@@ -97,25 +99,48 @@ investments request = do
         responseMetadata = metadataFor snapshotContext
         commodity = fromMaybe config.defaultDisplayCommodity (request.displayCommodity >>= nonEmpty)
         latest = fromMaybe epoch snapshot.latestJournalDate
-        summaryFor selectedScope selectedDay =
-            summaryAt
+        performance =
+            prepareInvestmentPerformance
                 snapshot
                 config.assetClassMappings
                 config.investmentMappings
                 commodity
-                selectedScope
-                selectedDay
+        dataTransactions = investmentDataTransactions snapshot config.assetClassMappings scope
+        periods = reportPeriods request.granularity dataTransactions latest
+        childAccounts = immediateChildren snapshot config.assetClassMappings scope
+        allocationScopes =
+            [ Just prefix
+            | mapping <- Investment.assetClassMappingsList config.assetClassMappings
+            , prefix <- mapping.accountPrefixes
+            ]
+        summaryKeys =
+            List.nub
+                ( (scope, latest)
+                    : [(scope, end) | (_, _, end) <- periods]
+                        <> [(Just child, latest) | child <- childAccounts]
+                        <> [ (allocationScope, latest)
+                           | scope == Nothing
+                           , allocationScope <- allocationScopes
+                           ]
+                )
+        summaries =
+            Map.fromList
+                [ (key, summaryAtPrepared performance selectedScope selectedDay)
+                | key@(selectedScope, selectedDay) <- summaryKeys
+                ]
+        summaryFor selectedScope selectedDay =
+            fromMaybe
+                (summaryAtPrepared performance selectedScope selectedDay)
+                (Map.lookup (selectedScope, selectedDay) summaries)
         current = summaryFor scope latest
         hasInvestments = current.summary.marketValue /= Nothing || current.summary.purchaseCost /= Nothing
-        dataTransactions = investmentDataTransactions snapshot config.assetClassMappings scope
         points =
             if hasInvestments
                 then
                     [ InvestmentPoint key start (summaryFor scope end).summary
-                    | (key, start, end) <- reportPeriods request.granularity dataTransactions latest
+                    | (key, start, end) <- periods
                     ]
                 else []
-        childAccounts = immediateChildren snapshot config.assetClassMappings scope
         children = fmap childReport childAccounts
         allocations =
             if scope == Nothing

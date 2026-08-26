@@ -8,7 +8,7 @@ import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian, toGregorian)
+import Data.Time (Day, addDays, fromGregorian)
 import Hedger.Application.AccountRegisterQuery (
     RegisterEntry (..),
     RegisterPage (..),
@@ -24,10 +24,12 @@ import Hedger.Application.TransactionQuery (
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
 import Hedger.Domain.Investment (
+    AssetClass (..),
+    AssetClassMapping (..),
     InvestmentMapping (..),
     PerformanceAccount (..),
     PerformanceRole (..),
-    emptyAssetClassMappings,
+    mkAssetClassMappings,
     mkInvestmentMappings,
  )
 import Hedger.Domain.Investment qualified as Investment
@@ -90,7 +92,7 @@ fixtureBenchmarks (name, path) =
                     "investments"
                     [ bench "current" $ nf (summaryWeight . investmentSummary snapshot) input.latest
                     , bench "monthly-24" $
-                        nf (sum . fmap (summaryWeight . investmentSummary snapshot)) input.monthEnds
+                        nf (sum . fmap summaryWeight . investmentSummaries snapshot) input.monthEnds
                     ]
                 , bgroup
                     "analytics"
@@ -167,11 +169,17 @@ loadFixtureInput :: Text.Text -> IO FixtureInput
 loadFixtureInput path = do
     snapshot <- loadFixtureAt path
     let latest = fromMaybe (error "benchmark fixture has no date") snapshot.latestJournalDate
+        transactions = Performance.investmentDataTransactions snapshot benchmarkAssetClassMappings Nothing
+        monthEnds = (\(_, _, end) -> end) <$> Performance.reportPeriods Monthly transactions latest
+        current = investmentSummary snapshot latest
+    case current.marketValue of
+        Nothing -> fail "investment benchmark fixture produced an empty portfolio"
+        Just _ -> pure ()
     pure
         FixtureInput
             { snapshot
             , latest
-            , monthEnds = monthlyPeriodEnds latest
+            , monthEnds
             , xirrFlows = deriveXirrFlows snapshot
             , -- A production transactions page is capped at 'maximumPageLimit' (200),
               -- so projection/encoding never see more than that many rows.
@@ -208,7 +216,25 @@ queryWeight snapshot query =
 
 investmentSummary :: Snapshot -> Day -> Performance.InvestmentSummary
 investmentSummary snapshot day =
-    Performance.investmentSummaryAt snapshot emptyAssetClassMappings benchmarkMappings "INR" Nothing day
+    Performance.investmentSummaryAt
+        snapshot
+        benchmarkAssetClassMappings
+        benchmarkMappings
+        "INR"
+        Nothing
+        day
+
+investmentSummaries :: Snapshot -> [Day] -> [Performance.InvestmentSummary]
+investmentSummaries snapshot days =
+    let context =
+            Performance.prepareInvestmentPerformance
+                snapshot
+                benchmarkAssetClassMappings
+                benchmarkMappings
+                "INR"
+     in [ (Performance.summaryAtPrepared context Nothing day).summary
+        | day <- days
+        ]
 
 summaryWeight :: Performance.InvestmentSummary -> Int
 summaryWeight summary =
@@ -227,23 +253,33 @@ benchmarkMappings :: Investment.InvestmentMappings
 benchmarkMappings =
     either (error . Text.unpack) id $
         mkInvestmentMappings
-            [ InvestmentMapping
-                { assetAccount = "assets"
-                , performanceAccounts =
-                    [ PerformanceAccount "income:interest" Interest
-                    , PerformanceAccount "income:dividend" Dividend
-                    ]
-                }
+            [ mapping "assets:debt:fd" ["income:interest:fd"]
+            , mapping "assets:debt:epf:india:nimbusworks" ["income:interest:epf"]
+            , mapping "assets:debt:eps:india:nimbusworks" ["income:interest:eps"]
+            , mapping "assets:debt:ppf:india:varuna" ["income:interest:ppf"]
+            , mapping "assets:hybrid:india:nps:monsoon" ["income:interest:nps"]
+            , mapping "assets:liquid" ["income:interest:liquid"]
+            , mapping "assets:equity" ["income:dividend:india", "income:dividend:us"]
             ]
-
-monthlyPeriodEnds :: Day -> [Day]
-monthlyPeriodEnds latest =
-    [ min latest (addDays (-1) (addGregorianMonthsClip 1 (addGregorianMonthsClip offset finalStart)))
-    | offset <- [-23 .. 0]
-    ]
   where
-    (year, month, _) = toGregorian latest
-    finalStart = fromGregorian year month 1
+    mapping assetAccount performanceAccounts =
+        InvestmentMapping
+            { assetAccount
+            , performanceAccounts =
+                [ PerformanceAccount account OtherIncome
+                | account <- performanceAccounts
+                ]
+            }
+
+benchmarkAssetClassMappings :: Investment.AssetClassMappings
+benchmarkAssetClassMappings =
+    either (error . Text.unpack) id $
+        mkAssetClassMappings
+            [ AssetClassMapping Equity ["assets:equity"] (Just 60)
+            , AssetClassMapping Debt ["assets:debt"] (Just 25)
+            , AssetClassMapping Cash ["assets:liquid"] (Just 5)
+            , AssetClassMapping Hybrid ["assets:hybrid"] (Just 10)
+            ]
 
 -- * Analytics: net worth and cashflow both iterate every period across the
 

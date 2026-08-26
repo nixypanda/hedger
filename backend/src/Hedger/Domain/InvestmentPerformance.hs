@@ -5,8 +5,11 @@ module Hedger.Domain.InvestmentPerformance (
     InvestmentWarning (..),
     WarningKind (..),
     SummaryResult (..),
+    InvestmentPerformanceContext,
 
     -- * Performance calculation
+    prepareInvestmentPerformance,
+    summaryAtPrepared,
     summaryAt,
     investmentSummaryAt,
 
