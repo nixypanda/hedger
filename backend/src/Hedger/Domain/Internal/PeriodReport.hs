@@ -110,12 +110,12 @@ periodicBalanceReport
         windowQuery =
             HledgerQuery.And
                 ( HledgerQuery.Type accountTypes
-                    : case (granularity, snapshot.latestJournalDate) of
-                        (Yearly, Just latest) ->
+                    : case snapshot.latestJournalDate of
+                        Just latest ->
                             [ HledgerQuery.Date
                                 (HledgerPeriod.periodAsDateSpan (Hledger.PeriodTo (addDays 1 latest)))
                             ]
-                        _ -> []
+                        Nothing -> []
                 )
         reportSpec =
             HledgerReportOptions.defreportspec
@@ -127,7 +127,17 @@ periodicBalanceReport
                         , HledgerQuery.Date (HledgerPeriod.periodAsDateSpan reportPeriod)
                         ]
                 }
-        filteredJournal = snapshot.journal{Hledger.jtxns = transactions}
+        filteredJournal =
+            snapshot.journal
+                { Hledger.jtxns = transactions
+                , Hledger.jpricedirectives = pricesThroughLatest
+                }
+        pricesThroughLatest =
+            -- hledger expands the final interval to its calendar boundary, so
+            -- the price oracle must also exclude directives beyond the cutoff.
+            case snapshot.latestJournalDate of
+                Nothing -> snapshot.journal.jpricedirectives
+                Just latest -> filter ((<= latest) . Hledger.pddate) snapshot.journal.jpricedirectives
 
 reportWindow ::
     Granularity ->

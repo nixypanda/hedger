@@ -319,6 +319,32 @@ The useful version of this task is therefore narrower: make the periodic window
 end at `latestJournalDate`, and keep `requireComplete` as an application-layer
 projection, rather than deleting the reports.
 
+#### Completed: align the periodic window to the latest journal date
+
+The monthly report-window query now carries the same explicit end date as the
+yearly query. The report journal also excludes price directives after
+`latestJournalDate`: hledger expands the final interval to its calendar
+boundary, so narrowing only the query still allowed `AtEnd` valuation to see a
+later price inside that month or year.
+
+The distinct strict current reports remain in place. A regression fixture pins
+the boundary by providing one price on the final transaction date and another
+later in the month; the periodic value and strict current value both use the
+former.
+
+Paired warm-build wall-clock measurements with `-O1` and a 10% benchmark
+variance target were:
+
+| Fixture | Before | After | Time reduction | Allocation reduction |
+|---|---:|---:|---:|---:|
+| 5,000 | ~133 ms | **~119 ms** | **10.5%** | **5.5%** (146 MB → 138 MB) |
+| 50,000 | ~698 ms | **~662 ms** | **5.2%** | **3.3%** (779 MB → 753 MB) |
+
+The timing deltas are directional and overlap the reported variance; the
+allocation reductions are deterministic. This is a useful but modest gain, so
+the current asset/cash balance and remaining report passes are still the main
+net-worth targets.
+
 #### Share assets and liabilities where possible
 
 Investigate running one periodic report over assets, cash, and liabilities, then
@@ -535,7 +561,7 @@ efficient calculation, not a replacement for one.
 | 2 | **Complete:** add an endpoint-level investments benchmark | Measured the combined 50,000-transaction cold application path at ~5.65 s and 13 GB allocated | Completed |
 | 3 | **Complete:** add net-worth component benchmarks | Identified the strict current asset/cash balance as the largest measured 50,000-transaction component | Completed |
 | 4 | **Complete:** add cashflow component benchmarks | Measured the two 50,000-transaction periodic passes at ~105 ms and ~139 ms | Completed |
-| 5 | Align the net-worth periodic window to the latest journal date | Medium; preserves valuation and completeness semantics while reducing work | Low–medium, 1–3 days |
+| 5 | **Complete:** align the net-worth periodic window to the latest journal date | 10.5% faster at 5,000 and 5.2% faster at 50,000 transactions in paired measurements | Completed |
 | 6 | Consolidate asset and liability net-worth passes | Medium–high if hledger semantics allow it | Medium–high, 4–8 days |
 | 7 | Consolidate income and expense cashflow passes | Potentially high; both currently use `CalcChange` and `PerPeriod` | Medium, 3–5 days |
 | 8 | Share the safe half of the XIRR grid across prefixes | Low; ~0.5 s at 50,000 transactions | Low, 1–2 days |
@@ -643,10 +669,10 @@ family, normalized non-sensitive dimensions, request ID, revision, and timing.
 
 ## Recommended next slice
 
-1. Align the net-worth periodic window to `latestJournalDate`, preserving the
-   distinct strict current-value and lenient historical completeness semantics.
-2. Use the new component benchmarks to investigate whether asset/cash and
+1. Use the component benchmarks to investigate whether asset/cash and
    liability periodic rows can come from one production report without changing
    signs, breakdown depths, or missing-commodity behavior.
-3. Consolidate the compatible income/gain and expense cashflow passes, then
+2. Consolidate the compatible income/gain and expense cashflow passes, then
    rebenchmark the component and whole-report paths on both fixtures.
+3. Profile the complete investment request again and reduce its remaining
+   request-local indexing, conversion, grouping, sorting, and allocation costs.

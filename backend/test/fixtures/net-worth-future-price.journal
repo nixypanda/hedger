@@ -1,0 +1,11 @@
+; The price after the final transaction must not affect the final net-worth period.
+
+commodity INR
+commodity FUND
+
+P 2024-04-02 FUND INR 100
+P 2024-04-30 FUND INR 200
+
+2024-04-02 Opening investment
+    assets:investments    FUND 1
+    equity:opening       FUND -1
