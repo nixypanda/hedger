@@ -255,9 +255,7 @@ investmentSummaries snapshot days =
                 benchmarkAssetClassMappings
                 benchmarkMappings
                 "INR"
-     in [ (Performance.summaryAtPrepared context Nothing day).summary
-        | day <- days
-        ]
+     in (.summary) <$> Performance.summariesAtPrepared context Nothing Monthly days
 
 prepareContext :: Snapshot -> Performance.InvestmentPerformanceContext
 prepareContext snapshot =

@@ -10,6 +10,7 @@ module Hedger.Domain.InvestmentPerformance (
     -- * Performance calculation
     prepareInvestmentPerformance,
     summaryAtPrepared,
+    summariesAtPrepared,
     summaryAt,
     investmentSummaryAt,
 

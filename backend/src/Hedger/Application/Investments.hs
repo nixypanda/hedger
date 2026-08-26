@@ -34,6 +34,7 @@ import Hedger.Domain.InvestmentPerformance (
     investmentDataTransactions,
     prepareInvestmentPerformance,
     reportPeriods,
+    summariesAtPrepared,
     summaryAtPrepared,
     validateScope,
  )
@@ -115,15 +116,20 @@ investments request = do
             | mapping <- Investment.assetClassMappingsList config.assetClassMappings
             , prefix <- mapping.accountPrefixes
             ]
+        periodDays = List.nub [end | (_, _, end) <- periods]
+        periodSummaries =
+            Map.fromList
+                (zip periodDays (summariesAtPrepared performance scope request.granularity periodDays))
+        -- (scope, latest) is dropped from summaryKeys when the timeline already covers it,
+        -- so `current` reuses that result instead of recomputing it on the singular path.
         summaryKeys =
             List.nub
-                ( (scope, latest)
-                    : [(scope, end) | (_, _, end) <- periods]
-                        <> [(Just child, latest) | child <- childAccounts]
-                        <> [ (allocationScope, latest)
-                           | scope == Nothing
-                           , allocationScope <- allocationScopes
-                           ]
+                ( [(scope, latest) | Map.notMember latest periodSummaries]
+                    <> [(Just child, latest) | child <- childAccounts]
+                    <> [ (allocationScope, latest)
+                       | scope == Nothing
+                       , allocationScope <- allocationScopes
+                       ]
                 )
         summaries =
             Map.fromList
@@ -134,12 +140,14 @@ investments request = do
             fromMaybe
                 (summaryAtPrepared performance selectedScope selectedDay)
                 (Map.lookup (selectedScope, selectedDay) summaries)
-        current = summaryFor scope latest
+        periodSummaryAt day =
+            fromMaybe (summaryAtPrepared performance scope day) (Map.lookup day periodSummaries)
+        current = fromMaybe (summaryFor scope latest) (Map.lookup latest periodSummaries)
         hasInvestments = current.summary.marketValue /= Nothing || current.summary.purchaseCost /= Nothing
         points =
             if hasInvestments
                 then
-                    [ InvestmentPoint key start (summaryFor scope end).summary
+                    [ InvestmentPoint key start (periodSummaryAt end).summary
                     | (key, start, end) <- periods
                     ]
                 else []

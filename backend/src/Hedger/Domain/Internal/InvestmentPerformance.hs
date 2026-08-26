@@ -10,6 +10,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     -- * Performance calculation
     prepareInvestmentPerformance,
     summaryAtPrepared,
+    summariesAtPrepared,
     summaryAt,
     investmentSummaryAt,
     emptySummary,
@@ -179,17 +180,44 @@ summaryAt snapshot assetClasses mappings commodity scope day =
 
 summaryAtPrepared :: InvestmentPerformanceContext -> Maybe Text -> Day -> SummaryResult
 summaryAtPrepared context scope day =
+    summaryFromHoldings
+        context
+        scope
+        day
+        (holdingsAt context.snapshot context.assetClasses scope day)
+        (holdingsAtWithJournal context.historicalCostJournal context.assetClasses scope day)
+
+{- | Every summary in one investment timeline, computed with two bulk
+'holdingsSeriesAtWithJournal' calls instead of two 'balanceReport's per day.
+-}
+summariesAtPrepared ::
+    InvestmentPerformanceContext -> Maybe Text -> Granularity -> [Day] -> [SummaryResult]
+summariesAtPrepared context scope granularity days =
+    zipWith3
+        (summaryFromHoldings context scope)
+        days
+        (holdingsSeriesAtWithJournal context.snapshot.journal context.assetClasses scope granularity days)
+        ( holdingsSeriesAtWithJournal
+            context.historicalCostJournal
+            context.assetClasses
+            scope
+            granularity
+            days
+        )
+
+-- | The per-day summary calculation, shared by the single-day and bulk entry points.
+summaryFromHoldings ::
+    InvestmentPerformanceContext ->
+    Maybe Text ->
+    Day ->
+    Hledger.MixedAmount ->
+    Hledger.MixedAmount ->
+    SummaryResult
+summaryFromHoldings context scope day holdings costHoldings =
     let snapshot = context.snapshot
         assetClasses = context.assetClasses
         mappings = context.mappings
         commodity = context.commodity
-        holdings = holdingsAt snapshot assetClasses scope day
-        costHoldings =
-            holdingsAtWithJournal
-                context.historicalCostJournal
-                assetClasses
-                scope
-                day
         costRaw = HledgerAmount.mixedAmountCost costHoldings
         valueRaw = context.valueAt day holdings
         costValued = context.valueAt day costRaw
