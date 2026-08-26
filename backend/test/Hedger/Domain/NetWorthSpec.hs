@@ -21,7 +21,8 @@ netWorthSpec =
             finalMonthlyPeriodUsesLatestJournalDate
         , testGroup
             "current KPIs agree with the standalone strict balance reports"
-            [ testCase (label journal granularity commodity) (currentAgreesWithReference journal granularity commodity)
+            [ testCase (label journal granularity commodity) $
+                currentAgreesWithReference journal granularity commodity
             | journal <- referenceJournals
             , granularity <- [Monthly, Yearly]
             , commodity <- ["INR", "USD"]

@@ -3,6 +3,7 @@ here lets the calculation and its component benchmarks exercise the same
 hledger options.
 -}
 module Hedger.Domain.Internal.NetWorth (
+    assetLiabilityPeriodicReport,
     assetCashPeriodicReport,
     liabilityPeriodicReport,
     gainPeriodicReport,
@@ -28,6 +29,27 @@ import Hedger.Domain.Period (Granularity)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion, complete, conversionFromMixed, requireComplete)
 
+{- | Assets, cash and liabilities in a single report; each side is selected out
+of it afterwards by account type. Built unclipped so that summing a side's rows
+still reproduces that side's totals.
+-}
+assetLiabilityPeriodicReport ::
+    Snapshot ->
+    [Hledger.Transaction] ->
+    Granularity ->
+    Text ->
+    HledgerMultiBalance.MultiBalanceReport
+assetLiabilityPeriodicReport snapshot transactions granularity commodity =
+    periodicBalanceReport
+        snapshot
+        transactions
+        granularity
+        commodity
+        [Hledger.Asset, Hledger.Cash, Hledger.Liability]
+        HledgerReportOptions.CalcChange
+        HledgerReportOptions.Historical
+        Nothing
+
 assetCashPeriodicReport ::
     Snapshot ->
     [Hledger.Transaction] ->
@@ -44,7 +66,7 @@ assetCashPeriodicReport snapshot transactions granularity commodity depth =
         [Hledger.Asset, Hledger.Cash]
         HledgerReportOptions.CalcChange
         HledgerReportOptions.Historical
-        depth
+        (Just depth)
 
 liabilityPeriodicReport ::
     Snapshot ->
@@ -62,7 +84,7 @@ liabilityPeriodicReport snapshot transactions granularity commodity depth =
         [Hledger.Liability]
         HledgerReportOptions.CalcChange
         HledgerReportOptions.Historical
-        depth
+        (Just depth)
 
 gainPeriodicReport ::
     Snapshot ->
@@ -79,7 +101,7 @@ gainPeriodicReport snapshot transactions granularity commodity =
         [Hledger.Asset, Hledger.Cash, Hledger.Liability]
         HledgerReportOptions.CalcGain
         HledgerReportOptions.Historical
-        1
+        (Just 1)
 
 currentAssetCashBalance :: Snapshot -> [Hledger.Transaction] -> Text -> Conversion Decimal
 currentAssetCashBalance snapshot transactions commodity =

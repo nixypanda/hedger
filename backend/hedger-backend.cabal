@@ -140,6 +140,7 @@ test-suite hedger-backend-test
     Hedger.Domain.InvestmentPerformanceSpec
     Hedger.Domain.InvestmentSpec
     Hedger.Domain.NetWorthSpec
+    Hedger.Domain.PeriodReportSpec
     Hedger.ConfigSpec
     Hedger.Domain.PeriodSpec
     Hedger.Domain.TransactionSpec

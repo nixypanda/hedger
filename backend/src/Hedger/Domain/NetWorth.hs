@@ -19,22 +19,20 @@ import Data.Text (Text)
 import Data.Time (Day)
 
 import Hledger.Data.Types qualified as Hledger
-import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 
-import Hedger.Domain.Internal.NetWorth (
-    assetCashPeriodicReport,
-    gainPeriodicReport,
-    liabilityPeriodicReport,
- )
+import Hedger.Domain.Internal.NetWorth (assetLiabilityPeriodicReport, gainPeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
+    ReportSide,
     TimelinePoint (..),
     breakdownItemsFor,
     periodsWithData,
     reportMissing,
     reportPeriodsFrom,
+    reportSide,
     reportTotals,
     selectedPeriod,
+    wholeReport,
  )
 import Hedger.Domain.Period (Granularity, ReportPeriod (..), lastMaybe)
 import Hedger.Domain.Snapshot (Snapshot (..))
@@ -89,14 +87,16 @@ computeNetWorth snapshot matched granularity commodity positiveReq negativeReq p
         , missing = historyMissing <> performanceMissing <> currentMissing
         }
   where
-    assetReport = assetCashPeriodicReport snapshot matched granularity commodity positiveDepth
-    liabilityReport = liabilityPeriodicReport snapshot matched granularity commodity negativeDepth
-    gainReport = gainPeriodicReport snapshot matched granularity commodity
-    reportPeriods = reportPeriodsFrom granularity assetReport
+    combinedReport = assetLiabilityPeriodicReport snapshot matched granularity commodity
+    assetSide = reportSide snapshot.journal [Hledger.Asset, Hledger.Cash] combinedReport
+    liabilitySide = reportSide snapshot.journal [Hledger.Liability] combinedReport
+    -- CalcGain is a different balance calculation, so it cannot share the report above.
+    gainSide = wholeReport (gainPeriodicReport snapshot matched granularity commodity)
+    reportPeriods = reportPeriodsFrom granularity combinedReport
     dataPeriods = periodsWithData granularity matched reportPeriods
     dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
-    assetTotals = reportTotals commodity assetReport
-    liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilityReport)
+    assetTotals = reportTotals commodity assetSide
+    liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilitySide)
     allPoints = zipWith3 netWorthPointFrom reportPeriods assetTotals liabilityTotals
     points = filter ((`Set.member` dataPeriodKeys) . (.period)) allPoints
     assetsBreakdown =
@@ -105,20 +105,20 @@ computeNetWorth snapshot matched granularity commodity positiveReq negativeReq p
             positiveDepth
             (selectedPeriod positiveReq dataPeriods)
             reportPeriods
-            assetReport
+            assetSide
     liabilitiesBreakdown =
         breakdownItemsFor
             commodity
             negativeDepth
             (selectedPeriod negativeReq dataPeriods)
             reportPeriods
-            liabilityReport
+            liabilitySide
     performanceResults =
         filter
             (maybe False ((`Set.member` dataPeriodKeys) . (.period)) . (.value))
-            (performanceFrom commodity reportPeriods allPoints assetTotals liabilityTotals gainReport)
-    performanceMissing = reportMissing commodity gainReport
-    historyMissing = reportMissing commodity assetReport <> reportMissing commodity liabilityReport
+            (performanceFrom commodity reportPeriods allPoints assetTotals liabilityTotals gainSide)
+    performanceMissing = reportMissing commodity gainSide
+    historyMissing = reportMissing commodity assetSide <> reportMissing commodity liabilitySide
     assetsCurrent = strictLatest assetTotals
     liabilitiesCurrent = strictLatest liabilityTotals
     currentMissing = assetsCurrent.missing <> liabilitiesCurrent.missing
@@ -153,14 +153,14 @@ performanceFrom ::
     [TimelinePoint] ->
     [Conversion Decimal] ->
     [Conversion Decimal] ->
-    HledgerMultiBalance.MultiBalanceReport ->
+    ReportSide ->
     [Conversion PerformancePoint]
-performanceFrom commodity periods netWorthPoints assetResults liabilityResults gainReport =
+performanceFrom commodity periods netWorthPoints assetResults liabilityResults gainSide =
     zipWith3
         toPerformance
         periods
         netWorthPoints
-        (zip3 assetResults liabilityResults (reportTotals commodity gainReport))
+        (zip3 assetResults liabilityResults (reportTotals commodity gainSide))
   where
     toPerformance period worthPoint (assetResult, liabilityResult, gainResult) =
         let missing = assetResult.missing <> liabilityResult.missing <> gainResult.missing

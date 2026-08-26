@@ -136,12 +136,14 @@ fixtureBenchmarks (name, path) =
                     ]
                 , bgroup
                     "cashflow-parts"
-                    [ bench "income-gain-periodic" $ nf incomeGainPeriodicWeight snapshot
+                    [ bench "income-expense-periodic" $ nf incomeExpensePeriodicWeight snapshot
+                    , bench "income-gain-periodic" $ nf incomeGainPeriodicWeight snapshot
                     , bench "expense-periodic" $ nf expensePeriodicWeight snapshot
                     ]
                 , bgroup
                     "networth-parts"
-                    [ bench "asset-cash-periodic" $ nf assetCashPeriodicWeight snapshot
+                    [ bench "asset-liability-periodic" $ nf assetLiabilityPeriodicWeight snapshot
+                    , bench "asset-cash-periodic" $ nf assetCashPeriodicWeight snapshot
                     , bench "liability-periodic" $ nf liabilityPeriodicWeight snapshot
                     , bench "gain-periodic" $ nf gainPeriodicWeight snapshot
                     , bench "current-asset-cash-balance" $ nf currentAssetCashWeight snapshot
@@ -562,6 +564,11 @@ performanceWeight :: PerformancePoint -> Int
 performanceWeight point =
     length (show point.netInvestment) + length (show point.netWorth) + length (show point.gainLoss)
 
+incomeExpensePeriodicWeight :: Snapshot -> Int
+incomeExpensePeriodicWeight snapshot =
+    periodicReportWeight
+        (Cashflow.incomeExpensePeriodicReport snapshot snapshot.transactions Monthly "INR")
+
 incomeGainPeriodicWeight :: Snapshot -> Int
 incomeGainPeriodicWeight snapshot =
     periodicReportWeight
@@ -581,6 +588,11 @@ liabilityPeriodicWeight :: Snapshot -> Int
 liabilityPeriodicWeight snapshot =
     periodicReportWeight
         (NetWorth.liabilityPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+
+assetLiabilityPeriodicWeight :: Snapshot -> Int
+assetLiabilityPeriodicWeight snapshot =
+    periodicReportWeight
+        (NetWorth.assetLiabilityPeriodicReport snapshot snapshot.transactions Monthly "INR")
 
 gainPeriodicWeight :: Snapshot -> Int
 gainPeriodicWeight snapshot =
