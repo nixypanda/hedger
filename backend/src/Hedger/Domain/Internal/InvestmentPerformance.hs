@@ -444,9 +444,9 @@ attributedAtWith valueAt snapshot assetClasses mappings commodity scope day =
                 _ -> (negate quantity, 0, 0)
         | transaction <- snapshot.transactions
         , transaction.tdate <= day
+        , transactionTouchesPortfolio transaction
         , mapping <- selectedMappings
         , transactionMatchesScope scope mapping transaction
-        , transactionTouchesPortfolio transaction
         , posting <- transaction.tpostings
         , performance <- mapping.performanceAccounts
         , performance.account `accountWithin` posting.paccount
@@ -499,10 +499,10 @@ retainedPerformanceAtWith valueAt snapshot assetClasses mappings commodity scope
         [ fmap
             (max 0)
             (completeDecimal commodity (valueAt transaction.tdate posting.pamount))
-        | mapping <- selectedMappings
-        , transaction <- snapshot.transactions
+        | transaction <- snapshot.transactions
         , transaction.tdate <= day
         , any (isInvestmentAccount assetClasses scope . (.paccount)) transaction.tpostings
+        , mapping <- selectedMappings
         , any
             ( \performance ->
                 incomeLike performance.role
