@@ -452,6 +452,45 @@ accumulation step — so it cannot share a pass with `CalcChange`. Deriving it a
 market value minus cost basis would need two reports anyway, so there is nothing
 to win.
 
+#### Why net worth costs 3.5x cashflow, and why that is mostly inherent
+
+At 50,000 transactions net worth is ~670 ms and cashflow ~191 ms. A 2x2 probe
+over {balance accounts, flow accounts} x {`Historical`+`AtEnd`,
+`PerPeriod`+`AtThen`} attributes the gap:
+
+| Accounts | `Historical`+`AtEnd` | `PerPeriod`+`AtThen` |
+|---|---:|---:|
+| Asset/cash/liability | 268 ms, 324 MB | 147 ms, 109 MB |
+| Revenue/gain/expense | 257 ms, 257 MB | 132 ms, 93 MB |
+
+- **The account set is irrelevant** — 268 vs 257 ms at a fixed mode. The
+  plausible story that asset accounts cost more because they hold many
+  commodities while income and expenses are single-commodity is wrong.
+- **The mode is the whole story** — ~1.9x time and ~3x allocation.
+- **Net worth runs two passes to cashflow's one**, since `CalcGain` cannot share
+  a pass. 2 x 1.9 = 3.8x, against 3.5x observed.
+
+The mode difference is stock versus flow. Net worth accumulates from the start of
+the journal, so it aggregates every posting ever recorded; a `PerPeriod` cashflow
+report only aggregates postings inside the 24-month window. Both still *scan* the
+whole journal to select and to build the price oracle, which is why the ratio is
+1.9x rather than proportional to the window.
+
+`AtEnd` is already the cheap choice and must not be "optimized" to a per-posting
+valuation. Measured: `Historical` with `AtThen` costs **727 ms and 759 MB**, 2.4x
+worse than `AtEnd`, because valuing every posting individually is far more work
+than valuing (accounts x 24) accumulated balances after the sum.
+
+One caveat on how these two numbers should be compared: the 50,000-transaction
+fixture spans **601 months** and only **3.8% of its transactions fall in the last
+24 months**. That is not a realistic personal journal, and it flatters cashflow.
+On a five-year journal the monthly window would cover a large fraction of the
+ledger and the gap would narrow considerably.
+
+The practical consequence is that net worth has no valuation or consolidation win
+left. Its remaining cost is two full-journal cumulative passes, so reaching 200 ms
+needs either the declined depth-clipping guard or the deferred caching phase.
+
 #### Measured but deliberately declined: clipping the consolidated report
 
 Clipping the consolidated report to the larger of the two requested depths is
