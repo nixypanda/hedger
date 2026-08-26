@@ -39,12 +39,14 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     externalCashFlowsAt,
     externalCashFlowsAtWith,
     journalWithHistoricalCostsUsing,
+    ScopeScan (..),
+    scopeScansAt,
 )
 where
 
 import Data.Decimal (Decimal)
 import Data.List qualified as List
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -138,6 +140,20 @@ data InvestmentPerformanceContext = InvestmentPerformanceContext
     , historicalCostJournal :: Hledger.Journal
     }
 
+{- | The scope-derived, non-holdings inputs to one day's 'InvestmentSummary':
+account discovery, mapping completeness, and the three quantities that each
+require a full prefix scan of the journal. 'scopeScansAt' computes all four in
+one chronological sweep instead of one scan per quantity per day.
+-}
+data ScopeScan = ScopeScan
+    { accounts :: [Text]
+    , mappingComplete :: Bool
+    , retained :: Maybe Decimal
+    , attributed :: Maybe (Decimal, Decimal, Decimal)
+    , cashFlows :: Maybe [Xirr.CashFlow]
+    }
+    deriving stock (Eq, Show)
+
 prepareInvestmentPerformance ::
     Snapshot ->
     Investment.AssetClassMappings ->
@@ -180,20 +196,25 @@ summaryAt snapshot assetClasses mappings commodity scope day =
 
 summaryAtPrepared :: InvestmentPerformanceContext -> Maybe Text -> Day -> SummaryResult
 summaryAtPrepared context scope day =
-    summaryFromHoldings
-        context
-        scope
-        day
-        (holdingsAt context.snapshot context.assetClasses scope day)
-        (holdingsAtWithJournal context.historicalCostJournal context.assetClasses scope day)
+    case scopeScansAt context scope [day] of
+        [scopeScan] ->
+            summaryFromHoldings
+                context
+                scope
+                day
+                (holdingsAt context.snapshot context.assetClasses scope day)
+                (holdingsAtWithJournal context.historicalCostJournal context.assetClasses scope day)
+                scopeScan
+        _ -> error "scopeScansAt: expected exactly one ScopeScan for one requested day"
 
 {- | Every summary in one investment timeline, computed with two bulk
-'holdingsSeriesAtWithJournal' calls instead of two 'balanceReport's per day.
+'holdingsSeriesAtWithJournal' calls instead of two 'balanceReport's per day, and
+one 'scopeScansAt' sweep instead of four journal scans per day.
 -}
 summariesAtPrepared ::
     InvestmentPerformanceContext -> Maybe Text -> Granularity -> [Day] -> [SummaryResult]
 summariesAtPrepared context scope granularity days =
-    zipWith3
+    List.zipWith4
         (summaryFromHoldings context scope)
         days
         (holdingsSeriesAtWithJournal context.snapshot.journal context.assetClasses scope granularity days)
@@ -204,6 +225,7 @@ summariesAtPrepared context scope granularity days =
             granularity
             days
         )
+        (scopeScansAt context scope days)
 
 -- | The per-day summary calculation, shared by the single-day and bulk entry points.
 summaryFromHoldings ::
@@ -212,12 +234,10 @@ summaryFromHoldings ::
     Day ->
     Hledger.MixedAmount ->
     Hledger.MixedAmount ->
+    ScopeScan ->
     SummaryResult
-summaryFromHoldings context scope day holdings costHoldings =
-    let snapshot = context.snapshot
-        assetClasses = context.assetClasses
-        mappings = context.mappings
-        commodity = context.commodity
+summaryFromHoldings context scope day holdings costHoldings scopeScan =
+    let commodity = context.commodity
         costRaw = HledgerAmount.mixedAmountCost costHoldings
         valueRaw = context.valueAt day holdings
         costValued = context.valueAt day costRaw
@@ -242,27 +262,17 @@ summaryFromHoldings context scope day holdings costHoldings =
             if Set.null rawMissingCost && Set.null foreignCost
                 then completeDecimal commodity costValued
                 else Nothing
-        relevantAccounts = investmentAccountsAt snapshot assetClasses scope day
-        mappingComplete =
-            not (null relevantAccounts)
-                && all (hasAttributablePerformance snapshot mappings day) relevantAccounts
+        relevantAccounts = scopeScan.accounts
+        mappingComplete = scopeScan.mappingComplete
         retained =
             if mappingComplete
-                then
-                    retainedPerformanceAtWith
-                        context.valueAt
-                        snapshot
-                        assetClasses
-                        mappings
-                        commodity
-                        scope
-                        day
+                then scopeScan.retained
                 else Just 0
         cost = (-) <$> reportedCost <*> retained
         calculatedGain = (-) <$> market <*> reportedCost
         attributed =
             if mappingComplete
-                then attributedAtWith context.valueAt snapshot assetClasses mappings commodity scope day
+                then scopeScan.attributed
                 else Nothing
         income = attributed >>= (Just . (\(value, _, _) -> value))
         realised = attributed >>= (Just . (\(_, value, _) -> value))
@@ -270,7 +280,7 @@ summaryFromHoldings context scope day holdings costHoldings =
         total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
         xirrResult =
             if mappingComplete
-                then xirrAtWith context.valueAt snapshot assetClasses mappings commodity scope day market
+                then xirrFromCashFlows scopeScan.cashFlows day market
                 else Nothing
         annualisedReturn = xirrResult >>= either (const Nothing) Just
         unresolvedReturn = maybe False (either isNonTrivialXirrError (const False)) xirrResult
@@ -313,6 +323,219 @@ summaryFromHoldings context scope day holdings costHoldings =
                             }
                     , warnings
                     }
+
+-- | Running totals threaded through 'scopeScansAt''s chronological sweep.
+data Accumulator = Accumulator
+    { seenAccounts :: !(Set.Set Text)
+    , explicitCostAccounts :: !(Set.Set Text)
+    , retainedTotal :: !(Maybe Decimal)
+    , attributedTotal :: !(Maybe (Decimal, Decimal, Decimal))
+    , -- Newest first: 'step' conses, and 'snapshotAt' reverses once per emitted day.
+      cashFlowsTotal :: !(Maybe [Xirr.CashFlow])
+    }
+
+initialAccumulator :: Accumulator
+initialAccumulator =
+    Accumulator
+        { seenAccounts = Set.empty
+        , explicitCostAccounts = Set.empty
+        , retainedTotal = Just 0
+        , attributedTotal = Just (0, 0, 0)
+        , cashFlowsTotal = Just []
+        }
+
+{- | 'ScopeScan' for each requested day, computed together in one chronological
+sweep of 'context.snapshot.transactions' rather than the four independent
+prefix scans ('investmentAccountsAt', 'hasAttributablePerformance' per
+account, 'retainedPerformanceAtWith', 'attributedAtWith', and
+'externalCashFlowsAtWith') that 'summaryFromHoldings' used to run per day. Each
+accumulator mirrors its per-day counterpart's guards exactly; see that
+function for the semantics being reproduced here incrementally.
+-}
+scopeScansAt :: InvestmentPerformanceContext -> Maybe Text -> [Day] -> [ScopeScan]
+scopeScansAt context scope days = fmap snd (List.sortOn fst indexedResults)
+  where
+    commodity = context.commodity
+    mappings = context.mappings
+    valueAt = context.valueAt
+
+    -- hledger's journalFinalise restores parse order via journalReverse and never
+    -- sorts by date, so jtxns (and snapshot.transactions) isn't date-ordered. A
+    -- chronological sweep needs date order, so sort once here; sortOn is stable,
+    -- so same-date transactions keep their original relative (file) order. This
+    -- also means cashFlows below comes out date-ordered rather than in file
+    -- order, which doesn't change any observable output: its only consumer is
+    -- 'Xirr.xirr', whose 'normalise' groups flows by day into a map before
+    -- solving.
+    sortedTransactions = List.sortOn (.tdate) context.snapshot.transactions
+
+    indexedDays = List.sortOn snd (zip [0 :: Int ..] days)
+    indexedResults = walk initialAccumulator sortedTransactions indexedDays
+
+    selectedMappings =
+        filter
+            (\mapping -> Investment.assetClassScopeOverlaps mapping.assetAccount context.assetClasses)
+            ( case scope of
+                Nothing -> Investment.mappingsForScope "" mappings
+                Just selected -> Investment.mappingsForScope selected mappings
+            )
+
+    mappedAssetScope mapping = case scope of
+        Just selected
+            | mapping.assetAccount `accountWithin` selected -> selected
+        _ -> mapping.assetAccount
+
+    incomeLike role = case role of
+        Investment.Interest -> True
+        Investment.Dividend -> True
+        Investment.OtherIncome -> True
+        Investment.RealisedGain -> False
+        Investment.Fee -> False
+
+    touchesPortfolio :: Hledger.Transaction -> Bool
+    touchesPortfolio =
+        any (isInvestmentAccount context.assetClasses scope . (.paccount)) . (.tpostings)
+
+    transactionHasSelectedPerformance transaction =
+        any
+            ( \mapping ->
+                transactionMatchesScope scope mapping transaction
+                    && any
+                        ( \performance ->
+                            any
+                                (\posting -> performance.account `accountWithin` posting.paccount)
+                                transaction.tpostings
+                        )
+                        mapping.performanceAccounts
+            )
+            selectedMappings
+
+    isSelectedPerformancePosting transaction posting =
+        any
+            ( \mapping ->
+                transactionMatchesScope scope mapping transaction
+                    && any
+                        (\performance -> performance.account `accountWithin` posting.paccount)
+                        mapping.performanceAccounts
+            )
+            selectedMappings
+
+    valuePostings transaction =
+        fmap sum
+            . traverse (completeDecimal commodity . valueAt transaction.tdate . (.pamount))
+
+    transactionCashFlow transaction = do
+        externalMovement <-
+            valuePostings
+                transaction
+                [ posting
+                | posting <- transaction.tpostings
+                , not (isInvestmentAccount context.assetClasses scope posting.paccount)
+                , not (isSelectedPerformancePosting transaction posting)
+                ]
+        pure (Xirr.cashFlow transaction.tdate externalMovement)
+
+    -- Mirrors retainedPerformanceAtWith's list comprehension for one transaction.
+    retainedContributions transaction
+        | not (touchesPortfolio transaction) = []
+        | otherwise =
+            [ fmap (max 0) (completeDecimal commodity (valueAt transaction.tdate posting.pamount))
+            | mapping <- selectedMappings
+            , any
+                ( \performance ->
+                    incomeLike performance.role
+                        && any
+                            (\candidate -> performance.account `accountWithin` candidate.paccount)
+                            transaction.tpostings
+                )
+                mapping.performanceAccounts
+            , posting <- transaction.tpostings
+            , isInvestmentAccount context.assetClasses scope posting.paccount
+            , mappedAssetScope mapping `accountWithin` posting.paccount
+            ]
+
+    -- Mirrors attributedAtWith's list comprehension for one transaction.
+    attributedContributions transaction
+        | not (touchesPortfolio transaction) = []
+        | otherwise =
+            [ do
+                quantity <- completeDecimal commodity (valueAt transaction.tdate posting.pamount)
+                pure $ case performance.role of
+                    Investment.RealisedGain -> (0, negate quantity, 0)
+                    Investment.Fee -> (0, 0, negate quantity)
+                    _ -> (negate quantity, 0, 0)
+            | mapping <- selectedMappings
+            , transactionMatchesScope scope mapping transaction
+            , posting <- transaction.tpostings
+            , performance <- mapping.performanceAccounts
+            , performance.account `accountWithin` posting.paccount
+            ]
+
+    hasExplicitCost amount = abs amount.aquantity >= 0.000001 && amount.acost /= Nothing
+
+    addSticky Nothing _ = Nothing
+    addSticky _ Nothing = Nothing
+    addSticky (Just total) (Just value) = Just (total + value)
+
+    combineTriple Nothing _ = Nothing
+    combineTriple _ Nothing = Nothing
+    combineTriple (Just (incomeA, gainA, feeA)) (Just (incomeB, gainB, feeB)) =
+        Just (incomeA + incomeB, gainA + gainB, feeA + feeB)
+
+    step :: Accumulator -> Hledger.Transaction -> Accumulator
+    step acc transaction =
+        acc
+            { seenAccounts = List.foldl' addAccount acc.seenAccounts transaction.tpostings
+            , explicitCostAccounts =
+                List.foldl' addExplicitCost acc.explicitCostAccounts transaction.tpostings
+            , retainedTotal = List.foldl' addSticky acc.retainedTotal (retainedContributions transaction)
+            , attributedTotal =
+                List.foldl' combineTriple acc.attributedTotal (attributedContributions transaction)
+            , cashFlowsTotal = addCashFlow acc.cashFlowsTotal transaction
+            }
+      where
+        addAccount accounts posting
+            | isInvestmentAccount context.assetClasses scope posting.paccount =
+                Set.insert posting.paccount accounts
+            | otherwise = accounts
+        addExplicitCost accounts posting
+            | any hasExplicitCost (HledgerAmount.amountsRaw posting.pamount) =
+                Set.insert posting.paccount accounts
+            | otherwise = accounts
+        addCashFlow Nothing _ = Nothing
+        addCashFlow (Just flows) currentTransaction
+            | not
+                ( touchesPortfolio currentTransaction
+                    || transactionHasSelectedPerformance currentTransaction
+                ) =
+                Just flows
+            | otherwise = case transactionCashFlow currentTransaction of
+                Nothing -> Nothing
+                Just flow -> Just (flow : flows)
+
+    snapshotAt :: Accumulator -> ScopeScan
+    snapshotAt acc =
+        ScopeScan
+            { accounts = Set.toList acc.seenAccounts
+            , mappingComplete =
+                not (Set.null acc.seenAccounts)
+                    && all
+                        ( \account ->
+                            isJust (Investment.mappingForAccount account mappings)
+                                || Set.member account acc.explicitCostAccounts
+                        )
+                        (Set.toList acc.seenAccounts)
+            , retained = acc.retainedTotal
+            , attributed = acc.attributedTotal
+            , cashFlows = fmap reverse acc.cashFlowsTotal
+            }
+
+    walk :: Accumulator -> [Hledger.Transaction] -> [(Int, Day)] -> [(Int, ScopeScan)]
+    walk _ _ [] = []
+    walk acc [] pending = [(index, snapshotAt acc) | (index, _) <- pending]
+    walk acc allTransactions@(transaction : restTransactions) pending@((index, day) : restPending)
+        | transaction.tdate <= day = walk (step acc transaction) restTransactions pending
+        | otherwise = (index, snapshotAt acc) : walk acc allTransactions restPending
 
 investmentSummaryAt ::
     Snapshot ->
@@ -697,20 +920,15 @@ externalCashFlowsAtWith valueAt snapshot assetClasses mappings commodity scope d
             )
             selectedMappings
 
-xirrAtWith ::
-    (Day -> Hledger.MixedAmount -> Hledger.MixedAmount) ->
-    Snapshot ->
-    Investment.AssetClassMappings ->
-    Investment.InvestmentMappings ->
-    Text ->
-    Maybe Text ->
-    Day ->
-    Maybe Decimal ->
-    Maybe (Either Xirr.XirrError Decimal)
-xirrAtWith valueAt snapshot assetClasses mappings commodity scope day terminalMarket = do
-    flows <- externalCashFlowsAtWith valueAt snapshot assetClasses mappings commodity scope day
+{- | 'summaryFromHoldings' passes cash flows already computed by 'scopeScansAt'
+here, rather than this function re-scanning the journal for them.
+-}
+xirrFromCashFlows ::
+    Maybe [Xirr.CashFlow] -> Day -> Maybe Decimal -> Maybe (Either Xirr.XirrError Decimal)
+xirrFromCashFlows flows day terminalMarket = do
+    cashFlows <- flows
     terminal <- terminalMarket
-    pure (Xirr.annualRate <$> Xirr.xirr (flows <> [Xirr.cashFlow day terminal]))
+    pure (Xirr.annualRate <$> Xirr.xirr (cashFlows <> [Xirr.cashFlow day terminal]))
 
 {- | Whether an 'Xirr.XirrError' represents a genuine ambiguity or failure to
 converge, as opposed to the ordinary "not enough data" cases that should stay
