@@ -16,8 +16,10 @@ module Hedger.Domain.InvestmentPerformance (
     -- * Ledger policies and derivations
     validateScope,
     isInvestmentAccount,
+    investmentAccountsAt,
     investmentDataTransactions,
     immediateChildren,
+    childrenOf,
     reportPeriods,
     externalCashFlowsAt,
 )

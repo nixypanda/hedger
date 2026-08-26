@@ -29,7 +29,8 @@ import Hedger.Domain.InvestmentPerformance (
     InvestmentSummary (..),
     InvestmentWarning,
     SummaryResult (..),
-    immediateChildren,
+    childrenOf,
+    investmentAccountsAt,
     investmentDataTransactions,
     prepareInvestmentPerformance,
     reportPeriods,
@@ -107,7 +108,8 @@ investments request = do
                 commodity
         dataTransactions = investmentDataTransactions snapshot config.assetClassMappings scope
         periods = reportPeriods request.granularity dataTransactions latest
-        childAccounts = immediateChildren snapshot config.assetClassMappings scope
+        investmentAccounts = investmentAccountsAt snapshot config.assetClassMappings scope latest
+        childAccounts = childrenOf scope investmentAccounts
         allocationScopes =
             [ Just prefix
             | mapping <- Investment.assetClassMappingsList config.assetClassMappings
@@ -158,10 +160,7 @@ investments request = do
                     , label = accountLabel child
                     , summary = childSummary
                     , hasChildren =
-                        not
-                            ( null
-                                (immediateChildren snapshot config.assetClassMappings (Just child))
-                            )
+                        not (null (childrenOf (Just child) investmentAccounts))
                     , assetClass = Investment.assetClassForAccount child config.assetClassMappings
                     , allocationPercentage =
                         allocationPercentage current.summary.marketValue childSummary.marketValue

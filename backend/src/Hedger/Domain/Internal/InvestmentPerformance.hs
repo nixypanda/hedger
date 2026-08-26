@@ -20,6 +20,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     investmentAccountsAt,
     investmentDataTransactions,
     immediateChildren,
+    childrenOf,
     reportPeriods,
 
     -- * Building blocks (exposed for property tests)
@@ -680,7 +681,7 @@ investmentDataTransactions snapshot assetClasses scope =
 
 investmentAccountsAt :: Snapshot -> Investment.AssetClassMappings -> Maybe Text -> Day -> [Text]
 investmentAccountsAt snapshot assetClasses scope day =
-    List.nub
+    Set.toList . Set.fromList $
         [ posting.paccount
         | transaction <- snapshot.transactions
         , transaction.tdate <= day
@@ -697,10 +698,18 @@ isInvestmentAccount assetClasses scope name =
 
 immediateChildren :: Snapshot -> Investment.AssetClassMappings -> Maybe Text -> [Text]
 immediateChildren snapshot assetClasses scope =
+    childrenOf
+        scope
+        (investmentAccountsAt snapshot assetClasses scope (fromMaybe epoch snapshot.latestJournalDate))
+
+{- | The account list is a parameter, not rediscovered here, so a single
+transactions x postings scan can serve both a parent's children and every
+child's own child-check.
+-}
+childrenOf :: Maybe Text -> [Text] -> [Text]
+childrenOf scope accounts =
     List.sort . Set.toList . Set.fromList $
-        mapMaybe
-            childOf
-            (investmentAccountsAt snapshot assetClasses scope (fromMaybe epoch snapshot.latestJournalDate))
+        mapMaybe childOf (filter (\name -> maybe True (`accountWithin` name) scope) accounts)
   where
     parentParts = maybe ["assets"] HledgerAccountName.accountNameComponents scope
     childOf name =
