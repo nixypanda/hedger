@@ -23,8 +23,6 @@ import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 
 import Hedger.Domain.Internal.NetWorth (
     assetCashPeriodicReport,
-    currentAssetCashBalance,
-    currentLiabilityBalance,
     gainPeriodicReport,
     liabilityPeriodicReport,
  )
@@ -38,9 +36,9 @@ import Hedger.Domain.Internal.PeriodReport (
     reportTotals,
     selectedPeriod,
  )
-import Hedger.Domain.Period (Granularity, ReportPeriod (..))
+import Hedger.Domain.Period (Granularity, ReportPeriod (..), lastMaybe)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..))
+import Hedger.Domain.Valuation (Conversion (..), complete, requireComplete)
 
 data PerformancePoint = PerformancePoint
     { period :: Text
@@ -121,9 +119,20 @@ computeNetWorth snapshot matched granularity commodity positiveReq negativeReq p
             (performanceFrom commodity reportPeriods allPoints assetTotals liabilityTotals gainReport)
     performanceMissing = reportMissing commodity gainReport
     historyMissing = reportMissing commodity assetReport <> reportMissing commodity liabilityReport
-    assetsCurrent = currentAssetCashBalance snapshot matched commodity
-    liabilitiesCurrent = currentLiabilityBalance snapshot matched commodity
+    assetsCurrent = strictLatest assetTotals
+    liabilitiesCurrent = strictLatest liabilityTotals
     currentMissing = assetsCurrent.missing <> liabilitiesCurrent.missing
+
+{- | The KPI value of a periodic column series.
+
+The report journal drops price directives after the latest journal date, so
+@AtEnd@ of the final interval resolves the same price as @AtDate@ of that date;
+the final column is already the latest balance. What separates it from a KPI is
+only the completeness rule: a KPI is withheld unless every commodity converted,
+whereas the timeline reports a partial sum alongside its missing set.
+-}
+strictLatest :: [Conversion Decimal] -> Conversion Decimal
+strictLatest = maybe (complete 0) requireComplete . lastMaybe
 
 netWorthPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
 netWorthPointFrom period assetsResult liabilitiesResult =
