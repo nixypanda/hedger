@@ -198,3 +198,7 @@ benchmark snapshot-bench
     tasty-bench >=0.4 && <0.5,
     text >=2.0 && <2.2,
     time >=1.12 && <1.15,
+
+  ghc-options:
+    -rtsopts
+    -with-rtsopts=-T
