@@ -16,13 +16,12 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 
 import Hledger.Data.Types qualified as Hledger
-import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
+import Hedger.Domain.Internal.Cashflow (expensePeriodicReport, incomeGainPeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
     TimelinePoint (..),
     breakdownItemsFor,
-    periodicBalanceReport,
     periodsWithData,
     reportMissing,
     reportPeriodsFrom,
@@ -68,26 +67,8 @@ computeCashflow snapshot matched granularity commodity positiveReq negativeReq p
         , missing = missing
         }
   where
-    incomeReport =
-        periodicBalanceReport
-            snapshot
-            matched
-            granularity
-            commodity
-            [Hledger.Revenue, Hledger.Gain]
-            HledgerReportOptions.CalcChange
-            HledgerReportOptions.PerPeriod
-            positiveDepth
-    expenseReport =
-        periodicBalanceReport
-            snapshot
-            matched
-            granularity
-            commodity
-            [Hledger.Expense]
-            HledgerReportOptions.CalcChange
-            HledgerReportOptions.PerPeriod
-            negativeDepth
+    incomeReport = incomeGainPeriodicReport snapshot matched granularity commodity positiveDepth
+    expenseReport = expensePeriodicReport snapshot matched granularity commodity negativeDepth
     reportPeriods = reportPeriodsFrom granularity incomeReport
     dataPeriods = periodsWithData granularity matched reportPeriods
     dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)

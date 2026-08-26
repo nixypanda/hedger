@@ -31,12 +31,11 @@ What remains, in order of measured cost:
    XIRR, and allocation reduction. The shared traversal removed repeated list
    walks and balance reports, but still performs scope-specific work for every
    transaction and requested scope.
-2. An endpoint-level investment benchmark, so the combined preparation,
-   timeline, drill-down, and application projection cost is measured directly.
-3. Net-worth and cashflow component measurement and report consolidation.
-4. API decomposition and bounded backend concurrency, only where they improve
+2. Net-worth and cashflow report consolidation, now guided by component
+   measurements of their production report paths.
+3. API decomposition and bounded backend concurrency, only where they improve
    the uncached request path after duplicated work has been removed.
-5. Revision-scoped derived data, bounded memoization, a database, or other
+4. Revision-scoped derived data, bounded memoization, a database, or other
    cross-request storage only after the compute-first phase is complete and has
    been remeasured.
 
@@ -130,16 +129,43 @@ allocation scopes. This isolates the change made by item 1.
 | 50,000 | Singular reference | 16 GB | 465 MB | 858 MB |
 | 50,000 | Shared reports and traversal | **10 GB** | **253 MB** | 858 MB |
 
-Net worth remains unchanged because nothing in this work touched it; the small
-deltas are machine noise. The benchmark suite still lacks an endpoint-level
-investment measurement that combines preparation, timeline, drill-down, and
-application projection.
+The earlier net-worth total remained unchanged because the optimization work did
+not alter its calculation; the small deltas are machine noise.
 
 The benchmark suite now reports allocation, copy, and peak-memory figures
-alongside timings, and has a component group that attributes one investment
-summary across its parts. Component benchmarks for the net-worth periodic
-reports and for the two current net-worth balance reports are still missing,
-and are a prerequisite for the net-worth work below.
+alongside timings. It has component groups for one investment summary, all five
+net-worth reports, and both cashflow reports, plus an application-level
+investment benchmark that combines preparation, timeline, latest-date
+drill-down, children, allocations, and application projection.
+
+Fresh local measurements of the newly added benchmarks are below. They use the
+same Cabal development build with `-O1`; the relaxed benchmark variance target
+keeps this broad attribution pass short, so these figures are directional.
+
+| Fixture | Operation | Time | Allocated | Copied | Peak memory |
+|---|---|---:|---:|---:|---:|
+| 5,000 | Complete investments application use case | ~622 ms | 1.3 GB | 44 MB | 79 MB |
+| 50,000 | Complete investments application use case | ~5.65 s | 13 GB | 421 MB | 720 MB |
+| 5,000 | Net worth: asset/cash periodic | ~89 ms | 90 MB | 7.8 MB | 70 MB |
+| 5,000 | Net worth: liability periodic | ~16 ms | 10 MB | 1.1 MB | 70 MB |
+| 5,000 | Net worth: gain periodic | ~109 ms | 102 MB | 8.6 MB | 70 MB |
+| 5,000 | Net worth: current asset/cash | ~73 ms | 73 MB | 10 MB | 70 MB |
+| 5,000 | Net worth: current liability | ~14 ms | 9.2 MB | 1.3 MB | 70 MB |
+| 50,000 | Net worth: asset/cash periodic | ~346 ms | 314 MB | 42 MB | 669 MB |
+| 50,000 | Net worth: liability periodic | ~157 ms | 92 MB | 14 MB | 669 MB |
+| 50,000 | Net worth: gain periodic | ~377 ms | 332 MB | 45 MB | 669 MB |
+| 50,000 | Net worth: current asset/cash | ~765 ms | 694 MB | 107 MB | 669 MB |
+| 50,000 | Net worth: current liability | ~149 ms | 92 MB | 19 MB | 669 MB |
+| 5,000 | Cashflow: income/gain periodic | ~9.8 ms | 8.2 MB | 992 KB | 72 MB |
+| 5,000 | Cashflow: expense periodic | ~32 ms | 27 MB | 9.4 MB | 75 MB |
+| 50,000 | Cashflow: income/gain periodic | ~105 ms | 69 MB | 12 MB | 669 MB |
+| 50,000 | Cashflow: expense periodic | ~139 ms | 105 MB | 27 MB | 669 MB |
+
+Peak memory is process-level rather than uniquely attributable to a component,
+and independently measured component times are not additive. The results still
+establish where to begin: the 50,000-transaction strict current asset/cash
+balance is the largest measured net-worth component, while both cashflow passes
+are material enough for consolidation to remain worthwhile.
 
 ### What the component measurements established
 
@@ -506,9 +532,9 @@ efficient calculation, not a replacement for one.
 | Priority | Task | Expected gain | Estimated effort |
 |---:|---|---|---|
 | 1 | **Complete:** share one flat report and one multi-scope sweep across the latest-date scopes | 45% faster and 38% less allocation at 50,000 transactions | Completed |
-| 2 | Add an endpoint-level investments benchmark | No direct gain; the combined cold endpoint path is still unmeasured | Low, under a day |
-| 3 | Add net-worth component benchmarks | No direct gain; prerequisite for items 5 and 6 | Low, 1–2 days |
-| 4 | Add cashflow component benchmarks | No direct gain; prerequisite for safely consolidating its compatible reports | Low, 1–2 days |
+| 2 | **Complete:** add an endpoint-level investments benchmark | Measured the combined 50,000-transaction cold application path at ~5.65 s and 13 GB allocated | Completed |
+| 3 | **Complete:** add net-worth component benchmarks | Identified the strict current asset/cash balance as the largest measured 50,000-transaction component | Completed |
+| 4 | **Complete:** add cashflow component benchmarks | Measured the two 50,000-transaction periodic passes at ~105 ms and ~139 ms | Completed |
 | 5 | Align the net-worth periodic window to the latest journal date | Medium; preserves valuation and completeness semantics while reducing work | Low–medium, 1–3 days |
 | 6 | Consolidate asset and liability net-worth passes | Medium–high if hledger semantics allow it | Medium–high, 4–8 days |
 | 7 | Consolidate income and expense cashflow passes | Potentially high; both currently use `CalcChange` and `PerPeriod` | Medium, 3–5 days |
@@ -523,11 +549,10 @@ efficient calculation, not a replacement for one.
 
 Effort values describe focused implementation time, not calendar promises.
 
-Items 2–4 are listed high deliberately. Component measurement corrected the
-priority order of this document twice. The multi-scope domain path now has a
-before-and-after benchmark, but no benchmark covers the complete investment
-endpoint, and cashflow consolidation is not yet supported by component
-measurements.
+Items 2–4 were listed high deliberately and are now complete. Component
+measurement corrected the priority order of this document twice; the complete
+investment application path and every production net-worth and cashflow report
+now have direct coverage before consolidation work begins.
 
 ## Correctness and verification
 
@@ -618,10 +643,10 @@ family, normalized non-sensitive dimensions, request ID, revision, and timing.
 
 ## Recommended next slice
 
-1. Add an endpoint-level investments benchmark covering the current scope,
-   children, and allocations together, so item 1 is measured rather than
-   estimated.
-2. Extend the flat holdings report and the sweep to serve every latest-date
-   scope from one pass, validated by field-by-field equivalence against the
-   existing per-scope path.
-3. Rebenchmark before moving on to the net-worth work.
+1. Align the net-worth periodic window to `latestJournalDate`, preserving the
+   distinct strict current-value and lenient historical completeness semantics.
+2. Use the new component benchmarks to investigate whether asset/cash and
+   liability periodic rows can come from one production report without changing
+   signs, breakdown depths, or missing-commodity behavior.
+3. Consolidate the compatible income/gain and expense cashflow passes, then
+   rebenchmark the component and whole-report paths on both fixtures.
