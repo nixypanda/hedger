@@ -5,6 +5,7 @@ import Control.Exception (evaluate)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Decimal (Decimal)
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
@@ -93,6 +94,12 @@ fixtureBenchmarks (name, path) =
                 , bgroup
                     "investments"
                     [ bench "current" $ nf (summaryWeight . investmentSummary snapshot) input.latest
+                    , bench "drill-down-singular-reference" $
+                        nf
+                            (sum . fmap summaryResultWeight . investmentDrillDownSingular snapshot)
+                            input.latest
+                    , bench "drill-down-latest" $
+                        nf (sum . fmap summaryResultWeight . investmentDrillDown snapshot) input.latest
                     , bench "monthly-24" $
                         nf (sum . fmap summaryWeight . investmentSummaries snapshot) input.monthEnds
                     ]
@@ -257,6 +264,30 @@ investmentSummaries snapshot days =
                 "INR"
      in (.summary) <$> Performance.summariesAtPrepared context Nothing Monthly days
 
+investmentDrillDown :: Snapshot -> Day -> [Performance.SummaryResult]
+investmentDrillDown snapshot day =
+    snd <$> Performance.summariesAtScopesPrepared context day (investmentDrillDownScopes snapshot day)
+  where
+    context = prepareContext snapshot
+
+investmentDrillDownSingular :: Snapshot -> Day -> [Performance.SummaryResult]
+investmentDrillDownSingular snapshot day =
+    fmap (\scope -> Performance.summaryAtPrepared context scope day) (investmentDrillDownScopes snapshot day)
+  where
+    context = prepareContext snapshot
+
+investmentDrillDownScopes :: Snapshot -> Day -> [Maybe Text.Text]
+investmentDrillDownScopes snapshot day =
+    List.nub (Nothing : fmap Just children <> allocationScopes)
+  where
+    accounts = Performance.investmentAccountsAt snapshot benchmarkAssetClassMappings Nothing day
+    children = Performance.childrenOf Nothing accounts
+    allocationScopes =
+        [ Just prefix
+        | mapping <- Investment.assetClassMappingsList benchmarkAssetClassMappings
+        , prefix <- mapping.accountPrefixes
+        ]
+
 prepareContext :: Snapshot -> Performance.InvestmentPerformanceContext
 prepareContext snapshot =
     Performance.prepareInvestmentPerformance snapshot benchmarkAssetClassMappings benchmarkMappings "INR"
@@ -336,6 +367,9 @@ summaryWeight summary =
         , length (show summary.totalProfit)
         , length (show summary.completeness)
         ]
+
+summaryResultWeight :: Performance.SummaryResult -> Int
+summaryResultWeight result = summaryWeight result.summary + length (show result.warnings)
 
 benchmarkMappings :: Investment.InvestmentMappings
 benchmarkMappings =

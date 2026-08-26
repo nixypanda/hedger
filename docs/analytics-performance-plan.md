@@ -10,22 +10,35 @@ normal request path: Hedger keeps an immutable `Snapshot` in memory and reloads
 it after filesystem events. The performance problem is repeated derivation of
 reports from that snapshot.
 
-The investment **timeline** has been fixed. It previously recomputed a full
-summary independently for every period, so a 24-month history behaved like 24
-current reports. It now runs two periodic balance reports and one chronological
-sweep for the whole timeline. At 50,000 transactions the monthly history went
-from exceeding a 45-second benchmark timeout to 2.4 seconds.
+The investment **timeline and latest-date drill-down** have been fixed. The
+timeline previously recomputed a full summary independently for every period;
+it now runs two periodic balance reports and one chronological sweep for the
+whole timeline. The drill-down previously did the same work independently for
+the current scope, every immediate child, and every configured allocation
+scope; it now runs two flat balance reports and updates one accumulator per
+scope in a single chronological traversal.
+
+At 50,000 transactions, the monthly history went from exceeding a 45-second
+benchmark timeout to 2.4 seconds. The latest-date drill-down went from 6.01 to
+3.28 seconds, with allocation falling from 16 GB to 10 GB. This is a material
+improvement, but it also shows that the remaining per-scope predicate,
+conversion, XIRR, and allocation work is still much too expensive for the
+200 ms cold-request target.
 
 What remains, in order of measured cost:
 
-1. The investment **drill-down** summaries. One request also computes the
-   current scope, every immediate child, and every configured allocation scope
-   at the latest date. Each still runs its own balance reports and its own
-   sweep. This is now the dominant cost of the endpoint.
-2. Net-worth report consolidation and base-report caching.
-3. Revision-scoped derived data, bounded memoization, and single-flight.
-4. API decomposition for progressive rendering.
-5. Bounded backend concurrency, only after duplicated work has been removed.
+1. Further request-local investment indexing, predicate sharing, conversion,
+   XIRR, and allocation reduction. The shared traversal removed repeated list
+   walks and balance reports, but still performs scope-specific work for every
+   transaction and requested scope.
+2. An endpoint-level investment benchmark, so the combined preparation,
+   timeline, drill-down, and application projection cost is measured directly.
+3. Net-worth and cashflow component measurement and report consolidation.
+4. API decomposition and bounded backend concurrency, only where they improve
+   the uncached request path after duplicated work has been removed.
+5. Revision-scoped derived data, bounded memoization, a database, or other
+   cross-request storage only after the compute-first phase is complete and has
+   been remeasured.
 
 Frontend parallelism by itself is not a sufficient optimization. It can reduce
 wall-clock latency on an idle multicore server, but the remaining computations
@@ -40,6 +53,9 @@ CPU, allocation, garbage collection, and memory-bandwidth pressure.
   transactions.
 - Make calculation cost scale primarily with journal size, rather than journal
   size multiplied by the number of displayed periods and scopes.
+- Target less than 200 ms for each cold analytics request against the
+  50,000-transaction fixture, with the report computed on every request during
+  the first optimization phase.
 - Preserve the existing valuation, cost, completeness, warning, and XIRR
   semantics.
 - Keep journal reloads atomic: a response must be internally consistent with a
@@ -49,11 +65,39 @@ CPU, allocation, garbage collection, and memory-bandwidth pressure.
 
 ## Non-goals
 
+- Introducing a database or cross-request in-memory derived-report cache before
+  the compute-on-every-request optimization phase is complete and remeasured.
 - Introducing a database as the source of truth.
-- Persisting derived reports across server restarts in the first iteration.
+- Persisting derived reports across server restarts in the first iteration that
+  considers cross-request storage.
 - Precomputing every possible free-form hledger query.
 - Changing accounting semantics to obtain a faster result.
 - Hiding slow calculations behind unbounded worker or request concurrency.
+
+## Optimization sequencing decision
+
+The first phase optimizes the cold request path while deliberately computing the
+answer on every request. The target is less than 200 ms for each analytics
+request on the 50,000-transaction fixture. This is a target to drive the work,
+not a claim that the current hledger-based implementation can already meet it.
+
+In this phase, improvements must reduce the intrinsic cost of one request:
+
+- consolidate compatible hledger reports;
+- share journal traversals across periods and scopes;
+- build request-local prepared data and indexes once, then reuse them within the
+  request;
+- remove repeated conversion, grouping, sorting, and allocation;
+- avoid calculating response sections that the request does not need; and
+- add component and endpoint benchmarks before and after each material change.
+
+Cross-request in-memory caching, revision-scoped memoization, eager background
+rebuilds, and adding a database are explicitly deferred. They should be
+considered only after the request-local improvements have been implemented and
+the cold paths have been rebenchmarked. If the 200 ms target remains unmet at
+that point, the measurements will show the residual work that storage or
+precomputation must address rather than allowing a cache to conceal avoidable
+computation.
 
 ## Measured results
 
@@ -67,13 +111,29 @@ service-level objectives.
 |---|---|---:|---:|
 | 5,000 | Investment current summary | ~193 ms | ~148 ms |
 | 5,000 | Investment monthly history, 24 periods | ~3.85 s | **~289 ms** |
+| 5,000 | Investment latest-date drill-down | ~582 ms | **~321 ms** |
 | 5,000 | Net worth | ~132 ms | ~137 ms |
 | 50,000 | Investment current summary | ~1.98 s | ~1.47 s |
 | 50,000 | Investment monthly history, 24 periods | >45 s, timed out | **~2.38 s** |
+| 50,000 | Investment latest-date drill-down | ~6.01 s | **~3.28 s** |
 | 50,000 | Net worth | ~698 ms | ~752 ms |
 
-Net worth is unchanged because nothing in this work touched it; the small
-deltas are machine noise.
+The drill-down baseline is the retained `summaryAtPrepared` reference path on
+the current code, not commit `b424580`. Both sides prepare one shared context
+and calculate the same deduplicated set of root, immediate-child, and configured
+allocation scopes. This isolates the change made by item 1.
+
+| Fixture | Drill-down path | Allocated | Copied | Peak memory |
+|---|---|---:|---:|---:|
+| 5,000 | Singular reference | 1.6 GB | 46 MB | 93 MB |
+| 5,000 | Shared reports and traversal | **1.0 GB** | **28 MB** | 93 MB |
+| 50,000 | Singular reference | 16 GB | 465 MB | 858 MB |
+| 50,000 | Shared reports and traversal | **10 GB** | **253 MB** | 858 MB |
+
+Net worth remains unchanged because nothing in this work touched it; the small
+deltas are machine noise. The benchmark suite still lacks an endpoint-level
+investment measurement that combines preparation, timeline, drill-down, and
+application projection.
 
 The benchmark suite now reports allocation, copy, and peak-memory figures
 alongside timings, and has a component group that attributes one investment
@@ -139,10 +199,13 @@ which for the whole period list runs:
 Only the XIRR solve then runs per period.
 
 The **drill-down** summaries — the current scope, each immediate child, and each
-configured top-level allocation scope, all at the latest date — still go through
-`summaryAtPrepared` one scope at a time. Each of those pays two single-date
-balance reports and one full sweep. For the 50,000-transaction fixture that is
-nine such summaries, and it now dominates the endpoint.
+configured top-level allocation scope, all at the latest date — are computed by
+`summariesAtScopesPrepared`. It runs one flat market balance report and one flat
+historical-cost report, then projects every requested prefix from their account
+rows. One traversal of the date-sorted transactions carries a separate
+accumulator for each scope because performance attribution and external-flow
+classification are scope-dependent. The selected scope's final timeline point
+is reused when it already represents the latest date.
 
 ### Net worth
 
@@ -164,12 +227,11 @@ three periodic reports therefore share an identical window, which makes the
 `zipWith3` that combines their columns safe and removes the main alignment risk
 from consolidating them.
 
-## Remaining work
+## Work items
 
-### 1. Share one pass across the latest-date scopes
+### 1. Completed: share one pass across the latest-date scopes
 
-This is the largest remaining item and the same low-risk shape as the timeline
-fix that already landed.
+This landed using the same low-risk shape as the timeline fix.
 
 Holdings are additive over account prefixes. One *flat* balance report at the
 latest date yields per-account rows, and each scope's holdings is the sum of the
@@ -185,12 +247,20 @@ asset-class account so the same transfer cancels to zero. The same asymmetry
 appears in `transactionMatchesScope` and `mappedAssetScope`. Per-scope results
 therefore cannot be derived by summing child aggregates.
 
-The sweep must instead carry one accumulator set per requested scope and update
-all of them in a single traversal. Cost becomes one pass times the number of
-scopes' predicate evaluations, rather than one full traversal per scope.
+The implemented sweep carries one accumulator set per requested scope and
+updates all of them in a single traversal. Cost is now one pass times the number
+of scopes' predicate evaluations, rather than one full traversal per scope.
 
 Note that the timeline sweep does not have this problem: it only ever needs the
 single selected scope.
+
+The retained singular path remains as a benchmark and correctness oracle.
+Fixture regressions compare every summary field and warning across root, nested,
+duplicate, missing-price, missing-cost, foreign-cost, mapping, fee/gain, and
+ambiguous-XIRR cases. No accounting-semantic divergence was found. The measured
+45% time reduction and 38% allocation reduction at 50,000 transactions are
+material, but the 3.28-second result leaves request-local scope work as an
+active optimization target.
 
 ### 2. Net-worth report consolidation
 
@@ -235,7 +305,12 @@ The gain report uses a different balance calculation mode and is likely to
 remain separate unless hledger exposes enough data to derive both views from a
 single report without reproducing its logic.
 
-#### Cache the base report, not the selected view
+#### Future phase: cache the base report, not the selected view
+
+This is a cross-request optimization and is deferred until the compute-first
+phase described above is complete. During that first phase the same separation
+is still useful inside one request: calculate the base report once and project
+selected periods and depths from it without rerunning hledger.
 
 Selected asset/liability periods and display grouping are projections over a
 periodic report. Cache the base rows and totals by:
@@ -248,7 +323,10 @@ Changing the selected period should then select another column and regroup its
 rows rather than rerun hledger. Where practical, cache at the maximum supported
 depth and collapse to shallower depths in the application layer.
 
-### 3. Revision-scoped derived data
+### 3. Future phase: revision-scoped derived data
+
+Do not begin this phase until the compute-on-every-request improvements have
+been implemented and rebenchmarked against the 200 ms target.
 
 Add a derived-data store associated with the immutable snapshot revision. A
 possible shape is:
@@ -341,6 +419,12 @@ Splitting endpoints is useful when the resulting pieces have different user
 priority or can reuse cached derived state. It should not cause each endpoint to
 perform its own full scan.
 
+During the compute-first phase, decomposition is worthwhile only when it avoids
+work that the caller did not request or when request-local prepared data can be
+shared. Do not split an endpoint merely to make each HTTP response finish sooner
+while leaving the total ledger work unchanged. Decomposition that depends on a
+cross-request base-report cache belongs to the later caching phase.
+
 #### Investments
 
 A decomposition into an overview, a value history, and a return history is
@@ -421,25 +505,29 @@ efficient calculation, not a replacement for one.
 
 | Priority | Task | Expected gain | Estimated effort |
 |---:|---|---|---|
-| 1 | Share one flat report and one multi-scope sweep across the latest-date scopes | Very high; the dominant remaining endpoint cost | Medium–high, 4–7 days |
-| 2 | Add an endpoint-level investments benchmark | No direct gain; the current estimate for item 1 is unverified | Low, under a day |
-| 3 | Add net-worth component benchmarks | No direct gain; prerequisite for items 4 and 5 | Low, 1–2 days |
-| 4 | Cache net-worth base reports separately from period selection | High for interaction and repeated requests | Medium, 3–5 days |
-| 5 | Align the periodic window to the latest journal date | Medium; keeps completeness semantics while removing a pass | Low–medium, 1–3 days |
-| 6 | Add revision-scoped derived-data rebuilds after filesystem events | Very high for common views after rebuild | High, 1–2 weeks |
-| 7 | Add bounded memoization and single-flight cache misses | High for repeated and concurrent identical requests | Medium, 3–5 days |
-| 8 | Split investment overview, value history, and return history | Medium perceived latency, reduced by the timeline fix | Medium–high, 4–7 days |
-| 9 | Split selected net-worth breakdowns from the base report | Medium perceived and interaction improvement | Medium, 3–5 days |
-| 10 | Consolidate asset and liability net-worth passes | Medium–high if hledger semantics allow it | Medium–high, 4–8 days |
-| 11 | Share the safe half of the XIRR grid across prefixes | Low; ~0.5 s at 50,000 transactions | Low, 1–2 days |
-| 12 | Run remaining independent calculations concurrently | Low–medium wall-time improvement, no CPU reduction | Medium, 2–4 days |
+| 1 | **Complete:** share one flat report and one multi-scope sweep across the latest-date scopes | 45% faster and 38% less allocation at 50,000 transactions | Completed |
+| 2 | Add an endpoint-level investments benchmark | No direct gain; the combined cold endpoint path is still unmeasured | Low, under a day |
+| 3 | Add net-worth component benchmarks | No direct gain; prerequisite for items 5 and 6 | Low, 1–2 days |
+| 4 | Add cashflow component benchmarks | No direct gain; prerequisite for safely consolidating its compatible reports | Low, 1–2 days |
+| 5 | Align the net-worth periodic window to the latest journal date | Medium; preserves valuation and completeness semantics while reducing work | Low–medium, 1–3 days |
+| 6 | Consolidate asset and liability net-worth passes | Medium–high if hledger semantics allow it | Medium–high, 4–8 days |
+| 7 | Consolidate income and expense cashflow passes | Potentially high; both currently use `CalcChange` and `PerPeriod` | Medium, 3–5 days |
+| 8 | Share the safe half of the XIRR grid across prefixes | Low; ~0.5 s at 50,000 transactions | Low, 1–2 days |
+| 9 | Profile and reduce remaining request-local indexing, conversion, grouping, sorting, and allocation costs | Required to determine whether cold requests can reach 200 ms | Open-ended, measurement-led |
+| 10 | Run remaining independent calculations concurrently with a request-local bound | Low–medium wall-time improvement, no CPU reduction | Medium, 2–4 days |
+| 11 | Split endpoints only where an uncached request can omit material work | Medium perceived latency when sections have genuinely different costs | Medium–high, 4–7 days |
+| 12 | Rebenchmark every cold analytics path and decide whether the compute-first phase is complete | Decision point for the 200 ms target and any storage work | Low, 1–2 days |
+| 13 | Future: cache base reports separately from selected projections | High for repeated requests, but deliberately deferred | Medium, 3–5 days |
+| 14 | Future: add revision-scoped derived rebuilds, bounded memoization, and single-flight | Very high for common and concurrent views, but deliberately deferred | High, 1–2 weeks |
+| 15 | Future: evaluate a database or persistent derived store if measurements justify it | Unknown until the compute-first phase is complete | High |
 
 Effort values describe focused implementation time, not calendar promises.
 
-Items 2 and 3 are listed high deliberately. Component measurement corrected the
-priority order of this document twice; the estimate for item 1 is currently
-derived from component numbers rather than measured end to end, and no benchmark
-covers the multi-scope endpoint path at all.
+Items 2–4 are listed high deliberately. Component measurement corrected the
+priority order of this document twice. The multi-scope domain path now has a
+before-and-after benchmark, but no benchmark covers the complete investment
+endpoint, and cashflow consolidation is not yet supported by component
+measurements.
 
 ## Correctness and verification
 
@@ -447,7 +535,8 @@ Performance work must preserve exact observable behavior. The approach that
 worked for the timeline was to leave the existing per-day functions in place as
 the reference implementation and assert field-by-field agreement against them
 across the fixtures and the edge-case journals in `backend/test/fixtures/`.
-Repeat that for item 1.
+Item 1 follows the same pattern: the singular implementation remains in place,
+and deterministic fixture regressions compare it with the multi-scope path.
 
 Verification should cover:
 

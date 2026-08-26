@@ -47,6 +47,7 @@ import Hedger.Domain.InvestmentPerformance (
     investmentSummaryAt,
     reportPeriods,
     summariesAtPrepared,
+    summariesAtScopesPrepared,
     summaryAt,
     summaryAtPrepared,
  )
@@ -86,6 +87,7 @@ investmentsSpec =
         , holdingsSeriesRegressionTests
         , scopeScanRegressionTests
         , summariesAtPreparedRegressionTests
+        , summariesAtScopesPreparedRegressionTests
         ]
 
 retainedFdInterest :: IO ()
@@ -786,6 +788,42 @@ assertSummariesMatch path assetClasses mappings scope granularity = do
                 [ assertSummaryResultEqual ("day " <> show day) expected actual
                 | (day, expected, actual) <- zip3 days perDay bulk
                 ]
+
+{- | The latest-date bulk path must agree with the retained singular path for
+root, nested, and duplicate scopes in the same request. The fixture matrix
+covers valuation and cost gaps, mapping asymmetry, role attribution, and XIRR
+edge cases.
+-}
+summariesAtScopesPreparedRegressionTests :: TestTree
+summariesAtScopesPreparedRegressionTests =
+    testGroup
+        "summariesAtScopesPrepared agrees with per-scope summaryAtPrepared"
+        [ testCase label (assertScopeSummariesMatch path assetClasses mappings scopes)
+        | (label, path, assetClasses, mappings, scopes) <- scopeScanFixtures
+        ]
+
+assertScopeSummariesMatch ::
+    Text.Text -> AssetClassMappings -> InvestmentMappings -> [Maybe Text.Text] -> IO ()
+assertScopeSummariesMatch path assetClasses mappings configuredScopes = do
+    snapshotResult <- loadSnapshot path
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> assertScopeSummariesForSnapshot snapshot assetClasses mappings configuredScopes
+
+assertScopeSummariesForSnapshot ::
+    Snapshot -> AssetClassMappings -> InvestmentMappings -> [Maybe Text.Text] -> IO ()
+assertScopeSummariesForSnapshot snapshot assetClasses mappings configuredScopes = do
+    let latest = fromMaybe (error "fixture has no journal date") snapshot.latestJournalDate
+        context = prepareInvestmentPerformance snapshot assetClasses mappings "INR"
+        scopes = Nothing : configuredScopes <> take 1 configuredScopes
+        bulk = summariesAtScopesPrepared context latest scopes
+        singular = [(scope, summaryAtPrepared context scope latest) | scope <- scopes]
+    assertEqual "scope order and duplicates" scopes (fmap fst bulk)
+    assertBool "empty request" (null (summariesAtScopesPrepared context latest []))
+    sequence_
+        [ assertSummaryResultEqual ("scope " <> show scope) expected actual
+        | ((scope, expected), (_, actual)) <- zip singular bulk
+        ]
 
 assertSummaryResultEqual :: String -> SummaryResult -> SummaryResult -> IO ()
 assertSummaryResultEqual label expected actual = do

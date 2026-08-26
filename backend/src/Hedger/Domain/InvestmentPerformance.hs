@@ -11,6 +11,7 @@ module Hedger.Domain.InvestmentPerformance (
     prepareInvestmentPerformance,
     summaryAtPrepared,
     summariesAtPrepared,
+    summariesAtScopesPrepared,
     summaryAt,
     investmentSummaryAt,
 
