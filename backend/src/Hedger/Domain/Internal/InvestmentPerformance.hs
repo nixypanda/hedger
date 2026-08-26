@@ -138,6 +138,15 @@ data InvestmentPerformanceContext = InvestmentPerformanceContext
     , commodity :: Text
     , valueAt :: Day -> Hledger.MixedAmount -> Hledger.MixedAmount
     , historicalCostJournal :: Hledger.Journal
+    , sortedTransactions :: [Hledger.Transaction]
+    {- ^ hledger's @journalFinalise@ restores parse order via @journalReverse@ and
+    never sorts by date, so a chronological sweep has to sort first. Sorted here
+    rather than in 'scopeScansAt' because every scope in one request sweeps the
+    same transactions. The sort is stable, so same-date transactions keep their
+    file order; the resulting date-ordered 'cashFlows' is therefore a reordering
+    of what the per-day functions produce, which is unobservable because its only
+    consumer is 'Xirr.xirr', and 'Xirr.normalise' groups flows by day first.
+    -}
     }
 
 {- | The scope-derived, non-holdings inputs to one day's 'InvestmentSummary':
@@ -178,6 +187,7 @@ prepareInvestmentPerformance snapshot assetClasses mappings commodity = context
             , commodity
             , valueAt
             , historicalCostJournal = journalWithHistoricalCostsUsing valueAt snapshot commodity
+            , sortedTransactions = List.sortOn (.tdate) snapshot.transactions
             }
 
 summaryAt ::
@@ -359,18 +369,8 @@ scopeScansAt context scope days = fmap snd (List.sortOn fst indexedResults)
     mappings = context.mappings
     valueAt = context.valueAt
 
-    -- hledger's journalFinalise restores parse order via journalReverse and never
-    -- sorts by date, so jtxns (and snapshot.transactions) isn't date-ordered. A
-    -- chronological sweep needs date order, so sort once here; sortOn is stable,
-    -- so same-date transactions keep their original relative (file) order. This
-    -- also means cashFlows below comes out date-ordered rather than in file
-    -- order, which doesn't change any observable output: its only consumer is
-    -- 'Xirr.xirr', whose 'normalise' groups flows by day into a map before
-    -- solving.
-    sortedTransactions = List.sortOn (.tdate) context.snapshot.transactions
-
     indexedDays = List.sortOn snd (zip [0 :: Int ..] days)
-    indexedResults = walk initialAccumulator sortedTransactions indexedDays
+    indexedResults = walk initialAccumulator context.sortedTransactions indexedDays
 
     selectedMappings =
         filter
