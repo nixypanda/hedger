@@ -478,38 +478,38 @@ holdingsSeriesRegressionTests =
             , [Nothing]
             )
         ,
-            ( "bug1-gapped-price.journal"
-            , "../docs/edge-case-journals/bug1-gapped-price.journal"
+            ( "investment-gapped-price.journal"
+            , "test/fixtures/investment-gapped-price.journal"
             , edgeCaseAssetClasses
             , [Nothing]
             )
         ,
-            ( "bug1-never-priced.journal"
-            , "../docs/edge-case-journals/bug1-never-priced.journal"
+            ( "investment-never-priced.journal"
+            , "test/fixtures/investment-never-priced.journal"
             , edgeCaseAssetClasses
             , [Nothing]
             )
         ,
-            ( "bug6-gain-fee-roles.journal"
-            , "../docs/edge-case-journals/bug6-gain-fee-roles.journal"
+            ( "investment-gain-fee-roles.journal"
+            , "test/fixtures/investment-gain-fee-roles.journal"
             , edgeCaseAssetClasses
             , [Nothing, Just "assets:investments:equity"]
             )
         ,
-            ( "bug7-ambiguous-xirr.journal"
-            , "../docs/edge-case-journals/bug7-ambiguous-xirr.journal"
+            ( "investment-ambiguous-xirr.journal"
+            , "test/fixtures/investment-ambiguous-xirr.journal"
             , edgeCaseAssetClasses
             , [Nothing]
             )
         ,
-            ( "bug8-dust-commodity.journal"
-            , "../docs/edge-case-journals/bug8-dust-commodity.journal"
+            ( "investment-dust-commodity.journal"
+            , "test/fixtures/investment-dust-commodity.journal"
             , edgeCaseAssetClasses
             , [Nothing]
             )
         ,
-            ( "lowsev-nested-mapping-retained.journal"
-            , "../docs/edge-case-journals/lowsev-nested-mapping-retained.journal"
+            ( "investment-nested-mapping.journal"
+            , "test/fixtures/investment-nested-mapping.journal"
             , edgeCaseAssetClasses
             , [Nothing, Just "assets:investments"]
             )
@@ -579,43 +579,43 @@ scopeScanFixtures =
         , [Nothing]
         )
     ,
-        ( "bug1-gapped-price.journal"
-        , "../docs/edge-case-journals/bug1-gapped-price.journal"
+        ( "investment-gapped-price.journal"
+        , "test/fixtures/investment-gapped-price.journal"
         , edgeCaseAssetClasses
         , emptyInvestmentMappings
         , [Nothing]
         )
     ,
-        ( "bug1-never-priced.journal"
-        , "../docs/edge-case-journals/bug1-never-priced.journal"
+        ( "investment-never-priced.journal"
+        , "test/fixtures/investment-never-priced.journal"
         , edgeCaseAssetClasses
         , emptyInvestmentMappings
         , [Nothing]
         )
     ,
-        ( "bug6-gain-fee-roles.journal"
-        , "../docs/edge-case-journals/bug6-gain-fee-roles.journal"
+        ( "investment-gain-fee-roles.journal"
+        , "test/fixtures/investment-gain-fee-roles.journal"
         , edgeCaseAssetClasses
         , bug6Mappings
         , [Nothing, Just "assets:investments:equity"]
         )
     ,
-        ( "bug7-ambiguous-xirr.journal"
-        , "../docs/edge-case-journals/bug7-ambiguous-xirr.journal"
+        ( "investment-ambiguous-xirr.journal"
+        , "test/fixtures/investment-ambiguous-xirr.journal"
         , edgeCaseAssetClasses
-        , bug7Mappings
+        , ambiguousJournalMappings
         , [Nothing]
         )
     ,
-        ( "bug8-dust-commodity.journal"
-        , "../docs/edge-case-journals/bug8-dust-commodity.journal"
+        ( "investment-dust-commodity.journal"
+        , "test/fixtures/investment-dust-commodity.journal"
         , edgeCaseAssetClasses
         , emptyInvestmentMappings
         , [Nothing]
         )
     ,
-        ( "lowsev-nested-mapping-retained.journal"
-        , "../docs/edge-case-journals/lowsev-nested-mapping-retained.journal"
+        ( "investment-nested-mapping.journal"
+        , "test/fixtures/investment-nested-mapping.journal"
         , edgeCaseAssetClasses
         , nestedMappings
         , [Nothing, Just "assets:investments", Just "assets:investments:equity:xyz"]

@@ -1,0 +1,8 @@
+; A sub-0.000001 residual in an unpriced foreign commodity.
+commodity INR
+commodity USD
+
+2025-01-05 Nano USD residual left over from a near-full divestment
+    assets:cash:usd        USD 0.0000004
+    assets:cash:inr        INR 500000
+    equity:opening

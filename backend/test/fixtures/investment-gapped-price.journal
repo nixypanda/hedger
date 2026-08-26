@@ -1,0 +1,13 @@
+; USD is held from Jan but its first P price only lands in March.
+commodity INR
+commodity USD
+
+P 2025-03-01 USD 80 INR          ; <-- first (and only) price, two months late
+
+2025-01-15 Buy USD cash (transaction price only, no market price yet)
+    assets:cash:usd        USD 1000 @ INR 82
+    assets:cash:inr        INR -82000
+
+2025-02-10 Salary
+    assets:cash:inr        INR 50000
+    income:salary
