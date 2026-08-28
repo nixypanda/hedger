@@ -406,15 +406,18 @@ isIncomeLike role = case role of
 stepAccumulator ::
     InvestmentPerformanceContext -> ScopePlan -> Accumulator -> Hledger.Transaction -> Accumulator
 stepAccumulator context plan acc transaction =
-    acc
-        { seenAccounts = List.foldl' addAccount acc.seenAccounts transaction.tpostings
-        , explicitCostAccounts =
-            List.foldl' addExplicitCost acc.explicitCostAccounts transaction.tpostings
-        , retainedTotal = List.foldl' addSticky acc.retainedTotal retainedContributions
-        , attributedTotal =
-            List.foldl' combineTriple acc.attributedTotal attributedContributions
-        , cashFlowsTotal = addCashFlow acc.cashFlowsTotal transaction
-        }
+    if
+        | not (touchesPortfolio || transactionHasSelectedPerformance) -> acc
+        | otherwise ->
+            acc
+                { seenAccounts = List.foldl' addAccount acc.seenAccounts transaction.tpostings
+                , explicitCostAccounts =
+                    List.foldl' addExplicitCost acc.explicitCostAccounts transaction.tpostings
+                , retainedTotal = List.foldl' addSticky acc.retainedTotal retainedContributions
+                , attributedTotal =
+                    List.foldl' combineTriple acc.attributedTotal attributedContributions
+                , cashFlowsTotal = addCashFlow acc.cashFlowsTotal transaction
+                }
   where
     scope = plan.selectedScope
     commodity = context.commodity

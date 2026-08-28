@@ -1,6 +1,6 @@
 # Analytics performance improvement plan
 
-_Status: in progress · Last updated: 2026-08-27_
+_Status: compute-first phase measured; derived-data phase recommended · Last updated: 2026-08-28_
 
 ## Summary
 
@@ -19,32 +19,31 @@ scope; it now runs two flat balance reports and updates one accumulator per
 scope in a single chronological traversal.
 
 At 50,000 transactions, the monthly history went from exceeding a 45-second
-benchmark timeout to 2.4 seconds. The latest-date drill-down went from 6.01 to
-3.28 seconds, with allocation falling from 16 GB to 10 GB. This is a material
-improvement, but it also shows that the remaining per-scope predicate,
-conversion, XIRR, and allocation work is still much too expensive for the
-200 ms cold-request target.
+benchmark timeout to 2.72 seconds. The latest-date drill-down went from 6.01 to
+2.86 seconds, with allocation falling from 16 GB to 7.1 GB. The complete
+application request is 5.27 seconds and allocates 9.5 GB. These are serial,
+threaded `-N1` measurements; the benchmark runs one selected case at a time so
+thermal throttling and cross-benchmark contention do not become inputs.
 
 What remains, in order of measured cost:
 
-1. Further request-local investment indexing, predicate sharing, conversion,
-   XIRR, and allocation reduction. The shared traversal removed repeated list
-   walks and balance reports, but still performs scope-specific work for every
-   transaction and requested scope.
-2. Runtime configuration. The benchmark is not built with the server's
-   `-threaded -N`, so every figure here was measured under a garbage-collection
-   configuration production does not use, and `-N` on a many-core host is
-   actively harmful to this workload.
-3. Neither parallelism nor further API decomposition is a lever any more. Running
+1. Revision-scoped derived data and bounded memoization. The rebaseline has now
+   established that the 200 ms cold target is unreachable through the remaining
+   request-local work: each of the two timeline holdings reports independently
+   exceeds 300 ms, before the 1.20-second scope scan and roughly one second of
+   XIRR work.
+2. Further request-local investment indexing, predicate sharing, conversion,
+   XIRR, and allocation reduction remains worthwhile for rebuild cost and cold
+   misses, but is no longer a prerequisite to starting the derived-data phase.
+3. Neither parallelism nor further API decomposition is a lever by itself. Running
    the two net-worth passes concurrently was implemented and measured as a 45%
    regression at the server's actual `-N`, because the passes are
    allocation-bound rather than CPU-bound. The three analytics endpoints are
    already separate routes, and splitting net worth further into base and
    breakdown would make a breakdown request rerun the same hledger report unless
    a cross-request cache exists first.
-4. Revision-scoped derived data, bounded memoization, a database, or other
-   cross-request storage only after the compute-first phase is complete and has
-   been remeasured.
+4. A database or persistent derived store remains deferred until the simpler
+   revision-scoped in-memory design has been measured.
 
 Net-worth and cashflow report consolidation is complete. Net worth is now two
 hledger passes (one consolidated asset/liability report and the gain report) and
@@ -107,28 +106,74 @@ considered only after the request-local improvements have been implemented and
 the cold paths have been rebenchmarked. If the 200 ms target remains unmet at
 that point, the measurements will show the residual work that storage or
 precomputation must address rather than allowing a cache to conceal avoidable
-computation.
+computation. The 2026-08-28 audit and rebaseline satisfy that condition for
+in-memory revision-scoped derived data; a database remains deferred.
 
 ## Measured results
 
 Cabal development build with `-O1`, run against the repository's 5,000- and
-50,000-transaction portfolio fixtures. Baseline is commit `b424580` (`Speed up
-investment performance reports`); "now" is the current branch head. These are
-local measurements and should be treated as directional, not as portable
-service-level objectives.
+50,000-transaction portfolio fixtures. The audited measurements use the
+threaded RTS at `-N1`, wall-clock mode, and force every application response
+field. Every benchmark was selected and executed in its own process with
+Tasty's worker count fixed to one. Baseline is commit `b424580` (`Speed up
+investment performance reports`). These are local measurements and should be
+treated as directional, not as portable service-level objectives.
 
-| Fixture | Operation | Baseline | Now |
+| Fixture | Operation | Baseline | Audited now |
 |---|---|---:|---:|
-| 5,000 | Investment current summary | ~193 ms | ~148 ms |
-| 5,000 | Investment monthly history, 24 periods | ~3.85 s | **~289 ms** |
-| 5,000 | Investment latest-date drill-down | ~582 ms | **~321 ms** |
-| 5,000 | Net worth | ~315 ms | **~173 ms** |
-| 5,000 | Cashflow | ~39 ms | **~34 ms** |
-| 50,000 | Investment current summary | ~1.98 s | ~1.47 s |
-| 50,000 | Investment monthly history, 24 periods | >45 s, timed out | **~2.38 s** |
-| 50,000 | Investment latest-date drill-down | ~6.01 s | **~3.28 s** |
-| 50,000 | Net worth | ~1.63 s | **~670 ms** |
-| 50,000 | Cashflow | ~283 ms | **~191 ms** |
+| 5,000 | Investment current summary | ~193 ms | ~179 ms |
+| 5,000 | Investment monthly history, 24 periods | ~3.85 s | **~340 ms** |
+| 5,000 | Investment latest-date drill-down | ~582 ms | **~291 ms** |
+| 5,000 | Complete investments application use case | n/a | **~677 ms** |
+| 5,000 | Net worth | ~315 ms | **~201 ms** |
+| 5,000 | Cashflow | ~39 ms | **~32 ms** |
+| 50,000 | Investment current summary | ~1.98 s | ~1.73 s |
+| 50,000 | Investment monthly history, 24 periods | >45 s, timed out | **~2.72 s** |
+| 50,000 | Investment latest-date drill-down | ~6.01 s | **~2.86 s** |
+| 50,000 | Complete investments application use case | n/a | **~5.27 s** |
+| 50,000 | Net worth | ~1.63 s | **~741 ms** |
+| 50,000 | Cashflow | ~283 ms | **~196 ms** |
+
+### Audited investment forcing and request attribution
+
+`investmentsReportWeight` was checked field by field against both
+`Application.Investments.InvestmentsReport` and the HTTP projection. It forces
+metadata, request dimensions, the current summary, every timeline point,
+breadcrumb, child summary, allocation and warning. `summaryWeight` forces all
+eight fields of `InvestmentSummary`. The 5.27-second application result above is
+therefore a complete in-memory application use case rather than another partial
+lazy result.
+
+The benchmark executable now uses the threaded RTS but defaults to `-N1`; the
+server deliberately remains at unrestricted `-N`, since it must serve concurrent
+requests. Measurements use an exact Tasty pattern and `-j1`, so cases execute one
+at a time rather than heating the machine with a parallel benchmark group.
+
+New stage benchmarks attribute the 50,000-transaction investment path:
+
+| Stage | Time | Allocated |
+|---|---:|---:|
+| Prepare historical-cost context and sorted transactions | ~272 ms | 527 MB |
+| Timeline market holdings report | ~314 ms | 769 MB |
+| Timeline historical-cost holdings report | ~393 ms | 769 MB |
+| Timeline scope scan | ~1.20 s | 3.6 GB |
+| One XIRR solve | ~42 ms | 15 MB |
+| Latest drill-down multi-scope scan, before relevance guard | ~2.73 s | 8.4 GB |
+| Latest drill-down multi-scope scan, after relevance guard | **~1.64 s** | **5.1 GB** |
+
+The relevance guard skips the posting, amount, conversion and accumulation work
+for a transaction that neither touches a scope's portfolio nor matches one of
+its performance mappings. The retained singular implementation and all 125
+investment-performance regression cases agree with the optimized path. At the
+application level the guard reduces allocation from 13 GB to 9.5 GB; serial
+wall time is unchanged within variance. This is still useful for production's
+allocation pressure, but it is not evidence of progress toward 200 ms.
+
+The compute-first decision is now made. Even removing the scope scan and every
+XIRR solve would leave preparation and two independently measured holdings
+reports, each already above the target or close to twice it. Request-local work
+should continue where it materially lowers rebuild allocation or cold-miss cost,
+but revision-scoped derived data is now required for the interactive target.
 
 ### Every net-worth figure in earlier revisions of this document was wrong
 
@@ -182,8 +227,8 @@ keeps this broad attribution pass short, so these figures are directional.
 
 | Fixture | Operation | Time | Allocated | Copied | Peak memory |
 |---|---|---:|---:|---:|---:|
-| 5,000 | Complete investments application use case | ~622 ms | 1.3 GB | 44 MB | 79 MB |
-| 50,000 | Complete investments application use case | ~5.65 s | 13 GB | 421 MB | 720 MB |
+| 5,000 | Complete investments application use case | ~677 ms | 991 MB | 42 MB | 78 MB |
+| 50,000 | Complete investments application use case | ~5.27 s | 9.5 GB | 395 MB | 660 MB |
 | 5,000 | Net worth: asset/cash periodic | ~89 ms | 90 MB | 7.8 MB | 70 MB |
 | 5,000 | Net worth: liability periodic | ~16 ms | 10 MB | 1.1 MB | 70 MB |
 | 5,000 | Net worth: gain periodic | ~109 ms | 102 MB | 8.6 MB | 70 MB |
@@ -279,21 +324,15 @@ is reused when it already represents the latest date.
 
 One net-worth request performs:
 
-- an asset periodic multi-balance report;
-- a liability periodic multi-balance report;
-- a gain periodic multi-balance report;
-- a current asset balance report; and
-- a current liability balance report.
+- one consolidated asset/cash/liability periodic multi-balance report; and
+- one gain periodic multi-balance report.
 
-The periodic reports provide timeline totals and selected-period breakdown
-rows. The two current reports recalculate the latest values used to override the
-KPI values.
+The periodic reports provide timeline totals, selected-period breakdown rows and
+the latest column from which strict current KPI values are projected.
 
 hledger's `reportSpanHelper` derives the report span from the whole journal's
 date span and only reads *date* terms out of the query, never account terms. All
-three periodic reports therefore share an identical window, which makes the
-`zipWith3` that combines their columns safe and removes the main alignment risk
-from consolidating them.
+two periodic reports therefore share an identical window.
 
 ## Work items
 
@@ -326,9 +365,24 @@ The retained singular path remains as a benchmark and correctness oracle.
 Fixture regressions compare every summary field and warning across root, nested,
 duplicate, missing-price, missing-cost, foreign-cost, mapping, fee/gain, and
 ambiguous-XIRR cases. No accounting-semantic divergence was found. The measured
-45% time reduction and 38% allocation reduction at 50,000 transactions are
-material, but the 3.28-second result leaves request-local scope work as an
-active optimization target.
+shared traversal remains material, and the later relevance guard reduces the
+drill-down result further to 2.86 seconds and 7.1 GB allocated. Request-local
+scope work remains an optimization target for rebuild and cold-miss cost, but it
+cannot by itself reach the interactive target.
+
+#### Completed: skip transactions irrelevant to an individual scope
+
+The multi-scope sweep formerly called the complete accumulator step for every
+transaction and every scope. Most asset transactions touch the root and one
+immediate child, yet the other child scopes still folded every posting and
+inspected every amount before contributing nothing.
+
+`stepAccumulator` now returns immediately when a transaction neither touches the
+scope's investment portfolio nor matches one of its selected performance
+mappings. This is an exact semantic guard: in that case account discovery,
+explicit-cost discovery, retained performance, attribution and external cash
+flows are all unchanged. All 125 investment-performance tests, including the
+multi-scope-to-singular oracle, pass.
 
 ### 2. Net-worth report consolidation
 
@@ -402,7 +456,9 @@ yearly query. The report journal also excludes price directives after
 boundary, so narrowing only the query still allowed `AtEnd` valuation to see a
 later price inside that month or year.
 
-The distinct strict current reports remain in place. A regression fixture pins
+At this stage of the work the distinct strict current reports remained in place;
+the KPI projection change in the preceding completed section later removed them
+from the request path. A regression fixture pins
 the boundary by providing one price on the final transaction date and another
 later in the month; the periodic value and strict current value both use the
 former.
@@ -458,9 +514,10 @@ accumulation step — so it cannot share a pass with `CalcChange`. Deriving it a
 market value minus cost basis would need two reports anyway, so there is nothing
 to win.
 
-#### Why net worth costs 3.5x cashflow, and why that is mostly inherent
+#### Why net worth costs about 3.8x cashflow, and why that is mostly inherent
 
-At 50,000 transactions net worth is ~670 ms and cashflow ~191 ms. A 2x2 probe
+At 50,000 transactions the audited threaded serial baseline is ~741 ms for net
+worth and ~196 ms for cashflow. A 2x2 probe
 over {balance accounts, flow accounts} x {`Historical`+`AtEnd`,
 `PerPeriod`+`AtThen`} attributes the gap:
 
@@ -474,7 +531,7 @@ over {balance accounts, flow accounts} x {`Historical`+`AtEnd`,
   commodities while income and expenses are single-commodity is wrong.
 - **The mode is the whole story** — ~1.9x time and ~3x allocation.
 - **Net worth runs two passes to cashflow's one**, since `CalcGain` cannot share
-  a pass. 2 x 1.9 = 3.8x, against 3.5x observed.
+  a pass. 2 x 1.9 = 3.8x, matching the audited ratio.
 
 The mode difference is stock versus flow. Net worth accumulates from the start of
 the journal, so it aggregates every posting ever recorded; a `PerPeriod` cashflow
@@ -495,7 +552,7 @@ ledger and the gap would narrow considerably.
 
 The practical consequence is that net worth has no valuation or consolidation win
 left. Its remaining cost is two full-journal cumulative passes, so reaching 200 ms
-needs either the declined depth-clipping guard or the deferred caching phase.
+needs either the declined depth-clipping guard or revision-scoped derived data.
 
 #### Measured but deliberately declined: clipping the consolidated report
 
@@ -536,12 +593,12 @@ The general lesson is worth keeping: in this codebase, sharing a large
 intermediate across report passes is not automatically cheaper than recomputing
 it, and the difference does not show up in allocation figures.
 
-#### Future phase: cache the base report, not the selected view
+#### Next phase: cache the base report, not the selected view
 
-This is a cross-request optimization and is deferred until the compute-first
-phase described above is complete. During that first phase the same separation
-is still useful inside one request: calculate the base report once and project
-selected periods and depths from it without rerunning hledger.
+The compute-first audit has now met the entry condition for this cross-request
+optimization. The same separation already applies inside one request: calculate
+the base report once and project selected periods and depths from it without
+rerunning hledger.
 
 Selected asset/liability periods and display grouping are projections over a
 periodic report. Cache the base rows and totals by:
@@ -554,10 +611,10 @@ Changing the selected period should then select another column and regroup its
 rows rather than rerun hledger. Where practical, cache at the maximum supported
 depth and collapse to shallower depths in the application layer.
 
-### 3. Future phase: revision-scoped derived data
+### 3. Next phase: revision-scoped derived data
 
-Do not begin this phase until the compute-on-every-request improvements have
-been implemented and rebenchmarked against the 200 ms target.
+The compute-on-every-request improvements have now been rebenchmarked against
+the 200 ms target. The stage attribution shows that this phase is required.
 
 Add a derived-data store associated with the immutable snapshot revision. A
 possible shape is:
@@ -775,35 +832,27 @@ Before attempting parallelism anywhere else in this codebase, measure the
 allocation rate of the work being overlapped. Two allocation-heavy hledger passes
 do not overlap.
 
-### 7. The benchmark and the server do not use the same runtime
+### 7. Completed: use the threaded runtime without parallel benchmarks
 
-`benchmark snapshot-bench` has `ghc-options: -rtsopts -with-rtsopts=-T` and no
-`-threaded`. `executable hedger-server` has `-threaded -rtsopts -with-rtsopts=-N`.
+`snapshot-bench` now links the threaded RTS and defaults to `-N1 -T`. Every
+reported rebaseline selects one exact case, fixes Tasty to `-j1`, and executes it
+in a separate process. This preserves the threaded runtime machinery while
+preventing benchmark cases or capabilities from heating the machine together
+and distorting later measurements.
 
-Every figure in this document was therefore measured under a garbage-collection
-configuration the server does not use. The serial `-N1` threaded baseline above
-is 713 ms where the non-threaded benchmark reports ~670 ms, which suggests the
-threaded runtime alone costs on the order of 6% here, before any parallelism.
-
-This does not invalidate the consolidation results — those are large and backed
-by deterministic allocation reductions — but it means the benchmark
-systematically under-represents production GC behaviour, and it hid the fact that
-`-N` on a 12-capability machine is actively harmful to this workload.
-
-Two things follow, and the second may be worth more than any parallelism:
-
-1. Give the benchmark the server's RTS configuration, then re-baseline every
-   analytics figure.
-2. Measure whether the server should drop from `-N` to a small fixed capability
-   count. On the measurements above, moving from 12 capabilities to 1-2 is worth
-   ~30% of the net-worth request on its own, with no code change at all.
+`hedger-server` deliberately remains at `-threaded -rtsopts -with-rtsopts=-N`.
+It is a concurrent web server, so unrestricted capabilities are preferred even
+though a single allocation-heavy request can benchmark faster at `-N1`. The
+serial benchmark is an intrinsic-work comparison baseline, not a claim about
+production latency under concurrent load. Production capacity and tail latency
+need a separate load test rather than a parallel microbenchmark suite.
 
 ## Task and impact estimate
 
 | Priority | Task | Expected gain | Estimated effort |
 |---:|---|---|---|
-| 1 | **Complete:** share one flat report and one multi-scope sweep across the latest-date scopes | 45% faster and 38% less allocation at 50,000 transactions | Completed |
-| 2 | **Complete:** add an endpoint-level investments benchmark | Measured the combined 50,000-transaction cold application path at ~5.65 s and 13 GB allocated | Completed |
+| 1 | **Complete:** share one flat report and one multi-scope sweep across the latest-date scopes | Latest drill-down is now 2.86 s and 7.1 GB allocated at 50,000 transactions | Completed |
+| 2 | **Complete:** add an endpoint-level investments benchmark | Audited combined cold application path: ~5.27 s and 9.5 GB allocated | Completed |
 | 3 | **Complete:** add net-worth component benchmarks | Identified the strict current asset/cash balance as the largest measured 50,000-transaction component | Completed |
 | 4 | **Complete:** add cashflow component benchmarks | Measured the two 50,000-transaction periodic passes at ~105 ms and ~139 ms | Completed |
 | 5 | **Complete:** align the net-worth periodic window to the latest journal date | 10.5% faster at 5,000 and 5.2% faster at 50,000 transactions in paired measurements | Completed |
@@ -811,26 +860,26 @@ Two things follow, and the second may be worth more than any parallelism:
 | 7 | **Complete:** derive the current KPIs from the final periodic column | Removed both strict balance reports: 1.63 s → 733 ms at 50,000 | Completed |
 | 8 | **Complete:** consolidate asset and liability net-worth passes | Contributed to 733 ms → 670 ms; 406 ms → 287 ms on the reports alone | Completed |
 | 9 | **Complete:** consolidate income and expense cashflow passes | 283 ms → 191 ms at 50,000; 258 ms → 139 ms on the reports alone | Completed |
-| 10 | Give the benchmark the server's `-threaded -N` runtime, then re-baseline every analytics figure | High confidence gain: every figure so far is measured under a GC configuration the server does not use | Low, 1 day |
-| 11 | Measure whether the server should drop from `-N` to a small fixed capability count | ~30% of the net-worth request on the measurements above, with no code change | Low, 1 day |
-| 12 | Audit the investment benchmark weight functions for the missing-force defect found in `netWorthWeight` | Unknown; until done, the ~5.65 s application figure and its component attributions are unverified | Low, 1 day |
+| 10 | **Complete:** link the benchmark with the threaded RTS, pin it to `-N1`, run cases individually, and rebaseline | Reproducible serial baseline without cross-case thermal contention | Completed |
+| 11 | **Decided:** retain unrestricted `-N` for the production web server | Prefer concurrent serving capacity; assess it with a separate load test | Completed |
+| 12 | **Complete:** audit the investment benchmark weight functions | Every application and nested summary field is forced; 5.27-second result is verified | Completed |
 | 13 | Share the safe half of the XIRR grid across prefixes | Low; ~0.5 s at 50,000 transactions | Low, 1–2 days |
-| 14 | Profile and reduce remaining request-local indexing, conversion, grouping, sorting, and allocation costs | Required to determine whether cold requests can reach 200 ms | Open-ended, measurement-led |
+| 14 | **Complete first slice:** add investment stage benchmarks and skip scope-irrelevant transactions | Multi-scope scan 2.73 s/8.4 GB → 1.64 s/5.1 GB; application allocation 13 GB → 9.5 GB | Continue measurement-led |
 | 15 | **Declined for now:** clip the consolidated report behind a type-preservation guard | 62 ms at 50,000, but adds a branch, a fallback and a fixture | Low, 1–2 days |
 | 16 | **Rejected:** share the report window across reports | Measured regression | Not viable |
 | 17 | **Rejected:** run the two net-worth passes in parallel | Measured 45% regression at the server's actual `-N`; the passes are allocation-bound, so they do not overlap. Any other parallelism candidate must first be shown allocation-light | Not viable |
 | 18 | Split endpoints further only where an uncached request can omit material work | Low; the three analytics endpoints are already separate routes | Medium–high, 4–7 days |
-| 19 | Rebenchmark every cold analytics path and decide whether the compute-first phase is complete | Decision point for the 200 ms target and any storage work | Low, 1–2 days |
-| 20 | Future: cache base reports separately from selected projections | High for repeated requests, but deliberately deferred | Medium, 3–5 days |
-| 21 | Future: add revision-scoped derived rebuilds, bounded memoization, and single-flight | Very high for common and concurrent views, but deliberately deferred | High, 1–2 weeks |
-| 22 | Future: evaluate a database or persistent derived store if measurements justify it | Unknown until the compute-first phase is complete | High |
+| 19 | **Complete:** rebenchmark every cold analytics path and decide whether storage is required | The independently measured holdings reports already exceed 200 ms; derived data is required | Completed |
+| 20 | **Next:** cache base reports separately from selected projections | High for repeated requests | Medium, 3–5 days |
+| 21 | Add revision-scoped derived rebuilds, bounded memoization, and single-flight | Very high for common and concurrent views | High, 1–2 weeks |
+| 22 | Future: evaluate a database or persistent derived store if the in-memory derived phase is insufficient | Unknown until that phase is measured | High |
 
 Effort values describe focused implementation time, not calendar promises.
 
 Items 2–4 were listed high deliberately and are now complete. Component
 measurement corrected the priority order of this document twice; the complete
 investment application path and every production net-worth and cashflow report
-now have direct coverage before consolidation work begins.
+now have direct benchmark coverage.
 
 ## Correctness and verification
 
@@ -902,7 +951,7 @@ family, normalized non-sensitive dimensions, request ID, revision, and timing.
 | Background failure hides new journal data indefinitely | Permanently stale dashboard | Expose stale/error metadata, retry safely, and log/measure derived rebuild failures |
 | Optimizing from a reading of the code rather than a measurement | Effort spent on minor terms | Add the component benchmark first; this has already produced two wrong priority orders |
 | Trusting a benchmark without checking that it forces the whole result | A reported result that is silently measuring a subset of the work | Force every field of the returned record; treat any component slower than its own parent as a measurement bug |
-| Benchmarking under a different runtime configuration than the server uses | Conclusions that do not transfer to production, and production-only regressions | Keep the benchmark's RTS options in step with the `hedger-server` stanza |
+| Treating a serial microbenchmark as production concurrency evidence | Conclusions that do not transfer to the web server | Use threaded `-N1`, `-j1` for intrinsic comparisons and a separate unrestricted-`-N` load test for production capacity and tail latency |
 | Assuming independent pure computations can be overlapped profitably | Wall-clock regressions under the server's `-N` | Measure the allocation rate first; allocation-bound passes serialize on GC regardless of capability count |
 
 ## Decisions to make during design
@@ -918,34 +967,25 @@ family, normalized non-sensitive dimensions, request ID, revision, and timing.
 4. The cache memory budget and whether it is count-, size-, or cost-based.
 5. The worker limit on the target NixOS host and whether reload work has lower
    priority than interactive cache misses.
-6. Whether a combined net-worth balance report can preserve all current hledger
-   semantics.
-7. The acceptable freshness delay while common derived reports rebuild.
+6. The acceptable freshness delay while common derived reports rebuild.
 
 ## Recommended next slice
 
-Net worth and cashflow are now the cheap half of the analytics surface. At 50,000
-transactions net worth is ~670 ms against a 200 ms target, and the investments
-request is ~5.65 s — so the next work is on investments, not here.
+The benchmark audit, serial threaded rebaseline, request attribution and
+compute-first decision are complete. At 50,000 transactions net worth is ~741 ms
+and the complete investments request is ~5.27 seconds. Independently measured
+hledger passes already exceed the 200 ms target, so further request-local work
+cannot make every cold request interactive.
 
-Two of these are cheap and should come first, because they concern whether the
-numbers mean anything and whether a free win is being left on the floor.
+The next slice is therefore the first revision-scoped derived-data iteration:
 
-1. Give the benchmark the server's `-threaded -N` runtime and re-baseline. Until
-   this is done, every figure in this document describes a GC configuration
-   production does not use.
-2. Measure the server's capability count. Going from 12 capabilities to 1-2 was
-   worth ~30% of the net-worth request in the parallelism experiment, with no code
-   change. If that holds, it is the cheapest remaining win in the document.
-3. Audit the investment benchmark weight functions the same way `netWorthWeight`
-   was audited. Every net-worth figure this document carried was wrong because a
-   weight function skipped lazy fields; the investment weights have not been
-   checked for the same defect, and until they are, the ~5.65 s application
-   figure and the component attributions built on it are unverified.
-4. Profile the complete investment request and reduce its remaining request-local
-   indexing, conversion, grouping, sorting, and allocation costs.
-5. For net worth specifically, the remaining terms are the two hledger passes
-   themselves (~287 ms consolidated and ~288 ms gain at 50,000). Neither can be
-   removed without either the declined depth-clipping guard or a change in
-   valuation semantics, and they cannot be overlapped. Net worth reaching 200 ms
-   on this fixture probably requires the deferred caching phase.
+1. Choose atomic publication semantics for snapshot and derived revisions.
+2. Cache expensive base reports rather than selected-period or selected-depth
+   projections, keyed by every semantic input listed above.
+3. Add single-flight calculation and a bounded cache before any eager rebuilds.
+4. Benchmark cold miss, warm hit and concurrent identical miss one case at a
+   time; use a separate unrestricted-`-N` server load test for concurrency.
+5. Add derived-revision, duration, hit/miss and waiter observability.
+
+The safe half-grid XIRR optimization and further prepared transaction indexes
+remain useful for cold misses and rebuild cost, but no longer gate this slice.

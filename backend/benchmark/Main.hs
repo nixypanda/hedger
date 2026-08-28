@@ -68,7 +68,9 @@ import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportTypes qualified as HledgerReportTypes
+import Test.Tasty (localOption)
 import Test.Tasty.Bench (Benchmark, bench, bgroup, defaultMain, env, nf, nfIO)
+import Test.Tasty.Runners (NumThreads (..))
 
 {- | Only sizes with enough transactions to exercise scaling behaviour. Each
 fixture is loaded once and shared across every benchmark group below.
@@ -82,8 +84,11 @@ fixtures =
 main :: IO ()
 main =
     defaultMain
-        ( bgroup "parse" [bench name $ nfIO (loadAndForce path) | (name, path) <- fixtures]
-            : fmap fixtureBenchmarks fixtures
+        ( fmap
+            (localOption (NumThreads 1))
+            ( bgroup "parse" [bench name $ nfIO (loadAndForce path) | (name, path) <- fixtures]
+                : fmap fixtureBenchmarks fixtures
+            )
         )
 
 fixtureBenchmarks :: (String, Text.Text) -> Benchmark
@@ -118,6 +123,26 @@ fixtureBenchmarks (name, path) =
                 , bgroup
                     "investment-parts"
                     [ bench "prepare" $ nf prepareWeight snapshot
+                    , bench "timeline-holdings-market" $
+                        nf
+                            (forceAmountsList . timelineHoldingsMarket context)
+                            input.monthEnds
+                    , bench "timeline-holdings-cost" $
+                        nf
+                            (forceAmountsList . timelineHoldingsCost context)
+                            input.monthEnds
+                    , bench "timeline-scope-scan" $
+                        nf
+                            (scopeScansWeight . Performance.scopeScansAt context Nothing)
+                            input.monthEnds
+                    , bench "drill-down-scope-scans" $
+                        nf
+                            ( scopeScansWeight
+                                . Performance.scopeScansForScopesAt
+                                    context
+                                    (investmentDrillDownScopes snapshot input.latest)
+                            )
+                            input.latest
                     , bench "holdings-market" $ nf (forceAmounts . holdingsMarketAt snapshot) input.latest
                     , bench "holdings-cost" $ nf (forceAmounts . holdingsCostAt context) input.latest
                     , bench "accounts" $ nf (investmentAccountsCount snapshot) input.latest
@@ -397,6 +422,38 @@ tripleWeight = length . show
 cashFlowsWeight :: Maybe [Xirr.CashFlow] -> Int
 cashFlowsWeight = length . show
 
+forceAmountsList :: [Hledger.MixedAmount] -> Int
+forceAmountsList = sum . fmap forceAmounts
+
+scopeScansWeight :: [Performance.ScopeScan] -> Int
+scopeScansWeight = sum . fmap scopeScanWeight
+
+scopeScanWeight :: Performance.ScopeScan -> Int
+scopeScanWeight scan =
+    sum (Text.length <$> scan.accounts)
+        + fromEnum scan.mappingComplete
+        + decimalWeight scan.retained
+        + tripleWeight scan.attributed
+        + cashFlowsWeight scan.cashFlows
+
+timelineHoldingsMarket ::
+    Performance.InvestmentPerformanceContext -> [Day] -> [Hledger.MixedAmount]
+timelineHoldingsMarket context =
+    Performance.holdingsSeriesAtWithJournal
+        context.snapshot.journal
+        context.assetClasses
+        Nothing
+        Monthly
+
+timelineHoldingsCost ::
+    Performance.InvestmentPerformanceContext -> [Day] -> [Hledger.MixedAmount]
+timelineHoldingsCost context =
+    Performance.holdingsSeriesAtWithJournal
+        context.historicalCostJournal
+        context.assetClasses
+        Nothing
+        Monthly
+
 summaryWeight :: Performance.InvestmentSummary -> Int
 summaryWeight summary =
     sum
@@ -436,6 +493,9 @@ investmentsReport environment = do
 {- | Force every response field that would be materialised by the HTTP layer.
 This keeps the benchmark focused on the application's full report calculation,
 including timeline, latest summary, child and allocation projections.
+
+Keep this field-by-field rather than relying on an 'NFData' instance: changes to
+the application read model then require an explicit benchmark audit here.
 -}
 investmentsReportWeight :: Investments.InvestmentsReport -> Int
 investmentsReportWeight report =
