@@ -170,7 +170,7 @@ fixtureBenchmarks (name, path) =
                     "period-report-parts"
                     [ bench "periods-with-data-monthly-24" $
                         nf
-                            (reportPeriodsWeight . PeriodReport.periodsWithData Monthly snapshot.transactions)
+                            (length . PeriodReport.periodsWithData Monthly snapshot.transactions)
                             input.monthlyReportPeriods
                     ]
                 , bgroup
@@ -278,6 +278,7 @@ loadFixtureInput path = do
             fromMaybe [] (cashFlowsComponent context snapshot latest) <> [terminal]
     _ <- evaluate (length (show configuration))
     _ <- evaluate environment
+    _ <- evaluate (reportPeriodsWeight monthlyReportPeriods)
     case current.marketValue of
         Nothing -> fail "investment benchmark fixture produced an empty portfolio"
         Just _ -> pure ()

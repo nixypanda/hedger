@@ -33,7 +33,7 @@ attempted in this repository.
 |---:|---|---|
 | 1–7 | Deferred upstream | Require an `hledger-lib` change; not attempted locally. |
 | 8 | Rejected | 219 ms / 200 MB before and after; reverted because there was no measured benefit. |
-| 9 | Completed | Isolated: 48.4 ms / 107 MB → 37.5 ms / 74 MB. Full cashflow: 219 ms / 200 MB → 193 ms / 167 MB. |
+| 9 | Completed | Isolated: 44.3 ms / 106 MB → 37.1 ms / 74 MB. Full cashflow: 219 ms / 200 MB → 193 ms / 167 MB. |
 | 10 | Rejected | Existing list: 41.0 ms / 15 MB; unboxed vector: 45.2 ms / 15 MB. Reverted. |
 | 11 | Completed | Production-shaped XIRR: 41.0 ms / 15 MB → 39.7 ms / 5 MB. Journal-derived XIRR: about 163 ms / 57 MB → 156 ms / 17 MB. |
 
@@ -245,7 +245,7 @@ higher priority unless profiling attributes unexpected cost to projection.
 ## 9. Integer month membership
 
 **Status: completed.** Replacing `Set Text` membership with integer month
-membership improved the isolated operation from 48.4 ms / 107 MB to 37.5 ms /
+membership improved the isolated operation from 44.3 ms / 106 MB to 37.1 ms /
 74 MB. Full cashflow improved from 219 ms / 200 MB to 193 ms / 167 MB. The
 original estimate below is superseded by these results.
 
@@ -295,9 +295,10 @@ approximately 0.1–0.3 seconds.
 39.7 ms / 5 MB. Journal-derived XIRR improved from about 163 ms / 57 MB to 156
 ms / 17 MB. The original estimate below is superseded by these results.
 
-Investment cashflows are already chronological. Combine adjacent flows sharing
-the same date while producing the solver input instead of rebuilding them with
-`Map Day Decimal` during normalization.
+The prepared investment scope-scan path produces chronological cashflows.
+Combine adjacent flows sharing the same date there instead of rebuilding them
+with `Map Day Decimal` during normalization. Retain the unordered fallback for
+other callers whose transaction order is not chronological.
 
 **Estimated gain:** 3–15% of XIRR preparation, depending on how many flows share
 a date. This is likely smaller than improving repeated NPV evaluation.
