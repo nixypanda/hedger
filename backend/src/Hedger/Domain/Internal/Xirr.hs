@@ -71,7 +71,27 @@ xirr cashFlows = do
 type NumericalCashFlow = (Day, Double)
 
 normalise :: [CashFlow] -> [CashFlow]
-normalise cashFlows =
+normalise cashFlows = case normaliseChronological cashFlows of
+    Just flows -> flows
+    Nothing -> normaliseUnordered cashFlows
+
+normaliseChronological :: [CashFlow] -> Maybe [CashFlow]
+normaliseChronological [] = Just []
+normaliseChronological (CashFlow (firstDay, firstAmount) : remaining) =
+    fmap reverse (go firstDay firstAmount remaining [])
+  where
+    go day amount [] normalised = Just (addFlow day amount normalised)
+    go day amount (CashFlow (nextDay, nextAmount) : flows) normalised
+        | nextDay < day = Nothing
+        | nextDay == day = go day (nextAmount + amount) flows normalised
+        | otherwise = go nextDay nextAmount flows (addFlow day amount normalised)
+
+    addFlow day amount normalised
+        | amount == 0 = normalised
+        | otherwise = cashFlow day amount : normalised
+
+normaliseUnordered :: [CashFlow] -> [CashFlow]
+normaliseUnordered cashFlows =
     [ cashFlow day amount
     | (day, amount) <- Map.toAscList grouped
     , amount /= 0
