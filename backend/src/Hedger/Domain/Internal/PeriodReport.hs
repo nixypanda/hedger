@@ -25,7 +25,7 @@ import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
-import Data.Time (Day, addDays)
+import Data.Time (Day, addDays, toGregorian)
 
 import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Journal qualified as HledgerJournal
@@ -44,7 +44,6 @@ import Hedger.Domain.Period (
     atIndex,
     epoch,
     lastMaybe,
-    monthKey,
     periodsFromDateSpan,
     periodsFromReport,
     takeLast,
@@ -216,9 +215,18 @@ periodsWithData ::
 periodsWithData granularity transactions periods =
     case granularity of
         Monthly ->
-            let dataMonths = Set.fromList (fmap (monthKey . (.tdate)) transactions)
-             in filter ((`Set.member` dataMonths) . (.key)) periods
+            let dataMonths = Set.fromList (fmap (monthIndex . (.tdate)) transactions)
+             in filter ((`Set.member` dataMonths) . monthIndex . (.start)) periods
         Yearly -> periods
+
+{- | A total, compact month identifier for a Gregorian day. Using 'Integer'
+keeps it safe for every 'Day' supported by 'time', including years outside the
+usual application range.
+-}
+monthIndex :: Day -> Integer
+monthIndex day =
+    let (year, month, _) = toGregorian day
+     in year * 12 + toInteger (month - 1)
 
 reportTotals :: Text -> ReportSide -> [Conversion Decimal]
 reportTotals commodity side = fmap (conversionFromMixed commodity) side.columns

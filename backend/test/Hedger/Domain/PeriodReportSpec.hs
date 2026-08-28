@@ -9,9 +9,11 @@ import Data.Foldable (traverse_)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Time (fromGregorian)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 
+import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Domain.Internal.Cashflow (
@@ -28,13 +30,14 @@ import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
     ReportSide,
     breakdownItemsFor,
+    periodsWithData,
     reportMissing,
     reportPeriodsFrom,
     reportSide,
     reportTotals,
     wholeReport,
  )
-import Hedger.Domain.Period (Granularity (..), ReportPeriod, lastMaybe)
+import Hedger.Domain.Period (Granularity (..), ReportPeriod (key), lastMaybe, monthPeriod)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..))
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
@@ -52,6 +55,13 @@ periodReportSpec =
             , commodity <- ["INR", "USD"]
             , depth <- [1, 2, 3]
             ]
+        , testGroup
+            "periods with data"
+            [ testCase "distinguishes December from January" decemberJanuaryPeriods
+            , testCase "distinguishes the same month across years" sameMonthDifferentYears
+            , testCase "deduplicates repeated months" repeatedMonths
+            , testCase "returns no months for empty input" emptyTransactions
+            ]
         ]
   where
     label journal granularity commodity depth =
@@ -62,6 +72,59 @@ periodReportSpec =
             <> Text.unpack commodity
             <> " depth "
             <> show depth
+
+decemberJanuaryPeriods :: IO ()
+decemberJanuaryPeriods =
+    assertEqual
+        "only December is retained"
+        ["2024-12"]
+        ( fmap
+            (.key)
+            ( periodsWithData
+                Monthly
+                [transactionOn 2024 12 31]
+                [monthPeriod (fromGregorian 2024 12 1), monthPeriod (fromGregorian 2025 1 1)]
+            )
+        )
+
+sameMonthDifferentYears :: IO ()
+sameMonthDifferentYears =
+    assertEqual
+        "only the matching year is retained"
+        ["2025-03"]
+        ( fmap
+            (.key)
+            ( periodsWithData
+                Monthly
+                [transactionOn 2025 3 15]
+                [monthPeriod (fromGregorian 2024 3 1), monthPeriod (fromGregorian 2025 3 1)]
+            )
+        )
+
+repeatedMonths :: IO ()
+repeatedMonths =
+    assertEqual
+        "the matching period appears once"
+        ["2024-06"]
+        ( fmap
+            (.key)
+            ( periodsWithData
+                Monthly
+                [transactionOn 2024 6 1, transactionOn 2024 6 30]
+                [monthPeriod (fromGregorian 2024 6 1)]
+            )
+        )
+
+emptyTransactions :: IO ()
+emptyTransactions =
+    assertEqual
+        "no period has data"
+        []
+        (fmap (.key) (periodsWithData Monthly [] [monthPeriod (fromGregorian 2024 6 1)]))
+
+transactionOn :: Integer -> Int -> Int -> Hledger.Transaction
+transactionOn year month day =
+    nulltransaction{Hledger.tdate = fromGregorian year month day}
 
 {- | Journals covering missing prices, foreign cash, dust residuals, nested
 mappings and gapped price histories: the cases where a per-side total, its

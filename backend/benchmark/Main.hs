@@ -31,6 +31,7 @@ import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
 import Hedger.Domain.Internal.Cashflow qualified as Cashflow
 import Hedger.Domain.Internal.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Internal.NetWorth qualified as NetWorth
+import Hedger.Domain.Internal.PeriodReport qualified as PeriodReport
 import Hedger.Domain.Investment (
     AssetClass (..),
     AssetClassMapping (..),
@@ -48,7 +49,7 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..))
+import Hedger.Domain.Period (Granularity (..), ReportPeriod (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..))
 import Hedger.Domain.Xirr qualified as Xirr
@@ -166,6 +167,13 @@ fixtureBenchmarks (name, path) =
                     , bench "expense-periodic" $ nf expensePeriodicWeight snapshot
                     ]
                 , bgroup
+                    "period-report-parts"
+                    [ bench "periods-with-data-monthly-24" $
+                        nf
+                            (reportPeriodsWeight . PeriodReport.periodsWithData Monthly snapshot.transactions)
+                            input.monthlyReportPeriods
+                    ]
+                , bgroup
                     "networth-parts"
                     [ bench "asset-liability-periodic" $ nf assetLiabilityPeriodicWeight snapshot
                     , bench "asset-cash-periodic" $ nf assetCashPeriodicWeight snapshot
@@ -197,6 +205,7 @@ data FixtureInput = FixtureInput
     , env :: Env
     , latest :: Day
     , monthEnds :: [Day]
+    , monthlyReportPeriods :: [ReportPeriod]
     , xirrFlows :: [Xirr.CashFlow]
     , investmentCashFlows :: [Xirr.CashFlow]
     , page :: [Hledger.Transaction]
@@ -207,9 +216,10 @@ instance NFData FixtureInput where
         rnf (forceSnapshot input.snapshot) `seq`
             rnf input.latest `seq`
                 rnf input.monthEnds `seq`
-                    rnf (length (show input.xirrFlows)) `seq`
-                        rnf (length (show input.investmentCashFlows)) `seq`
-                            rnf (forcePostingContents input.page)
+                    rnf (reportPeriodsWeight input.monthlyReportPeriods) `seq`
+                        rnf (length (show input.xirrFlows)) `seq`
+                            rnf (length (show input.investmentCashFlows)) `seq`
+                                rnf (forcePostingContents input.page)
 
 {- | Force everything a fixture's benchmarks read out of a snapshot, so 'env'
 pays derivation cost up front rather than inside a timed benchmark. hledger
@@ -257,6 +267,10 @@ loadFixtureInput path = do
         latest = fromMaybe (error "benchmark fixture has no date") snapshot.latestJournalDate
         transactions = Performance.investmentDataTransactions snapshot benchmarkAssetClassMappings Nothing
         monthEnds = (\(_, _, end) -> end) <$> Performance.reportPeriods Monthly transactions latest
+        monthlyReportPeriods =
+            [ ReportPeriod{key, start, end}
+            | (key, start, end) <- Performance.reportPeriods Monthly snapshot.transactions latest
+            ]
         current = investmentSummary snapshot latest
         context = prepareContext snapshot
         terminal = Xirr.cashFlow latest (fromMaybe 0 current.marketValue)
@@ -273,6 +287,7 @@ loadFixtureInput path = do
             , env = environment
             , latest
             , monthEnds
+            , monthlyReportPeriods
             , xirrFlows = deriveXirrFlows snapshot
             , investmentCashFlows
             , -- A production transactions page is capped at 'maximumPageLimit' (200),
@@ -424,6 +439,16 @@ cashFlowsWeight = length . show
 
 forceAmountsList :: [Hledger.MixedAmount] -> Int
 forceAmountsList = sum . fmap forceAmounts
+
+reportPeriodsWeight :: [ReportPeriod] -> Int
+reportPeriodsWeight =
+    sum
+        . fmap
+            ( \period ->
+                Text.length period.key
+                    + length (show period.start)
+                    + length (show period.end)
+            )
 
 scopeScansWeight :: [Performance.ScopeScan] -> Int
 scopeScansWeight = sum . fmap scopeScanWeight
