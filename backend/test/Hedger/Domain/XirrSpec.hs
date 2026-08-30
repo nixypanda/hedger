@@ -26,6 +26,12 @@ xirrSpec =
         "XIRR"
         [ testCase "calculates a known one-year return" knownOneYearReturn
         , testCase "calculates irregular dated contributions" irregularContributions
+        , testCase
+            "coalesces chronological same-day flows and removes zero totals"
+            coalescesChronologicalSameDayFlows
+        , testCase "falls back for unordered same-day flows" fallsBackForUnorderedSameDayFlows
+        , testCase "removes unordered same-day cancellations" removesUnorderedSameDayCancellations
+        , testCase "unordered and chronological flows agree" unorderedAndChronologicalAgree
         , testCase "rejects same-sign cash flows" rejectsSameSignCashFlows
         , testCase "reports multiple roots as ambiguous" reportsAmbiguousRoots
         , testProperty "positive scaling preserves XIRR" positiveScalingPreservesXirr
@@ -46,6 +52,53 @@ irregularContributions =
             , cashFlow (addDays 365 origin) 1800
             ]
         )
+
+coalescesChronologicalSameDayFlows :: IO ()
+coalescesChronologicalSameDayFlows =
+    assertRateApprox
+        0.1
+        ( xirr
+            [ cashFlow origin (-100)
+            , cashFlow (addDays 100 origin) 20
+            , cashFlow (addDays 100 origin) (-20)
+            , cashFlow (addDays 365 origin) 110
+            ]
+        )
+
+fallsBackForUnorderedSameDayFlows :: IO ()
+fallsBackForUnorderedSameDayFlows =
+    assertRateApprox
+        0.1
+        ( xirr
+            [ cashFlow (addDays 365 origin) 50
+            , cashFlow origin (-100)
+            , cashFlow (addDays 365 origin) 60
+            ]
+        )
+
+removesUnorderedSameDayCancellations :: IO ()
+removesUnorderedSameDayCancellations =
+    assertRateApprox
+        0.1
+        ( xirr
+            [ cashFlow (addDays 365 origin) 110
+            , cashFlow (addDays 100 origin) 20
+            , cashFlow origin (-100)
+            , cashFlow (addDays 100 origin) (-20)
+            ]
+        )
+
+unorderedAndChronologicalAgree :: IO ()
+unorderedAndChronologicalAgree =
+    assertEqual
+        "input order"
+        (xirr chronological)
+        (xirr [finalFlow, firstFlow, middleFlow])
+  where
+    firstFlow = cashFlow origin (-1000)
+    middleFlow = cashFlow (addDays 182 origin) (-500)
+    finalFlow = cashFlow (addDays 365 origin) 1800
+    chronological = [firstFlow, middleFlow, finalFlow]
 
 rejectsSameSignCashFlows :: IO ()
 rejectsSameSignCashFlows =
