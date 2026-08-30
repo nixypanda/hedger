@@ -10,6 +10,8 @@ import Hedger.Domain.AccountSpec (accountSpec)
 import Hedger.Domain.ActivitySpec (activitySpec)
 import Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec)
 import Hedger.Domain.InvestmentSpec (investmentSpec)
+import Hedger.Domain.NetWorthSpec (netWorthSpec)
+import Hedger.Domain.PeriodReportSpec (periodReportSpec)
 import Hedger.Domain.PeriodSpec (periodSpec)
 import Hedger.Domain.TransactionSpec (transactionSpec)
 import Hedger.Domain.ValuationSpec (valuationSpec)
@@ -31,6 +33,8 @@ main =
             , httpEventsSpec
             , investmentsSpec
             , investmentSpec
+            , netWorthSpec
+            , periodReportSpec
             , activitySpec
             , snapshotStoreSpec
             , journalWatcherSpec

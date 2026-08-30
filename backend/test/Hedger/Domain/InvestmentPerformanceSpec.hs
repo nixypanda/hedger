@@ -2,18 +2,34 @@ module Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec) where
 
 import Data.Decimal (Decimal)
 import Data.Either (isLeft, isRight)
-import Data.Time (fromGregorian)
+import Data.List qualified as List
+import Data.Maybe (fromMaybe)
+import Data.Text qualified as Text
+import Data.Time (Day, fromGregorian)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Internal.InvestmentPerformance (
+    InvestmentPerformanceContext (..),
+    ScopeScan (..),
+    attributedAtWith,
+    externalCashFlowsAtWith,
+    hasAttributablePerformance,
+    holdingsAtWithJournal,
+    holdingsSeriesAtWithJournal,
+    prepareInvestmentPerformance,
+    retainedPerformanceAtWith,
+    scopeScansAt,
+ )
 import Hedger.Domain.Investment (
     AssetClass (Cash, Equity),
     AssetClassMapping (..),
     AssetClassMappings,
     InvestmentMapping (..),
+    InvestmentMappings,
     PerformanceAccount (..),
     PerformanceRole (Fee, Interest, RealisedGain),
     emptyAssetClassMappings,
@@ -26,12 +42,18 @@ import Hedger.Domain.InvestmentPerformance (
     InvestmentSummary (..),
     SummaryResult (..),
     externalCashFlowsAt,
+    investmentAccountsAt,
+    investmentDataTransactions,
     investmentSummaryAt,
     reportPeriods,
+    summariesAtPrepared,
+    summariesAtScopesPrepared,
     summaryAt,
+    summaryAtPrepared,
  )
-import Hedger.Domain.Period (Granularity (Monthly))
-import Hedger.Domain.Xirr (cashFlowAmount, cashFlowDate)
+import Hedger.Domain.Period (Granularity (Monthly, Yearly))
+import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Xirr (CashFlow, cashFlowAmount, cashFlowDate)
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
 
 investmentsSpec :: TestTree
@@ -62,6 +84,10 @@ investmentsSpec =
         , testCase "asset-class configuration is the investment portfolio allowlist" assetClassAllowlist
         , testCase "settled accounts have complete empty summaries" settledAccount
         , testCase "monthly periods include months without transactions" contiguousMonthlyPeriods
+        , holdingsSeriesRegressionTests
+        , scopeScanRegressionTests
+        , summariesAtPreparedRegressionTests
+        , summariesAtScopesPreparedRegressionTests
         ]
 
 retainedFdInterest :: IO ()
@@ -405,3 +431,412 @@ testAssetClasses =
         ] of
         Left _ -> emptyAssetClassMappings
         Right value -> value
+
+-- | Wide enough to cover every account touched by the edge-case journals.
+edgeCaseAssetClasses :: AssetClassMappings
+edgeCaseAssetClasses =
+    case mkAssetClassMappings
+        [ AssetClassMapping Equity ["assets:investments"] Nothing
+        , AssetClassMapping Cash ["assets:cash"] Nothing
+        ] of
+        Left _ -> emptyAssetClassMappings
+        Right value -> value
+
+holdingsSeriesRegressionTests :: TestTree
+holdingsSeriesRegressionTests =
+    testGroup
+        "holdingsSeriesAtWithJournal agrees with holdingsAtWithJournal"
+        (concatMap fixtureCases fixtures)
+  where
+    fixtures =
+        [
+            ( "investments.journal"
+            , "test/fixtures/investments.journal"
+            , testAssetClasses
+            , [Nothing, Just "assets:investments:equity:xyz"]
+            )
+        ,
+            ( "investment-descendant.journal"
+            , "test/fixtures/investment-descendant.journal"
+            , testAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-foreign-cash.journal"
+            , "test/fixtures/investment-foreign-cash.journal"
+            , testAssetClasses
+            , [Nothing, Just "assets:cash:brokerage"]
+            )
+        ,
+            ( "investment-xirr.journal"
+            , "test/fixtures/investment-xirr.journal"
+            , testAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-ambiguous-xirr.journal"
+            , "test/fixtures/investment-ambiguous-xirr.journal"
+            , testAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-gapped-price.journal"
+            , "test/fixtures/investment-gapped-price.journal"
+            , edgeCaseAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-never-priced.journal"
+            , "test/fixtures/investment-never-priced.journal"
+            , edgeCaseAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-gain-fee-roles.journal"
+            , "test/fixtures/investment-gain-fee-roles.journal"
+            , edgeCaseAssetClasses
+            , [Nothing, Just "assets:investments:equity"]
+            )
+        ,
+            ( "investment-ambiguous-xirr.journal"
+            , "test/fixtures/investment-ambiguous-xirr.journal"
+            , edgeCaseAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-dust-commodity.journal"
+            , "test/fixtures/investment-dust-commodity.journal"
+            , edgeCaseAssetClasses
+            , [Nothing]
+            )
+        ,
+            ( "investment-nested-mapping.journal"
+            , "test/fixtures/investment-nested-mapping.journal"
+            , edgeCaseAssetClasses
+            , [Nothing, Just "assets:investments"]
+            )
+        ]
+    fixtureCases (label, path, assetClasses, scopes) =
+        [ testCase
+            (label <> " " <> show granularity <> " scope=" <> show scope)
+            (assertHoldingsSeriesMatches path assetClasses scope granularity)
+        | granularity <- [Monthly, Yearly]
+        , scope <- scopes
+        ]
+
+assertHoldingsSeriesMatches :: Text.Text -> AssetClassMappings -> Maybe Text.Text -> Granularity -> IO ()
+assertHoldingsSeriesMatches path assetClasses scope granularity = do
+    snapshotResult <- loadSnapshot path
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let latest = fromMaybe (error "fixture has no journal date") snapshot.latestJournalDate
+                transactions = investmentDataTransactions snapshot assetClasses scope
+                days = [end | (_, _, end) <- reportPeriods granularity transactions latest]
+                journal = snapshot.journal
+                bulk = holdingsSeriesAtWithJournal journal assetClasses scope granularity days
+                perDate = fmap (holdingsAtWithJournal journal assetClasses scope) days
+            assertEqual "bulk holdings series matches per-date holdings" perDate bulk
+
+{- | (label, journal path, asset classes, investment mappings, scopes to check).
+Shared by 'scopeScanRegressionTests' and 'summariesAtPreparedRegressionTests':
+every fixture is checked at scope = Nothing plus at least one narrower scope,
+across both granularities' 'reportPeriods' cutoff days.
+-}
+scopeScanFixtures :: [(String, Text.Text, AssetClassMappings, InvestmentMappings, [Maybe Text.Text])]
+scopeScanFixtures =
+    [
+        ( "investments.journal"
+        , "test/fixtures/investments.journal"
+        , testAssetClasses
+        , investmentsJournalMappings
+        , [Nothing, Just "assets:investments:equity:xyz"]
+        )
+    ,
+        ( "investment-descendant.journal"
+        , "test/fixtures/investment-descendant.journal"
+        , testAssetClasses
+        , parentFdMappings
+        , [Nothing, Just "assets:investments:fd:hdfc"]
+        )
+    ,
+        ( "investment-foreign-cash.journal"
+        , "test/fixtures/investment-foreign-cash.journal"
+        , testAssetClasses
+        , foreignCashMappings
+        , [Nothing, Just "assets:cash:brokerage"]
+        )
+    ,
+        ( "investment-xirr.journal"
+        , "test/fixtures/investment-xirr.journal"
+        , testAssetClasses
+        , xirrJournalMappings
+        , [Nothing, Just "assets:investments:fund:b"]
+        )
+    ,
+        ( "investment-ambiguous-xirr.journal"
+        , "test/fixtures/investment-ambiguous-xirr.journal"
+        , testAssetClasses
+        , ambiguousJournalMappings
+        , [Nothing]
+        )
+    ,
+        ( "investment-gapped-price.journal"
+        , "test/fixtures/investment-gapped-price.journal"
+        , edgeCaseAssetClasses
+        , emptyInvestmentMappings
+        , [Nothing]
+        )
+    ,
+        ( "investment-never-priced.journal"
+        , "test/fixtures/investment-never-priced.journal"
+        , edgeCaseAssetClasses
+        , emptyInvestmentMappings
+        , [Nothing]
+        )
+    ,
+        ( "investment-gain-fee-roles.journal"
+        , "test/fixtures/investment-gain-fee-roles.journal"
+        , edgeCaseAssetClasses
+        , bug6Mappings
+        , [Nothing, Just "assets:investments:equity"]
+        )
+    ,
+        ( "investment-ambiguous-xirr.journal"
+        , "test/fixtures/investment-ambiguous-xirr.journal"
+        , edgeCaseAssetClasses
+        , ambiguousJournalMappings
+        , [Nothing]
+        )
+    ,
+        ( "investment-dust-commodity.journal"
+        , "test/fixtures/investment-dust-commodity.journal"
+        , edgeCaseAssetClasses
+        , emptyInvestmentMappings
+        , [Nothing]
+        )
+    ,
+        ( "investment-nested-mapping.journal"
+        , "test/fixtures/investment-nested-mapping.journal"
+        , edgeCaseAssetClasses
+        , nestedMappings
+        , [Nothing, Just "assets:investments", Just "assets:investments:equity:xyz"]
+        )
+    ]
+
+investmentsJournalMappings :: InvestmentMappings
+investmentsJournalMappings = mappingsOrEmpty [fdMapping, equityMapping]
+
+parentFdMappings :: InvestmentMappings
+parentFdMappings = mappingsOrEmpty [parentFdMapping]
+
+foreignCashMappings :: InvestmentMappings
+foreignCashMappings = mappingsOrEmpty [InvestmentMapping "assets:cash:brokerage" []]
+
+xirrJournalMappings :: InvestmentMappings
+xirrJournalMappings = mappingsOrEmpty [xirrMapping]
+
+ambiguousJournalMappings :: InvestmentMappings
+ambiguousJournalMappings = mappingsOrEmpty [ambiguousMapping]
+
+bug6Mappings :: InvestmentMappings
+bug6Mappings =
+    mappingsOrEmpty
+        [ InvestmentMapping
+            { assetAccount = "assets:investments:equity"
+            , performanceAccounts =
+                [ PerformanceAccount "income:investments:xyz:gains" RealisedGain
+                , PerformanceAccount "expenses:investments:fee" Fee
+                ]
+            }
+        ]
+
+bug7Mappings :: InvestmentMappings
+bug7Mappings = mappingsOrEmpty [InvestmentMapping "assets:investments:fund" []]
+
+{- | Parent and child both map to the same asset class, so a scope nested inside
+either exercises 'mappedAssetScope' and 'transactionMatchesScope' together.
+-}
+nestedMappings :: InvestmentMappings
+nestedMappings =
+    mappingsOrEmpty
+        [ InvestmentMapping
+            { assetAccount = "assets:investments"
+            , performanceAccounts = [PerformanceAccount "income:investments:dividend" Interest]
+            }
+        ]
+
+mappingsOrEmpty :: [InvestmentMapping] -> InvestmentMappings
+mappingsOrEmpty mappings = case mkInvestmentMappings mappings of
+    Left _ -> emptyInvestmentMappings
+    Right value -> value
+
+fixtureDays :: Snapshot -> AssetClassMappings -> Maybe Text.Text -> Granularity -> [Day]
+fixtureDays snapshot assetClasses scope granularity =
+    List.nub [end | (_, _, end) <- reportPeriods granularity transactions latest]
+  where
+    latest = fromMaybe (error "fixture has no journal date") snapshot.latestJournalDate
+    transactions = investmentDataTransactions snapshot assetClasses scope
+
+{- | 'scopeScansAt' must agree, field by field, with the four independent
+per-day functions it replaces inside 'summaryFromHoldings'. 'cashFlows' is
+compared as a multiset (sorted by date then amount): the sweep emits cash
+flows in date order rather than 'externalCashFlowsAtWith''s file order, which
+is an intentional, harmless difference (see 'scopeScansAt').
+-}
+scopeScanRegressionTests :: TestTree
+scopeScanRegressionTests =
+    testGroup
+        "scopeScansAt agrees with the per-day scope functions"
+        (concatMap fixtureCases scopeScanFixtures)
+  where
+    fixtureCases (label, path, assetClasses, mappings, scopes) =
+        [ testCase
+            (label <> " " <> show granularity <> " scope=" <> show scope)
+            (assertScopeScanMatches path assetClasses mappings scope granularity)
+        | granularity <- [Monthly, Yearly]
+        , scope <- scopes
+        ]
+
+assertScopeScanMatches ::
+    Text.Text -> AssetClassMappings -> InvestmentMappings -> Maybe Text.Text -> Granularity -> IO ()
+assertScopeScanMatches path assetClasses mappings scope granularity = do
+    snapshotResult <- loadSnapshot path
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let days = fixtureDays snapshot assetClasses scope granularity
+                context = prepareInvestmentPerformance snapshot assetClasses mappings "INR"
+                scans = scopeScansAt context scope days
+            assertEqual "one ScopeScan per requested day" (length days) (length scans)
+            sequence_
+                [ assertScopeScanMatchesDay context snapshot mappings scope day scan
+                | (day, scan) <- zip days scans
+                ]
+
+assertScopeScanMatchesDay ::
+    InvestmentPerformanceContext ->
+    Snapshot ->
+    InvestmentMappings ->
+    Maybe Text.Text ->
+    Day ->
+    ScopeScan ->
+    IO ()
+assertScopeScanMatchesDay context snapshot mappings scope day scan = do
+    let assetClasses = context.assetClasses
+        expectedAccounts = investmentAccountsAt snapshot assetClasses scope day
+        expectedMappingComplete =
+            not (null expectedAccounts)
+                && all (hasAttributablePerformance snapshot mappings day) expectedAccounts
+        expectedRetained =
+            retainedPerformanceAtWith
+                context.valueAt
+                snapshot
+                assetClasses
+                mappings
+                "INR"
+                scope
+                day
+        expectedAttributed =
+            attributedAtWith context.valueAt snapshot assetClasses mappings "INR" scope day
+        expectedCashFlows =
+            externalCashFlowsAtWith context.valueAt snapshot assetClasses mappings "INR" scope day
+        label suffix = "day " <> show day <> " " <> suffix
+    assertEqual (label "accounts") expectedAccounts scan.accounts
+    assertEqual (label "mappingComplete") expectedMappingComplete scan.mappingComplete
+    assertEqual (label "retained") expectedRetained scan.retained
+    assertEqual (label "attributed") expectedAttributed scan.attributed
+    assertEqual
+        (label "cashFlows (multiset)")
+        (sortCashFlows <$> expectedCashFlows)
+        (sortCashFlows <$> scan.cashFlows)
+
+sortCashFlows :: [CashFlow] -> [(Day, Decimal)]
+sortCashFlows = List.sort . fmap (\flow -> (cashFlowDate flow, cashFlowAmount flow))
+
+{- | End-to-end check that the bulk timeline entry point ('summariesAtPrepared')
+produces exactly what calling the single-day entry point ('summaryAtPrepared')
+would for each of the same days.
+-}
+summariesAtPreparedRegressionTests :: TestTree
+summariesAtPreparedRegressionTests =
+    testGroup
+        "summariesAtPrepared agrees with per-day summaryAtPrepared"
+        (concatMap fixtureCases scopeScanFixtures)
+  where
+    fixtureCases (label, path, assetClasses, mappings, scopes) =
+        [ testCase
+            (label <> " " <> show granularity <> " scope=" <> show scope)
+            (assertSummariesMatch path assetClasses mappings scope granularity)
+        | granularity <- [Monthly, Yearly]
+        , scope <- scopes
+        ]
+
+assertSummariesMatch ::
+    Text.Text -> AssetClassMappings -> InvestmentMappings -> Maybe Text.Text -> Granularity -> IO ()
+assertSummariesMatch path assetClasses mappings scope granularity = do
+    snapshotResult <- loadSnapshot path
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            let days = fixtureDays snapshot assetClasses scope granularity
+                context = prepareInvestmentPerformance snapshot assetClasses mappings "INR"
+                bulk = summariesAtPrepared context scope granularity days
+                perDay = fmap (summaryAtPrepared context scope) days
+            assertEqual "same number of results" (length days) (length bulk)
+            sequence_
+                [ assertSummaryResultEqual ("day " <> show day) expected actual
+                | (day, expected, actual) <- zip3 days perDay bulk
+                ]
+
+{- | The latest-date bulk path must agree with the retained singular path for
+root, nested, and duplicate scopes in the same request. The fixture matrix
+covers valuation and cost gaps, mapping asymmetry, role attribution, and XIRR
+edge cases.
+-}
+summariesAtScopesPreparedRegressionTests :: TestTree
+summariesAtScopesPreparedRegressionTests =
+    testGroup
+        "summariesAtScopesPrepared agrees with per-scope summaryAtPrepared"
+        [ testCase label (assertScopeSummariesMatch path assetClasses mappings scopes)
+        | (label, path, assetClasses, mappings, scopes) <- scopeScanFixtures
+        ]
+
+assertScopeSummariesMatch ::
+    Text.Text -> AssetClassMappings -> InvestmentMappings -> [Maybe Text.Text] -> IO ()
+assertScopeSummariesMatch path assetClasses mappings configuredScopes = do
+    snapshotResult <- loadSnapshot path
+    case snapshotResult of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> assertScopeSummariesForSnapshot snapshot assetClasses mappings configuredScopes
+
+assertScopeSummariesForSnapshot ::
+    Snapshot -> AssetClassMappings -> InvestmentMappings -> [Maybe Text.Text] -> IO ()
+assertScopeSummariesForSnapshot snapshot assetClasses mappings configuredScopes = do
+    let latest = fromMaybe (error "fixture has no journal date") snapshot.latestJournalDate
+        context = prepareInvestmentPerformance snapshot assetClasses mappings "INR"
+        scopes = Nothing : configuredScopes <> take 1 configuredScopes
+        bulk = summariesAtScopesPrepared context latest scopes
+        singular = [(scope, summaryAtPrepared context scope latest) | scope <- scopes]
+    assertEqual "scope order and duplicates" scopes (fmap fst bulk)
+    assertBool "empty request" (null (summariesAtScopesPrepared context latest []))
+    sequence_
+        [ assertSummaryResultEqual ("scope " <> show scope) expected actual
+        | ((scope, expected), (_, actual)) <- zip singular bulk
+        ]
+
+assertSummaryResultEqual :: String -> SummaryResult -> SummaryResult -> IO ()
+assertSummaryResultEqual label expected actual = do
+    assertSummaryEqual label expected.summary actual.summary
+    assertEqual (label <> " warnings") expected.warnings actual.warnings
+
+assertSummaryEqual :: String -> InvestmentSummary -> InvestmentSummary -> IO ()
+assertSummaryEqual label expected actual = do
+    assertEqual (label <> " marketValue") expected.marketValue actual.marketValue
+    assertEqual (label <> " purchaseCost") expected.purchaseCost actual.purchaseCost
+    assertEqual (label <> " gainLoss") expected.gainLoss actual.gainLoss
+    assertEqual (label <> " xirr") expected.xirr actual.xirr
+    assertEqual (label <> " attributedIncome") expected.attributedIncome actual.attributedIncome
+    assertEqual (label <> " realisedGain") expected.realisedGain actual.realisedGain
+    assertEqual (label <> " totalProfit") expected.totalProfit actual.totalProfit
+    assertEqual (label <> " completeness") expected.completeness actual.completeness

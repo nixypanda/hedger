@@ -1,0 +1,11 @@
+; A foreign asset with NO market price at all.
+commodity INR
+commodity JPY
+
+2025-01-10 Opening balances
+    assets:cash:inr        INR 500000
+    equity:opening
+
+2025-01-20 Receive JPY (never priced in INR)
+    assets:cash:jpy        JPY 300000
+    equity:opening

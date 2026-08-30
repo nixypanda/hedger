@@ -9,6 +9,7 @@ module Hedger.Application.Investments (
 )
 where
 
+import Control.Applicative ((<|>))
 import Control.Monad.Except (throwError)
 import Control.Monad.Reader (asks)
 import Data.Decimal (Decimal)
@@ -24,16 +25,19 @@ import Hledger.Data.AccountName qualified as HledgerAccountName
 import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot)
 import Hedger.Application.Common (SnapshotMetadata, metadataFor)
 import Hedger.Config (Config (..))
+import Hedger.Domain.Error (AppError (InternalError))
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance (
     InvestmentSummary (..),
     InvestmentWarning,
     SummaryResult (..),
-    immediateChildren,
+    childrenOf,
+    investmentAccountsAt,
     investmentDataTransactions,
     prepareInvestmentPerformance,
     reportPeriods,
-    summaryAtPrepared,
+    summariesAtPrepared,
+    summariesAtScopesPrepared,
     validateScope,
  )
 import Hedger.Domain.Period (Granularity, epoch, lastMaybe)
@@ -107,64 +111,74 @@ investments request = do
                 commodity
         dataTransactions = investmentDataTransactions snapshot config.assetClassMappings scope
         periods = reportPeriods request.granularity dataTransactions latest
-        childAccounts = immediateChildren snapshot config.assetClassMappings scope
+        investmentAccounts = investmentAccountsAt snapshot config.assetClassMappings scope latest
+        childAccounts = childrenOf scope investmentAccounts
         allocationScopes =
             [ Just prefix
             | mapping <- Investment.assetClassMappingsList config.assetClassMappings
             , prefix <- mapping.accountPrefixes
             ]
-        summaryKeys =
+        periodDays = List.nub [end | (_, _, end) <- periods]
+        periodSummaries =
+            Map.fromList
+                (zip periodDays (summariesAtPrepared performance scope request.granularity periodDays))
+        -- The selected scope is dropped when the timeline already covers the latest date,
+        -- so `current` reuses that result instead of recomputing it on the singular path.
+        summaryScopes =
             List.nub
-                ( (scope, latest)
-                    : [(scope, end) | (_, _, end) <- periods]
-                        <> [(Just child, latest) | child <- childAccounts]
-                        <> [ (allocationScope, latest)
-                           | scope == Nothing
-                           , allocationScope <- allocationScopes
-                           ]
+                ( [scope | Map.notMember latest periodSummaries]
+                    <> [Just child | child <- childAccounts]
+                    <> [ allocationScope
+                       | scope == Nothing
+                       , allocationScope <- allocationScopes
+                       ]
                 )
         summaries =
             Map.fromList
-                [ (key, summaryAtPrepared performance selectedScope selectedDay)
-                | key@(selectedScope, selectedDay) <- summaryKeys
-                ]
-        summaryFor selectedScope selectedDay =
-            fromMaybe
-                (summaryAtPrepared performance selectedScope selectedDay)
-                (Map.lookup (selectedScope, selectedDay) summaries)
-        current = summaryFor scope latest
-        hasInvestments = current.summary.marketValue /= Nothing || current.summary.purchaseCost /= Nothing
+                (summariesAtScopesPrepared performance latest summaryScopes)
+        summaryFor selectedScope = Map.lookup selectedScope summaries
+        periodSummaryAt day =
+            Map.lookup day periodSummaries
+    current <-
+        maybe
+            (throwError InternalError)
+            pure
+            (Map.lookup latest periodSummaries <|> summaryFor scope)
+    childResults <-
+        traverse
+            (\child -> maybe (throwError InternalError) pure (summaryFor (Just child)))
+            childAccounts
+    let currentSummary = current.summary
+        hasInvestments =
+            currentSummary.marketValue /= Nothing || currentSummary.purchaseCost /= Nothing
         points =
             if hasInvestments
                 then
-                    [ InvestmentPoint key start (summaryFor scope end).summary
+                    [ InvestmentPoint key start result.summary
                     | (key, start, end) <- periods
+                    , Just result <- [periodSummaryAt end]
                     ]
                 else []
-        children = fmap childReport childAccounts
+        children = zipWith childReport childAccounts childResults
         allocations =
             if scope == Nothing
                 then
                     assetClassAllocations
                         summaryFor
-                        latest
-                        current.summary.marketValue
+                        currentSummary.marketValue
                         config.assetClassMappings
                 else []
-        childReport child =
-            let childSummary = (summaryFor (Just child) latest).summary
+        childReport child result =
+            let childSummary = result.summary
              in InvestmentChild
                     { account = child
                     , label = accountLabel child
                     , summary = childSummary
                     , hasChildren =
-                        not
-                            ( null
-                                (immediateChildren snapshot config.assetClassMappings (Just child))
-                            )
+                        not (null (childrenOf (Just child) investmentAccounts))
                     , assetClass = Investment.assetClassForAccount child config.assetClassMappings
                     , allocationPercentage =
-                        allocationPercentage current.summary.marketValue childSummary.marketValue
+                        allocationPercentage currentSummary.marketValue childSummary.marketValue
                     }
     pure
         InvestmentsReport
@@ -172,7 +186,7 @@ investments request = do
             , displayCommodity = commodity
             , granularity = request.granularity
             , accountPrefix = scope
-            , summary = current.summary
+            , summary = currentSummary
             , timeline = points
             , breadcrumbs = breadcrumbsFor scope
             , children
@@ -181,12 +195,11 @@ investments request = do
             }
 
 assetClassAllocations ::
-    (Maybe Text -> Day -> SummaryResult) ->
-    Day ->
+    (Maybe Text -> Maybe SummaryResult) ->
     Maybe Decimal ->
     Investment.AssetClassMappings ->
     [AssetClassAllocation]
-assetClassAllocations summaryFor latest total mappings =
+assetClassAllocations summaryFor total mappings =
     fmap allocationFor configuredClasses
   where
     configured = Investment.assetClassMappingsList mappings
@@ -194,9 +207,10 @@ assetClassAllocations summaryFor latest total mappings =
     allocationFor assetClass =
         let matching = filter ((== assetClass) . (.assetClass)) configured
             values =
-                [ (summaryFor (Just prefix) latest).summary.marketValue
+                [ result.summary.marketValue
                 | mapping <- matching
                 , prefix <- mapping.accountPrefixes
+                , Just result <- [summaryFor (Just prefix)]
                 ]
             value =
                 if null values

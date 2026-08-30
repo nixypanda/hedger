@@ -1,0 +1,13 @@
+; Nested asset mappings (parent + child both mapped).
+; Pair with gainMappings that map BOTH:
+;   - assetAccount: "assets:investments"          gainAccounts:[income:investments:dividend]
+;   - assetAccount: "assets:investments:equity"   gainAccounts:[income:investments:dividend]
+commodity INR
+
+2025-01-01 Contribute
+    assets:investments:equity:xyz     INR 1000
+    assets:cash:checking              INR -1000
+
+2025-06-01 Reinvest dividend (retained income inside the portfolio)
+    assets:investments:equity:xyz     INR 100
+    income:investments:dividend       INR -100

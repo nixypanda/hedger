@@ -13,6 +13,7 @@ module Hedger.Domain.Period (
     periodsFromDateSpan,
     periodsFromReport,
     parseYearMonth,
+    intervalFor,
 
     -- * List helpers
     takeLast,

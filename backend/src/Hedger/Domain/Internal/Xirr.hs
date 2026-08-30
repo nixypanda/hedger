@@ -59,7 +59,7 @@ xirr :: [CashFlow] -> Either XirrError AnnualRate
 xirr cashFlows = do
     flows <- numericalCashFlows (normalise cashFlows)
     validateCashFlows flows
-    case distinctRoots (rootCandidates flows) of
+    case distinctRoots (rootCandidates (npvTerms flows)) of
         [] -> Left NoConvergentRate
         [root] ->
             let rate = exp root - 1
@@ -99,25 +99,25 @@ validateCashFlows flows
     | not (any ((< 0) . snd) flows && any ((> 0) . snd) flows) = Left CashFlowsDoNotChangeSign
     | otherwise = Right ()
 
-rootCandidates :: [NumericalCashFlow] -> [Double]
-rootCandidates flows = concatMap solve (brackets flows)
+rootCandidates :: NpvTerms -> [Double]
+rootCandidates terms = concatMap solve (brackets terms)
   where
     solve (left, right) = case (snd left, snd right) of
         (0, _) -> [fst left]
         (_, 0) -> [fst right]
-        _ -> case RootFinding.ridders riddersParameters (fst left, fst right) (npv flows) of
+        _ -> case RootFinding.ridders riddersParameters (fst left, fst right) (npv terms) of
             RootFinding.Root root
                 | finite root -> [root]
             _ -> []
 
-brackets :: [NumericalCashFlow] -> [((Double, Double), (Double, Double))]
-brackets flows =
+brackets :: NpvTerms -> [((Double, Double), (Double, Double))]
+brackets terms =
     [ (left, right)
     | (left, right) <- zip values (drop 1 values)
     , snd left == 0 || snd right == 0 || oppositeSigns (snd left) (snd right)
     ]
   where
-    values = [(point, npv flows point) | point <- searchPoints]
+    values = [(point, npv terms point) | point <- searchPoints]
 
 searchPoints :: [Double]
 searchPoints =
@@ -141,24 +141,42 @@ riddersParameters =
         , RootFinding.riddersTol = RootFinding.AbsTol 0.000000000001
         }
 
+{- | Cash flows reduced to the only two numbers 'npv' needs per flow: the year
+fraction since the first flow, and the amount scaled by the largest flow.
+'brackets' evaluates the same flows at every one of 'searchPoints', so the date
+arithmetic and scaling are done once here instead of once per rate.
+-}
+data NpvTerms = NpvTerms
+    { terms :: [(Double, Double)]
+    , lastFraction :: Double
+    }
+
+npvTerms :: [NumericalCashFlow] -> NpvTerms
+npvTerms [] = NpvTerms{terms = [], lastFraction = 0}
+npvTerms flows@((firstDay, _) : _) =
+    NpvTerms
+        { terms = [(yearFraction day, amount / scale) | (day, amount) <- flows]
+        , lastFraction = yearFraction lastDay
+        }
+  where
+    lastDay = fst (List.foldl' (\_ latest -> latest) (firstDay, 0) flows)
+    yearFraction day = fromIntegral (diffDays day firstDay) / 365
+    scale = maximum (fmap (abs . snd) flows)
+
 {- | A scaled NPV.  Scaling by the largest cash flow and by a date-dependent
 positive factor keeps evaluation finite without changing the locations of
 zeros.
 -}
-npv :: [NumericalCashFlow] -> Double -> Double
-npv [] _ = 0
-npv flows@((firstDay, _) : _) logRate =
+npv :: NpvTerms -> Double -> Double
+npv prepared logRate =
     sum
-        [ amount / scale * exp (negate logRate * (yearFraction day - reference))
-        | (day, amount) <- flows
+        [ amount * exp (negate logRate * (fraction - reference))
+        | (fraction, amount) <- prepared.terms
         ]
   where
-    lastDay = fst (List.foldl' (\_ latest -> latest) (firstDay, 0) flows)
     reference
-        | logRate < 0 = yearFraction lastDay
-        | otherwise = yearFraction firstDay
-    yearFraction day = fromIntegral (diffDays day firstDay) / 365
-    scale = maximum (fmap (abs . snd) flows)
+        | logRate < 0 = prepared.lastFraction
+        | otherwise = 0
 
 distinctRoots :: [Double] -> [Double]
 distinctRoots = List.foldl' appendDistinct [] . List.sort

@@ -16,30 +16,27 @@ import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
-import Data.Time (Day, addDays)
+import Data.Time (Day)
 
-import Hledger.Data.Period qualified as HledgerPeriod
 import Hledger.Data.Types qualified as Hledger
-import Hledger.Data.Valuation qualified as HledgerValuation
-import Hledger.Query qualified as HledgerQuery
-import Hledger.Reports.BalanceReport qualified as HledgerBalance
-import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
-import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
+import Hedger.Domain.Internal.NetWorth (assetLiabilityPeriodicReport, gainPeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
+    ReportSide,
     TimelinePoint (..),
     breakdownItemsFor,
-    periodicBalanceReport,
     periodsWithData,
     reportMissing,
     reportPeriodsFrom,
+    reportSide,
     reportTotals,
     selectedPeriod,
+    wholeReport,
  )
-import Hedger.Domain.Period (Granularity, ReportPeriod (..))
+import Hedger.Domain.Period (Granularity, ReportPeriod (..), lastMaybe)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..), complete, conversionFromMixed, requireComplete)
+import Hedger.Domain.Valuation (Conversion (..), complete, requireComplete)
 
 data PerformancePoint = PerformancePoint
     { period :: Text
@@ -90,41 +87,16 @@ computeNetWorth snapshot matched granularity commodity positiveReq negativeReq p
         , missing = historyMissing <> performanceMissing <> currentMissing
         }
   where
-    assetReport =
-        periodicBalanceReport
-            snapshot
-            matched
-            granularity
-            commodity
-            [Hledger.Asset, Hledger.Cash]
-            HledgerReportOptions.CalcChange
-            HledgerReportOptions.Historical
-            positiveDepth
-    liabilityReport =
-        periodicBalanceReport
-            snapshot
-            matched
-            granularity
-            commodity
-            [Hledger.Liability]
-            HledgerReportOptions.CalcChange
-            HledgerReportOptions.Historical
-            negativeDepth
-    gainReport =
-        periodicBalanceReport
-            snapshot
-            matched
-            granularity
-            commodity
-            [Hledger.Asset, Hledger.Cash, Hledger.Liability]
-            HledgerReportOptions.CalcGain
-            HledgerReportOptions.Historical
-            1
-    reportPeriods = reportPeriodsFrom granularity assetReport
+    combinedReport = assetLiabilityPeriodicReport snapshot matched granularity commodity
+    assetSide = reportSide snapshot.journal [Hledger.Asset, Hledger.Cash] combinedReport
+    liabilitySide = reportSide snapshot.journal [Hledger.Liability] combinedReport
+    -- CalcGain is a different balance calculation, so it cannot share the report above.
+    gainSide = wholeReport (gainPeriodicReport snapshot matched granularity commodity)
+    reportPeriods = reportPeriodsFrom granularity combinedReport
     dataPeriods = periodsWithData granularity matched reportPeriods
     dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
-    assetTotals = reportTotals commodity assetReport
-    liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilityReport)
+    assetTotals = reportTotals commodity assetSide
+    liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilitySide)
     allPoints = zipWith3 netWorthPointFrom reportPeriods assetTotals liabilityTotals
     points = filter ((`Set.member` dataPeriodKeys) . (.period)) allPoints
     assetsBreakdown =
@@ -133,23 +105,34 @@ computeNetWorth snapshot matched granularity commodity positiveReq negativeReq p
             positiveDepth
             (selectedPeriod positiveReq dataPeriods)
             reportPeriods
-            assetReport
+            assetSide
     liabilitiesBreakdown =
         breakdownItemsFor
             commodity
             negativeDepth
             (selectedPeriod negativeReq dataPeriods)
             reportPeriods
-            liabilityReport
+            liabilitySide
     performanceResults =
         filter
             (maybe False ((`Set.member` dataPeriodKeys) . (.period)) . (.value))
-            (performanceFrom commodity reportPeriods allPoints assetTotals liabilityTotals gainReport)
-    performanceMissing = reportMissing commodity gainReport
-    historyMissing = reportMissing commodity assetReport <> reportMissing commodity liabilityReport
-    assetsCurrent = currentReportValue snapshot matched commodity [Hledger.Asset, Hledger.Cash]
-    liabilitiesCurrent = fmap abs (currentReportValue snapshot matched commodity [Hledger.Liability])
+            (performanceFrom commodity reportPeriods allPoints assetTotals liabilityTotals gainSide)
+    performanceMissing = reportMissing commodity gainSide
+    historyMissing = reportMissing commodity assetSide <> reportMissing commodity liabilitySide
+    assetsCurrent = strictLatest assetTotals
+    liabilitiesCurrent = strictLatest liabilityTotals
     currentMissing = assetsCurrent.missing <> liabilitiesCurrent.missing
+
+{- | The KPI value of a periodic column series.
+
+The report journal drops price directives after the latest journal date, so
+@AtEnd@ of the final interval resolves the same price as @AtDate@ of that date;
+the final column is already the latest balance. What separates it from a KPI is
+only the completeness rule: a KPI is withheld unless every commodity converted,
+whereas the timeline reports a partial sum alongside its missing set.
+-}
+strictLatest :: [Conversion Decimal] -> Conversion Decimal
+strictLatest = maybe (complete 0) requireComplete . lastMaybe
 
 netWorthPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
 netWorthPointFrom period assetsResult liabilitiesResult =
@@ -170,14 +153,14 @@ performanceFrom ::
     [TimelinePoint] ->
     [Conversion Decimal] ->
     [Conversion Decimal] ->
-    HledgerMultiBalance.MultiBalanceReport ->
+    ReportSide ->
     [Conversion PerformancePoint]
-performanceFrom commodity periods netWorthPoints assetResults liabilityResults gainReport =
+performanceFrom commodity periods netWorthPoints assetResults liabilityResults gainSide =
     zipWith3
         toPerformance
         periods
         netWorthPoints
-        (zip3 assetResults liabilityResults (reportTotals commodity gainReport))
+        (zip3 assetResults liabilityResults (reportTotals commodity gainSide))
   where
     toPerformance period worthPoint (assetResult, liabilityResult, gainResult) =
         let missing = assetResult.missing <> liabilityResult.missing <> gainResult.missing
@@ -192,30 +175,3 @@ performanceFrom commodity periods netWorthPoints assetResults liabilityResults g
                         , gainLoss = gain
                         }
          in Conversion{value = if Set.null missing then point else Nothing, missing}
-
-currentReportValue :: Snapshot -> [Hledger.Transaction] -> Text -> [Hledger.AccountType] -> Conversion Decimal
-currentReportValue snapshot transactions commodity accountTypes =
-    case snapshot.latestJournalDate of
-        Nothing -> complete 0
-        Just day ->
-            let options =
-                    HledgerReportOptions.defreportopts
-                        { HledgerReportOptions.period_ = Hledger.PeriodTo (addDays 1 day)
-                        , HledgerReportOptions.value_ = Just (HledgerValuation.AtDate day (Just commodity))
-                        , HledgerReportOptions.balanceaccum_ = HledgerReportOptions.Historical
-                        , HledgerReportOptions.accountlistmode_ = HledgerReportOptions.ALFlat
-                        }
-                spec =
-                    HledgerReportOptions.defreportspec
-                        { HledgerReportOptions._rsReportOpts = options
-                        , HledgerReportOptions._rsDay = day
-                        , HledgerReportOptions._rsQuery =
-                            HledgerQuery.And
-                                [ HledgerQuery.Type accountTypes
-                                , HledgerQuery.Date
-                                    (HledgerPeriod.periodAsDateSpan (Hledger.PeriodTo (addDays 1 day)))
-                                ]
-                        }
-                filteredJournal = snapshot.journal{Hledger.jtxns = transactions}
-                (_, total) = HledgerBalance.balanceReport spec filteredJournal
-             in requireComplete (conversionFromMixed commodity total)

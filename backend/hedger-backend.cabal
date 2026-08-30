@@ -53,7 +53,9 @@ library
     Hedger.Domain.Cashflow
     Hedger.Domain.Error
     Hedger.Domain.Internal.Account
+    Hedger.Domain.Internal.Cashflow
     Hedger.Domain.Internal.InvestmentPerformance
+    Hedger.Domain.Internal.NetWorth
     Hedger.Domain.Internal.PeriodReport
     Hedger.Domain.Internal.Xirr
     Hedger.Domain.Internal.Transaction
@@ -137,6 +139,8 @@ test-suite hedger-backend-test
     Hedger.Domain.ActivitySpec
     Hedger.Domain.InvestmentPerformanceSpec
     Hedger.Domain.InvestmentSpec
+    Hedger.Domain.NetWorthSpec
+    Hedger.Domain.PeriodReportSpec
     Hedger.ConfigSpec
     Hedger.Domain.PeriodSpec
     Hedger.Domain.TransactionSpec
@@ -188,6 +192,7 @@ benchmark snapshot-bench
   main-is: Main.hs
   hs-source-dirs: benchmark
   build-depends:
+    Decimal >=0.5 && <0.6,
     aeson >=2.2 && <2.3,
     base >=4.18 && <5,
     bytestring >=0.11 && <0.13,
@@ -195,6 +200,12 @@ benchmark snapshot-bench
     deepseq >=1.4 && <1.6,
     hedger-backend,
     hledger-lib >=1.52 && <1.53,
+    tasty >=1.4 && <1.6,
     tasty-bench >=0.4 && <0.5,
     text >=2.0 && <2.2,
     time >=1.12 && <1.15,
+
+  ghc-options:
+    -threaded
+    -rtsopts
+    "-with-rtsopts=-N1 -T"

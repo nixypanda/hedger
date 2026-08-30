@@ -10,14 +10,18 @@ module Hedger.Domain.InvestmentPerformance (
     -- * Performance calculation
     prepareInvestmentPerformance,
     summaryAtPrepared,
+    summariesAtPrepared,
+    summariesAtScopesPrepared,
     summaryAt,
     investmentSummaryAt,
 
     -- * Ledger policies and derivations
     validateScope,
     isInvestmentAccount,
+    investmentAccountsAt,
     investmentDataTransactions,
     immediateChildren,
+    childrenOf,
     reportPeriods,
     externalCashFlowsAt,
 )

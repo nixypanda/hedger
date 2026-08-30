@@ -70,6 +70,18 @@ check-frontend-line-length:
 serve-backend:
     cabal run hedger-server -- --config ../hedger.example.yaml
 
+# Run an optimized backend with a generated performance journal (5,000 or 50,000 transactions).
+[working-directory("backend")]
+serve-backend-perf size="5000":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{size}}" in
+        5000) journal="../examples/performance/india-us-portfolio-medium-5000.journal" ;;
+        50000) journal="../examples/performance/india-us-portfolio-large-50000.journal" ;;
+        *) echo "size must be 5000 or 50000" >&2; exit 2 ;;
+    esac
+    cabal run --enable-optimization=2 hedger-server -- --config ../hedger.example.yaml --journal "$journal"
+
 [working-directory("backend")]
 serve-backend-real:
     cabal run hedger-server -- --config '/Users/nixypanda/Library/Mobile Documents/com~apple~CloudDocs/Money/ledger/hedger/hedger-mine.yaml' --journal '/Users/nixypanda/Library/Mobile Documents/com~apple~CloudDocs/Money/ledger/journals/main-mine.journal'

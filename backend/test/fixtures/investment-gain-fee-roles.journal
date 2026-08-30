@@ -1,0 +1,22 @@
+; This journal has a realised gain and an explicit fee.
+;
+; Config to pair with it (gainMappings):
+;   - assetAccount: "assets:investments:equity"
+;     gainAccounts: ["income:investments:xyz:gains", "expenses:investments:fee"]
+commodity INR
+
+P 2025-06-01 XYZ 100 INR
+P 2026-03-31 XYZ 150 INR
+
+2025-06-01 Buy ten units
+    assets:investments:equity:xyz     XYZ 10 @ INR 100
+    assets:cash:checking              INR -1000
+
+2026-01-15 Pay a fund fee (should land in the FEE bucket, never does)
+    expenses:investments:fee          INR 50
+    assets:cash:checking              INR -50
+
+2026-03-31 Sell four units at a profit (should land in the GAIN bucket)
+    assets:investments:equity:xyz     XYZ -4 @ INR 100
+    assets:cash:checking              INR 600
+    income:investments:xyz:gains      INR -200

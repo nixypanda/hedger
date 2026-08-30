@@ -16,16 +16,16 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 
 import Hledger.Data.Types qualified as Hledger
-import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
+import Hedger.Domain.Internal.Cashflow (incomeExpensePeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
     TimelinePoint (..),
     breakdownItemsFor,
-    periodicBalanceReport,
     periodsWithData,
     reportMissing,
     reportPeriodsFrom,
+    reportSide,
     reportTotals,
     selectedPeriod,
  )
@@ -68,32 +68,15 @@ computeCashflow snapshot matched granularity commodity positiveReq negativeReq p
         , missing = missing
         }
   where
-    incomeReport =
-        periodicBalanceReport
-            snapshot
-            matched
-            granularity
-            commodity
-            [Hledger.Revenue, Hledger.Gain]
-            HledgerReportOptions.CalcChange
-            HledgerReportOptions.PerPeriod
-            positiveDepth
-    expenseReport =
-        periodicBalanceReport
-            snapshot
-            matched
-            granularity
-            commodity
-            [Hledger.Expense]
-            HledgerReportOptions.CalcChange
-            HledgerReportOptions.PerPeriod
-            negativeDepth
-    reportPeriods = reportPeriodsFrom granularity incomeReport
+    combinedReport = incomeExpensePeriodicReport snapshot matched granularity commodity
+    incomeSide = reportSide snapshot.journal [Hledger.Revenue, Hledger.Gain] combinedReport
+    expenseSide = reportSide snapshot.journal [Hledger.Expense] combinedReport
+    reportPeriods = reportPeriodsFrom granularity combinedReport
     dataPeriods = periodsWithData granularity matched reportPeriods
     dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
-    incomeTotals = fmap (fmap negate) (reportTotals commodity incomeReport)
-    expenseTotals = reportTotals commodity expenseReport
-    missing = reportMissing commodity incomeReport <> reportMissing commodity expenseReport
+    incomeTotals = fmap (fmap negate) (reportTotals commodity incomeSide)
+    expenseTotals = reportTotals commodity expenseSide
+    missing = reportMissing commodity incomeSide <> reportMissing commodity expenseSide
     available = Set.null missing
     points =
         if available
@@ -106,11 +89,11 @@ computeCashflow snapshot matched granularity commodity positiveReq negativeReq p
     negativePeriod = selectedPeriod negativeReq dataPeriods
     incomeBreakdown =
         if available
-            then breakdownItemsFor commodity positiveDepth positivePeriod reportPeriods incomeReport
+            then breakdownItemsFor commodity positiveDepth positivePeriod reportPeriods incomeSide
             else (maybe "" (.key) positivePeriod, [])
     expenseBreakdown =
         if available
-            then breakdownItemsFor commodity negativeDepth negativePeriod reportPeriods expenseReport
+            then breakdownItemsFor commodity negativeDepth negativePeriod reportPeriods expenseSide
             else (maybe "" (.key) negativePeriod, [])
 
 cashflowPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
