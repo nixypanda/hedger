@@ -21,6 +21,7 @@ module Hedger.Domain.Internal.InvestmentCheckpoint (
     emptyCheckpoints,
     checkpointCount,
     checkpointMonths,
+    checkpointHashAt,
     truncateCheckpoints,
 
     -- * Solved rates
@@ -48,21 +49,30 @@ module Hedger.Domain.Internal.InvestmentCheckpoint (
 )
 where
 
-import Data.Decimal (Decimal)
+import Data.Decimal (Decimal, decimalMantissa, decimalPlaces)
 import Data.List qualified as List
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Time (Day)
 
 import Hledger.Data.Types qualified as Hledger
 
-import Hedger.Domain.Fingerprint (Hash, PrefixChain (..), chainHashAt)
+import Hedger.Domain.Fingerprint (
+    ChainDiff (..),
+    GlobalFingerprint (..),
+    Hash (..),
+    PrefixChain (..),
+    chainHashAt,
+    combineHash,
+    hashText,
+ )
 import Hedger.Domain.Internal.InvestmentPerformance (
     Accumulator,
     InvestmentPerformanceContext (..),
-    ScopeScan,
+    ScopeScan (..),
     SummaryResult,
     holdingsForScopesAtWithJournal,
     holdingsSeriesAtWithJournal,
@@ -75,6 +85,7 @@ import Hedger.Domain.Internal.InvestmentPerformance (
  )
 import Hedger.Domain.Period (Granularity)
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Xirr (cashFlowAmount, cashFlowDate)
 import Hedger.Domain.Xirr qualified as Xirr
 
 {- | Everything that changes the fold's result at one emitted day: the scope and
@@ -120,16 +131,16 @@ checkpointMonths scope commodity (ScopeCheckpoints stored) =
         , key.commodity == commodity
         ]
 
-{- | Drop every checkpoint at or after a divergence date, and every checkpoint
-whose stored chain hash no longer matches the chain. The second condition is the
-one that must never be skipped: a wrongly kept checkpoint yields silently stale
-numbers and has no other symptom.
+{- | Drop every checkpoint the diff condemns, and every checkpoint whose stored
+hash no longer matches the chain. The second condition is the one that must never
+be skipped: a wrongly kept checkpoint yields silently stale numbers and has no
+other symptom.
 -}
-truncateCheckpoints :: PrefixChain -> Maybe Day -> ScopeCheckpoints -> ScopeCheckpoints
-truncateCheckpoints chain divergence (ScopeCheckpoints stored) =
+truncateCheckpoints :: PrefixChain -> ChainDiff -> ScopeCheckpoints -> ScopeCheckpoints
+truncateCheckpoints chain diff (ScopeCheckpoints stored) =
     ScopeCheckpoints (Map.filterWithKey keep stored)
   where
-    keep key _ = keyStillValid chain divergence key.monthEnd key.chainHash
+    keep key _ = keyStillValid chain diff key.monthEnd key.chainHash
 
 {- | An annualised return already solved for one day's cash-flow prefix. Keyed
 like a checkpoint, so an append re-solves only the periods whose prefix changed.
@@ -161,15 +172,53 @@ lookupSolvedRate key (SolvedRates stored) = Map.lookup key stored
 insertSolvedRate :: RateKey -> Either Xirr.XirrError Decimal -> SolvedRates -> SolvedRates
 insertSolvedRate key outcome (SolvedRates stored) = SolvedRates (Map.insert key outcome stored)
 
-truncateSolvedRates :: PrefixChain -> Maybe Day -> SolvedRates -> SolvedRates
-truncateSolvedRates chain divergence (SolvedRates stored) =
+truncateSolvedRates :: PrefixChain -> ChainDiff -> SolvedRates -> SolvedRates
+truncateSolvedRates chain diff (SolvedRates stored) =
     SolvedRates (Map.filterWithKey keep stored)
   where
-    keep key _ = keyStillValid chain divergence key.at key.chainHash
+    keep key _ = keyStillValid chain diff key.at key.chainHash
 
-keyStillValid :: PrefixChain -> Maybe Day -> Day -> Hash -> Bool
-keyStillValid chain divergence day hash =
-    maybe True (day <) divergence && chainHashAt chain day == Just hash
+keyStillValid :: PrefixChain -> ChainDiff -> Day -> Hash -> Bool
+keyStillValid chain diff day hash = case diff of
+    GlobalChanged -> False
+    DivergesFrom divergence -> day < divergence && hashMatches
+    Identical -> hashMatches
+  where
+    hashMatches = checkpointHashAt chain day == Just hash
+
+{- | The hash a checkpoint or solved rate is keyed by: the chain hash for the
+month containing the day, extended with the journal-global fingerprint.
+
+Binding the global fingerprint in here is what makes this key safe, and it is not
+optional. 'Hedger.Domain.Fingerprint.prefixChain' seeds the month chain from a
+constant rather than from the fingerprint, so the month hashes are identical
+across a commodity-style, account-type-declaration or configuration change even
+though such a change can restate arbitrarily old output. A key built from the
+month hash alone would therefore still match after exactly the edits that
+'GlobalChanged' exists to catch.
+
+The month hash covers every entry up to the /end/ of the day's month, so for a
+mid-month day it commits to a strict superset of the prefix the value depends on.
+That is conservative in the safe direction: an unchanged hash still implies an
+unchanged prefix, and the only cost is re-deriving a mid-month value after a
+later-in-the-month append.
+-}
+checkpointHashAt :: PrefixChain -> Day -> Maybe Hash
+checkpointHashAt chain day = extend (globalHash chain.global) <$> chainHashAt chain day
+  where
+    extend global (Hash month) = combineHash global month
+
+globalHash :: GlobalFingerprint -> Hash
+globalHash global =
+    List.foldl'
+        (\acc (Hash part) -> combineHash acc part)
+        (hashText "investment-checkpoint-global-v1")
+        [ global.files
+        , global.parseOptions
+        , global.commodityStyles
+        , global.accountTypes
+        , global.configVersion
+        ]
 
 -- | Every month in the recent past is checkpointed, so an append resumes at the previous month.
 denseTailMonths :: Int
@@ -204,13 +253,22 @@ retainedSet chain = Set.fromList (retainedMonths (fmap fst chain.months))
 
 {- | 'scopeScansAt' resumed from the newest usable checkpoint.
 
-Observationally equal to 'scopeScansAt' for the same context, scope and days:
-'context.sortedTransactions' is date-sorted, so for the resume day @m@ it splits
-exactly into the transactions with @tdate <= m@ followed by those with
-@tdate > m@; a checkpoint at @m@ is by construction the fold over the first part,
-and its chain hash matching attests that this part is unchanged; and every
-requested day is at or after @m@, so 'scopeScansAt' would apply
-'stepAccumulator' to the second part in this same order from this same state.
+Observationally equal to 'scopeScansAt' for the same context, scope and days.
+
+'scopeScansAt' consumes a transaction before emitting a day exactly when
+@tdate <= day@, so the scan at day @d@ is the fold over @{t : t.tdate <= d}@ and
+a transaction dated on a month end belongs to that month. A checkpoint stored at
+@m@ is, by that same rule, the fold over @{t : t.tdate <= m}@.
+
+The resume then holds because 'context.sortedTransactions' is date-sorted, so
+@dropWhile ((<= m) . tdate)@ splits it precisely at that boundary: nothing dated
+at or before @m@ is replayed (no double counting) and nothing dated after @m@ is
+dropped (no skipping). @m@ is chosen at or before the earliest requested day, so
+every emitted day still sees the same transactions in the same order as a fold
+from 'initialAccumulator' would. What licenses reusing the state at all is the
+hash: 'checkpointHashAt' matching attests that the prefix which produced it is
+still the same prefix.
+
 The returned map is the input map plus the checkpoints observed on this sweep.
 -}
 scopeScansResumed ::
@@ -265,7 +323,7 @@ walk context chain scope seedScan seedDay = go
         Just scan | day == seedDay -> scan
         _ -> snapshotAccumulator context accumulator
 
-    checkpointFor day accumulator scan = case chainHashAt chain day of
+    checkpointFor day accumulator scan = case checkpointHashAt chain day of
         Just hash
             | Set.member day retained ->
                 [
@@ -275,7 +333,7 @@ walk context chain scope seedScan seedDay = go
                         , monthEnd = day
                         , chainHash = hash
                         }
-                    , ScopeCheckpoint{accumulator = accumulator, scan = scan}
+                    , ScopeCheckpoint{accumulator = accumulator, scan = forcedScan scan}
                     )
                 ]
         _ -> []
@@ -291,6 +349,40 @@ walk context chain scope seedScan seedDay = go
         | transaction.tdate <= day =
             go (stepAccumulator context plan accumulator transaction) restTransactions pending
         | otherwise = emit accumulator allTransactions day index restPending
+
+{- | Force every field of an emitted scan before it is stored.
+
+'ScopeCheckpoint.scan' is strict, but a @!@ reaches only the 'ScopeScan'
+constructor, and 'ScopeScan' itself has lazy fields. Without this the @reverse@
+of the cash-flow list, the @Set.toList@ of the account set and the accumulated
+'Decimal' sums would sit in the checkpoint as thunks and be paid by whichever
+later request first reads it — the deferred-work failure the caching plan's risk
+table calls out.
+-}
+forcedScan :: ScopeScan -> ScopeScan
+forcedScan scan =
+    forceAccounts `seq`
+        scan.mappingComplete `seq`
+            forceMaybe forceDecimal scan.retained `seq`
+                forceMaybe forceTriple scan.attributed `seq`
+                    forceMaybe forceFlows scan.cashFlows `seq`
+                        scan
+  where
+    forceAccounts = List.foldl' (\() account -> Text.length account `seq` ()) () scan.accounts
+    forceTriple (income, gain, fee) =
+        forceDecimal income `seq` forceDecimal gain `seq` forceDecimal fee
+    forceFlows flows =
+        List.foldl'
+            (\() flow -> cashFlowDate flow `seq` forceDecimal (cashFlowAmount flow))
+            ()
+            flows
+
+forceMaybe :: (a -> ()) -> Maybe a -> ()
+forceMaybe force = maybe () force
+
+-- | 'seq' on a 'Decimal' stops at its constructor, leaving the mantissa a thunk.
+forceDecimal :: Decimal -> ()
+forceDecimal value = decimalPlaces value `seq` decimalMantissa value `seq` ()
 
 {- | The newest checkpoint at or before a day whose stored chain hash still
 matches. A checkpoint whose hash has moved on is not merely stale, it is a
@@ -312,7 +404,7 @@ latestReusableCheckpoint context chain (ScopeCheckpoints stored) scope earliest 
         , key.scope == scope
         , key.commodity == context.commodity
         , key.monthEnd <= earliest
-        , chainHashAt chain key.monthEnd == Just key.chainHash
+        , checkpointHashAt chain key.monthEnd == Just key.chainHash
         ]
     keepLater best candidate = case best of
         Just (bestDay, _) | bestDay >= fst candidate -> best
@@ -329,11 +421,11 @@ data ScopeCache = ScopeCache
 emptyScopeCache :: ScopeCache
 emptyScopeCache = ScopeCache{checkpoints = emptyCheckpoints, rates = emptySolvedRates}
 
-truncateScopeCache :: PrefixChain -> Maybe Day -> ScopeCache -> ScopeCache
-truncateScopeCache chain divergence cache =
+truncateScopeCache :: PrefixChain -> ChainDiff -> ScopeCache -> ScopeCache
+truncateScopeCache chain diff cache =
     ScopeCache
-        { checkpoints = truncateCheckpoints chain divergence cache.checkpoints
-        , rates = truncateSolvedRates chain divergence cache.rates
+        { checkpoints = truncateCheckpoints chain diff cache.checkpoints
+        , rates = truncateSolvedRates chain diff cache.rates
         }
 
 {- | 'Hedger.Domain.Internal.InvestmentPerformance.summariesAtPrepared' with the
@@ -415,7 +507,7 @@ summaryWithRates context chain scope rates (day, holdings, cost, scan) =
     (result, updatedRates)
   where
     key hash = RateKey{scope = scope, commodity = context.commodity, at = day, chainHash = hash}
-    hashAt = chainHashAt chain day
+    hashAt = checkpointHashAt chain day
     cached = do
         hash <- hashAt
         lookupSolvedRate (key hash) rates
