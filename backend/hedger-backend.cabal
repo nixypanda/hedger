@@ -54,6 +54,7 @@ library
     Hedger.Domain.Error
     Hedger.Domain.Internal.Account
     Hedger.Domain.Internal.Cashflow
+    Hedger.Domain.Internal.InvestmentCheckpoint
     Hedger.Domain.Internal.InvestmentPerformance
     Hedger.Domain.Internal.NetWorth
     Hedger.Domain.Internal.PeriodReport
@@ -137,6 +138,7 @@ test-suite hedger-backend-test
     Hedger.Application.TransactionQuerySpec
     Hedger.Domain.AccountSpec
     Hedger.Domain.ActivitySpec
+    Hedger.Domain.InvestmentCheckpointSpec
     Hedger.Domain.InvestmentPerformanceSpec
     Hedger.Domain.InvestmentSpec
     Hedger.Domain.NetWorthSpec

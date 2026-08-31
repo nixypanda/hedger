@@ -8,6 +8,7 @@ import Hedger.Application.TransactionQuerySpec (transactionQuerySpec)
 import Hedger.ConfigSpec (configSpec)
 import Hedger.Domain.AccountSpec (accountSpec)
 import Hedger.Domain.ActivitySpec (activitySpec)
+import Hedger.Domain.InvestmentCheckpointSpec (investmentCheckpointSpec)
 import Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec)
 import Hedger.Domain.InvestmentSpec (investmentSpec)
 import Hedger.Domain.NetWorthSpec (netWorthSpec)
@@ -32,6 +33,7 @@ main =
             [ configSpec
             , httpEventsSpec
             , investmentsSpec
+            , investmentCheckpointSpec
             , investmentSpec
             , netWorthSpec
             , periodReportSpec
