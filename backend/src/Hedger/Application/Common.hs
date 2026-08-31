@@ -30,11 +30,19 @@ data SnapshotMetadata = SnapshotMetadata
     , warnings :: [Text]
     }
 
-metadataFor :: SnapshotContext -> SnapshotMetadata
-metadataFor context =
+{- | @derivedRevision@ is the revision the cached analytics data was built from,
+@""@ before the first rebuild completes. A reload error outranks a trailing
+derived view, because a stale snapshot is the more consequential fact.
+-}
+metadataFor :: SnapshotContext -> Text -> SnapshotMetadata
+metadataFor context derivedRevision =
     SnapshotMetadata
         { revision = context.snapshot.revision
-        , freshness = maybe "fresh" (const "stale") context.reloadError
+        , freshness =
+            if
+                | Just _ <- context.reloadError -> "stale"
+                | derivedRevision /= context.snapshot.revision -> "refreshing"
+                | otherwise -> "fresh"
         , warnings =
             maybe
                 []

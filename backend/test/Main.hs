@@ -17,6 +17,7 @@ import Hedger.Domain.PeriodSpec (periodSpec)
 import Hedger.Domain.TransactionSpec (transactionSpec)
 import Hedger.Domain.ValuationSpec (valuationSpec)
 import Hedger.Domain.XirrSpec (xirrSpec)
+import Hedger.Infrastructure.DerivedRevisionSpec (derivedRevisionSpec)
 import Hedger.Infrastructure.DerivedStoreSpec (derivedStoreSpec)
 import Hedger.Infrastructure.Internal.CursorSpec (cursorSpec)
 import Hedger.Infrastructure.JournalWatcherSpec (journalWatcherSpec)
@@ -40,6 +41,7 @@ main =
             , periodReportSpec
             , activitySpec
             , snapshotStoreSpec
+            , derivedRevisionSpec
             , derivedStoreSpec
             , journalWatcherSpec
             , transactionSpec

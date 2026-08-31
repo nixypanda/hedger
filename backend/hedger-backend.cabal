@@ -68,6 +68,7 @@ library
     Hedger.Domain.Transaction
     Hedger.Domain.Valuation
     Hedger.Domain.Xirr
+    Hedger.Infrastructure.DerivedRevision
     Hedger.Infrastructure.DerivedStore
     Hedger.Infrastructure.JournalWatcher
     Hedger.Infrastructure.SnapshotStore
@@ -150,6 +151,7 @@ test-suite hedger-backend-test
     Hedger.Domain.ValuationSpec
     Hedger.Domain.XirrSpec
     Hedger.Generators
+    Hedger.Infrastructure.DerivedRevisionSpec
     Hedger.Infrastructure.DerivedStoreSpec
     Hedger.Infrastructure.Internal.CursorSpec
     Hedger.Infrastructure.JournalWatcherSpec
