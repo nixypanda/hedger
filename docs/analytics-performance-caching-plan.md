@@ -84,6 +84,33 @@ This is the part to get right. Everything else is mechanical.
 | Journal file set or parse options change | **everything** | Same: global fingerprint |
 | Config change (investment/asset-class mappings, fiscal year, default commodity) | **everything** for the affected family | Config version in the global fingerprint |
 
+### Three corrections established while implementing S1
+
+1. **`files` must hash paths, not contents.** An earlier revision of this
+   document said `(path, content) pairs`. That is wrong and self-defeating:
+   hashing contents makes every whitespace reformat a `GlobalChanged`, which
+   discards all of history and directly contradicts the most important test in
+   the slice. Hash `jfiles` paths in order. File *contents* are already covered
+   semantically — by the per-month transaction and price hashes, and by the
+   style and account-type components.
+2. **Hash `jdeclaredaccounttypes`, never `jaccounttypes`.** The latter also
+   contains types *inferred* from account names and parents, so it grows
+   whenever an append introduces a new account — hashing it would turn ordinary
+   appends into full rebuilds. The inferred part is a pure function of account
+   names, which already live inside the transaction hashes.
+3. **`jtxnmodifiers` and `jperiodictxns` are journal-global and are NOT in the
+   fingerprint.** Auto-posting rules and periodic transactions are currently
+   inert because `definputopts` has `auto` and `forecast` off, so this is not a
+   live bug. But if either option is ever enabled, editing an auto-posting rule
+   would silently restate all history with no invalidation. Enabling either
+   option **must** be accompanied by adding them to `GlobalFingerprint` and
+   bumping `parseOptions`.
+
+Also confirmed against hledger 1.52: commodity styles are genuinely global
+(`journalCommodityStyles` composes global, declared, `D`-directive default and
+inferred styles with no date scoping), so a `D`-directive change correctly lands
+in `commodityStyles` and needs no separate handling.
+
 The rule: **anything the journal derives globally rather than by date goes in a
 global fingerprint that invalidates the whole chain.** Styles and account-type
 declarations rarely change once a journal is established, so this costs almost no
@@ -91,6 +118,11 @@ hit rate and removes a class of subtle bugs entirely.
 
 ### Two implementation traps
 
+0. **The local hledger checkout is the wrong version to read.**
+   `/Users/nixypanda/Documents/open-source/hledger` is hledger **1.99**; this
+   build resolves **hledger-lib 1.52**, and field names differ (1.52 has
+   `ptype :: PostingType` where 1.99 has `preal :: PostingRealness`). Read field
+   names from the 1.52 tarball in the nix store, not from that checkout.
 1. **Do not hash `tsourcepos` or `tindex`.** They shift when unrelated lines move
    in the file, so hashing them would make inserting a comment at the top of a
    journal invalidate all of history. Hash semantic content only: date, date2,
@@ -105,6 +137,31 @@ hit rate and removes a class of subtle bugs entirely.
    small strict records. Never a `MultiBalanceReport`, never a `Journal`, never a
    closure over either.
 
+### Further exclusions and caveats established while implementing S1
+
+- **The full exclusion list for transaction hashing** is wider than
+  `tsourcepos`/`tindex`. Also exclude `tprecedingcomment` (shifts when unrelated
+  comments move), `baposition`, `pdsourcepos`, `astyle` (global, per the
+  correction above), `ptransaction` (**must** be excluded — it closes a cycle
+  back to the transaction and the hash diverges otherwise), and `poriginal` (a
+  parse artefact). Do *include* `acostbasis`: it is semantic lot data, and it is
+  safe because it is inferred only from earlier transactions, which diverge
+  first anyway.
+- **Normalize `Decimal` quantities before hashing.** `Decimal`'s `Show` is finer
+  grained than its `Eq`: `1.5` and `1.50` compare equal but show differently, so
+  naive quantity hashing spuriously invalidates whenever hledger's style
+  application shifts a precision.
+- **A `!` on a list field forces only the cons cell.** `PrefixChain.months` is
+  `![(Day, Hash)]`, so whoever publishes a chain must force it deeply before
+  publication, or the hashing work is deferred into the first request that reads
+  it — the exact failure the risk table warns about.
+- **`globalFingerprint` taking a `Config` inverts the documented layering.**
+  `Hedger.Domain.Fingerprint` ends up importing `Hedger.Config`, which sits at
+  the composition root. It compiles (no cycle) but it is the one place this work
+  violates the architecture in `docs/backend.md`. The fix is to pass a small
+  `ConfigFingerprint` record of the four relevant fields, built by the caller,
+  so Domain stays innermost. Do this when touching the module next.
+
 ## Data shapes
 
 Sketches, not final signatures. Adjust names to fit the modules they land in.
@@ -112,10 +169,10 @@ Sketches, not final signatures. Adjust names to fit the modules they land in.
 ```haskell
 -- Invalidates the entire chain when any component changes.
 data GlobalFingerprint = GlobalFingerprint
-    { files          :: !Hash   -- (path, content) pairs, length-delimited
+    { files          :: !Hash   -- jfiles PATHS in order, NOT contents (see below)
     , parseOptions   :: !Hash   -- "definputopts-v1", as SnapshotStore already does
     , commodityStyles:: !Hash   -- resolved display styles
-    , accountTypes   :: !Hash   -- declared account types
+    , accountTypes   :: !Hash   -- jdeclaredaccounttypes ONLY, never jaccounttypes
     , configVersion  :: !Hash   -- mappings, fiscal year, default commodity
     }
 
