@@ -43,6 +43,18 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     ScopeScan (..),
     scopeScansAt,
     scopeScansForScopesAt,
+    holdingsForScopesAtWithJournal,
+
+    -- * Resumable fold internals (exposed for checkpointing)
+    Accumulator,
+    initialAccumulator,
+    stepAccumulator,
+    snapshotAccumulator,
+    ScopePlan,
+    scopePlan,
+    XirrSolver,
+    xirrFromCashFlows,
+    summaryFromHoldingsUsing,
 )
 where
 
@@ -270,6 +282,28 @@ summaryFromHoldings ::
     ScopeScan ->
     SummaryResult
 summaryFromHoldings context scope day holdings costHoldings scopeScan =
+    fst (summaryFromHoldingsUsing xirrFromCashFlows context scope day holdings costHoldings scopeScan)
+
+{- | How a day's annualised return is obtained from its cash flows. Abstracted so
+a caller holding solved rates for unchanged periods can substitute a lookup for
+'xirrFromCashFlows' without changing any other part of the calculation.
+-}
+type XirrSolver =
+    Maybe [Xirr.CashFlow] -> Day -> Maybe Decimal -> Maybe (Either Xirr.XirrError Decimal)
+
+{- | 'summaryFromHoldings' with a replaceable rate solver, also returning the rate
+outcome it used so a caller can cache it.
+-}
+summaryFromHoldingsUsing ::
+    XirrSolver ->
+    InvestmentPerformanceContext ->
+    Maybe Text ->
+    Day ->
+    Hledger.MixedAmount ->
+    Hledger.MixedAmount ->
+    ScopeScan ->
+    (SummaryResult, Maybe (Either Xirr.XirrError Decimal))
+summaryFromHoldingsUsing solveXirr context scope day holdings costHoldings scopeScan =
     let commodity = context.commodity
         costRaw = HledgerAmount.mixedAmountCost costHoldings
         valueRaw = context.valueAt day holdings
@@ -313,7 +347,7 @@ summaryFromHoldings context scope day holdings costHoldings scopeScan =
         total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
         xirrResult =
             if mappingComplete
-                then xirrFromCashFlows scopeScan.cashFlows day market
+                then solveXirr scopeScan.cashFlows day market
                 else Nothing
         annualisedReturn = xirrResult >>= either (const Nothing) Just
         unresolvedReturn = maybe False (either isNonTrivialXirrError (const False)) xirrResult
@@ -339,7 +373,7 @@ summaryFromHoldings context scope day holdings costHoldings scopeScan =
             if market == Nothing && cost == Nothing
                 then Unavailable
                 else if null warnings && total /= Nothing then Complete else Partial
-     in if not hasHoldings
+     in ( if not hasHoldings
             then SummaryResult{summary = emptySummary, warnings = []}
             else
                 SummaryResult
@@ -356,6 +390,8 @@ summaryFromHoldings context scope day holdings costHoldings scopeScan =
                             }
                     , warnings
                     }
+        , xirrResult
+        )
 
 -- | Running totals threaded through 'scopeScansAt''s chronological sweep.
 data Accumulator = Accumulator
@@ -529,6 +565,11 @@ stepAccumulator context plan acc transaction =
             Nothing -> Nothing
             Just flow -> Just (flow : flows)
 
+{- | The emitted view of an accumulator. The 'reverse' below is O(flows) per
+emitted day, so a timeline of @d@ days reverses the flow list @d@ times;
+checkpointing the emitted 'ScopeScan' alongside the accumulator avoids repeating
+it for unchanged days, but the per-day cost itself is left alone here.
+-}
 snapshotAccumulator :: InvestmentPerformanceContext -> Accumulator -> ScopeScan
 snapshotAccumulator context acc =
     ScopeScan

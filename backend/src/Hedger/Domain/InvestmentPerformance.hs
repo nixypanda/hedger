@@ -15,6 +15,17 @@ module Hedger.Domain.InvestmentPerformance (
     summaryAt,
     investmentSummaryAt,
 
+    -- * Checkpointed performance calculation
+    ScopeCache (..),
+    ScopeCheckpoints,
+    SolvedRates,
+    emptyScopeCache,
+    emptyCheckpoints,
+    emptySolvedRates,
+    truncateScopeCache,
+    summariesAtResumed,
+    summariesAtScopesResumed,
+
     -- * Ledger policies and derivations
     validateScope,
     isInvestmentAccount,
@@ -27,4 +38,15 @@ module Hedger.Domain.InvestmentPerformance (
 )
 where
 
+import Hedger.Domain.Internal.InvestmentCheckpoint (
+    ScopeCache (..),
+    ScopeCheckpoints,
+    SolvedRates,
+    emptyCheckpoints,
+    emptyScopeCache,
+    emptySolvedRates,
+    summariesAtResumed,
+    summariesAtScopesResumed,
+    truncateScopeCache,
+ )
 import Hedger.Domain.Internal.InvestmentPerformance
