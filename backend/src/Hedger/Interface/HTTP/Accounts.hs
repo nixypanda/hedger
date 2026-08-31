@@ -4,6 +4,7 @@ module Hedger.Interface.HTTP.Accounts (
 ) where
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day)
@@ -21,6 +22,8 @@ import Hedger.Application.Accounts (
     accountsTree,
  )
 import Hedger.Application.AppM (Env)
+import Hedger.Application.Cache (cachedResponse, dimensionKey, encodedSizeHint)
+import Hedger.Application.Common (SnapshotMetadata)
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError)
 import Hedger.Interface.HTTP.Common (
@@ -116,13 +119,34 @@ type AccountsAPI =
 
 accountsServer :: Env -> Maybe Text -> Server AccountsAPI
 accountsServer env requestId =
-    (\commodity -> runAction env requestId (toAccountsTree <$> accountsTree commodity))
+    ( \commodity ->
+        runAction env requestId $
+            cachedResponse
+                "accounts-tree"
+                (treeDimensions commodity)
+                withMetadata
+                encodedSizeHint
+                (toAccountsTree <$> accountsTree commodity)
+    )
         :<|> ( \account commodity from to limit cursor ->
                 case mkRegisterPageRequest account commodity from to limit cursor of
                     Left err -> throwError (servantError requestId err)
                     Right request ->
                         runAction env requestId (toAccountRegisterResponse <$> accountRegister request)
              )
+
+{- | The tree has a single dimension, the requested commodity. An unresolved
+@Nothing@ and an explicit @Just <configured default>@ key differently: accepted
+aliasing that costs a duplicate entry, not a wrong answer.
+-}
+treeDimensions :: Maybe Text -> Text
+treeDimensions commodity = dimensionKey [Aeson.toJSON commodity]
+
+-- A cached body keeps the revision it was computed for, but freshness and reload
+-- warnings can change without a revision change, so metadata is always replaced.
+withMetadata :: SnapshotMetadata -> AccountsTreeResponse -> AccountsTreeResponse
+withMetadata value AccountsTreeResponse{..} =
+    AccountsTreeResponse{metadata = toResponseMetadata value, ..}
 
 mkRegisterPageRequest ::
     Text ->
