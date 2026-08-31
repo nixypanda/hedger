@@ -92,10 +92,10 @@ update msg (Model data) =
             ( Model { data | chartMode = selected }, Cmd.none )
 
         AccountSelected account ->
-            reload { data | accountPrefix = Just account, selectedPeriod = Nothing }
+            loadScope { data | accountPrefix = Just account, selectedPeriod = Nothing }
 
         PortfolioSelected ->
-            reload { data | accountPrefix = Nothing, selectedPeriod = Nothing }
+            loadScope { data | accountPrefix = Nothing, selectedPeriod = Nothing }
 
         PeriodSelected period ->
             ( Model { data | selectedPeriod = Just period }, Cmd.none )
@@ -122,6 +122,11 @@ update msg (Model data) =
 reload : ModelData -> ( Model, Cmd Msg )
 reload data =
     ( Model { data | response = RemoteData.beginLoading data.response }, fetch data )
+
+
+loadScope : ModelData -> ( Model, Cmd Msg )
+loadScope data =
+    ( Model { data | response = Loading Nothing }, fetch data )
 
 
 fetch : ModelData -> Cmd Msg
