@@ -1,6 +1,7 @@
 module Hedger.Interface.HTTP.Analytics (AnalyticsAPI, analyticsServer) where
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -10,7 +11,8 @@ import Servant
 
 import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
-import Hedger.Application.Common (AccountTypeClassifier)
+import Hedger.Application.Cache (cachedResponse, dimensionKey, encodedSizeHint)
+import Hedger.Application.Common (AccountTypeClassifier, SnapshotMetadata)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Interface.HTTP.Common (
     ResponseMetadata,
@@ -175,15 +177,78 @@ analyticsServer env requestId =
     handleNetWorth request =
         case toAnalyticsRequest request of
             Left err -> throwError (servantError requestId err)
-            Right parsed -> runAction env requestId (toNetWorth <$> Analytics.netWorth parsed)
+            Right parsed ->
+                runAction env requestId $
+                    cachedResponse
+                        "net-worth"
+                        (analyticsDimensions parsed)
+                        withNetWorthMetadata
+                        encodedSizeHint
+                        (toNetWorth <$> Analytics.netWorth parsed)
     handleCashflow request =
         case toAnalyticsRequest request of
             Left err -> throwError (servantError requestId err)
-            Right parsed -> runAction env requestId (toCashflow <$> Analytics.cashflow parsed)
+            Right parsed ->
+                runAction env requestId $
+                    cachedResponse
+                        "cashflow"
+                        (analyticsDimensions parsed)
+                        withCashflowMetadata
+                        encodedSizeHint
+                        (toCashflow <$> Analytics.cashflow parsed)
     handleActivity request =
         case toActivityRequest request of
             Left err -> throwError (servantError requestId err)
-            Right parsed -> runAction env requestId (toActivity <$> Analytics.activity parsed)
+            Right parsed ->
+                runAction env requestId $
+                    cachedResponse
+                        "activity"
+                        (activityDimensions parsed)
+                        withActivityMetadata
+                        encodedSizeHint
+                        (toActivity <$> Analytics.activity parsed)
+
+{- | Keyed on the parsed, defaulted request, so an omitted depth and an explicit
+default depth share one entry. An unresolved @displayCommodity = Nothing@ and an
+explicit @Just <configured default>@ still key differently: accepted aliasing
+that costs a duplicate entry, not a wrong answer.
+-}
+analyticsDimensions :: Analytics.AnalyticsRequest -> Text
+analyticsDimensions request =
+    dimensionKey
+        [ Aeson.toJSON request.query
+        , Aeson.toJSON (granularityText request.granularity)
+        , Aeson.toJSON request.displayCommodity
+        , Aeson.toJSON request.positivePeriod
+        , Aeson.toJSON request.negativePeriod
+        , Aeson.toJSON request.positiveDepth
+        , Aeson.toJSON request.negativeDepth
+        ]
+
+activityDimensions :: Analytics.ActivityRequest -> Text
+activityDimensions request =
+    dimensionKey
+        [ Aeson.toJSON (activityKindText request.kind)
+        , Aeson.toJSON (activityRangeText request.range)
+        , Aeson.toJSON request.period
+        , Aeson.toJSON request.query
+        , Aeson.toJSON request.displayCommodity
+        , Aeson.toJSON request.depth
+        ]
+
+-- A cached body keeps the revision it was computed for, but freshness and reload
+-- warnings can change without a revision change, so metadata is always replaced.
+withNetWorthMetadata :: SnapshotMetadata -> NetWorthResponse -> NetWorthResponse
+withNetWorthMetadata value NetWorthResponse{..} =
+    NetWorthResponse{metadata = toResponseMetadata value, ..}
+
+withCashflowMetadata :: SnapshotMetadata -> CashflowResponse -> CashflowResponse
+withCashflowMetadata value CashflowResponse{..} =
+    CashflowResponse{metadata = toResponseMetadata value, ..}
+
+withActivityMetadata :: SnapshotMetadata -> ActivityResponse -> ActivityResponse
+withActivityMetadata value ActivityResponse{..} =
+    ActivityResponse{metadata = toResponseMetadata value, ..}
 
 toAnalyticsRequest :: AnalyticsRequestDto -> Either AppError Analytics.AnalyticsRequest
 toAnalyticsRequest request = do

@@ -1,12 +1,15 @@
 module Hedger.Interface.HTTP.Investments (InvestmentsAPI, investmentsServer) where
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
 import Data.Text (Text)
 import Data.Time (Day)
 import GHC.Generics (Generic)
 import Servant
 
 import Hedger.Application.AppM (Env)
+import Hedger.Application.Cache (cachedResponse, dimensionKey, encodedSizeHint)
+import Hedger.Application.Common (SnapshotMetadata)
 import Hedger.Application.Investments qualified as Investments
 import Hedger.Domain.Error (AppError)
 import Hedger.Domain.Investment qualified as Investment
@@ -115,7 +118,32 @@ investmentsServer :: Env -> Maybe Text -> Server InvestmentsAPI
 investmentsServer env requestId request =
     case toRequest request of
         Left err -> throwError (servantError requestId err)
-        Right parsed -> runAction env requestId (toResponse <$> Investments.investments parsed)
+        Right parsed ->
+            runAction env requestId $
+                cachedResponse
+                    "investments"
+                    (dimensionsFor parsed)
+                    withMetadata
+                    encodedSizeHint
+                    (toResponse <$> Investments.investments parsed)
+
+{- | Keyed on the parsed request. An unresolved @displayCommodity = Nothing@ and an
+explicit @Just <configured default>@ key differently: accepted aliasing that costs
+a duplicate entry, not a wrong answer.
+-}
+dimensionsFor :: Investments.InvestmentsRequest -> Text
+dimensionsFor request =
+    dimensionKey
+        [ Aeson.toJSON (granularityText request.granularity)
+        , Aeson.toJSON request.displayCommodity
+        , Aeson.toJSON request.accountPrefix
+        ]
+
+-- A cached body keeps the revision it was computed for, but freshness and reload
+-- warnings can change without a revision change, so metadata is always replaced.
+withMetadata :: SnapshotMetadata -> InvestmentsResponse -> InvestmentsResponse
+withMetadata value InvestmentsResponse{..} =
+    InvestmentsResponse{metadata = toResponseMetadata value, ..}
 
 toRequest :: InvestmentsRequestDto -> Either AppError Investments.InvestmentsRequest
 toRequest request = do

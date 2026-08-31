@@ -26,6 +26,7 @@ import System.Posix.Signals (Handler (Catch), installHandler, sigHUP, sigTERM)
 
 import Hedger.Application.AppM (Env (..))
 import Hedger.Config (Config (..))
+import Hedger.Infrastructure.DerivedStore (DerivedStore, newDerivedStore)
 import Hedger.Infrastructure.JournalWatcher (withJournalWatcher)
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotStore,
@@ -36,20 +37,28 @@ import Hedger.Infrastructure.SnapshotStore (
 import Hedger.Interface.HTTP.API (application)
 import Hedger.Interface.HTTP.Middleware (redactQueryForLogging, requestContextMiddleware)
 
-makeApplication :: Config -> SnapshotStore -> Application
-makeApplication configuration store =
-    productionMiddleware id (coreApplication configuration store)
+makeApplication :: Config -> SnapshotStore -> DerivedStore -> Application
+makeApplication configuration store derived =
+    productionMiddleware id (coreApplication configuration store derived)
 
 productionMiddleware :: Middleware -> Middleware
 productionMiddleware logger = requestContextMiddleware . redactQueryForLogging logger
 
-coreApplication :: Config -> SnapshotStore -> Application
-coreApplication configuration store =
-    application Env{config = configuration, snapshotStore = store}
+coreApplication :: Config -> SnapshotStore -> DerivedStore -> Application
+coreApplication configuration store derived =
+    application Env{config = configuration, snapshotStore = store, derivedStore = derived}
+
+{- | 64 MiB: a handful of megabytes per cached analytics response, so this holds
+every family and dimension a session realistically touches while staying an
+order of magnitude below the parsed journal snapshot's own footprint.
+-}
+derivedStoreBudgetBytes :: Int
+derivedStoreBudgetBytes = 64 * 1024 * 1024
 
 runServer :: Config -> IO ()
 runServer configuration = do
     store <- newSnapshotStore
+    derived <- newDerivedStore derivedStoreBudgetBytes
     void (reloadSnapshot store configuration.journalPath)
     void (installHandler sigHUP (Catch (void (reloadSnapshot store configuration.journalPath))) Nothing)
     let settings =
@@ -63,7 +72,7 @@ runServer configuration = do
     withJournalWatcher store configuration.journalPath $
         runSettings
             settings
-            (productionMiddleware RequestLogger.logStdout (coreApplication configuration store))
+            (productionMiddleware RequestLogger.logStdout (coreApplication configuration store derived))
 
 installShutdownHandler :: IO () -> IO ()
 installShutdownHandler closeSocket = void (installHandler sigTERM (Catch closeSocket) Nothing)

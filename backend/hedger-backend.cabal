@@ -40,6 +40,7 @@ library
     Hedger.Application.Analytics
     Hedger.Application.Accounts
     Hedger.Application.AppM
+    Hedger.Application.Cache
     Hedger.Application.Common
     Hedger.Application.Events
     Hedger.Application.Internal.Cursor
@@ -133,6 +134,7 @@ test-suite hedger-backend-test
   hs-source-dirs: test
   other-modules:
     Hedger.Application.AppMSpec
+    Hedger.Application.CacheSpec
     Hedger.Application.EventsSpec
     Hedger.Application.TransactionQuerySpec
     Hedger.Domain.AccountSpec
