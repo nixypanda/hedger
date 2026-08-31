@@ -1,6 +1,6 @@
 # Analytics performance improvement plan
 
-_Status: compute-first phase measured; derived-data phase recommended · Last updated: 2026-08-28_
+_Status: flow optimization complete; API splitting rejected; caching remains · Last updated: 2026-08-31_
 
 ## Summary
 
@@ -25,24 +25,28 @@ application request is 5.27 seconds and allocates 9.5 GB. These are serial,
 threaded `-N1` measurements; the benchmark runs one selected case at a time so
 thermal throttling and cross-benchmark contention do not become inputs.
 
-What remains, in order of measured cost:
+The compute-on-every-request work is complete. The resulting state is:
 
-1. Revision-scoped derived data and bounded memoization. The rebaseline has now
+1. **Flow optimization is complete.** Investment timeline and drill-down flows,
+   net worth, and cashflow now share the useful request-local work identified by
+   measurement.
+2. **API-level splitting is rejected.** Progressive Net Worth and Investments
+   APIs were implemented and measured. They did not reduce the ledger work
+   needed to render the screens, and in practice only moved the same expensive
+   work between requests or repeated it. The added routes, revision coordination,
+   partial-loading states, and frontend assembly bought no meaningful latency
+   improvement.
+3. **Only caching optimization remains.** Revision-scoped derived data and
+   bounded memoization are required. The rebaseline has now
    established that the 200 ms cold target is unreachable through the remaining
    request-local work: each of the two timeline holdings reports independently
    exceeds 300 ms, before the 1.20-second scope scan and roughly one second of
    XIRR work.
-2. Further request-local investment indexing, predicate sharing, conversion,
-   XIRR, and allocation reduction remains worthwhile for rebuild cost and cold
-   misses, but is no longer a prerequisite to starting the derived-data phase.
-3. Neither parallelism nor further API decomposition is a lever by itself. Running
+4. Neither parallelism nor further API decomposition is a lever. Running
    the two net-worth passes concurrently was implemented and measured as a 45%
    regression at the server's actual `-N`, because the passes are
-   allocation-bound rather than CPU-bound. The three analytics endpoints are
-   already separate routes, and splitting net worth further into base and
-   breakdown would make a breakdown request rerun the same hledger report unless
-   a cross-request cache exists first.
-4. A database or persistent derived store remains deferred until the simpler
+   allocation-bound rather than CPU-bound.
+5. A database or persistent derived store remains deferred until the simpler
    revision-scoped in-memory design has been measured.
 
 Net-worth and cashflow report consolidation is complete. Net worth is now two
@@ -82,6 +86,9 @@ CPU, allocation, garbage collection, and memory-bandwidth pressure.
 - Precomputing every possible free-form hledger query.
 - Changing accounting semantics to obtain a faster result.
 - Hiding slow calculations behind unbounded worker or request concurrency.
+- Further splitting the Net Worth or Investments APIs as a performance
+  optimization. Both experiments were ineffective; projections may be separated
+  later for product reasons only if they read shared cached data.
 
 ## Optimization sequencing decision
 
@@ -171,9 +178,9 @@ allocation pressure, but it is not evidence of progress toward 200 ms.
 
 The compute-first decision is now made. Even removing the scope scan and every
 XIRR solve would leave preparation and two independently measured holdings
-reports, each already above the target or close to twice it. Request-local work
-should continue where it materially lowers rebuild allocation or cold-miss cost,
-but revision-scoped derived data is now required for the interactive target.
+reports, each already above the target or close to twice it. The request-local
+flow phase is closed; revision-scoped derived data is required for the
+interactive target.
 
 ### Every net-worth figure in earlier revisions of this document was wrong
 
@@ -366,9 +373,9 @@ Fixture regressions compare every summary field and warning across root, nested,
 duplicate, missing-price, missing-cost, foreign-cost, mapping, fee/gain, and
 ambiguous-XIRR cases. No accounting-semantic divergence was found. The measured
 shared traversal remains material, and the later relevance guard reduces the
-drill-down result further to 2.86 seconds and 7.1 GB allocated. Request-local
-scope work remains an optimization target for rebuild and cold-miss cost, but it
-cannot by itself reach the interactive target.
+drill-down result further to 2.86 seconds and 7.1 GB allocated. This completes
+the request-local scope optimization work; it cannot by itself reach the
+interactive target.
 
 #### Completed: skip transactions irrelevant to an individual scope
 
@@ -550,9 +557,9 @@ fixture spans **601 months** and only **3.8% of its transactions fall in the las
 On a five-year journal the monthly window would cover a large fraction of the
 ledger and the gap would narrow considerably.
 
-The practical consequence is that net worth has no valuation or consolidation win
-left. Its remaining cost is two full-journal cumulative passes, so reaching 200 ms
-needs either the declined depth-clipping guard or revision-scoped derived data.
+The practical consequence is that net worth has no valuation or consolidation
+win left. Its remaining cost is two full-journal cumulative passes, so reaching
+200 ms requires revision-scoped derived data.
 
 #### Measured but deliberately declined: clipping the consolidated report
 
@@ -701,59 +708,28 @@ capabilities are not a reason to start an unbounded number of CPU-heavy reports.
 The limit should leave capacity for health checks, event streams, cached
 responses, and ordinary transaction/account queries.
 
-### 4. API decomposition and progressive rendering
+### 4. Rejected: API decomposition and progressive rendering
 
-Splitting endpoints is useful when the resulting pieces have different user
-priority or can reuse cached derived state. It should not cause each endpoint to
-perform its own full scan.
+Progressive API experiments were carried out for both analytics screens and
+were completely ineffective as performance optimizations.
 
-During the compute-first phase, decomposition is worthwhile only when it avoids
-work that the caller did not request or when request-local prepared data can be
-shared. Do not split an endpoint merely to make each HTTP response finish sooner
-while leaving the total ledger work unchanged. Decomposition that depends on a
-cross-request base-report cache belongs to the later caching phase.
+The Investments experiment split the response into structure, value, and
+performance requests. The Net Worth experiment split the base timeline/KPI data
+from selected-period breakdowns. Neither changed the underlying dependency
+graph: the visible sections share the same expensive reports and investment
+flows. Producing all data for a usable screen therefore still performed the
+same total ledger work, while separate requests lost request-local sharing or
+repeated report calculation.
 
-#### Investments
+The split also added costs outside the benchmarks: more HTTP and application
+surface, revision matching across partial responses, partial-success and
+loading states, and frontend response assembly. A faster empty or incomplete
+first response was not a meaningful improvement to time-to-usable-screen.
 
-A decomposition into an overview, a value history, and a return history is
-still worth considering, but **the obvious section boundary is the wrong one**.
-`purchaseCost` is plotted on the default Value chart, as both a line and one
-bound of the area series. In the domain it is `reportedCost - retained`, and
-`retained` is gated on mapping completeness. So a "value history" section that
-includes purchase cost still pays account discovery, explicit-cost discovery,
-and the retained accumulation.
-
-Only `attributed`, the external cash flows, and the XIRR solve are exclusive to
-the Returns view. A genuinely cheap initial section is therefore market value
-and gain/loss; purchase cost belongs with the deferred data, or `retained` has
-to be made cheap first.
-
-Since the timeline now costs 2.4 seconds at 50,000 transactions rather than
-exceeding 45, this is a smaller win than it was, and it should be sequenced
-after item 1.
-
-The frontend should support partial success: an overview can remain visible if
-history fails, and value history can remain visible if return history fails.
-Every part must carry or be checked against a revision so results from different
-journal snapshots are not combined silently.
-
-Whether this becomes multiple HTTP endpoints or one endpoint with selectable
-sections is an API design choice.
-
-#### Net worth
-
-The net-worth timeline, KPI trends, and performance chart share the same base
-periodic data and should normally stay together. Selected-period breakdowns are
-better candidates for separation because they can be projected cheaply from a
-cached base report and change independently during interaction.
-
-A suitable split is:
-
-- base report: KPIs, timeline, performance, completeness, and warnings;
-- selected breakdown: asset or liability rows for a period and depth.
-
-This split should be made only after the base report can be reused; otherwise a
-breakdown endpoint risks rerunning the same hledger report.
+Do not pursue another Net Worth or Investments endpoint split for performance.
+If cached base reports later make a projection independently cheap, a route may
+be separated for product or interaction reasons, but that is a consumer of the
+cache rather than an optimization track of its own.
 
 ### 5. XIRR solver, if it becomes material again
 
@@ -772,22 +748,15 @@ cases `backend/test/fixtures/investment-ambiguous-xirr.journal` exists to pin.
 
 Only the `logRate >= 0` half of the grid, where the reference is zero for every
 prefix, shares exactly and safely. That is worth about half the available
-saving.
+saving, but the flow-optimization phase is now closed because this cannot make
+the cold request interactive.
 
-### 6. Backend parallelism
+### 6. Rejected: report-level backend parallelism
 
-After consolidation and caching, remaining independent calculations may run in
-parallel: the asset and liability net-worth reports if they cannot be combined,
-the gain report alongside the balance report, independent already-indexed
-investment scopes, and eager default views after a new revision.
-
-Parallelism should be controlled by the backend rather than emerging from an
-arbitrary number of frontend HTTP calls. Backend control makes it possible to
-share prepared data, cap concurrency, cancel work for obsolete revisions,
-deduplicate identical work, and measure one logical operation coherently.
-
-Parallelism reduces wall time but not total work. It is a final multiplier on an
-efficient calculation, not a replacement for one.
+Parallel report execution is closed as an optimization track. The caching phase
+still needs bounded worker concurrency for independent cache keys and background
+rebuilds, but that is capacity control, not an attempt to accelerate one
+allocation-heavy request.
 
 #### Measured and rejected: running the two net-worth passes in parallel
 
@@ -863,12 +832,12 @@ need a separate load test rather than a parallel microbenchmark suite.
 | 10 | **Complete:** link the benchmark with the threaded RTS, pin it to `-N1`, run cases individually, and rebaseline | Reproducible serial baseline without cross-case thermal contention | Completed |
 | 11 | **Decided:** retain unrestricted `-N` for the production web server | Prefer concurrent serving capacity; assess it with a separate load test | Completed |
 | 12 | **Complete:** audit the investment benchmark weight functions | Every application and nested summary field is forced; 5.27-second result is verified | Completed |
-| 13 | Share the safe half of the XIRR grid across prefixes | Low; ~0.5 s at 50,000 transactions | Low, 1–2 days |
-| 14 | **Complete first slice:** add investment stage benchmarks and skip scope-irrelevant transactions | Multi-scope scan 2.73 s/8.4 GB → 1.64 s/5.1 GB; application allocation 13 GB → 9.5 GB | Continue measurement-led |
-| 15 | **Declined for now:** clip the consolidated report behind a type-preservation guard | 62 ms at 50,000, but adds a branch, a fallback and a fixture | Low, 1–2 days |
+| 13 | **Closed:** further XIRR/request-local flow optimization | Flow optimization phase is complete; this does not make the cold path interactive | No longer planned |
+| 14 | **Complete:** add investment stage benchmarks and skip scope-irrelevant transactions | Multi-scope scan 2.73 s/8.4 GB → 1.64 s/5.1 GB; application allocation 13 GB → 9.5 GB | Completed |
+| 15 | **Closed:** clip the consolidated report behind a type-preservation guard | 62 ms at 50,000, but adds a branch, fallback, and fixture without making the request interactive | No longer planned |
 | 16 | **Rejected:** share the report window across reports | Measured regression | Not viable |
 | 17 | **Rejected:** run the two net-worth passes in parallel | Measured 45% regression at the server's actual `-N`; the passes are allocation-bound, so they do not overlap. Any other parallelism candidate must first be shown allocation-light | Not viable |
-| 18 | Split endpoints further only where an uncached request can omit material work | Low; the three analytics endpoints are already separate routes | Medium–high, 4–7 days |
+| 18 | **Rejected:** split the Net Worth and Investments APIs | Implemented and measured as useless: no meaningful improvement to time-to-usable-screen, with duplicated/shared work and substantially more API/frontend complexity | Not viable |
 | 19 | **Complete:** rebenchmark every cold analytics path and decide whether storage is required | The independently measured holdings reports already exceed 200 ms; derived data is required | Completed |
 | 20 | **Next:** cache base reports separately from selected projections | High for repeated requests | Medium, 3–5 days |
 | 21 | Add revision-scoped derived rebuilds, bounded memoization, and single-flight | Very high for common and concurrent views | High, 1–2 weeks |
@@ -945,7 +914,7 @@ family, normalized non-sensitive dimensions, request ID, revision, and timing.
 | Lazy derived data shifts rebuild work into a request | Unexpected cold latency | Explicitly force all fields used by queries before publication |
 | Eager rebuilding takes too much CPU after every save | Slow reloads and poor interactive response | Debounce, bounded workers, cancel obsolete generations, and eagerly build only common views |
 | Cache grows with query variants | Unbounded memory use | Bounded LRU or size-aware eviction; do not eagerly cache arbitrary query space |
-| Frontend endpoint split increases duplicate work | Higher load despite faster first paint | Split only over shared indexed/cached data and measure total CPU |
+| Frontend endpoint split increases duplicate work | Higher load without a meaningfully faster usable screen | Rejected as an optimization; do not revisit unless cached projections make routes independently cheap |
 | Parallel reports saturate CPU or memory bandwidth | Worse tail latency | Central concurrency limit and load testing, not unbounded request fan-out |
 | Old derived results remain after config changes | Incorrect classifications or targets | Include relevant configuration identity/version in derived generations and cache keys |
 | Background failure hides new journal data indefinitely | Permanently stale dashboard | Expose stale/error metadata, retry safely, and log/measure derived rebuild failures |
@@ -962,20 +931,20 @@ family, normalized non-sensitive dimensions, request ID, revision, and timing.
    deferred behind derived readiness.
 2. Which views are common enough to rebuild eagerly: likely root monthly reports
    in the default display commodity, but production usage should confirm this.
-3. Whether API decomposition uses separate routes or one route with requested
-   response sections.
-4. The cache memory budget and whether it is count-, size-, or cost-based.
-5. The worker limit on the target NixOS host and whether reload work has lower
+3. The cache memory budget and whether it is count-, size-, or cost-based.
+4. The worker limit on the target NixOS host and whether reload work has lower
    priority than interactive cache misses.
-6. The acceptable freshness delay while common derived reports rebuild.
+5. The acceptable freshness delay while common derived reports rebuild.
 
 ## Recommended next slice
 
-The benchmark audit, serial threaded rebaseline, request attribution and
-compute-first decision are complete. At 50,000 transactions net worth is ~741 ms
-and the complete investments request is ~5.27 seconds. Independently measured
-hledger passes already exceed the 200 ms target, so further request-local work
-cannot make every cold request interactive.
+The benchmark audit, flow optimization, serial threaded rebaseline, request
+attribution, and progressive API experiments are complete. API splitting was
+rejected for both Net Worth and Investments: it did not reduce the work required
+for a usable screen. At 50,000 transactions net worth is ~741 ms and the complete
+investments request is ~5.27 seconds. Independently measured hledger passes
+already exceed the 200 ms target, so further request-local work cannot make every
+cold request interactive.
 
 The next slice is therefore the first revision-scoped derived-data iteration:
 
@@ -987,5 +956,5 @@ The next slice is therefore the first revision-scoped derived-data iteration:
    time; use a separate unrestricted-`-N` server load test for concurrency.
 5. Add derived-revision, duration, hit/miss and waiter observability.
 
-The safe half-grid XIRR optimization and further prepared transaction indexes
-remain useful for cold misses and rebuild cost, but no longer gate this slice.
+Caching is the only remaining optimization phase. Further flow tuning, API
+splitting, and parallel report execution are closed as separate tracks.
