@@ -67,7 +67,13 @@ This is the part to get right. Everything else is mechanical.
   are all cumulative-to-date.
 - **`AtEnd` valuation at month *k* consults only prices dated at or before month
   *k*.** hledger's price oracle resolves the most recent price at or before the
-  valuation date, so a price appended today cannot change a 2019 column.
+  valuation date, so a price appended today cannot change a 2019 column. Note
+  precisely what this rests on: `InvestmentPerformanceContext.valueAt` closes
+  over a `journalPriceOracle` built from the *entire* journal, so append
+  stability depends wholly on `mixedAmountValueAtDate` never consulting a price
+  dated after its query date. That is hledger's documented behaviour, but it is
+  an assumption about a library rather than a property this code can enforce. If
+  it ever fails, every checkpointing slice fails silently together.
 - **Price directives after `latestJournalDate` are already truncated from the
   report journal** by the completed window-alignment work. Do not remove that;
   this design depends on it.
@@ -136,6 +142,36 @@ hit rate and removes a class of subtle bugs entirely.
    Checkpoints must hold `Decimal`, `Set Text`, `Map AccountName MixedAmount` and
    small strict records. Never a `MultiBalanceReport`, never a `Journal`, never a
    closure over either.
+
+### Key a checkpoint on `checkpointHashAt`, never on `chainHashAt`
+
+Established while implementing S3, after the bug had been written and caught.
+
+`prefixChain` seeds its month chain from an absent-hash sentinel, **not** from
+`chain.global`. The consequence is easy to miss and has no symptom: month hashes
+are byte-identical across a commodity-style change, an account-type declaration
+change, or a config change. A checkpoint validated against `chainHashAt` alone
+therefore survives *exactly* the edits that `GlobalChanged` exists to catch, and
+serves silently restated history.
+
+`Domain.Internal.InvestmentCheckpoint.checkpointHashAt` extends the month hash
+with a fold of the five `GlobalFingerprint` components, and is the only correct
+thing to key a checkpoint on. **S4, S5 and every later checkpointing slice must
+use it.** The chain deliberately keeps the two separable so `diffChains` can
+still distinguish "global changed, discard everything" from "diverges at month
+*m*, truncate from there" — seeding the chain from the global hash would collapse
+that distinction into a first-month divergence.
+
+Two related traps from the same slice:
+
+- **Truncation must take a `ChainDiff`, not a `Maybe Day`.** A caller mapping
+  `ChainDiff` to `Maybe Day` writes `GlobalChanged -> Nothing`, which reads as
+  "no divergence date" and keeps everything.
+- **A `!` on a record field only reaches the constructor.** `!ScopeScan` left
+  `ScopeScan`'s own lazy fields — reversed cash-flow lists, `Set.toList`
+  results, summed `Decimal`s — sitting in the checkpoint as thunks, deferring
+  fold work into the first request that reads it. Force the payload, not just
+  the box.
 
 ### Further exclusions and caveats established while implementing S1
 
