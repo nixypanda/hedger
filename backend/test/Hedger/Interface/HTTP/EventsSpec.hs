@@ -17,7 +17,7 @@ import Hedger.Application.AppM (Env (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (reloadSnapshot)
 import Hedger.Interface.HTTP.Events (HeartbeatInterval (..), eventsApplicationWithHeartbeat)
-import Hedger.TestHelpers (configuration, loadedStore)
+import Hedger.TestHelpers (configuration, loadedStore, testEnv)
 
 httpEventsSpec :: TestTree
 httpEventsSpec =
@@ -36,8 +36,8 @@ sendsIdleHeartbeat = withEventsServer $ \port ->
 reconnectsAfterDisconnect :: IO ()
 reconnectsAfterDisconnect = do
     store <- loadedStore
-    let environment = Env{config = configuration, snapshotStore = store}
-        application = eventsApplicationWithHeartbeat testHeartbeat environment
+    environment <- testEnv store
+    let application = eventsApplicationWithHeartbeat testHeartbeat environment
     testWithApplication (pure application) $ \port -> do
         withClient port $ \client -> receiveContaining "heartbeat" client >> pure ()
         threadDelay 50000
@@ -55,8 +55,8 @@ reconnectsAfterDisconnect = do
 withEventsServer :: (Int -> IO a) -> IO a
 withEventsServer action = do
     store <- loadedStore
-    let environment = Env{config = configuration, snapshotStore = store}
-        application = eventsApplicationWithHeartbeat testHeartbeat environment
+    environment <- testEnv store
+    let application = eventsApplicationWithHeartbeat testHeartbeat environment
     testWithApplication (pure application) action
 
 withClient :: Int -> (Socket -> IO a) -> IO a

@@ -21,7 +21,7 @@ import Hledger.Data.Types qualified as Hledger
 import Hedger.Application.AccountRegisterQuery (RegisterPageRequest (..))
 import Hedger.Application.AccountRegisterQuery qualified as AccountRegisterQuery
 import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot)
-import Hedger.Application.Common (SnapshotMetadata, metadataFor)
+import Hedger.Application.Common (SnapshotMetadata, currentMetadata)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Snapshot (Snapshot (..))
@@ -54,9 +54,9 @@ data AccountRegister = AccountRegister
 accountsTree :: Maybe Text -> AppM AccountsTree
 accountsTree requestedCommodity = do
     snapshotContext <- requireSnapshot
+    responseMetadata <- currentMetadata snapshotContext
     configuredCommodity <- asks (.config.defaultDisplayCommodity)
     let snapshot = snapshotContext.snapshot
-        responseMetadata = metadataFor snapshotContext
         displayCommodity = fromMaybe configuredCommodity (nonEmpty requestedCommodity)
         valuationDate = fromMaybe (fromGregorian 1970 1 1) snapshot.latestJournalDate
         valuationContext = Account.mkValuationContext snapshot.journal displayCommodity valuationDate
@@ -99,9 +99,9 @@ accountLeafName name = case Text.splitOn ":" name of
 accountRegister :: RegisterPageRequest -> AppM AccountRegister
 accountRegister request = do
     snapshotContext <- requireSnapshot
+    responseMetadata <- currentMetadata snapshotContext
     configuredCommodity <- asks (.config.defaultDisplayCommodity)
     let snapshot = snapshotContext.snapshot
-        responseMetadata = metadataFor snapshotContext
         resolvedCommodity = fromMaybe configuredCommodity (nonEmpty request.commodity)
     page <-
         either throwError pure $

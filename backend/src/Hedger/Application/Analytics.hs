@@ -43,7 +43,7 @@ import Hedger.Application.Common (
     AccountTypeClassifier,
     SnapshotMetadata,
     accountTypeClassifier,
-    metadataFor,
+    currentMetadata,
  )
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
 import Hedger.Config (Config (..))
@@ -167,9 +167,9 @@ data ActivityReport = ActivityReport
 netWorth :: AnalyticsRequest -> AppM NetWorthReport
 netWorth request = do
     snapshotContext <- requireSnapshot
+    responseMetadata <- currentMetadata snapshotContext
     commodity <- resolvedCommodity request.displayCommodity
     let snapshot = snapshotContext.snapshot
-        responseMetadata = metadataFor snapshotContext
     matched <- parseTransactions snapshot request.query
     let figures =
             computeNetWorth
@@ -204,9 +204,9 @@ netWorth request = do
 cashflow :: AnalyticsRequest -> AppM CashflowReport
 cashflow request = do
     snapshotContext <- requireSnapshot
+    responseMetadata <- currentMetadata snapshotContext
     commodity <- resolvedCommodity request.displayCommodity
     let snapshot = snapshotContext.snapshot
-        responseMetadata = metadataFor snapshotContext
     matched <- parseTransactions snapshot request.query
     let figures =
             computeCashflow
@@ -238,10 +238,10 @@ cashflow request = do
 activity :: ActivityRequest -> AppM ActivityReport
 activity request = do
     snapshotContext <- requireSnapshot
+    responseMetadata <- currentMetadata snapshotContext
     commodity <- resolvedCommodity request.displayCommodity
     fiscalStart <- asks (.config.fiscalYearStartMonth)
     let snapshot = snapshotContext.snapshot
-        responseMetadata = metadataFor snapshotContext
     filtered <- case request.kind of
         IncomeActivity -> parseTransactions snapshot request.query
         ExpenseActivity -> parseTransactions snapshot request.query

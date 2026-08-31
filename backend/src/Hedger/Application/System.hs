@@ -10,7 +10,7 @@ import Control.Monad.Reader (asks)
 import Data.Text (Text)
 
 import Hedger.Application.AppM (AppM, Env (..), requireSnapshot)
-import Hedger.Application.Common (SnapshotMetadata, metadataFor)
+import Hedger.Application.Common (SnapshotMetadata, currentMetadata)
 import Hedger.Config (Config (..))
 
 data BootstrapInfo = BootstrapInfo
@@ -30,7 +30,7 @@ bootstrap :: AppM BootstrapInfo
 bootstrap = do
     snapshotContext <- requireSnapshot
     fiscal <- asks (.config.fiscalYearStartMonth)
-    let responseMetadata = metadataFor snapshotContext
+    responseMetadata <- currentMetadata snapshotContext
     pure
         BootstrapInfo
             { apiVersion = "v1"

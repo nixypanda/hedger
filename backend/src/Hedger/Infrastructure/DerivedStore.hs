@@ -47,8 +47,8 @@ data CacheMetrics = CacheMetrics
     , misses :: !Int
     , evictions :: !Int
     , waiters :: !Int
-    -- | Completed entries only; a computation still in flight holds no bytes.
     , entries :: !Int
+    -- ^ Completed entries only; a computation still in flight holds no bytes.
     , bytes :: !Int
     }
     deriving stock (Eq, Show)
@@ -127,14 +127,14 @@ computed value to charge it against the store's byte budget. An exception from
 @compute@ reaches every caller waiting on that key and leaves no entry behind,
 so a later call retries.
 -}
-lookupOrCompute
-    :: forall value
-     . (Typeable value)
-    => DerivedStore
-    -> CacheKey
-    -> (value -> Int)
-    -> IO value
-    -> IO value
+lookupOrCompute ::
+    forall value.
+    (Typeable value) =>
+    DerivedStore ->
+    CacheKey ->
+    (value -> Int) ->
+    IO value ->
+    IO value
 lookupOrCompute store key sizeHint compute = do
     claim <- atomically (claimKey store key (fromDynamic @value))
     case claim of
@@ -150,14 +150,14 @@ lookupOrCompute store key sizeHint compute = do
                     stolen <- atomically (stealClaim store key)
                     runClaim store key sizeHint compute stolen
 
-runClaim
-    :: (Typeable value)
-    => DerivedStore
-    -> CacheKey
-    -> (value -> Int)
-    -> IO value
-    -> Barrier
-    -> IO value
+runClaim ::
+    (Typeable value) =>
+    DerivedStore ->
+    CacheKey ->
+    (value -> Int) ->
+    IO value ->
+    Barrier ->
+    IO value
 runClaim store key sizeHint compute barrier = mask $ \restore -> do
     result <- try (restore compute)
     case result of

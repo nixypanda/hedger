@@ -25,6 +25,7 @@ parent directory and filter events down to the exact set of journal files.
 module Hedger.Infrastructure.JournalWatcher (
     DerivedTargets (..),
     guardReloaderStep,
+    rebuildAfterReload,
     watchTargets,
     withJournalWatcher,
 )

@@ -15,7 +15,7 @@ import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hedger.Runtime.Server (makeApplication)
-import Hedger.TestHelpers (configuration, getJson, loadedStore, postJson)
+import Hedger.TestHelpers (configuration, getJson, loadedStore, postJson, testDerivedParts)
 
 apiSpec :: TestTree
 apiSpec = withResource setup teardown $ \getApp ->
@@ -41,7 +41,8 @@ apiSpec = withResource setup teardown $ \getApp ->
 setup :: IO Wai.Application
 setup = do
     store <- loadedStore
-    pure (makeApplication configuration store)
+    (derivedStore, derivedState) <- testDerivedParts
+    pure (makeApplication configuration store derivedStore derivedState)
 
 teardown :: Wai.Application -> IO ()
 teardown = const (pure ())

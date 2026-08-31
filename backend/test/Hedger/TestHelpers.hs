@@ -1,6 +1,9 @@
 module Hedger.TestHelpers (
     configuration,
     loadedStore,
+    testDerivedParts,
+    testEnv,
+    testDerivedTargets,
     getJson,
     postJson,
 ) where
@@ -22,6 +25,7 @@ import Network.Wai.Test (
  )
 import Test.Tasty.HUnit (assertBool)
 
+import Hedger.Application.AppM (Env (..))
 import Hedger.Config (Config (..))
 import Hedger.Domain.Investment (
     AssetClass (Equity),
@@ -31,6 +35,9 @@ import Hedger.Domain.Investment (
     emptyInvestmentMappings,
     mkAssetClassMappings,
  )
+import Hedger.Infrastructure.DerivedRevision (DerivedState, newDerivedState)
+import Hedger.Infrastructure.DerivedStore (DerivedStore, newDerivedStore)
+import Hedger.Infrastructure.JournalWatcher (DerivedTargets (..))
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 
 configuration :: Config
@@ -77,3 +84,17 @@ postJson path body app = do
                 }
     response <- runSession (srequest (SRequest requestValue body)) app
     pure (decode response.simpleBody, response)
+
+-- | 8 MiB is ample for a test: every spec caches a handful of small responses.
+testDerivedParts :: IO (DerivedStore, DerivedState)
+testDerivedParts = (,) <$> newDerivedStore (8 * 1024 * 1024) <*> newDerivedState
+
+testEnv :: SnapshotStore -> IO Env
+testEnv store = do
+    (derivedStore, derivedState) <- testDerivedParts
+    pure Env{config = configuration, snapshotStore = store, derivedStore, derivedState}
+
+testDerivedTargets :: IO DerivedTargets
+testDerivedTargets = do
+    (derivedStore, derivedState) <- testDerivedParts
+    pure DerivedTargets{derivedState, derivedStore, config = configuration}

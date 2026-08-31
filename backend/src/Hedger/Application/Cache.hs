@@ -17,7 +17,7 @@ import Data.Text.Encoding qualified as TextEncoding
 import Data.Typeable (Typeable)
 
 import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot, runAppM)
-import Hedger.Application.Common (SnapshotMetadata, metadataFor)
+import Hedger.Application.Common (SnapshotMetadata, currentMetadata)
 import Hedger.Domain.Error (AppError)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.DerivedStore (
@@ -58,7 +58,8 @@ cachedResponse family dimensions patchMetadata sizeHint produce = do
     -- dropping entries of superseded revisions is cheap relative to a report.
     liftIO (invalidateOtherRevisions environment.derivedStore context.snapshot.revision)
     result <- liftIO (runCached environment.derivedStore key sizeHint (runAppM environment produce))
-    either throwError (pure . patchMetadata (metadataFor context)) result
+    metadata <- currentMetadata context
+    either throwError (pure . patchMetadata metadata) result
 
 runCached ::
     (Typeable value) =>

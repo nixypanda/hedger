@@ -9,7 +9,7 @@ import Hedger.Application.AppM (Env (..))
 import Hedger.Application.Events (awaitNextRevision, subscribeToRevisions)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (reloadSnapshot)
-import Hedger.TestHelpers (configuration, loadedStore)
+import Hedger.TestHelpers (configuration, loadedStore, testEnv)
 
 eventsSpec :: TestTree
 eventsSpec =
@@ -20,7 +20,8 @@ eventsSpec =
 emitsNextRevision :: IO ()
 emitsNextRevision = do
     store <- loadedStore
-    subscription <- subscribeToRevisions Env{config = configuration, snapshotStore = store}
+    environment <- testEnv store
+    subscription <- subscribeToRevisions environment
     reloadResult <- reloadSnapshot store "test/fixtures/investments.journal"
     expectedRevision <- case reloadResult of
         Left _ -> fail "replacement snapshot load failed"

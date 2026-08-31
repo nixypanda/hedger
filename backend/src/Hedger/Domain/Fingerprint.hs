@@ -116,8 +116,9 @@ diffChains old new
     | old.global /= new.global = GlobalChanged
     | otherwise = maybe Identical DivergesFrom (firstDivergentMonth old.months new.months)
 
--- | The chain hash covering every entry up to the end of the month containing
--- this day, if that month has an entry.
+{- | The chain hash covering every entry up to the end of the month containing
+this day, if that month has an entry.
+-}
 chainHashAt :: PrefixChain -> Day -> Maybe Hash
 chainHashAt chain day = lookup (monthEnd day) chain.months
 
@@ -191,8 +192,9 @@ postingHash posting =
 mixedAmountHash :: Hledger.MixedAmount -> Hash
 mixedAmountHash = hashList "mixed-amount-v1" . fmap amountHash . HledgerAmount.amountsRaw
 
--- | @astyle@ is absent because display styles are journal-global and therefore
--- belong to 'GlobalFingerprint', not to per-month content.
+{- | @astyle@ is absent because display styles are journal-global and therefore
+belong to 'GlobalFingerprint', not to per-month content.
+-}
 amountHash :: Hledger.Amount -> Hash
 amountHash amount =
     hashTagged
@@ -301,13 +303,15 @@ lengthDelimited value = Text.pack (show (Text.length value)) <> ":" <> value
 dayPart :: Day -> Text
 dayPart = Text.pack . Calendar.showGregorian
 
--- | Normalising keeps hash equality in step with 'Eq': @Show@ distinguishes
--- @1.5@ from @1.50@, whereas 'Eq' on 'Decimal' does not.
+{- | Normalising keeps hash equality in step with 'Eq': @Show@ distinguishes
+@1.5@ from @1.50@, whereas 'Eq' on 'Decimal' does not.
+-}
 quantityPart :: Decimal -> Text
 quantityPart = textShow . Decimal.normalizeDecimal
 
--- | @Show Status@ renders @Unmarked@ as the empty string, which would collide
--- with an absent field.
+{- | @Show Status@ renders @Unmarked@ as the empty string, which would collide
+with an absent field.
+-}
 statusPart :: Hledger.Status -> Text
 statusPart = textShow . fromEnum
 

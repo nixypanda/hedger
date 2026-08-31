@@ -20,6 +20,7 @@ import Hedger.Infrastructure.SnapshotStore (
     readCurrentSnapshot,
     reloadSnapshot,
  )
+import Hedger.TestHelpers (testDerivedTargets)
 
 journalWatcherSpec :: TestTree
 journalWatcherSpec =
@@ -67,7 +68,8 @@ reloadsOnChange =
         store <- newSnapshotStore
         _ <- reloadSnapshot store (Text.pack path)
         revisionBefore <- currentRevision store
-        withJournalWatcher store (Text.pack path) $ do
+        derived <- testDerivedTargets
+        withJournalWatcher store derived (Text.pack path) $ do
             waitForWatchInstall
             appendFile path ("\n" <> secondTransaction <> "\n")
             changed <- waitForRevisionChange store revisionBefore
@@ -83,7 +85,8 @@ reloadsOnIncludedChange =
         store <- newSnapshotStore
         _ <- reloadSnapshot store (Text.pack mainPath)
         revisionBefore <- currentRevision store
-        withJournalWatcher store (Text.pack mainPath) $ do
+        derived <- testDerivedTargets
+        withJournalWatcher store derived (Text.pack mainPath) $ do
             waitForWatchInstall
             appendFile includedPath ("\n" <> thirdTransaction <> "\n")
             changed <- waitForRevisionChange store revisionBefore

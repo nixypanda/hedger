@@ -3,6 +3,7 @@ module Hedger.Application.CacheSpec (cacheSpec) where
 import Control.Monad.Except (throwError)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson qualified as Aeson
+import Data.Foldable (traverse_)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -13,8 +14,18 @@ import Hedger.Application.AppM (AppM, Env (..), runAppM)
 import Hedger.Application.Cache (cachedResponse, dimensionKey)
 import Hedger.Application.Common (SnapshotMetadata (..))
 import Hedger.Domain.Error (AppError (InvalidDate))
+import Hledger.Data.Types qualified as Hledger
+
+import Hedger.Domain.Fingerprint (globalFingerprint, prefixChain)
+import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Infrastructure.DerivedRevision (DerivedState, newDerivedState, publishDerived)
 import Hedger.Infrastructure.DerivedStore (newDerivedStore)
-import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
+import Hedger.Infrastructure.SnapshotStore (
+    SnapshotStore,
+    newSnapshotStore,
+    readCurrentSnapshot,
+    reloadSnapshot,
+ )
 import Hedger.TestHelpers (configuration)
 
 cacheSpec :: TestTree
@@ -48,7 +59,23 @@ withEnvironment run = do
     snapshotStore <- newSnapshotStore
     _ <- reloadSnapshot snapshotStore sharedJournal
     derivedStore <- newDerivedStore (1024 * 1024)
-    run Env{config = configuration, snapshotStore, derivedStore} snapshotStore
+    derivedState <- newDerivedState
+    -- Publish a derived revision matching the snapshot, so the baseline freshness is
+    -- "fresh". A never-built derived state reports "refreshing", which is correct but
+    -- would mask what this spec is about: metadata being recomputed on a cache hit.
+    readCurrentSnapshot snapshotStore >>= traverse_ (publishFor derivedState)
+    run Env{config = configuration, snapshotStore, derivedStore, derivedState} snapshotStore
+
+publishFor :: DerivedState -> Snapshot -> IO ()
+publishFor derivedState snapshot =
+    publishDerived
+        derivedState
+        snapshot.revision
+        ( prefixChain
+            (globalFingerprint snapshot.journal configuration)
+            snapshot.transactions
+            snapshot.journal.jpricedirectives
+        )
 
 withMetadata :: SnapshotMetadata -> Payload -> Payload
 withMetadata value payload =

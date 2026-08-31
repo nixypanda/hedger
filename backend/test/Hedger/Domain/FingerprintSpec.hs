@@ -165,8 +165,9 @@ chainOf :: Hledger.Journal -> PrefixChain
 chainOf journal =
     prefixChain (globalFingerprint journal configuration) journal.jtxns journal.jpricedirectives
 
--- | One directory per case, and one path within it, so that the global
--- fingerprint's file-set component is held constant across a case's revisions.
+{- | One directory per case, and one path within it, so that the global
+fingerprint's file-set component is held constant across a case's revisions.
+-}
 withJournalPath :: String -> (FilePath -> IO a) -> IO a
 withJournalPath label action =
     bracket acquire Directory.removeDirectoryRecursive (\dir -> action (dir </> "main.journal"))
@@ -197,9 +198,10 @@ baseJournal =
         , "    assets:bank:checking    -100.00 INR"
         ]
 
--- | 'baseJournal' with a leading comment, different indentation, different
--- amount alignment and no blank separators. Digits are untouched, because
--- changing them would change the inferred display style.
+{- | 'baseJournal' with a leading comment, different indentation, different
+amount alignment and no blank separators. Digits are untouched, because
+changing them would change the inferred display style.
+-}
 reformattedJournal :: Text
 reformattedJournal =
     Text.unlines
@@ -241,7 +243,8 @@ historicalTransactionJournal =
 historicalPriceJournal :: Text
 historicalPriceJournal = "P 2023-01-25 VUSA 80.00 INR\n\n" <> baseJournal
 
--- | Declares three decimal places for INR without touching any transaction, so
--- only the global fingerprint may move.
+{- | Declares three decimal places for INR without touching any transaction, so
+only the global fingerprint may move.
+-}
 declaredCommodityJournal :: Text
 declaredCommodityJournal = "commodity 1000.000 INR\n\n" <> baseJournal

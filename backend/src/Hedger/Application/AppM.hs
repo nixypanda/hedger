@@ -21,6 +21,7 @@ import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (InternalError, JournalUnavailable))
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Infrastructure.DerivedRevision (DerivedState)
 import Hedger.Infrastructure.DerivedStore (DerivedStore)
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError,
@@ -33,6 +34,7 @@ data Env = Env
     { config :: Config
     , snapshotStore :: SnapshotStore
     , derivedStore :: DerivedStore
+    , derivedState :: DerivedState
     }
 
 type AppM = ReaderT Env (ExceptT AppError IO)

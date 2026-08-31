@@ -23,7 +23,7 @@ import Data.Time (Day)
 import Hledger.Data.AccountName qualified as HledgerAccountName
 
 import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot)
-import Hedger.Application.Common (SnapshotMetadata, metadataFor)
+import Hedger.Application.Common (SnapshotMetadata, currentMetadata)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (InternalError))
 import Hedger.Domain.Investment qualified as Investment
@@ -97,10 +97,10 @@ snapshot metadata.
 investments :: InvestmentsRequest -> AppM InvestmentsReport
 investments request = do
     snapshotContext <- requireSnapshot
+    responseMetadata <- currentMetadata snapshotContext
     config <- asks (.config)
     scope <- either throwError pure (validateScope config.investmentMappings request.accountPrefix)
     let snapshot = snapshotContext.snapshot
-        responseMetadata = metadataFor snapshotContext
         commodity = fromMaybe config.defaultDisplayCommodity (request.displayCommodity >>= nonEmpty)
         latest = fromMaybe epoch snapshot.latestJournalDate
         performance =

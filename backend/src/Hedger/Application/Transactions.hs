@@ -14,7 +14,7 @@ import Hedger.Application.Common (
     AccountTypeClassifier,
     SnapshotMetadata,
     accountTypeClassifier,
-    metadataFor,
+    currentMetadata,
  )
 import Hedger.Application.TransactionQuery (TransactionPageRequest (..))
 import Hedger.Application.TransactionQuery qualified as TransactionQuery
@@ -30,8 +30,8 @@ data TransactionList = TransactionList
 transactionList :: TransactionPageRequest -> AppM TransactionList
 transactionList request = do
     snapshotContext <- requireSnapshot
+    responseMetadata <- currentMetadata snapshotContext
     let snapshot = snapshotContext.snapshot
-        responseMetadata = metadataFor snapshotContext
     page <- either throwError pure (TransactionQuery.transactionPage snapshot request)
     pure
         TransactionList
