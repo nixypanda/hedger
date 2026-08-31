@@ -56,6 +56,7 @@ library
     Hedger.Domain.Fingerprint
     Hedger.Domain.Internal.Account
     Hedger.Domain.Internal.Cashflow
+    Hedger.Domain.Internal.CashflowCheckpoint
     Hedger.Domain.Internal.InvestmentCheckpoint
     Hedger.Domain.Internal.InvestmentPerformance
     Hedger.Domain.Internal.NetWorth
@@ -143,6 +144,7 @@ test-suite hedger-backend-test
     Hedger.Application.TransactionQuerySpec
     Hedger.Domain.AccountSpec
     Hedger.Domain.ActivitySpec
+    Hedger.Domain.CashflowCheckpointSpec
     Hedger.Domain.FingerprintSpec
     Hedger.Domain.InvestmentCheckpointSpec
     Hedger.Domain.InvestmentPerformanceSpec

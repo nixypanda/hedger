@@ -9,6 +9,7 @@ import Hedger.Application.TransactionQuerySpec (transactionQuerySpec)
 import Hedger.ConfigSpec (configSpec)
 import Hedger.Domain.AccountSpec (accountSpec)
 import Hedger.Domain.ActivitySpec (activitySpec)
+import Hedger.Domain.CashflowCheckpointSpec (cashflowCheckpointSpec)
 import Hedger.Domain.FingerprintSpec (fingerprintSpec)
 import Hedger.Domain.InvestmentCheckpointSpec (investmentCheckpointSpec)
 import Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec)
@@ -35,6 +36,7 @@ main =
         testGroup
             "hedger"
             [ configSpec
+            , cashflowCheckpointSpec
             , fingerprintSpec
             , httpEventsSpec
             , investmentsSpec

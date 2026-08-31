@@ -431,11 +431,11 @@ hledger. Gate it behind S3's harness.
 
 ### S5 — Checkpoint cashflow, holdings and activity
 
-- [ ] Cashflow: `PerPeriod` + `AtThen` columns are per-period and additive, so
-      cache monthly columns and sum for yearly. Note the reports are built
-      **depth-clipped** (`Just depth` in `Internal/Cashflow.hs`) — either cache
-      unclipped and collapse in the application layer, or include depth in the
-      key.
+- [x] Cashflow: done, pure only — `Domain.Internal.CashflowCheckpoint` plus
+      `Domain.Cashflow.computeCashflowResumed`, with `computeCashflow` retained as
+      the oracle. Not yet wired to a cache. Columns are cached unclipped and
+      per-account, so one entry serves every depth; `collapseToDepth` applies
+      depth as a projection.
 - [ ] Holdings: cache one monthly market/historical-cost report pair per
       (commodity, chain hash) and project every scope from it — holdings are
       additive over account prefixes, which is the same fact the completed
@@ -443,6 +443,37 @@ hledger. Gate it behind S3's harness.
 - [ ] Activity and accounts-tree: benchmark first. They are currently unmeasured,
       and this document's own history says three rounds of reasoning about which
       parts were expensive were wrong.
+
+### Four corrections established while implementing S5 (cashflow)
+
+1. **Yearly-from-monthly holds for amounts, but not for the `missing` set.** Row
+   amounts and column totals add exactly under `AtThen`, as designed. The missing
+   set does *not*: a foreign commodity can be non-negligible in individual months
+   and cancel to nothing across the year, and hledger computes a yearly column
+   first and only then asks what it could not convert. Unioning the monthly sets
+   withholds a yearly timeline the unchecked path shows, so `sumColumns`
+   recomputes `missing` from the summed amounts. Pinned by
+   `cancellingCommodityIsNotMissingForTheYear`; nothing else in the suite catches
+   it.
+2. **A month's report window cannot be selected by filtering transactions.**
+   `reportWindow` anchors the window at `snapshot.latestJournalDate` — the query
+   contributes the end date, the transactions only the start — and then keeps the
+   *last 24* monthly periods. Filtering transactions to a month therefore still
+   yields the journal's final 24 months. Presenting the snapshot with
+   `latestJournalDate` moved back to a chunk's end moves the window instead, and
+   chunking to 24 months keeps every wanted month inside it. Safe under `AtThen`
+   because the narrowed price-directive set only loses directives dated after
+   every posting in the chunk, and because `jinferredmarketprices` is a journal
+   field that replacing `jtxns` does not recompute.
+3. **The depth-clipped reports were never the ones to cache.** `computeCashflow`
+   already builds its combined report unclipped and collapses in
+   `breakdownItemsFor`; `incomeGainPeriodicReport` and `expensePeriodicReport`
+   (the `Just depth` ones) are only used as the spec's oracle. The unclipped
+   equivalence held for every fixture at every depth in 1..3.
+4. **`atDepth` clamps to 1..4 while `periodicBalanceReport` does not.** A
+   collapse at depth 5 or more cannot match a report clipped to that depth. The
+   UI never asks for more than 4, but a depth-collapse equivalence test above 4
+   would fail for that reason alone.
 
 ### S6 — Scoped invalidation and persistence
 
