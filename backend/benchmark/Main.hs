@@ -28,6 +28,8 @@ import Hedger.Application.TransactionQuery (
 import Hedger.Config (Config (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
+import Hedger.Domain.Fingerprint (GlobalFingerprint (..), Hash (..), PrefixChain (..))
+import Hedger.Domain.Fingerprint qualified as Fingerprint
 import Hedger.Domain.Internal.Cashflow qualified as Cashflow
 import Hedger.Domain.Internal.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Internal.NetWorth qualified as NetWorth
@@ -158,6 +160,11 @@ fixtureBenchmarks (name, path) =
                     "analytics"
                     [ bench "networth" $ nf netWorthWeight snapshot
                     , bench "cashflow" $ nf cashflowWeight snapshot
+                    ]
+                , bgroup
+                    "fingerprint"
+                    [ bench "prefix-chain" $ nf (chainWeight (benchmarkConfig path)) snapshot
+                    , bench "global" $ nf (globalWeight (benchmarkConfig path)) snapshot
                     ]
                 , bgroup
                     "cashflow-parts"
@@ -609,6 +616,35 @@ cashflowWeight snapshot =
             + Text.length figures.incomeBreakdownPeriod
             + Text.length figures.expenseBreakdownPeriod
             + Set.size figures.missing
+
+{- | The whole month chain, forced to the last character of every digest.
+'PrefixChain.months' is a strict field holding a lazy list, so a weight that
+only reached the field would force one cons cell and measure nothing.
+-}
+chainWeight :: Config -> Snapshot -> Int
+chainWeight configuration snapshot =
+    sum
+        [ length (show day) + Text.length digest
+        | (day, Hash digest) <- chain.months
+        ]
+  where
+    chain =
+        Fingerprint.prefixChain
+            (Fingerprint.globalFingerprint snapshot.journal configuration)
+            snapshot.transactions
+            snapshot.journal.jpricedirectives
+
+globalWeight :: Config -> Snapshot -> Int
+globalWeight configuration snapshot =
+    let fingerprint = Fingerprint.globalFingerprint snapshot.journal configuration
+        digests =
+            [ fingerprint.files
+            , fingerprint.parseOptions
+            , fingerprint.commodityStyles
+            , fingerprint.accountTypes
+            , fingerprint.configVersion
+            ]
+     in sum [Text.length digest | Hash digest <- digests]
 
 timelineWeight :: TimelinePoint -> Int
 timelineWeight point =
