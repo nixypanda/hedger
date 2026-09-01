@@ -101,11 +101,6 @@ import Hedger.Domain.Cashflow (
     computeCashflowResumed,
  )
 
--- The only names still reached through @Domain.Internal@ from outside @Domain@:
--- two size accessors on the investment scope cache that
--- "Hedger.Domain.InvestmentPerformance" does not re-export, unlike the cache
--- itself. The net-worth and cashflow equivalents come from the public modules.
-import Hedger.Domain.Internal.InvestmentCheckpoint (checkpointCount, solvedRateCount)
 import Hedger.Domain.InvestmentPerformance (
     InvestmentCompleteness,
     InvestmentPerformanceContext,
@@ -113,9 +108,11 @@ import Hedger.Domain.InvestmentPerformance (
     InvestmentWarning,
     ScopeCache (..),
     SummaryResult (..),
+    checkpointCount,
     investmentDataTransactions,
     prepareInvestmentPerformance,
     reportPeriods,
+    solvedRateCount,
     summariesAtPrepared,
     summariesAtResumed,
  )
