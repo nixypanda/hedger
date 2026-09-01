@@ -3,7 +3,9 @@ here lets the calculation and its component benchmarks exercise the same
 hledger options.
 -}
 module Hedger.Domain.Internal.NetWorth (
+    assetLiabilityAccountTypes,
     assetLiabilityPeriodicReport,
+    assetLiabilityDeltaReport,
     assetCashPeriodicReport,
     liabilityPeriodicReport,
     gainPeriodicReport,
@@ -14,7 +16,7 @@ where
 
 import Data.Decimal (Decimal)
 import Data.Text (Text)
-import Data.Time (addDays)
+import Data.Time (Day, addDays)
 
 import Hledger.Data.Period qualified as HledgerPeriod
 import Hledger.Data.Types qualified as Hledger
@@ -24,10 +26,14 @@ import Hledger.Reports.BalanceReport qualified as HledgerBalance
 import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
-import Hedger.Domain.Internal.PeriodReport (periodicBalanceReport)
-import Hedger.Domain.Period (Granularity)
+import Hedger.Domain.Internal.PeriodReport (periodicBalanceReport, periodicBalanceReportIn)
+import Hedger.Domain.Period (Granularity (Monthly))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion, complete, conversionFromMixed, requireComplete)
+
+-- | The account types the consolidated balance-sheet report spans.
+assetLiabilityAccountTypes :: [Hledger.AccountType]
+assetLiabilityAccountTypes = [Hledger.Asset, Hledger.Cash, Hledger.Liability]
 
 {- | Assets, cash and liabilities in a single report; each side is selected out
 of it afterwards by account type. Built unclipped so that summing a side's rows
@@ -45,10 +51,40 @@ assetLiabilityPeriodicReport snapshot transactions granularity commodity =
         transactions
         granularity
         commodity
-        [Hledger.Asset, Hledger.Cash, Hledger.Liability]
+        assetLiabilityAccountTypes
         HledgerReportOptions.CalcChange
         HledgerReportOptions.Historical
         Nothing
+
+{- | Per-account, per-month, unvalued balance /changes/ over an inclusive window.
+
+@PerPeriod@ rather than @Historical@ so that no starting balance is folded in:
+each column is the change within that month alone, which is what a checkpointed
+cumulative balance can be extended by. Unvalued, because only a raw cumulative
+balance is stable under a later append — a valued one is not, since the price
+that values it may not have been written yet.
+
+Monthly whatever granularity the request asked for. A year end is also a month
+end, so monthly changes can be accumulated up to either kind of column end, and
+one shape of delta report serves both.
+-}
+assetLiabilityDeltaReport ::
+    Snapshot ->
+    [Hledger.Transaction] ->
+    -- | Inclusive window to report changes over.
+    (Day, Day) ->
+    HledgerMultiBalance.MultiBalanceReport
+assetLiabilityDeltaReport snapshot transactions window =
+    periodicBalanceReportIn
+        snapshot
+        transactions
+        Monthly
+        Nothing
+        assetLiabilityAccountTypes
+        HledgerReportOptions.CalcChange
+        HledgerReportOptions.PerPeriod
+        Nothing
+        (Just window)
 
 assetCashPeriodicReport ::
     Snapshot ->

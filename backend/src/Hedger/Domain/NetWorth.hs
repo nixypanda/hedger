@@ -8,6 +8,7 @@ module Hedger.Domain.NetWorth (
     PerformancePoint (..),
     NetWorthFigures (..),
     computeNetWorth,
+    computeNetWorthResumed,
 )
 where
 
@@ -19,8 +20,16 @@ import Data.Text (Text)
 import Data.Time (Day)
 
 import Hledger.Data.Types qualified as Hledger
+import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 
+import Hedger.Domain.Fingerprint (PrefixChain)
 import Hedger.Domain.Internal.NetWorth (assetLiabilityPeriodicReport, gainPeriodicReport)
+import Hedger.Domain.Internal.NetWorthCheckpoint (
+    OpeningBalances,
+    QueryKey,
+    ResumedBalanceSheet (..),
+    assetLiabilityResumed,
+ )
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
     ReportSide,
@@ -72,56 +81,136 @@ computeNetWorth ::
     Int ->
     NetWorthFigures
 computeNetWorth snapshot matched granularity commodity positiveReq negativeReq positiveDepth negativeDepth =
-    NetWorthFigures
-        { timeline = points
-        , performance = mapMaybe (.value) performanceResults
-        , incompletePeriods = length (filter (not . Set.null . (.missing)) performanceResults)
-        , selectedKey = (.key) <$> selectedPeriod positiveReq dataPeriods
-        , currentAssets = assetsCurrent.value
-        , currentLiabilities = liabilitiesCurrent.value
-        , currentNetWorth = (-) <$> assetsCurrent.value <*> liabilitiesCurrent.value
-        , assetsBreakdownPeriod = fst assetsBreakdown
-        , assetsBreakdownItems = snd assetsBreakdown
-        , liabilitiesBreakdownPeriod = fst liabilitiesBreakdown
-        , liabilitiesBreakdownItems = snd liabilitiesBreakdown
-        , missing = historyMissing <> performanceMissing <> currentMissing
-        }
-  where
-    combinedReport = assetLiabilityPeriodicReport snapshot matched granularity commodity
-    assetSide = reportSide snapshot.journal [Hledger.Asset, Hledger.Cash] combinedReport
-    liabilitySide = reportSide snapshot.journal [Hledger.Liability] combinedReport
-    -- CalcGain is a different balance calculation, so it cannot share the report above.
-    gainSide = wholeReport (gainPeriodicReport snapshot matched granularity commodity)
-    reportPeriods = reportPeriodsFrom granularity combinedReport
-    dataPeriods = periodsWithData granularity matched reportPeriods
-    dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
-    assetTotals = reportTotals commodity assetSide
-    liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilitySide)
-    allPoints = zipWith3 netWorthPointFrom reportPeriods assetTotals liabilityTotals
-    points = filter ((`Set.member` dataPeriodKeys) . (.period)) allPoints
-    assetsBreakdown =
-        breakdownItemsFor
+    figuresFrom
+        snapshot
+        matched
+        granularity
+        commodity
+        positiveReq
+        negativeReq
+        positiveDepth
+        negativeDepth
+        (assetLiabilityPeriodicReport snapshot matched granularity commodity)
+
+{- | 'computeNetWorth' with the consolidated balance-sheet report resumed from
+checkpointed opening balances, returning the opening balances the sweep observed.
+
+Only the balance-sheet report is resumed. The gain report is a different balance
+calculation — with @Historical@ accumulation @CalcGain@ consults the balance
+calculation inside hledger's own after-sum valuation — so it cannot share a pass
+with the balance report and is not checkpointed here. Everything downstream of
+the two reports is the same code as 'computeNetWorth' runs.
+-}
+computeNetWorthResumed ::
+    Snapshot ->
+    [Hledger.Transaction] ->
+    QueryKey ->
+    PrefixChain ->
+    OpeningBalances ->
+    Granularity ->
+    Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Int ->
+    Int ->
+    (NetWorthFigures, OpeningBalances)
+computeNetWorthResumed
+    snapshot
+    matched
+    query
+    chain
+    openings
+    granularity
+    commodity
+    positiveReq
+    negativeReq
+    positiveDepth
+    negativeDepth =
+        ( figuresFrom
+            snapshot
+            matched
+            granularity
             commodity
+            positiveReq
+            negativeReq
             positiveDepth
-            (selectedPeriod positiveReq dataPeriods)
-            reportPeriods
-            assetSide
-    liabilitiesBreakdown =
-        breakdownItemsFor
-            commodity
             negativeDepth
-            (selectedPeriod negativeReq dataPeriods)
-            reportPeriods
-            liabilitySide
-    performanceResults =
-        filter
-            (maybe False ((`Set.member` dataPeriodKeys) . (.period)) . (.value))
-            (performanceFrom commodity reportPeriods allPoints assetTotals liabilityTotals gainSide)
-    performanceMissing = reportMissing commodity gainSide
-    historyMissing = reportMissing commodity assetSide <> reportMissing commodity liabilitySide
-    assetsCurrent = strictLatest assetTotals
-    liabilitiesCurrent = strictLatest liabilityTotals
-    currentMissing = assetsCurrent.missing <> liabilitiesCurrent.missing
+            resumed.report
+        , resumed.openings
+        )
+      where
+        resumed = assetLiabilityResumed snapshot matched query chain openings granularity commodity
+
+figuresFrom ::
+    Snapshot ->
+    [Hledger.Transaction] ->
+    Granularity ->
+    Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Int ->
+    Int ->
+    HledgerMultiBalance.MultiBalanceReport ->
+    NetWorthFigures
+figuresFrom
+    snapshot
+    matched
+    granularity
+    commodity
+    positiveReq
+    negativeReq
+    positiveDepth
+    negativeDepth
+    combinedReport =
+        NetWorthFigures
+            { timeline = points
+            , performance = mapMaybe (.value) performanceResults
+            , incompletePeriods = length (filter (not . Set.null . (.missing)) performanceResults)
+            , selectedKey = (.key) <$> selectedPeriod positiveReq dataPeriods
+            , currentAssets = assetsCurrent.value
+            , currentLiabilities = liabilitiesCurrent.value
+            , currentNetWorth = (-) <$> assetsCurrent.value <*> liabilitiesCurrent.value
+            , assetsBreakdownPeriod = fst assetsBreakdown
+            , assetsBreakdownItems = snd assetsBreakdown
+            , liabilitiesBreakdownPeriod = fst liabilitiesBreakdown
+            , liabilitiesBreakdownItems = snd liabilitiesBreakdown
+            , missing = historyMissing <> performanceMissing <> currentMissing
+            }
+      where
+        assetSide = reportSide snapshot.journal [Hledger.Asset, Hledger.Cash] combinedReport
+        liabilitySide = reportSide snapshot.journal [Hledger.Liability] combinedReport
+        -- CalcGain is a different balance calculation, so it cannot share the report above.
+        gainSide = wholeReport (gainPeriodicReport snapshot matched granularity commodity)
+        reportPeriods = reportPeriodsFrom granularity combinedReport
+        dataPeriods = periodsWithData granularity matched reportPeriods
+        dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
+        assetTotals = reportTotals commodity assetSide
+        liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilitySide)
+        allPoints = zipWith3 netWorthPointFrom reportPeriods assetTotals liabilityTotals
+        points = filter ((`Set.member` dataPeriodKeys) . (.period)) allPoints
+        assetsBreakdown =
+            breakdownItemsFor
+                commodity
+                positiveDepth
+                (selectedPeriod positiveReq dataPeriods)
+                reportPeriods
+                assetSide
+        liabilitiesBreakdown =
+            breakdownItemsFor
+                commodity
+                negativeDepth
+                (selectedPeriod negativeReq dataPeriods)
+                reportPeriods
+                liabilitySide
+        performanceResults =
+            filter
+                (maybe False ((`Set.member` dataPeriodKeys) . (.period)) . (.value))
+                (performanceFrom commodity reportPeriods allPoints assetTotals liabilityTotals gainSide)
+        performanceMissing = reportMissing commodity gainSide
+        historyMissing = reportMissing commodity assetSide <> reportMissing commodity liabilitySide
+        assetsCurrent = strictLatest assetTotals
+        liabilitiesCurrent = strictLatest liabilityTotals
+        currentMissing = assetsCurrent.missing <> liabilitiesCurrent.missing
 
 {- | The KPI value of a periodic column series.
 

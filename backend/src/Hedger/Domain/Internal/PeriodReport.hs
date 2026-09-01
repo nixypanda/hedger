@@ -6,6 +6,10 @@ module Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
     ReportSide (..),
     periodicBalanceReport,
+    periodicBalanceReportIn,
+    periodicBalanceColumns,
+    reportJournal,
+    reportValuation,
     wholeReport,
     reportSide,
     reportWindow,
@@ -43,6 +47,7 @@ import Hedger.Domain.Period (
     ReportPeriod (..),
     atIndex,
     epoch,
+    intervalFor,
     lastMaybe,
     monthKey,
     periodsFromDateSpan,
@@ -126,43 +131,66 @@ periodicBalanceReport
     calculation
     accumulation
     depth =
-        HledgerMultiBalance.multiBalanceReport reportSpec filteredJournal
+        periodicBalanceReportIn
+            snapshot
+            transactions
+            granularity
+            (Just valuation)
+            accountTypes
+            calculation
+            accumulation
+            depth
+            Nothing
       where
-        (reportPeriod, reportInterval) = reportWindow granularity filteredJournal windowSpec
         valuation = case accumulation of
             HledgerReportOptions.PerPeriod -> HledgerValuation.AtThen (Just commodity)
             HledgerReportOptions.Cumulative -> HledgerValuation.AtEnd (Just commodity)
             HledgerReportOptions.Historical -> HledgerValuation.AtEnd (Just commodity)
-        baseReportOptions =
-            HledgerReportOptions.defreportopts
-                { HledgerReportOptions.interval_ = reportInterval
-                , HledgerReportOptions.depth_ = Hledger.DepthSpec (max 1 <$> depth) []
-                , HledgerReportOptions.empty_ = True
-                , HledgerReportOptions.balancecalc_ = calculation
-                , HledgerReportOptions.balanceaccum_ = accumulation
-                , HledgerReportOptions.accountlistmode_ = HledgerReportOptions.ALFlat
-                }
+
+{- | 'periodicBalanceReport' with the valuation and the column window given
+explicitly.
+
+An unvalued report is what a checkpointed calculation needs: with @value_@ unset
+hledger reports raw per-account amounts, which are the only append-stable thing a
+checkpoint can hold. An explicit window lets it ask for a suffix of the columns
+the default window would produce.
+-}
+periodicBalanceReportIn ::
+    Snapshot ->
+    [Hledger.Transaction] ->
+    Granularity ->
+    -- | Valuation to apply; 'Nothing' leaves the amounts unvalued.
+    Maybe HledgerValuation.ValuationType ->
+    [Hledger.AccountType] ->
+    HledgerReportOptions.BalanceCalculation ->
+    HledgerReportOptions.BalanceAccumulation ->
+    -- | Display depth to clip rows to; 'Nothing' leaves the report unclipped.
+    Maybe Int ->
+    -- | Inclusive column window; 'Nothing' uses the default window.
+    Maybe (Day, Day) ->
+    HledgerMultiBalance.MultiBalanceReport
+periodicBalanceReportIn
+    snapshot
+    transactions
+    granularity
+    valuation
+    accountTypes
+    calculation
+    accumulation
+    depth
+    window =
+        HledgerMultiBalance.multiBalanceReport reportSpec filteredJournal
+      where
+        reportPeriod = case window of
+            Just (from, to) -> Hledger.PeriodBetween from (addDays 1 to)
+            Nothing ->
+                windowPeriod (selectedWindow granularity (windowColumns snapshot transactions granularity accountTypes))
+        baseReportOptions = balanceOptions granularity calculation accumulation depth
         reportOptions =
             baseReportOptions
                 { HledgerReportOptions.period_ = reportPeriod
-                , HledgerReportOptions.value_ = Just valuation
+                , HledgerReportOptions.value_ = valuation
                 }
-        windowSpec =
-            HledgerReportOptions.defreportspec
-                { HledgerReportOptions._rsReportOpts = baseReportOptions
-                , HledgerReportOptions._rsDay = fromMaybe epoch snapshot.latestJournalDate
-                , HledgerReportOptions._rsQuery = windowQuery
-                }
-        windowQuery =
-            HledgerQuery.And
-                ( HledgerQuery.Type accountTypes
-                    : case snapshot.latestJournalDate of
-                        Just latest ->
-                            [ HledgerQuery.Date
-                                (HledgerPeriod.periodAsDateSpan (Hledger.PeriodTo (addDays 1 latest)))
-                            ]
-                        Nothing -> []
-                )
         reportSpec =
             HledgerReportOptions.defreportspec
                 { HledgerReportOptions._rsReportOpts = reportOptions
@@ -173,17 +201,59 @@ periodicBalanceReport
                         , HledgerQuery.Date (HledgerPeriod.periodAsDateSpan reportPeriod)
                         ]
                 }
-        filteredJournal =
-            snapshot.journal
-                { Hledger.jtxns = transactions
-                , Hledger.jpricedirectives = pricesThroughLatest
-                }
-        pricesThroughLatest =
-            -- hledger expands the final interval to its calendar boundary, so
-            -- the price oracle must also exclude directives beyond the cutoff.
-            case snapshot.latestJournalDate of
-                Nothing -> snapshot.journal.jpricedirectives
-                Just latest -> filter ((<= latest) . Hledger.pddate) snapshot.journal.jpricedirectives
+        filteredJournal = reportJournal snapshot transactions
+
+{- | The columns 'periodicBalanceReport' produces for these inputs: every period
+for 'Yearly', the last 24 for 'Monthly'.
+
+A resumed calculation needs these before it builds any report, because they
+determine both the day each column is valued at and the day a checkpoint has to
+open from.
+-}
+periodicBalanceColumns ::
+    Snapshot ->
+    [Hledger.Transaction] ->
+    Granularity ->
+    [Hledger.AccountType] ->
+    [ReportPeriod]
+periodicBalanceColumns snapshot transactions granularity accountTypes =
+    selectedWindow granularity (windowColumns snapshot transactions granularity accountTypes)
+
+{- | The journal a periodic report is built over: the requested transactions, and
+price directives truncated to the latest journal date.
+
+The truncation is load-bearing and exposed for that reason. hledger expands the
+final interval to its calendar boundary, which can fall after the latest journal
+date, so a directive dated in between would be visible to a resumed calculation
+that valued columns from the snapshot's own journal and invisible to the report
+that calculation has to agree with.
+-}
+reportJournal :: Snapshot -> [Hledger.Transaction] -> Hledger.Journal
+reportJournal snapshot transactions =
+    snapshot.journal
+        { Hledger.jtxns = transactions
+        , Hledger.jpricedirectives = pricesThroughLatest
+        }
+  where
+    pricesThroughLatest = case snapshot.latestJournalDate of
+        Nothing -> snapshot.journal.jpricedirectives
+        Just latest -> filter ((<= latest) . Hledger.pddate) snapshot.journal.jpricedirectives
+
+{- | Valuation into a display commodity as at a date, for a report journal.
+
+This is the valuation hledger itself applies to a @Historical@ report's
+accumulated columns: @mixedAmountValueAtDate@ over the journal's own price oracle
+and display styles. It is spelled out here, rather than reached through
+'Hedger.Domain.Valuation.valueMixedAt', for two reasons: that function values
+against the snapshot's untruncated journal, and it rebuilds the price oracle per
+date, where a resumed report values one column per month.
+-}
+reportValuation :: Hledger.Journal -> Text -> (Day -> Hledger.MixedAmount -> Hledger.MixedAmount)
+reportValuation journal commodity =
+    HledgerValuation.mixedAmountValueAtDate
+        (HledgerValuation.journalPriceOracle False journal)
+        (HledgerJournal.journalCommodityStyles journal)
+        (Just commodity)
 
 reportWindow ::
     Granularity ->
@@ -191,19 +261,68 @@ reportWindow ::
     HledgerReportOptions.ReportSpec ->
     (Hledger.Period, Hledger.Interval)
 reportWindow granularity journal reportSpec =
-    case selectedPeriods of
-        [] -> (Hledger.PeriodAll, interval)
-        first : rest ->
-            let final = fromMaybe first (lastMaybe rest)
-             in (Hledger.PeriodBetween first.start (addDays 1 final.end), interval)
+    ( windowPeriod (selectedWindow granularity (periodsFromReport granularity journal reportSpec))
+    , intervalFor granularity
+    )
+
+windowPeriod :: [ReportPeriod] -> Hledger.Period
+windowPeriod columns = case (columns, lastMaybe columns) of
+    (first : _, Just final) -> Hledger.PeriodBetween first.start (addDays 1 final.end)
+    _ -> Hledger.PeriodAll
+
+selectedWindow :: Granularity -> [ReportPeriod] -> [ReportPeriod]
+selectedWindow granularity periods = case granularity of
+    Monthly -> takeLast 24 periods
+    Yearly -> periods
+
+{- | Every period the journal spans, before the window selection narrows it.
+
+The spec this asks hledger for is deliberately the report's own: the window
+depends on the requested transactions and account types, because an open-ended
+date query is filled in from the span of the journal they leave behind.
+-}
+windowColumns ::
+    Snapshot ->
+    [Hledger.Transaction] ->
+    Granularity ->
+    [Hledger.AccountType] ->
+    [ReportPeriod]
+windowColumns snapshot transactions granularity accountTypes =
+    periodsFromReport granularity (reportJournal snapshot transactions) windowSpec
   where
-    interval = case granularity of
-        Monthly -> Hledger.Months 1
-        Yearly -> Hledger.Years 1
-    periods = periodsFromReport granularity journal reportSpec
-    selectedPeriods = case granularity of
-        Monthly -> takeLast 24 periods
-        Yearly -> periods
+    windowSpec =
+        HledgerReportOptions.defreportspec
+            { HledgerReportOptions._rsReportOpts =
+                balanceOptions granularity HledgerReportOptions.CalcChange HledgerReportOptions.Historical Nothing
+            , HledgerReportOptions._rsDay = fromMaybe epoch snapshot.latestJournalDate
+            , HledgerReportOptions._rsQuery = windowQuery
+            }
+    windowQuery =
+        HledgerQuery.And
+            ( HledgerQuery.Type accountTypes
+                : case snapshot.latestJournalDate of
+                    Just latest ->
+                        [ HledgerQuery.Date
+                            (HledgerPeriod.periodAsDateSpan (Hledger.PeriodTo (addDays 1 latest)))
+                        ]
+                    Nothing -> []
+            )
+
+balanceOptions ::
+    Granularity ->
+    HledgerReportOptions.BalanceCalculation ->
+    HledgerReportOptions.BalanceAccumulation ->
+    Maybe Int ->
+    HledgerReportOptions.ReportOpts
+balanceOptions granularity calculation accumulation depth =
+    HledgerReportOptions.defreportopts
+        { HledgerReportOptions.interval_ = intervalFor granularity
+        , HledgerReportOptions.depth_ = Hledger.DepthSpec (max 1 <$> depth) []
+        , HledgerReportOptions.empty_ = True
+        , HledgerReportOptions.balancecalc_ = calculation
+        , HledgerReportOptions.balanceaccum_ = accumulation
+        , HledgerReportOptions.accountlistmode_ = HledgerReportOptions.ALFlat
+        }
 
 reportPeriodsFrom :: Granularity -> HledgerMultiBalance.MultiBalanceReport -> [ReportPeriod]
 reportPeriodsFrom granularity report = concatMap (periodsFromDateSpan granularity) report.prDates

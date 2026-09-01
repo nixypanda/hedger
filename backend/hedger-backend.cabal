@@ -59,6 +59,7 @@ library
     Hedger.Domain.Internal.InvestmentCheckpoint
     Hedger.Domain.Internal.InvestmentPerformance
     Hedger.Domain.Internal.NetWorth
+    Hedger.Domain.Internal.NetWorthCheckpoint
     Hedger.Domain.Internal.PeriodReport
     Hedger.Domain.Internal.Xirr
     Hedger.Domain.Internal.Transaction
@@ -147,6 +148,7 @@ test-suite hedger-backend-test
     Hedger.Domain.InvestmentCheckpointSpec
     Hedger.Domain.InvestmentPerformanceSpec
     Hedger.Domain.InvestmentSpec
+    Hedger.Domain.NetWorthCheckpointSpec
     Hedger.Domain.NetWorthSpec
     Hedger.Domain.PeriodReportSpec
     Hedger.ConfigSpec

@@ -13,6 +13,7 @@ import Hedger.Domain.FingerprintSpec (fingerprintSpec)
 import Hedger.Domain.InvestmentCheckpointSpec (investmentCheckpointSpec)
 import Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec)
 import Hedger.Domain.InvestmentSpec (investmentSpec)
+import Hedger.Domain.NetWorthCheckpointSpec (netWorthCheckpointSpec)
 import Hedger.Domain.NetWorthSpec (netWorthSpec)
 import Hedger.Domain.PeriodReportSpec (periodReportSpec)
 import Hedger.Domain.PeriodSpec (periodSpec)
@@ -41,6 +42,7 @@ main =
             , investmentCheckpointSpec
             , investmentSpec
             , netWorthSpec
+            , netWorthCheckpointSpec
             , periodReportSpec
             , activitySpec
             , snapshotStoreSpec
