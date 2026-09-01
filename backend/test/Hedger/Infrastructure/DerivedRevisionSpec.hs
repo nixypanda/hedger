@@ -276,10 +276,17 @@ mergeDoesNotBumpGeneration = do
 
 -- * Truncation
 
-{- | The month hashes are seeded from a sentinel rather than from the global
-fingerprint, so they are byte-identical across a commodity-style, account-type or
-config change. A truncation that trusted them alone would keep exactly the
-checkpoints 'GlobalChanged' exists to discard.
+{- | All three families must discard on 'GlobalChanged', and this is the only
+thing holding them to it jointly. The month hashes are seeded from a sentinel
+rather than from the global fingerprint, so they are byte-identical across a
+commodity-style, account-type or config change: a family that fell back to
+matching hashes would keep exactly the checkpoints 'GlobalChanged' exists to
+discard, and would keep them silently.
+
+Written after a mutation survived here. An explicit @GlobalChanged@ branch in
+'truncateDerivedCaches' passed every test with the branch deleted, because the
+delegation underneath already handled the case — so the branch was dead code
+asserting nothing, and this test is where the requirement actually lives.
 -}
 globalChangeEmptiesCaches :: IO ()
 globalChangeEmptiesCaches = do

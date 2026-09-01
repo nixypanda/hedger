@@ -48,7 +48,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time.Clock (NominalDiffTime, diffUTCTime, getCurrentTime)
 
-import Hedger.Domain.Fingerprint (ChainDiff (GlobalChanged), PrefixChain)
+import Hedger.Domain.Fingerprint (ChainDiff, PrefixChain)
 import Hedger.Domain.Internal.CashflowCheckpoint (
     CashflowColumns,
     columnCount,
@@ -111,21 +111,21 @@ emptyDerivedCaches =
 {- | Drop from every cache what a chain diff condemns.
 
 A missing diff is the boot case: there is no previous chain to compare against,
-so nothing may be kept. 'GlobalChanged' also keeps nothing, and that case has to
-be handled here rather than deferred to the @truncate*@ functions' own
-reasoning: the chain's month hashes are seeded from a sentinel rather than from
-the global fingerprint, so they are byte-identical across a commodity-style, an
-account-type or a config change — precisely the edits 'GlobalChanged' exists to
-catch.
+so nothing may be kept.
 
-Each family is handed the 'ChainDiff' itself and never a @Maybe Day@ distilled
-from it, because the natural distillation sends @GlobalChanged@ to @Nothing@,
-which reads downstream as "no divergence" and keeps everything.
+Everything else is delegated, and each family is handed the 'ChainDiff' itself
+rather than a @Maybe Day@ distilled from it. That matters more than it looks.
+The natural distillation sends @GlobalChanged@ to @Nothing@, which reads
+downstream as "no divergence" and keeps everything — and the chain's month
+hashes cannot catch the mistake, because they are seeded from a sentinel rather
+than from the global fingerprint and so stay byte-identical across a
+commodity-style, an account-type or a config change. Passing the diff through
+makes discarding on @GlobalChanged@ each family's own decision, which all three
+take; @globalChangeEmptiesCaches@ is what holds them to it.
 -}
 truncateDerivedCaches :: PrefixChain -> Maybe ChainDiff -> DerivedCaches -> DerivedCaches
 truncateDerivedCaches chain difference caches = case difference of
     Nothing -> emptyDerivedCaches
-    Just GlobalChanged -> emptyDerivedCaches
     Just diff ->
         DerivedCaches
             { scopes = truncateScopeCache chain diff caches.scopes
