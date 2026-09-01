@@ -246,9 +246,11 @@ afterHistoricalEdit =
         withEnvironment path (\environment _ -> reportShapes environment Monthly "INR")
 
 {- | @date:thismonth@ resolves against @latestJournalDate@, so its text alone
-does not fix its meaning. Net worth's key carries the reference date as a field;
-cashflow's carries it inside the canonical text, which is why the raw text finds
-nothing.
+does not fix its meaning: an append that moves that date can restate arbitrarily
+old columns, and the month chain — diverging only at the appended month — would
+not flag it. Both families therefore carry the reference date as a key field, and
+both are asserted in both directions: cached at the query's own reference date,
+and /not/ cached at any other.
 -}
 relativeDateQueryIsKeyedByReferenceDate :: IO ()
 relativeDateQueryIsKeyedByReferenceDate =
@@ -269,10 +271,13 @@ relativeDateQueryIsKeyedByReferenceDate =
                 []
                 (openingBalanceDays (keyAt epoch) "INR" caches.netWorth)
             assertBool "cashflow cached columns for the query" (columnCount caches.cashflow > 0)
+            assertBool
+                "cashflow columns are keyed at the query's own reference date"
+                (not (null (columnMonths relativeQuery reference "INR" caches.cashflow)))
             assertEqual
-                "no cashflow column is keyed by the query text alone"
+                "no cashflow column is keyed at a different reference date"
                 []
-                (columnMonths relativeQuery "INR" caches.cashflow)
+                (columnMonths relativeQuery epoch "INR" caches.cashflow)
 
 relativeQuery :: Text
 relativeQuery = "date:thismonth"

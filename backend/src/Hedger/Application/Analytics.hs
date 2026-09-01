@@ -335,7 +335,7 @@ cashflowFigures snapshot queryKey matched request commodity = do
                         matched
                         chain
                         caches.cashflow
-                        (cashflowQueryText queryKey)
+                        queryKey.text
                         request.granularity
                         commodity
                         request.positivePeriod
@@ -345,18 +345,6 @@ cashflowFigures snapshot queryKey matched request commodity = do
             contributeCheckpoints snapshot $ \current ->
                 current{DerivedRevision.cashflow = forcedCache columns}
             pure figures
-
-{- | The canonical query text the cashflow columns are cached under.
-
-A cashflow column is keyed by query text alone, so the date the query was
-resolved against has to travel inside that text. A relative term such as
-@date:thismonth@ denotes a different span once an append moves
-@latestJournalDate@, and it can restate arbitrarily old columns — which the month
-chain, diverging only at the appended month, would not flag. A 'Day' renders
-without spaces, so the separator cannot be imitated by the reference date.
--}
-cashflowQueryText :: QueryKey -> Text
-cashflowQueryText queryKey = Text.pack (show queryKey.reference) <> " " <> queryKey.text
 
 {- | Force a checkpoint cache before it reaches the derived view.
 

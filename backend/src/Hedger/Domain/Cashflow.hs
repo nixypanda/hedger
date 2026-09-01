@@ -178,7 +178,14 @@ computeCashflowResumed
         reportPeriods = cashflowReportPeriods snapshot matched granularity
         periodMonths = [monthEndsIn period.start period.end | period <- reportPeriods]
         (monthColumns, updated) =
-            cashflowColumnsResumed snapshot matched chain cached query commodity (concat periodMonths)
+            cashflowColumnsResumed
+                snapshot
+                matched
+                chain
+                cached
+                query
+                commodity
+                (concat periodMonths)
         periodColumns = fmap (sumColumns commodity) (regroup periodMonths monthColumns)
         dataPeriods = periodsWithData granularity matched reportPeriods
         dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)

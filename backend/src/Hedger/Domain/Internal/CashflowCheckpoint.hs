@@ -82,7 +82,7 @@ import Hedger.Domain.Internal.PeriodReport (
     reportPeriodsFrom,
     reportSide,
  )
-import Hedger.Domain.Period (Granularity (Monthly), ReportPeriod (..), atIndex, monthPeriod)
+import Hedger.Domain.Period (Granularity (Monthly), ReportPeriod (..), atIndex, epoch, monthPeriod)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..), conversionFromMixed, missingCommodities)
 
@@ -93,9 +93,18 @@ list it selected: the text is small, comparable and stable, whereas hashing a
 matched list would cost as much as recomputing the column. Callers must pass the
 canonicalised text of the query that produced the matched transactions; two
 different queries sharing a key would serve each other's numbers.
+
+@reference@ is the date that text was resolved against, and it is part of the
+key for the same reason it is part of
+'Hedger.Domain.Internal.NetWorthCheckpoint.QueryKey': a query resolves against
+@snapshot.latestJournalDate@, so a relative term such as @date:thismonth@ denotes
+a different span once an append moves that date, and it can restate arbitrarily
+old columns — which the month chain, diverging only at the appended month, does
+not flag.
 -}
 data ColumnKey = ColumnKey
     { query :: !Text
+    , reference :: !Day
     , commodity :: !Text
     , monthEnd :: !Day
     , chainHash :: !Hash
@@ -136,13 +145,21 @@ emptyColumns = CashflowColumns Map.empty
 columnCount :: CashflowColumns -> Int
 columnCount (CashflowColumns stored) = Map.size stored
 
--- | The cached months for one query and commodity, oldest first.
-columnMonths :: Text -> Text -> CashflowColumns -> [Day]
-columnMonths query commodity (CashflowColumns stored) =
+{- | The cached months for one query — text /and/ reference date — and commodity,
+oldest first.
+
+The reference date is a parameter rather than ignored so that this cannot be used
+to observe a column under the query text alone: doing so would report a hit for a
+relative query resolved against some other date, which is the case
+'ColumnKey.reference' exists to separate.
+-}
+columnMonths :: Text -> Day -> Text -> CashflowColumns -> [Day]
+columnMonths query reference commodity (CashflowColumns stored) =
     List.sort
         [ key.monthEnd
         | key <- Map.keys stored
         , key.query == query
+        , key.reference == reference
         , key.commodity == commodity
         ]
 
@@ -150,9 +167,17 @@ columnMonths query commodity (CashflowColumns stored) =
 entry for that month — in which case the month has no journal entry at all and
 its column is 'emptyColumn' rather than something to store.
 -}
-columnKeyAt :: PrefixChain -> Text -> Text -> Day -> Maybe ColumnKey
-columnKeyAt chain query commodity monthEnd =
-    (\hash -> ColumnKey{query = query, commodity = commodity, monthEnd = monthEnd, chainHash = hash})
+columnKeyAt :: PrefixChain -> Text -> Day -> Text -> Day -> Maybe ColumnKey
+columnKeyAt chain query reference commodity monthEnd =
+    ( \hash ->
+        ColumnKey
+            { query = query
+            , reference = reference
+            , commodity = commodity
+            , monthEnd = monthEnd
+            , chainHash = hash
+            }
+    )
         <$> checkpointHashAt chain monthEnd
 
 lookupColumn :: ColumnKey -> CashflowColumns -> Maybe CashflowColumn
@@ -308,7 +333,14 @@ cashflowColumnsResumed ::
 cashflowColumnsResumed snapshot matched chain (CashflowColumns stored) query commodity requested =
     (fmap resolve requested, CashflowColumns (Map.union computed stored))
   where
-    keyFor = columnKeyAt chain query commodity
+    -- The reference date is not a parameter because it is not an independent
+    -- one: a caller resolves its query against this very snapshot's
+    -- 'latestJournalDate', so taking it from the snapshot makes the key's
+    -- reference agree with the query's meaning by construction instead of by
+    -- the caller remembering to pass the same date twice. Read here rather than
+    -- inside 'computeMonths', which deliberately moves the latest date back per
+    -- chunk to steer the report window.
+    keyFor = columnKeyAt chain query (fromMaybe epoch snapshot.latestJournalDate) commodity
     pending =
         [ (monthEnd, key)
         | monthEnd <- List.sort (List.nub requested)

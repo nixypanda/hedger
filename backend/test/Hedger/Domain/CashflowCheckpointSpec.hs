@@ -35,6 +35,7 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Config (Config (..))
 import Hedger.Domain.Cashflow (
     BreakdownItem (..),
     CashflowFigures (..),
@@ -44,8 +45,13 @@ import Hedger.Domain.Cashflow (
  )
 import Hedger.Domain.Fingerprint (
     ChainDiff (..),
+    FamilyChains (..),
     PrefixChain (..),
+    ReportFamily (CashflowFamily),
+    chainFor,
     diffChains,
+    diffFamilyChains,
+    familyChains,
     globalFingerprint,
     prefixChain,
  )
@@ -73,6 +79,7 @@ import Hedger.Domain.Internal.CashflowCheckpoint (
     sumColumns,
     truncateColumns,
  )
+import Hedger.Domain.Internal.FamilyRelevance (familyRelevance)
 import Hedger.Domain.Internal.PeriodReport (
     ReportSide,
     breakdownItemsFor,
@@ -84,6 +91,7 @@ import Hedger.Domain.Period (
     Granularity (Monthly, Yearly),
     ReportPeriod (..),
     atIndex,
+    epoch,
     lastMaybe,
     monthPeriod,
  )
@@ -122,6 +130,9 @@ cashflowCheckpointSpec =
         , testCase
             "truncation drops exactly the columns at or after the divergence month"
             truncationDropsFromDivergence
+        , testCase
+            "keying on the cashflow family chain survives an asset-only edit"
+            familyChainSurvivesAnAssetOnlyEdit
         , testCase
             "an unpriced commodity reproduces the same missing set"
             missingPriceReproducesMissingSet
@@ -527,7 +538,7 @@ staleHashRecomputesOnlyThatMonth =
             chain = chainOf snapshot.journal
             months = fst <$> chain.months
             (correct, _) = columnsFor snapshot matched chain emptyColumns "INR" months
-        keys <- traverse (requireKey chain) months
+        keys <- traverse (requireKey snapshot chain) months
         case (keys, correct) of
             ([january, february, march], [_, correctFebruary, _]) -> do
                 let seeded =
@@ -554,12 +565,18 @@ staleHashRecomputesOnlyThatMonth =
   where
     expenseTotal column = (conversionFromMixed "INR" column.expense.total).value
 
-requireKey :: PrefixChain -> Day -> IO ColumnKey
-requireKey chain monthEnd =
+{- | The key a month's column is genuinely cached under, taking the reference date
+from the snapshot exactly as 'cashflowColumnsResumed' does.
+-}
+requireKey :: Snapshot -> PrefixChain -> Day -> IO ColumnKey
+requireKey snapshot chain monthEnd =
     maybe
         (assertFailure ("no chain entry for " <> show monthEnd))
         pure
-        (columnKeyAt chain wholeJournalQuery "INR" monthEnd)
+        (columnKeyAt chain wholeJournalQuery (referenceDateOf snapshot) "INR" monthEnd)
+
+referenceDateOf :: Snapshot -> Day
+referenceDateOf snapshot = fromMaybe epoch snapshot.latestJournalDate
 
 threeMonthJournal :: Text
 threeMonthJournal =
@@ -627,9 +644,10 @@ truncationDropsFromDivergence =
         let chain = chainOf snapshot.journal
             months = fst <$> chain.months
             (_, stored) = columnsFor snapshot snapshot.transactions chain emptyColumns "INR" months
-            monthsKept diff = columnMonths wholeJournalQuery "INR" (truncateColumns chain diff stored)
+            cachedMonths = columnMonths wholeJournalQuery (referenceDateOf snapshot) "INR"
+            monthsKept diff = cachedMonths (truncateColumns chain diff stored)
         assertEqual "three populated months" 3 (length months)
-        assertEqual "all three are cached" months (columnMonths wholeJournalQuery "INR" stored)
+        assertEqual "all three are cached" months (cachedMonths stored)
         sequence_
             [ assertEqual
                 ("divergence at " <> show divergence <> " keeps the earlier months")
@@ -712,6 +730,93 @@ unpricedJournal =
 {- | The query text a whole-journal request carries. Keys are over the query's
 canonical text, so the empty query stands for \"every transaction\".
 -}
+
+{- | What scoped invalidation is for, end to end and through the /unchanged/
+truncation API.
+
+A transfer between two bank accounts cannot move an income or expense column, so
+columns keyed on the cashflow family's chain must all survive it. Keyed on the
+whole-journal chain the same columns are truncated from the edited month — which
+is the control, and it is what happens today.
+
+Both halves matter. Without the survival half the scoping buys nothing; without
+the truncation half the case would pass just as well if the chain never diverged
+at all. Note also that keying and truncating must use the /same/ chain: a column
+keyed on the whole chain and truncated against the family chain is dropped on the
+hash test whatever the diff says.
+-}
+familyChainSurvivesAnAssetOnlyEdit :: IO ()
+familyChainSurvivesAnAssetOnlyEdit =
+    withJournalPath "family-scoped" $ \path -> do
+        before <- snapshotAt path assetTransferJournal
+        let earlier = familyChainsOf before
+            cashflowBefore = chainFor CashflowFamily earlier
+            months = fst <$> earlier.whole.months
+            keyedOn chain = snd (columnsFor before before.transactions chain emptyColumns "INR" months)
+            familyColumns = keyedOn cashflowBefore
+            wholeColumns = keyedOn earlier.whole
+        after <- snapshotAt path renamedSavingsJournal
+        let later = familyChainsOf after
+            cashflowAfter = chainFor CashflowFamily later
+            familyDiff = diffFamilyChains earlier later CashflowFamily
+            wholeDiff = diffChains earlier.whole later.whole
+            cachedMonths = columnMonths wholeJournalQuery (referenceDateOf after) "INR"
+            kept chain diff stored = cachedMonths (truncateColumns chain diff stored)
+        assertEqual "the fixture must span two months" 2 (length months)
+        assertEqual "every month was cached under each chain" 2 (columnCount familyColumns)
+        assertEqual "the cashflow family must see no change" Identical familyDiff
+        assertEqual
+            "the whole-journal chain must see the edit, or the case proves nothing"
+            (DivergesFrom (lastOf months))
+            wholeDiff
+        assertEqual
+            "columns keyed on the cashflow family chain all survive"
+            months
+            (kept cashflowAfter familyDiff familyColumns)
+        assertEqual
+            "columns keyed on the whole-journal chain are truncated at the edit"
+            (init months)
+            (kept later.whole wholeDiff wholeColumns)
+
+familyChainsOf :: Snapshot -> FamilyChains
+familyChainsOf snapshot =
+    familyChains
+        relevance
+        Nothing
+        snapshot.journal
+        (globalFingerprint snapshot.journal configuration)
+        snapshot.journal.jtxns
+        snapshot.journal.jpricedirectives
+  where
+    relevance =
+        familyRelevance
+            snapshot.journal
+            configuration.assetClassMappings
+            configuration.investmentMappings
+
+lastOf :: [Day] -> Day
+lastOf = fromMaybe (error "no months") . lastMaybe
+
+{- | An income month followed by an asset-only month, so that editing the second
+is invisible to cashflow and visible to the whole journal.
+-}
+assetTransferJournal :: Text
+assetTransferJournal =
+    Text.unlines
+        [ "2023-01-15 salary"
+        , "    assets:bank:checking   1000.00 INR"
+        , "    income:salary         -1000.00 INR"
+        , ""
+        , "2023-02-10 move savings"
+        , "    assets:bank:savings     200.00 INR"
+        , "    assets:bank:checking   -200.00 INR"
+        ]
+
+-- | 'assetTransferJournal' with the destination account renamed, and nothing else.
+renamedSavingsJournal :: Text
+renamedSavingsJournal =
+    Text.replace "assets:bank:savings" "assets:bank:reserve" assetTransferJournal
+
 wholeJournalQuery :: Text
 wholeJournalQuery = ""
 
