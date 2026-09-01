@@ -26,19 +26,23 @@ shippable and independently verifiable.
 | S4 net worth | **Done** | Pure. Moves accumulation out of hledger; five corrections, two mutation-verified defects |
 | S5 cashflow columns | **Done** | Pure. Refuted the `missing`-set half of yearly-from-monthly |
 | S6 scoped invalidation | Not started | |
-| **S7 wire checkpoints to the request path** | **Not started** | **Nothing below reads a checkpoint yet** |
+| S7 wire checkpoints to the request path | **Done** | Caches in `DerivedState`; all three use cases resume and merge back |
+| S8 chain-pass encoding | **Done** | 5.7x faster, 10x less allocated; had been the dominant reload cost |
 
-**The important caveat: S3, S4 and S5 are pure and unreachable.** The application
-layer still calls `computeNetWorth`, `computeCashflow` and `summariesAtPrepared`
-directly, so the checkpoint work delivers no latency improvement yet. S7 is what
-makes it real,
-and it needs a design decision the original plan did not anticipate:
-`DerivedStore.lookupOrCompute` is a *memoizing* API with no put operation, so a
-checkpoint map that a request updates cannot be written back through it. The
-checkpoint caches most likely belong in `DerivedState` — rebuilt by the reload
-cycle and keyed by chain hash — with the LRU store kept for whole responses.
-That matches the `DerivedSnapshot` shape sketched under item 3 of the original
-plan, and it keeps request handlers from mutating shared derived state.
+The checkpoint caches live in `DerivedState`, not in the LRU `DerivedStore`:
+`lookupOrCompute` is a *memoizing* API with no put operation, so a checkpoint map
+a request updates cannot be written back through it. `DerivedState` is rebuilt by
+the reload cycle and already holds the chain, which is where chain-hash-keyed
+caches belong; the LRU store keeps serving whole responses. Request write-back is
+lock-free because checkpoint maps are monotone under a fixed chain — two requests
+computing the same key compute the same value — with a revision guard to stop a
+request resurrecting checkpoints for a chain that has since been truncated.
+
+**Still outstanding: no end-to-end latency measurement.** Every figure in this
+document is a component or benchmark-harness number. Nobody has yet measured a
+cold request, a warm request and a post-append request against the running
+server, which is the only measurement that answers whether this work achieved its
+goal. Do that before declaring the phase complete.
 
 ## The idea
 
@@ -64,7 +68,10 @@ The design has three parts:
 
 1. **A prefix hash chain.** One O(n) pass over date-sorted entries produces a
    rolling hash snapshotted at each month end — a Merkle chain over journal
-   history. Cheap relative to the parse that already happened.
+   history. Cheap relative to the parse that already happened — but only after
+   S8; see "The chain pass was the dominant reload cost" below. As first
+   implemented this claim was false by a wide margin, and it went unnoticed for
+   four slices because nothing measured the rebuild end to end.
 2. **Checkpoints.** Store the fold state and the derived columns at month ends,
    keyed by the chain hash at that month.
 3. **Tail rebuild.** On reload, compare the new chain against the old one
@@ -169,6 +176,60 @@ hit rate and removes a class of subtle bugs entirely.
    Checkpoints must hold `Decimal`, `Set Text`, `Map AccountName MixedAmount` and
    small strict records. Never a `MultiBalanceReport`, never a `Journal`, never a
    closure over either.
+
+### The chain pass was the dominant reload cost
+
+Found by S7a, which was the first slice to time `rebuildAfterReload` end to end,
+and fixed by S8. Worth reading as a process finding as much as a technical one:
+the chain had been the single most expensive thing in a reload since S1, and four
+slices were built on top of it without anyone noticing, because every benchmark
+measured a *report* and none measured a *rebuild*.
+
+**It was linear, not quadratic** — 9.44× time for 10× the data, so the per-month
+fold was genuinely one pass and the chain *design* was never at fault. Only its
+encoding was. The `benchmark/Main.hs` figures:
+
+| Fixture | Before | After | Allocated before | Allocated after |
+|---|---:|---:|---:|---:|
+| 5,000 | 394 ms | **79.5 ms** | 1.3 GB | **139 MB** |
+| 50,000 | 3.72 s | **649 ms** | 12 GB | **1.2 GB** |
+
+In the same harness the 50,000 parse is 6.57 s and `analytics.networth` is
+559 ms, so the chain went from **57% of the parse to 9.4%**, and from 6.7× the
+net-worth report it exists to let us skip to **1.1×**.
+
+**The cause was one bug wearing two hats.** Every level of nesting hashed its
+children by rendering each digest to 32 hex characters and concatenating, so a
+transaction cost roughly *fifteen* MD5-plus-hex round trips. Nothing outside the
+module ever reads a sub-transaction digest, so postings, amounts and tags are now
+encoded inline into one `Builder` and hashed once: one digest per transaction,
+with hex surviving only on the month hashes and the five global components.
+
+**Known floor, and why S8 stopped.** With temporary probes the residual cost is
+uniform at ~150 bytes allocated per `Builder` primitive write, at ~127 writes per
+transaction — it is *not* amounts, `normalizeDecimal`, or `encodeUtf8`. Replacing
+per-node `[Builder]` lists with `<>` chains helped (176 → 138 MB at 5,000);
+`{-# INLINE #-}` on the node encoders did nothing, so GHC is not fusing the
+builder chain. Going further means cutting the write count or leaving `Builder`
+for hand-rolled pokes into a pre-sized buffer: an estimated 3–6× on a 649 ms
+term, bought with unsafe pointer code inside the module that decides whether
+caches are valid. Declined at 9.4% of parse. If it is ever wanted, the
+write-count reduction is the safe half.
+
+**Hash values changed, which is fail-safe** — a changed fingerprint invalidates
+and rebuilds. Entry and month tags moved to `-v2`; the global fingerprint's
+encoding is deliberately byte-identical, so a reload after this change sees
+`DivergesFrom` at the first month rather than a `GlobalChanged` storm. All five
+semantic `FingerprintSpec` assertions passed unmodified, because every one
+asserts a relationship rather than a literal digest — which is why the spec
+survived a complete change of representation.
+
+**One measurement caveat.** The same pre-fix code measured 3.72 s in the
+benchmark harness against the ~15.5 s observed from the server. The figures above
+are internally consistent but roughly 4× lower in absolute terms than server
+reality, which is the bench-versus-server RTS discrepancy this project has
+recorded before. Re-measure `rebuildAfterReload` in the server before quoting an
+absolute reload number.
 
 ### Key a checkpoint on `checkpointHashAt`, never on `chainHashAt`
 

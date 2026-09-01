@@ -8,3 +8,6 @@ result
 tags
 frontend-web/dist/
 frontend-web/node_modules/
+
+# Claude Code agent worktrees
+.claude/
