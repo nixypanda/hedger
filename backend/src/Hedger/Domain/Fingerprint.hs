@@ -23,6 +23,10 @@ where
 
 import Crypto.Hash.MD5 qualified as MD5
 import Data.ByteString qualified as ByteString
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Builder.Extra qualified as BuilderExtra
+import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Decimal (Decimal)
 import Data.Decimal qualified as Decimal
 import Data.List qualified as List
@@ -33,8 +37,6 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
 import Data.Time.Calendar (Day)
 import Data.Time.Calendar qualified as Calendar
-import Data.Word (Word8)
-import Numeric (showHex)
 
 import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Journal qualified as HledgerJournal
@@ -83,7 +85,7 @@ hashText = Hash . hexEncode . MD5.hash . TextEncoding.encodeUtf8
 
 -- | Extend a chain hash with the next period's content.
 combineHash :: Hash -> Text -> Hash
-combineHash previous content = hashTagged "chain-v1" [unHash previous, content]
+combineHash previous content = hashTagged "chain-v2" [unHash previous, content]
 
 globalFingerprint :: Hledger.Journal -> Config -> GlobalFingerprint
 globalFingerprint journal config =
@@ -145,92 +147,85 @@ shift when unrelated lines move within the file, so hashing them would make
 inserting a comment at the top of a journal invalidate every month of history —
 the cache would never hit. @ptransaction@ and @poriginal@ are excluded too: the
 former closes a cycle back to this transaction, the latter is a parse artefact.
+
+Postings, amounts and tags are encoded /inline/ rather than hashed one level at a
+time: nothing outside this module ever asks for a sub-transaction hash, so the
+intermediate digests only cost work. One digest per transaction replaces roughly
+fifteen.
 -}
-transactionHash :: Hledger.Transaction -> Hash
-transactionHash transaction =
-    hashTagged
-        "transaction-v1"
-        [ dayPart transaction.tdate
-        , textShow transaction.tdate2
-        , statusPart transaction.tstatus
-        , transaction.tcode
-        , transaction.tdescription
-        , transaction.tcomment
-        , unHash (tagsHash transaction.ttags)
-        , unHash (hashList "postings-v1" (postingHash <$> transaction.tpostings))
-        ]
+transactionPart :: Hledger.Transaction -> Builder
+transactionPart transaction =
+    header "transaction-v2" 8
+        <> dayPart transaction.tdate
+        <> optionalPart dayPart transaction.tdate2
+        <> statusPart transaction.tstatus
+        <> textPart transaction.tcode
+        <> textPart transaction.tdescription
+        <> textPart transaction.tcomment
+        <> tagsPart transaction.ttags
+        <> listPart "postings-v2" postingPart transaction.tpostings
 
 {- | Semantic content of a price directive, keyed by the directive's own date so
 that inserting a historical price invalidates exactly the months from that date
-onwards. @pdsourcepos@ is excluded, as in 'transactionHash'.
+onwards. @pdsourcepos@ is excluded, as in 'transactionPart'.
 -}
-priceDirectiveHash :: Hledger.PriceDirective -> Hash
-priceDirectiveHash directive =
-    hashTagged
-        "price-directive-v1"
-        [ dayPart directive.pddate
-        , directive.pdcommodity
-        , directive.pdamount.acommodity
-        , quantityPart directive.pdamount.aquantity
-        ]
+priceDirectivePart :: Hledger.PriceDirective -> Builder
+priceDirectivePart directive =
+    header "price-directive-v2" 4
+        <> dayPart directive.pddate
+        <> textPart directive.pdcommodity
+        <> textPart directive.pdamount.acommodity
+        <> quantityPart directive.pdamount.aquantity
 
-postingHash :: Hledger.Posting -> Hash
-postingHash posting =
-    hashTagged
-        "posting-v1"
-        [ posting.paccount
-        , statusPart posting.pstatus
-        , textShow posting.ptype
-        , posting.pcomment
-        , textShow posting.pdate
-        , textShow posting.pdate2
-        , unHash (mixedAmountHash posting.pamount)
-        , unHash (maybe absentHash balanceAssertionHash posting.pbalanceassertion)
-        , unHash (tagsHash posting.ptags)
-        ]
+postingPart :: Hledger.Posting -> Builder
+postingPart posting =
+    header "posting-v2" 9
+        <> textPart posting.paccount
+        <> statusPart posting.pstatus
+        <> postingTypePart posting.ptype
+        <> textPart posting.pcomment
+        <> optionalPart dayPart posting.pdate
+        <> optionalPart dayPart posting.pdate2
+        <> mixedAmountPart posting.pamount
+        <> optionalPart balanceAssertionPart posting.pbalanceassertion
+        <> tagsPart posting.ptags
 
-mixedAmountHash :: Hledger.MixedAmount -> Hash
-mixedAmountHash = hashList "mixed-amount-v1" . fmap amountHash . HledgerAmount.amountsRaw
+mixedAmountPart :: Hledger.MixedAmount -> Builder
+mixedAmountPart = listPart "mixed-amount-v2" amountPart . HledgerAmount.amountsRaw
 
 {- | @astyle@ is absent because display styles are journal-global and therefore
 belong to 'GlobalFingerprint', not to per-month content.
 -}
-amountHash :: Hledger.Amount -> Hash
-amountHash amount =
-    hashTagged
-        "amount-v1"
-        [ amount.acommodity
-        , quantityPart amount.aquantity
-        , unHash (maybe absentHash costHash amount.acost)
-        , unHash (maybe absentHash costBasisHash amount.acostbasis)
-        ]
+amountPart :: Hledger.Amount -> Builder
+amountPart amount =
+    header "amount-v2" 4
+        <> textPart amount.acommodity
+        <> quantityPart amount.aquantity
+        <> optionalPart costPart amount.acost
+        <> optionalPart costBasisPart amount.acostbasis
 
-costHash :: Hledger.AmountCost -> Hash
-costHash cost = case cost of
-    Hledger.UnitCost amount -> hashTagged "unit-cost-v1" [unHash (amountHash amount)]
-    Hledger.TotalCost amount -> hashTagged "total-cost-v1" [unHash (amountHash amount)]
+costPart :: Hledger.AmountCost -> Builder
+costPart cost = case cost of
+    Hledger.UnitCost amount -> header "unit-cost-v2" 1 <> amountPart amount
+    Hledger.TotalCost amount -> header "total-cost-v2" 1 <> amountPart amount
 
-costBasisHash :: Hledger.CostBasis -> Hash
-costBasisHash basis =
-    hashTagged
-        "cost-basis-v1"
-        [ unHash (maybe absentHash amountHash basis.cbCost)
-        , textShow basis.cbDate
-        , textShow basis.cbLabel
-        ]
+costBasisPart :: Hledger.CostBasis -> Builder
+costBasisPart basis =
+    header "cost-basis-v2" 3
+        <> optionalPart amountPart basis.cbCost
+        <> optionalPart dayPart basis.cbDate
+        <> optionalPart textPart basis.cbLabel
 
--- | @baposition@ is a source position; see the note on 'transactionHash'.
-balanceAssertionHash :: Hledger.BalanceAssertion -> Hash
-balanceAssertionHash assertion =
-    hashTagged
-        "balance-assertion-v1"
-        [ unHash (amountHash assertion.baamount)
-        , textShow assertion.batotal
-        , textShow assertion.bainclusive
-        ]
+-- | @baposition@ is a source position; see the note on 'transactionPart'.
+balanceAssertionPart :: Hledger.BalanceAssertion -> Builder
+balanceAssertionPart assertion =
+    header "balance-assertion-v2" 3
+        <> amountPart assertion.baamount
+        <> boolPart assertion.batotal
+        <> boolPart assertion.bainclusive
 
-tagsHash :: [Hledger.Tag] -> Hash
-tagsHash tags = hashTagged "tags-v1" (concat [[name, value] | (name, value) <- tags])
+tagsPart :: [Hledger.Tag] -> Builder
+tagsPart = listPart "tags-v2" (\(name, value) -> textPart name <> textPart value)
 
 commodityStylesHash :: Map Hledger.CommoditySymbol Hledger.AmountStyle -> Hash
 commodityStylesHash styles =
@@ -265,20 +260,21 @@ configHash config =
 sort is stable, so entries sharing a date keep their original relative order —
 which is itself semantic, because balance assertions depend on it.
 -}
-sortedEntries :: [Hledger.Transaction] -> [Hledger.PriceDirective] -> [(Day, Hash)]
+sortedEntries :: [Hledger.Transaction] -> [Hledger.PriceDirective] -> [(Day, Digest)]
 sortedEntries transactions directives =
     List.sortOn fst $
-        [(transaction.tdate, transactionHash transaction) | transaction <- transactions]
-            <> [(directive.pddate, priceDirectiveHash directive) | directive <- directives]
+        [(transaction.tdate, digestOf (transactionPart transaction)) | transaction <- transactions]
+            <> [(directive.pddate, digestOf (priceDirectivePart directive)) | directive <- directives]
 
-monthChain :: [(Day, Hash)] -> [(Day, Hash)]
+monthChain :: [(Day, Digest)] -> [(Day, Hash)]
 monthChain = go absentHash
   where
     go _ [] = []
     go previous entries@((day, _) : _) =
         let boundary = monthEnd day
             (thisMonth, laterMonths) = span ((== boundary) . monthEnd . fst) entries
-            boundaryHash = combineHash previous (unHash (hashList "month-v1" (snd <$> thisMonth)))
+            monthDigest = digestOf (listPart "month-v2" (digestPart . snd) thisMonth)
+            !boundaryHash = combineHash previous (hexDigest monthDigest)
          in (boundary, boundaryHash) : go boundaryHash laterMonths
 
 firstDivergentMonth :: [(Day, Hash)] -> [(Day, Hash)] -> Maybe Day
@@ -298,31 +294,126 @@ absentHash :: Hash
 absentHash = hashTagged "absent-v1" []
 
 lengthDelimited :: Text -> Text
-lengthDelimited value = Text.pack (show (Text.length value)) <> ":" <> value
-
-dayPart :: Day -> Text
-dayPart = Text.pack . Calendar.showGregorian
-
-{- | Normalising keeps hash equality in step with 'Eq': @Show@ distinguishes
-@1.5@ from @1.50@, whereas 'Eq' on 'Decimal' does not.
--}
-quantityPart :: Decimal -> Text
-quantityPart = textShow . Decimal.normalizeDecimal
-
-{- | @Show Status@ renders @Unmarked@ as the empty string, which would collide
-with an absent field.
--}
-statusPart :: Hledger.Status -> Text
-statusPart = textShow . fromEnum
+lengthDelimited value = textShow (Text.length value) <> ":" <> value
 
 textShow :: (Show value) => value -> Text
 textShow = Text.pack . show
 
 hexEncode :: ByteString.ByteString -> Text
-hexEncode = Text.pack . concatMap byteHex . ByteString.unpack
+hexEncode =
+    TextEncoding.decodeUtf8
+        . LazyByteString.toStrict
+        . Builder.toLazyByteString
+        . Builder.byteStringHex
 
-byteHex :: Word8 -> String
-byteHex byte =
-    case showHex byte "" of
-        [digit] -> ['0', digit]
-        digits -> digits
+-- * Binary entry encoding
+
+{- | The raw 16 bytes of an MD5 digest.
+
+Digests are composed as bytes rather than as hex text. The previous encoding
+rendered every intermediate digest to a 32-character hex 'Text' and concatenated
+those, so a transaction's bytes were re-encoded once per level of nesting; that
+was the dominant cost of building the chain.
+-}
+newtype Digest = Digest ByteString.ByteString
+
+digestOf :: Builder -> Digest
+digestOf = Digest . MD5.hashlazy . buildSmall
+{-# INLINE digestOf #-}
+
+hexDigest :: Digest -> Text
+hexDigest (Digest bytes) = hexEncode bytes
+
+{- | The default builder strategy allocates a 4 kB chunk per run and then copies
+the used prefix out of it. At one run per transaction that allocation dwarfed the
+few hundred bytes an entry actually encodes to, so ask for a small untrimmed
+buffer instead.
+-}
+buildSmall :: Builder -> LazyByteString.ByteString
+buildSmall =
+    BuilderExtra.toLazyByteStringWith
+        (BuilderExtra.untrimmedStrategy 1024 BuilderExtra.smallChunkSize)
+        LazyByteString.empty
+
+{- | A byte string, preceded by its length.
+
+Length-delimiting is what makes the encoding injective, and it is the same
+guarantee 'hashTagged' gives in text form: every field boundary is recoverable
+from the bytes alone, so @["ab", "c"]@ and @["a", "bc"]@ cannot collide and an
+account name cannot be read as a description.
+-}
+bytesPart :: ByteString.ByteString -> Builder
+bytesPart value =
+    Builder.word64LE (fromIntegral (ByteString.length value)) <> Builder.byteString value
+{-# INLINE bytesPart #-}
+
+textPart :: Text -> Builder
+textPart = bytesPart . TextEncoding.encodeUtf8
+{-# INLINE textPart #-}
+
+digestPart :: Digest -> Builder
+digestPart (Digest bytes) = bytesPart bytes
+{-# INLINE digestPart #-}
+
+{- | The start of a node: its tag, then the number of fields that follow. The
+field count keeps a list's extent explicit, so a node whose last field is a list
+cannot absorb whatever comes after it, and the tag keeps two structurally
+identical types (a unit cost and a total cost, say) apart.
+
+Fields are appended with '<>' rather than collected into a list, because at one
+node per posting and per amount the list of parts allocated more than the bytes
+it described.
+-}
+header :: ByteString.ByteString -> Int -> Builder
+header tag arity = bytesPart tag <> Builder.word64LE (fromIntegral arity)
+{-# INLINE header #-}
+
+listPart :: ByteString.ByteString -> (item -> Builder) -> [item] -> Builder
+listPart tag encode items = header tag (length items) <> foldMap encode items
+{-# INLINE listPart #-}
+
+-- | A present/absent marker, so @Nothing@ cannot be confused with any encoding.
+optionalPart :: (value -> Builder) -> Maybe value -> Builder
+optionalPart encode = maybe (Builder.word8 0) ((Builder.word8 1 <>) . encode)
+{-# INLINE optionalPart #-}
+
+-- | Fixed width, so no delimiter is needed.
+dayPart :: Day -> Builder
+dayPart = Builder.int64LE . fromIntegral . Calendar.toModifiedJulianDay
+{-# INLINE dayPart #-}
+
+{- | Normalising keeps hash equality in step with 'Eq': the representation
+distinguishes @1.5@ from @1.50@ (different mantissa and scale), whereas 'Eq' on
+'Decimal' does not.
+-}
+quantityPart :: Decimal -> Builder
+quantityPart quantity =
+    let normalized = Decimal.normalizeDecimal quantity
+     in Builder.word8 normalized.decimalPlaces <> integerPart normalized.decimalMantissa
+{-# INLINE quantityPart #-}
+
+{- | Decimal digits followed by a terminator. @integerDec@ emits only digits and
+a leading @-@, neither of which is the terminator, so the boundary is
+unambiguous — and an 'Integer' has no fixed width to delimit it by.
+-}
+integerPart :: Integer -> Builder
+integerPart value = Builder.integerDec value <> Builder.word8 terminator
+  where
+    terminator = fromIntegral (fromEnum ';')
+{-# INLINE integerPart #-}
+
+statusPart :: Hledger.Status -> Builder
+statusPart = Builder.word8 . fromIntegral . fromEnum
+{-# INLINE statusPart #-}
+
+postingTypePart :: Hledger.PostingType -> Builder
+postingTypePart postingType =
+    Builder.word8 $ case postingType of
+        Hledger.RegularPosting -> 0
+        Hledger.VirtualPosting -> 1
+        Hledger.BalancedVirtualPosting -> 2
+{-# INLINE postingTypePart #-}
+
+boolPart :: Bool -> Builder
+boolPart value = Builder.word8 (if value then 1 else 0)
+{-# INLINE boolPart #-}
