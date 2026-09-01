@@ -1,7 +1,7 @@
 # Analytics caching plan: checkpointed folds over an immutable history
 
-_Status: S0–S3 and S5 implemented and green; S4 in progress; not yet reachable
-from a request · Last updated: 2026-09-01_
+_Status: S0–S5 implemented and green; not yet reachable from a request · Last
+updated: 2026-09-01_
 
 Part of the [analytics performance index](analytics-performance-plan.md). This is
 the only remaining optimization phase. Prerequisites are complete: see
@@ -23,14 +23,15 @@ shippable and independently verifiable.
 | S1 `Fingerprint` | **Done** | Three plan corrections came out of it, recorded below |
 | S2 derived revision | **Done** | Rebuild in `reloadCycle`, at boot, and on `SIGHUP`; `refreshing` freshness |
 | S3 investment scope scan | **Done** | Pure. Three defects found and mutation-verified |
-| S4 net worth | **In progress** | Highest correctness risk |
+| S4 net worth | **Done** | Pure. Moves accumulation out of hledger; five corrections, two mutation-verified defects |
 | S5 cashflow columns | **Done** | Pure. Refuted the `missing`-set half of yearly-from-monthly |
 | S6 scoped invalidation | Not started | |
 | **S7 wire checkpoints to the request path** | **Not started** | **Nothing below reads a checkpoint yet** |
 
-**The important caveat: S3 and S5 are pure and unreachable.** The application
-layer still calls `computeCashflow` and `summariesAtPrepared` directly, so the
-checkpoint work delivers no latency improvement yet. S7 is what makes it real,
+**The important caveat: S3, S4 and S5 are pure and unreachable.** The application
+layer still calls `computeNetWorth`, `computeCashflow` and `summariesAtPrepared`
+directly, so the checkpoint work delivers no latency improvement yet. S7 is what
+makes it real,
 and it needs a design decision the original plan did not anticipate:
 `DerivedStore.lookupOrCompute` is a *memoizing* API with no put operation, so a
 checkpoint map that a request updates cannot be written back through it. The
@@ -437,23 +438,88 @@ The single biggest win: 1.20 s (timeline) + 1.64 s (drill-down) at 50k.
 Highest correctness risk in the plan, because it moves accumulation out of
 hledger. Gate it behind S3's harness.
 
-- [ ] Cache, per (query, commodity), the raw **unvalued** cumulative balances per
-      account at sparse checkpoint months.
-- [ ] For months after a checkpoint, obtain deltas from one `CalcChange` /
-      `PerPeriod` **unvalued** report restricted to the suffix date range, and
-      accumulate with `(+)` per account. This is the only new arithmetic; hledger
-      still produces the deltas.
-- [ ] Value each accumulated column `AtEnd` using the journal's existing price
-      oracle. Reuse the in-repo valuation path (`conversionFromMixed`, and the
-      `Day -> MixedAmount -> MixedAmount` shape already used by
-      `InvestmentPerformanceContext.valueAt`) — do not hand-roll valuation.
-- [ ] Cache unclipped `breakdownRows`; keep depth collapsing as a projection, as
-      `breakdownItemsFor` already does with `atDepth`.
-- [ ] Extend `PeriodReportSpec`: for every fixture × granularity × commodity ×
-      depth, the checkpointed columns, missing sets and breakdown items must equal
-      the current full consolidated report exactly.
-- [ ] Pin the yearly-from-monthly projection with its own cases before relying on
-      it.
+- [x] Done, pure only — `Domain.Internal.NetWorthCheckpoint` plus
+      `Domain.NetWorth.computeNetWorthResumed`, with `computeNetWorth` and the
+      `currentAssetCashBalance` / `currentLiabilityBalance` oracles retained
+      unchanged. Not yet wired to a cache.
+- [x] `OpeningBalances` caches, per (canonical query text and its reference date,
+      commodity, month end, checkpoint hash), the raw **unvalued** cumulative
+      balances per account.
+- [x] Later months are extended by deltas from one unvalued `CalcChange` /
+      `PerPeriod` report over the suffix, accumulated per account with `maPlus`.
+      The delta report is always **monthly**, whatever the request's granularity:
+      a year end is also a month end, so one shape of delta report serves both.
+- [x] Each accumulated column is valued `AtEnd` at the column's own inclusive end
+      date by `Internal.PeriodReport.reportValuation`, which is hledger's
+      `mixedAmountValueAtDate` over the **report journal's** oracle and styles —
+      the price-truncated journal, not the snapshot's.
+- [x] Rows are cached unclipped and per account; depth stays a projection through
+      the existing `breakdownItemsFor`.
+- [x] `NetWorthCheckpointSpec`: every fixture × granularity × commodity × three
+      depths, comparing column totals, missing sets and the breakdown of *every*
+      column, plus the same comparison through `computeNetWorth`'s figures.
+- [x] Yearly is not projected from monthly columns at all — see the corrections
+      below. It is accumulated from monthly deltas and valued at the year end,
+      which is what makes it identical rather than merely additive.
+
+### Five corrections established while implementing S4 (net worth)
+
+1. **The equivalence is exact, and it rests on one line of hledger.**
+   `MultiBalanceReport` computes a historical row as
+   `historical = avalue $ cumulativeSum unvaluedChanges`: it sums *unvalued*
+   per-period changes and values the result once per column, at that column's
+   inclusive end day taken from `dayPartitionToPeriodData`. So the resumed path is
+   not an approximation of hledger's arithmetic, it is the same arithmetic with
+   the prefix of the sum supplied from a checkpoint. If that line ever changes to
+   value before summing, this slice fails silently and completely.
+2. **The row set needs no zero-row elision, because hledger elides nothing here.**
+   `isBoring` drops a flat row only when its balance looks zero in every column
+   *and* its posting count is zero in every column — but with `Historical`
+   accumulation those counts are cumulative, since `cumulativeSum` folds
+   `BalanceData` with a `Semigroup` that adds `bdnumpostings`. Every account with
+   a posting anywhere at or before the report's end therefore keeps a row,
+   including one that closed to zero years ago. An earlier revision of this slice
+   reimplemented the elision and dropped exactly those rows; because a
+   consolidated report's per-side totals are the sum of its *retained* rows, that
+   is a wrong total waiting for a journal where the row is not exactly zero.
+   Pinned by `retainedRowsAgree`; the whole fixture sweep passes with the bug in.
+3. **`amountLooksZero` is not a display-precision test on report amounts.** Report
+   amounts carry the precision of their own quantity rather than the journal's
+   declared commodity style — even after valuation, where the converted amount
+   takes the precision of the result. Two hand-built fixtures that were supposed
+   to produce a "looks zero but is not" row both failed to, which is what led to
+   correction 2.
+4. **The valuation journal must be the report's, not the snapshot's.** hledger
+   expands the final interval to its calendar boundary, so the last column is
+   valued at a date that can fall *after* `latestJournalDate`. The report journal
+   already truncates price directives there; valuing from `snapshot.journal`
+   instead sees a directive the report cannot, and the future-price fixture
+   catches it immediately. `Domain.Valuation.valueMixedAt` is therefore the wrong
+   entry point for this, and it also rebuilds the price oracle per date.
+5. **A query's reference date belongs in the key.** A query text is resolved
+   against `snapshot.latestJournalDate`, so a relative term such as
+   `date:thismonth` denotes a different span once an append moves that date, and
+   it can restate arbitrarily old columns — which the month chain, diverging only
+   at the appended month, does not catch. `QueryKey` carries the reference date
+   alongside the text for that reason. Any later family keyed on query text needs
+   the same.
+
+Two smaller notes:
+
+- **The yearly report gains nothing from checkpoints.** Its window is the whole
+  journal, so the day it would open from is the December before the journal
+  begins, which has no chain entry. Monthly is where the win is: the window is the
+  last 24 months, so a resume replaces a full-history posting pass with a delta
+  report over the tail.
+- **Retention must be sparse here, unlike S3.** One month's
+  `Map AccountName MixedAmount` shares no structure with the next, so dense
+  retention costs `months × accounts`. Measured on the fixtures: 5,000-transaction
+  journal, 29 retained months and 870 account entries against 209 candidate
+  months; 50,000-transaction journal, 73 retained months and 2,190 entries against
+  1,036 candidate months — roughly an eighth and a thirteenth of dense. The policy
+  is S3's dense-tail-plus-twelfth-month grid *plus the window's own opening month*,
+  which the grid retains only by luck and which is the one month a monthly request
+  actually resumes from.
 
 ### S5 — Checkpoint cashflow, holdings and activity
 

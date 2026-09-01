@@ -184,7 +184,7 @@ periodicBalanceReportIn
         reportPeriod = case window of
             Just (from, to) -> Hledger.PeriodBetween from (addDays 1 to)
             Nothing ->
-                windowPeriod (selectedWindow granularity (windowColumns snapshot transactions granularity accountTypes))
+                windowPeriod (periodicBalanceColumns snapshot transactions granularity accountTypes)
         baseReportOptions = balanceOptions granularity calculation accumulation depth
         reportOptions =
             baseReportOptions
@@ -293,7 +293,11 @@ windowColumns snapshot transactions granularity accountTypes =
     windowSpec =
         HledgerReportOptions.defreportspec
             { HledgerReportOptions._rsReportOpts =
-                balanceOptions granularity HledgerReportOptions.CalcChange HledgerReportOptions.Historical Nothing
+                balanceOptions
+                    granularity
+                    HledgerReportOptions.CalcChange
+                    HledgerReportOptions.Historical
+                    Nothing
             , HledgerReportOptions._rsDay = fromMaybe epoch snapshot.latestJournalDate
             , HledgerReportOptions._rsQuery = windowQuery
             }

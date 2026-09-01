@@ -104,6 +104,12 @@ netWorthCheckpointSpec =
             "the rows hledger retains for a closed account and a residual are retained too"
             retainedRowsAgree
         , testCase
+            "a filtered query resumes over the same columns the unchecked report has"
+            filteredQueryColumnsAgree
+        , testCase
+            "a residual that cancels within a year is missing from its months but not from the year"
+            missingSetIsNotAdditiveAcrossMonths
+        , testCase
             "a withheld KPI stays withheld when the columns are resumed"
             withheldKpiSurvivesResume
         , testCase
@@ -149,7 +155,9 @@ assertResumedReportMatches snapshot granularity commodity depth = do
         partial = resume (earlierOpenings query commodity chain cold.openings) granularity commodity
     assertBool "the cold sweep must accumulate rather than fall back" cold.accumulated
     assertEqual "the cold sweep has nothing to resume from" Nothing cold.resumedFrom
-    assertBool "the cold sweep must retain at least one opening balance" (openingBalanceCount cold.openings > 0)
+    assertBool
+        "the cold sweep must retain at least one opening balance"
+        (openingBalanceCount cold.openings > 0)
     assertBool "the warm sweep must accumulate rather than fall back" warm.accumulated
     assertEqual
         "the warm sweep resumes from the newest retained opening at or before the window"
@@ -201,7 +209,8 @@ assertReportsAgree snapshot granularity commodity depth full (label, resumed) = 
         ]
   where
     periods = reportPeriodsFrom granularity full
-    periodKeys report = [(period.key, period.start, period.end) | period <- reportPeriodsFrom granularity report]
+    periodKeys report =
+        [(period.key, period.start, period.end) | period <- reportPeriodsFrom granularity report]
     sideOf types report = reportSide snapshot.journal types report
     assertSideAgrees (side, types) = do
         let expected = sideOf types full
@@ -249,7 +258,18 @@ assertResumedFiguresMatch snapshot granularity commodity = do
         chain = chainOf snapshot.journal
         expected = computeNetWorth snapshot matched granularity commodity Nothing Nothing 2 2
         resumed openings =
-            computeNetWorthResumed snapshot matched query chain openings granularity commodity Nothing Nothing 2 2
+            computeNetWorthResumed
+                snapshot
+                matched
+                query
+                chain
+                openings
+                granularity
+                commodity
+                Nothing
+                Nothing
+                2
+                2
         (cold, warmed) = resumed emptyOpeningBalances
         (warm, _) = resumed warmed
     assertFiguresEqual "empty seed" expected cold
@@ -305,7 +325,7 @@ error made by both.
 -}
 monthEndBoundaryCountedOnce :: IO ()
 monthEndBoundaryCountedOnce =
-    withTemporaryJournal "boundary" (monthlyDeposits 26 [(fromGregorian 2022 2 28, "1000.00")]) $ \snapshot -> do
+    withTemporaryJournal "boundary" boundaryJournal $ \snapshot -> do
         let matched = snapshot.transactions
             query = queryKeyFor snapshot
             chain = chainOf snapshot.journal
@@ -329,6 +349,13 @@ monthEndBoundaryCountedOnce =
             "which is what the unchecked report reads too"
             (firstAssetColumn snapshot "INR" (assetLiabilityPeriodicReport snapshot matched Monthly "INR"))
             (firstAssetColumn snapshot "INR" warm.report)
+
+{- | The whole of a snapshot resumed from nothing: the shape every case that only
+needs the openings a cold sweep produces asks for.
+-}
+resumeAll :: Snapshot -> QueryKey -> PrefixChain -> ResumedBalanceSheet
+resumeAll snapshot query chain =
+    assetLiabilityResumed snapshot snapshot.transactions query chain emptyOpeningBalances Monthly "INR"
 
 firstAssetColumn :: Snapshot -> Text -> HledgerMultiBalance.MultiBalanceReport -> Maybe Decimal
 firstAssetColumn snapshot commodity report =
@@ -364,8 +391,16 @@ staleChainHashIsIgnored =
                     "INR"
                 ).openings
             full = assetLiabilityPeriodicReport after after.transactions Monthly "INR"
+            beforeReport = assetLiabilityPeriodicReport before before.transactions Monthly "INR"
             resumed =
-                assetLiabilityResumed after after.transactions (queryKeyFor after) afterChain stored Monthly "INR"
+                assetLiabilityResumed
+                    after
+                    after.transactions
+                    (queryKeyFor after)
+                    afterChain
+                    stored
+                    Monthly
+                    "INR"
         assertBool "the earlier revision must have produced openings" (openingBalanceCount stored > 0)
         assertEqual
             "the insertion must diverge at its own month"
@@ -378,7 +413,7 @@ staleChainHashIsIgnored =
         assertEqual "no stale opening may be reused" Nothing resumed.resumedFrom
         assertBool
             "the inserted transaction must move the numbers, or this proves nothing"
-            (firstAssetColumn after "INR" full /= firstAssetColumn before "INR" (assetLiabilityPeriodicReport before before.transactions Monthly "INR"))
+            (firstAssetColumn after "INR" full /= firstAssetColumn before "INR" beforeReport)
         assertReportsAgree after Monthly "INR" 2 full ("stale seed", resumed.report)
 
 {- | A commodity declaration changes no transaction, so every month hash is
@@ -394,8 +429,7 @@ globalChangeInvalidatesOpenings =
         let beforeChain = chainOf before.journal
             afterChain = chainOf after.journal
             query = queryKeyFor before
-            cold =
-                assetLiabilityResumed before before.transactions query beforeChain emptyOpeningBalances Monthly "INR"
+            cold = resumeAll before query beforeChain
             month = fromGregorian 2022 1 31
         assertEqual
             "the declaration must change only the global fingerprint"
@@ -457,8 +491,7 @@ truncationDropsFromDivergence =
     withTemporaryJournal "truncate" (monthlyDeposits 26 []) $ \snapshot -> do
         let query = queryKeyFor snapshot
             chain = chainOf snapshot.journal
-            cold =
-                assetLiabilityResumed snapshot snapshot.transactions query chain emptyOpeningBalances Monthly "INR"
+            cold = resumeAll snapshot query chain
             days = openingBalanceDays query "INR" cold.openings
         assertBool "the sweep must retain several months" (length days > 1)
         traverse_
@@ -521,6 +554,96 @@ retainedRowsAgree =
 rowNames :: ReportSide -> [Text]
 rowNames side = HledgerReportTypes.prrFullName <$> side.rows
 
+{- | A filtered query, which is where the report window and the accumulation could
+disagree about which columns exist.
+
+The window's end comes from the whole journal's latest date while its start is
+filled in from the span of the transactions that survive the filter, so a query
+matching only the older half of a journal still produces the journal's final
+columns — several of them with no matching transaction at all. The accumulation
+has to span the same columns, and the transactions it accumulates have to be the
+filtered ones.
+-}
+filteredQueryColumnsAgree :: IO ()
+filteredQueryColumnsAgree =
+    withTemporaryJournal "filtered" (monthlyDeposits 26 []) $ \snapshot -> do
+        let matched =
+                [ transaction
+                | transaction <- snapshot.transactions
+                , transaction.tdescription == "deposit"
+                , transaction.tdate < fromGregorian 2022 9 1
+                ]
+            query = (queryKeyFor snapshot){text = "desc:deposit date:..2022-09"}
+            chain = chainOf snapshot.journal
+            resume granularity =
+                assetLiabilityResumed snapshot matched query chain emptyOpeningBalances granularity "INR"
+            full granularity = assetLiabilityPeriodicReport snapshot matched granularity "INR"
+        assertBool
+            "the filter must drop transactions, or this proves nothing"
+            (length matched < length snapshot.transactions)
+        assertBool "and must leave some" (not (null matched))
+        assertBool "the monthly sweep must accumulate rather than fall back" (resume Monthly).accumulated
+        assertBool "and so must the yearly one" (resume Yearly).accumulated
+        assertReportsAgree snapshot Monthly "INR" 2 (full Monthly) ("monthly", (resume Monthly).report)
+        assertReportsAgree snapshot Yearly "INR" 2 (full Yearly) ("filtered yearly", (resume Yearly).report)
+
+{- | A missing set is not additive across months, and a yearly column must not be
+built as though it were.
+
+The journal buys an unpriced commodity and sells all of it inside one year, so
+every month between the two has an unconvertible residual and the year end has
+none. A yearly column assembled by unioning its months' missing sets would
+withhold a value the report shows. It is safe here because the accumulation sums
+raw amounts and values the result once, exactly as hledger's @cumulativeSum@ does,
+so the residual cancels before anything asks what could not be converted — but
+that is a property of this design rather than of the arithmetic, so it is pinned.
+-}
+missingSetIsNotAdditiveAcrossMonths :: IO ()
+missingSetIsNotAdditiveAcrossMonths =
+    withTemporaryJournal "cancelling" cancellingResidualJournal $ \snapshot -> do
+        let matched = snapshot.transactions
+            query = queryKeyFor snapshot
+            chain = chainOf snapshot.journal
+            full granularity = assetLiabilityPeriodicReport snapshot matched granularity "INR"
+            resume granularity =
+                assetLiabilityResumed snapshot matched query chain emptyOpeningBalances granularity "INR"
+            missingOf report =
+                reportMissing "INR" (reportSide snapshot.journal [Hledger.Asset, Hledger.Cash] report)
+        assertEqual
+            "the monthly report must see the residual, or this proves nothing"
+            (Set.singleton "XAU")
+            (missingOf (full Monthly))
+        assertEqual
+            "and the yearly report must not, because the residual cancels within the year"
+            Set.empty
+            (missingOf (full Yearly))
+        assertReportsAgree snapshot Monthly "INR" 2 (full Monthly) ("monthly", (resume Monthly).report)
+        assertReportsAgree snapshot Yearly "INR" 2 (full Yearly) ("yearly", (resume Yearly).report)
+
+{- | An unpriced commodity bought and sold within one year, and a second year so
+the yearly report has more than one column.
+-}
+cancellingResidualJournal :: Text
+cancellingResidualJournal =
+    Text.unlines
+        [ "2022-03-10 buy an unpriced commodity"
+        , "    assets:brokerage        5 XAU"
+        , "    equity:opening"
+        , ""
+        , "2022-07-15 sell all of it"
+        , "    assets:brokerage       -5 XAU"
+        , "    equity:opening"
+        , ""
+        , "2022-08-01 salary"
+        , "    assets:bank:checking    100.00 INR"
+        , "    income:salary"
+        , ""
+        , "2023-02-10 salary"
+        , "    assets:bank:checking    100.00 INR"
+        , "    income:salary"
+        , ""
+        ]
+
 {- | A commodity the journal never prices leaves the strict KPI withheld, and the
 resumed columns must withhold it for the same reason rather than quietly
 converting a partial sum.
@@ -533,7 +656,18 @@ withheldKpiSurvivesResume =
             chain = chainOf snapshot.journal
             expected = computeNetWorth snapshot matched Monthly "INR" Nothing Nothing 2 2
             (actual, _) =
-                computeNetWorthResumed snapshot matched query chain emptyOpeningBalances Monthly "INR" Nothing Nothing 2 2
+                computeNetWorthResumed
+                    snapshot
+                    matched
+                    query
+                    chain
+                    emptyOpeningBalances
+                    Monthly
+                    "INR"
+                    Nothing
+                    Nothing
+                    2
+                    2
         assertEqual "the fixture must withhold the assets KPI" Nothing expected.currentAssets
         assertBool "and must report a missing commodity" (not (Set.null expected.missing))
         assertFiguresEqual "never priced" expected actual
@@ -573,6 +707,12 @@ distinctMonths :: Int -> [Day]
 distinctMonths count = take count [fromGregorian 2020 1 1 ..]
 
 -- * Journals
+
+{- | The 26-month journal with an extra 1000 INR deposit dated on February's month
+end, which is the day the monthly window opens from.
+-}
+boundaryJournal :: Text
+boundaryJournal = monthlyDeposits 26 [(fromGregorian 2022 2 28, "1000.00")]
 
 {- | @count@ consecutive months from January 2022, each with a deposit and a
 credit-card purchase dated on the month end, plus any extra deposits requested on

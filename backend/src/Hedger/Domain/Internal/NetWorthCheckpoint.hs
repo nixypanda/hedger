@@ -43,6 +43,7 @@ module Hedger.Domain.Internal.NetWorthCheckpoint (
     OpeningBalances,
     emptyOpeningBalances,
     openingBalanceCount,
+    openingBalanceEntries,
     openingBalanceDays,
     lookupOpeningBalances,
     truncateOpeningBalances,
@@ -130,10 +131,11 @@ type AccountBalances = Map Hledger.AccountName Hledger.MixedAmount
 {- | Opening balances at month ends: sparse in the months it retains, complete in
 the accounts each retained month covers.
 
-Completeness in accounts is what makes a resume lossless. The map is stored
-before hledger's zero-row elision is reapplied, so an account that closed to zero
-long ago is still present with its zero balance rather than being silently
-dropped and then missed by a later month that revives it.
+Completeness in accounts is what makes a resume lossless, and it is why the
+accumulation is fed by @PerPeriod@ reports: a report of period /changes/ keeps a
+row for every account posted to within its window whatever that row sums to, so
+an account that closed to zero long ago is carried with its zero balance rather
+than dropped and then missed by a later month that revives it.
 -}
 newtype OpeningBalances = OpeningBalances (Map OpeningKey AccountBalances)
 
@@ -142,6 +144,16 @@ emptyOpeningBalances = OpeningBalances Map.empty
 
 openingBalanceCount :: OpeningBalances -> Int
 openingBalanceCount (OpeningBalances stored) = Map.size stored
+
+{- | Total per-account entries held across every retained month.
+
+The size that matters. Unlike the investment slice's accumulators, whose
+cons-shared cash-flow lists made dense retention almost free, one month's
+balances share no structure with the next, so retained bytes grow with
+@months x accounts@ and the retention policy has to be sparse.
+-}
+openingBalanceEntries :: OpeningBalances -> Int
+openingBalanceEntries (OpeningBalances stored) = sum (Map.size <$> Map.elems stored)
 
 -- | The retained month ends for one query and commodity, oldest first.
 openingBalanceDays :: QueryKey -> Text -> OpeningBalances -> [Day]
@@ -510,8 +522,8 @@ forceMixed amount =
 -- | 'seq' on a 'Data.Decimal.Decimal' stops at its constructor, leaving the mantissa a thunk.
 forceAmount :: Hledger.Amount -> ()
 forceAmount amount =
-    Text.length amount.acommodity
-        `seq` amount.acost
-        `seq` decimalPlaces amount.aquantity
-        `seq` decimalMantissa amount.aquantity
-        `seq` ()
+    Text.length amount.acommodity `seq`
+        amount.acost `seq`
+            decimalPlaces amount.aquantity `seq`
+                decimalMantissa amount.aquantity `seq`
+                    ()
