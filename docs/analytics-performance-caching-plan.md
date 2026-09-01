@@ -1,7 +1,7 @@
 # Analytics caching plan: checkpointed folds over an immutable history
 
-_Status: S0–S5, S7 and S8 implemented, wired and green at 1001 tests; S6 and the
-end-to-end latency measurement remain · Last updated: 2026-09-01_
+_Status: S0–S5, S7 and S8 implemented, wired and green at 1001 tests; end-to-end
+server latency now measured; S6 remains · Last updated: 2026-09-01_
 
 Part of the [analytics performance index](analytics-performance-plan.md). This is
 the only remaining optimization phase. Prerequisites are complete: see
@@ -38,11 +38,16 @@ lock-free because checkpoint maps are monotone under a fixed chain — two reque
 computing the same key compute the same value — with a revision guard to stop a
 request resurrecting checkpoints for a chain that has since been truncated.
 
-**Still outstanding: no end-to-end latency measurement.** Every figure in this
-document is a component or benchmark-harness number. Nobody has yet measured a
-cold request, a warm request and a post-append request against the running
-server, which is the only measurement that answers whether this work achieved its
-goal. Do that before declaring the phase complete.
+**Done 2026-09-01: see [end-to-end server
+measurements](#end-to-end-server-measurements).** Cold, warm-cached,
+warm-uncached-dimension and post-append latency have now been measured against
+the running server for all four analytics endpoints on both fixtures, with
+reload-to-ready and memory, by `scripts/measure_analytics_latency.py`. The
+headline: the 200 ms target is met only when the response cache hits, the
+checkpoints remove about half the cost of an uncached net-worth or cashflow
+request, and reload-to-ready is 11.5–16.0 s rather than the milliseconds the
+"Expected outcome" table predicts. Every other figure in this document remains a
+component or benchmark-harness number.
 
 ## The idea
 
@@ -693,6 +698,227 @@ added.**
 S0–S2 make repeat and post-warm requests interactive. S3–S5 make the *rebuild*
 cheap, which is what keeps the service interactive while someone is actively
 editing their journal — the case the current design handles worst.
+
+**This table has now been measured against the running server and two of its
+three columns are wrong.** See
+[end-to-end server measurements](#end-to-end-server-measurements) below.
+
+## End-to-end server measurements
+
+_Measured 2026-09-01 against `perf/analytics-caching` at `0eb03ed`._
+
+The first figures in this document taken from the **running server** rather than
+from `benchmark/Main.hs` or a component. Reproduce with:
+
+```
+cd backend && cabal build --enable-optimization=2 hedger-server
+python3 scripts/measure_analytics_latency.py --size 50000
+```
+
+`scripts/measure_analytics_latency.py` starts real `hedger-server` processes
+against a temporary copy of a fixture, drives them over HTTP, and prints the
+tables below. It refuses port 8080.
+
+### Verdict on the 200 ms target
+
+**The 200 ms interactive target is met at 50,000 transactions only when the S0b
+response cache hits.** In that state every endpoint answers in 0.7–16 ms, which
+beats the target by an order of magnitude. In every other state it is met by
+`cashflow/query` alone. `net-worth/query`, `investments/query` and
+`activity/query` miss it in all four other states — by 2.5×, 18× and 4.5×
+respectively even in their best non-cached state.
+
+| Endpoint | Cold | Warm cached | Warm, response miss (checkpoints usable) | Warm, response miss (checkpoints unusable) | Commodity switch | After append |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|
+| `cashflow/query` | met | met | met | met (177 ms) | **no** | met |
+| `net-worth/query` | no | met | no | no | **no** | no |
+| `activity/query` | no | met | no | no | **no** | no |
+| `investments/query` | no | met | no | no | **no** | no |
+
+So caching converted the target from *unreachable* (the flow phase concluded it
+could not be reached by request-local optimization) to *reachable on a repeat
+view*. That is a real change in what the product can feel like, because the
+dashboard's default view is a repeat view for every load after the first. It is
+not the same as meeting the target, and the goals section should not be read as
+satisfied.
+
+### 50,000-transaction fixture
+
+Binary `hedger-server` at `-O2` with its own `-threaded -rtsopts
+-with-rtsopts=-N`; `+RTS -s` confirms `using -N12`. Journal is a working copy of
+`examples/performance/india-us-portfolio-large-50000.journal`. Median [min–max]
+over 5 samples per cell; `n=` where fewer distinct dimensions exist.
+
+| Endpoint | 1. Cold | 2. Warm cached | 3a. Response miss, checkpoint keys shared | 3b. Response miss, checkpoint keys changed | 3c. Commodity switch | 4a. After append (today) | 4b. After append (journal tail) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `net-worth/query` | 557 ms [540–642] | **0.9 ms** [0.8–0.9] | 511 ms [502–570] | 923 ms [884–970] | 1.52 s [1.35–1.69] | 625 ms [455–692] | 532 ms [479 ms–2.19 s] |
+| `cashflow/query` | 135 ms [125–152] | **0.7 ms** [0.6–0.8] | 86 ms [81–89] | 177 ms [173–279] | 1.40 s [1.38–1.41] | 133 ms [95–151] | 125 ms [120–234] |
+| `investments/query` | 4.88 s [4.28–4.96] | **0.8 ms** [0.7–0.9] | 3.71 s [3.52–7.64] (n=3) | 4.57 s [3.41–7.36] | 67.8 s [60.6–75.1] | 4.44 s [3.86–4.59] | 4.65 s [4.02–5.93] |
+| `activity/query` | 1.64 s [1.39–3.23] | **16 ms** [16–20] | 1.35 s [1.23–1.40] (n=4) | 902 ms [666 ms–1.35 s] | 90.7 s [89.3–92.0] | 1.43 s [1.12–1.98] | 1.33 s [1.20–1.65] |
+
+- HTTP floor (`GET /api/v1/health/ready`): **0.3 ms**. Routing, JSON and
+  loopback are a rounding error at every latency above, so these are compute
+  numbers.
+- Boot, process start to first served response: **18.0 s** [16.2–18.4].
+- Reload-to-ready, append dated today: **16.0 s** [14.0–17.2].
+- Reload-to-ready, append at the journal tail: **11.5 s** [11.0–11.8].
+- Memory of a booted, warmed, otherwise idle server: **649 MiB** peak total
+  memory in use, **199 MiB** maximum residency, 31.7 GiB allocated.
+- Largest response body: `activity/query` at 0.64 MiB; the other three are ≤0.01
+  MiB.
+
+### 5,000-transaction fixture
+
+| Endpoint | 1. Cold | 2. Warm cached | 3a. Checkpoint keys shared | 3b. Checkpoint keys changed | 3c. Commodity switch | 4a. Append (today) | 4b. Append (tail) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `net-worth/query` | 131 ms [121–139] | 0.6 ms | 125 ms [111–141] | 154 ms [141–168] | 509 ms [464 ms–1.18 s] | 113 ms [105–137] | 147 ms [118–158] |
+| `cashflow/query` | 27 ms [23–30] | 0.7 ms | 9.8 ms [9.2–10] | 39 ms [38–47] | 1.02 s [904 ms–1.15 s] | 25 ms [22–30] | 11 ms [8.6–18] |
+| `investments/query` | 372 ms [368–400] | 0.7 ms | 491 ms [365–565] (n=3) | 544 ms [332–938] | 5.73 s [4.86–7.54] | 350 ms [338–820] | 364 ms [328–395] |
+| `activity/query` | 198 ms [155–235] | 23 ms [15–59] | 182 ms [152–206] (n=4) | 167 ms [158–404] | 12.4 s [10.5–17.1] | 173 ms [164–375] | 205 ms [137–228] |
+
+Boot 1.64 s; reload-to-ready 1.52 s (today) and 1.29 s (tail); 139 MiB peak, 27
+MiB maximum residency.
+
+### Figures in this document that the server contradicts
+
+1. **The "After S3–S5 (append edit)" column is wrong by three orders of
+   magnitude.** It predicts "rebuild ~ms, not ~741 ms" and "rebuild ~tens of
+   ms". The measured reload-to-ready after appending one transaction is **11.5
+   s** at best and **16.0 s** for an edit inside history. The checkpoints do
+   make the *post-reload request* cheaper than a from-scratch computation, but
+   the reload itself is still seconds, so a journal save is not interactive at
+   50,000 transactions. The claim that cost after an edit scales "with the
+   recency of the edit rather than with journal size" is not yet true.
+2. **The "After S0–S2 (warm)" column of ~1–5 ms is right only for a repeat of an
+   identical request.** It is achieved (0.7–0.9 ms, better than predicted). A
+   post-warm request on any *other* dimension costs 86 ms to 3.71 s, because the
+   response cache is keyed on the full request dimension and the checkpoints
+   only remove part of the work. The table conflates the two and should say
+   which it means.
+3. **The S8 chain-encoding fix did not produce a proportional server win.** In
+   the harness it was 5.7× faster on the 50,000 fixture (3.72 s → 649 ms). The
+   server reload before that fix was recorded at ~17 s
+   (`Infrastructure/JournalWatcher.hs:318`); it is now 11.5–16.0 s, and boot is
+   18.0 s. The chain is no longer the leading term, but removing it barely moved
+   the total, so the reload cost was never mostly the chain in the server the
+   way the harness implied. Parse and the eager warm are now the reload.
+4. **The recorded ~4× harness-versus-server discrepancy is not a general
+   property of this codebase, and should not be used as a blanket correction
+   factor.** It holds for the chain pass. It does not hold for the reports.
+   Comparing like-for-like — a full, unchecked, equal-work computation (column
+   3b) against the pre-caching harness baselines at `-N1`:
+
+   | Report | Pre-caching harness, `-N1` | Server, column 3b, `-N12` | Ratio |
+   |---|---:|---:|---:|
+   | Net worth | ~741 ms | 923 ms | 1.25× |
+   | Cashflow | ~196 ms | 177 ms | 0.90× |
+   | Investments (complete) | ~5.27 s | 4.57 s | 0.87× |
+
+   These are *not* strictly like-for-like — different RTS, different code, and
+   the server measurement includes HTTP — but they are the closest available,
+   and they agree within ~1.3×. Any future claim that the server is ~4× the
+   harness needs to be re-established per component.
+5. **`Infrastructure/JournalWatcher.hs:317–321` is stale.** The `forceChain`
+   docstring still says the chain is "where a rebuild's time actually goes, and
+   by a wide margin: ~15.5 s of the ~17 s rebuild", which S8 invalidated and
+   which `warmDefaultView`'s docstring at line 248 of the same file already
+   contradicts. Not fixed here to keep this change to `docs/` and `scripts/`.
+6. **The status table's "S5 — Done" covers only the cashflow third of S5.** The
+   slice's own checklist leaves holdings and activity unchecked, and the
+   measurement confirms activity is unwired: `Application.Analytics.activity`
+   never calls `usableCheckpoints`, so `activity/query` has the response cache
+   and nothing else. That is why its column 3a and 3b are the same number.
+
+### What the checkpoints are actually worth
+
+Columns 3a and 3b are a controlled pair for net worth and cashflow: 3b uses
+sentinel queries (`not:desc:zzzzq1` …) that match every transaction, so both
+columns do identical work and differ only in whether the request's checkpoint
+keys match the warm set's. The script asserts the two return identical reports.
+
+| Report | 3a (checkpoints usable) | 3b (not usable) | Saving |
+|---|---:|---:|---:|
+| Net worth | 511 ms | 923 ms | 1.81× |
+| Cashflow | 86 ms | 177 ms | 2.06× |
+
+So the S4/S5 checkpoints remove roughly **half** the cost of an uncached
+net-worth or cashflow request. That is a genuine result and it is the number no
+existing benchmark covered. It is also not enough: net worth still needs another
+2.5× to reach 200 ms, and the remaining 511 ms is by construction *not* the fold
+the checkpoints replaced, so a second round of the same technique cannot find it.
+
+For investments there is no dimension that misses the response cache while
+sharing the warm set's checkpoint keys — there is no depth dimension, and scope
+and commodity are both in `CheckpointKey` — so column 3a can only use
+granularity and the commodity alias, and column 3b is not equal-work (a narrower
+scope does less work). The S3 scope-scan checkpoints therefore pay off only on
+the exact warmed dimension and after an append, not on navigation.
+
+### The commodity switch is the worst state and was not on anyone's list
+
+Switching the display commodity away from the configured default invalidates
+every checkpoint, because the commodity is in every checkpoint key, and it is
+also a new response-cache dimension. At 50,000 transactions this costs **67.8 s
+for investments and 90.7 s for activity** — worse than any figure recorded
+anywhere in this phase, and reachable from the UI. It is already bad at 5,000
+transactions (5.73 s and 12.4 s). Whatever S6 does, this state deserves its own
+line item; the caches currently make it no better than uncached, and the eager
+warm covers only the default commodity by design.
+
+### Other observations from the server that a harness cannot show
+
+- **There is no cold-start stampede, because there is no cold start.**
+  `runServer` completes the boot reload and `rebuildAfterReload` *before* Warp
+  binds the socket, so the first request a client can make already has warm
+  checkpoints. The cost shows up as an 18.0 s delay before the port opens, not
+  as a slow first request. Column 1 is therefore "response cache empty,
+  checkpoints warm", which is the worst state a client can actually observe.
+- **A fifth to a third of the CPU goes to GC under `-N`.** For the 50,000
+  boot-plus-warm-plus-four-requests process, `+RTS -s` reports `Productivity
+  76.0% of total user` with `Parallel GC work balance: 38.73%` and 31.7 GiB
+  allocated; the 5,000 runs sit at 67.2% and 29.01%. Wall-clock at `-N12` is
+  nonetheless no worse than the `-N1` harness baselines (table above), so the
+  recorded "parallelism regresses" finding is about total CPU and allocation,
+  not about latency.
+- **The checkpoint caches are not byte-budgeted.** The response store has a 64
+  MiB budget; the checkpoint caches live in `DerivedState` and have none. A
+  warmed server holds 199 MiB maximum residency against a 17.5 MB journal file.
+  The "bound memory use" goal is only half implemented, which is S6.
+- **An append inside history costs ~40% more than an append at the tail** (16.0
+  s against 11.5 s), which is the checkpoint truncation working as designed.
+  Note both fixtures are future-dated to 2073, so a transaction dated *today*
+  lands mid-history and condemns ~46 years of checkpoints; a real journal's
+  newest entry behaves like the tail case. Both are reported because reporting
+  only one would mislead.
+
+### Measurement limits
+
+- **Cache hits are inferred, never read.** `readCacheMetrics`
+  (`Infrastructure/DerivedStore.hs:301`) and `readRebuildMetrics`
+  (`Infrastructure/DerivedRevision.hs:271`) expose exactly what this measurement
+  wanted — hit, miss, eviction and waiter counts, held bytes, retained
+  checkpoint counts, and `lastDuration` for the last rebuild — and **neither has
+  any HTTP surface**; both are referenced only from `DerivedStoreSpec` and
+  `DerivedRevisionSpec`. No endpoint was added. Every cache-hit claim above
+  rests on latency plus the 3a/3b control, which is why that control was built.
+  Exposing these two records on a diagnostics endpoint would make this
+  measurement direct instead of circumstantial, and is the single highest-value
+  observability change available.
+- **The access log carries no duration.** Responses echo `X-Request-ID`
+  (`Interface/HTTP/Middleware.hs:30`), but `RequestLogger.logStdout` writes
+  Apache-format lines with no timing, so a request ID cannot separate compute
+  from transport. The 0.3 ms HTTP floor is the substitute.
+- **`ps -o rss` needs a macOS entitlement that is not granted here**, so memory
+  comes from `+RTS -s` at a clean exit — which is better evidence anyway,
+  because it separates maximum live residency from peak address space.
+- **GHC block-buffers stdout when it is not a terminal**, so the "Rebuilt
+  derived analytics data" line does not arrive until the process exits over a
+  pipe. The script runs the server on a pty for this reason. Anything that
+  scrapes these logs for timing needs the same treatment.
+- Reload-to-ready is measured from the `fsync`ed write to the first
+  `/api/v1/bootstrap` response carrying both a *new* `metadata.revision` and
+  `freshness == "fresh"`. Both halves are needed: `fresh` alone is still true of
+  the previously published revision. The 100 ms watcher debounce is included.
 
 ## Risks
 
