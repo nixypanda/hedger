@@ -241,6 +241,16 @@ which is the entire point of rebuilding eagerly.
 Monthly only. A yearly net-worth or cashflow request spans all history, so the
 month it would open from precedes the journal and has no chain entry to key a
 checkpoint on; warming it would cost a full pass and cache nothing.
+
+Measured on @examples/performance/india-us-portfolio-large-50000.journal@
+(50,000 transactions, 1,036 months): the warm costs about 1.4 s against empty
+caches and about 0.15 s once they are retained. Both are small next to the
+~15.5 s 'forceChain' pass in the same rebuild, so this is not what makes a
+reload expensive. Note the shape though: resuming from an /empty/ cache is
+dearer than not resuming at all (1.2 s against 0.375 s for @computeNetWorth@),
+because the delta report and the checkpoint stores are paid without a prefix to
+skip. A 'GlobalChanged' edit therefore pays a little extra here to make every
+subsequent edit cheap.
 -}
 warmDefaultView :: DerivedTargets -> Snapshot -> PrefixChain -> DerivedCaches -> DerivedCaches
 warmDefaultView derived snapshot chain caches =
@@ -302,6 +312,12 @@ defaultDepth = 2
 {- | Forcing the rolling hashes here keeps the chain pass inside the rebuild's
 measured window instead of deferring it into whichever request first inspects
 the chain.
+
+This is where a rebuild's time actually goes, and by a wide margin: ~15.5 s of
+the ~17 s rebuild on the 50,000-transaction fixture, against ~7 s to parse the
+journal and ~1.4 s for every checkpoint the warm below computes. Whatever the
+checkpoints save a request, a reload of a large journal cannot currently get
+below the cost of hashing its history.
 -}
 forceChain :: PrefixChain -> IO ()
 forceChain chain = traverse_ (evaluate . snd) chain.months
