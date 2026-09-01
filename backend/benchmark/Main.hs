@@ -31,6 +31,7 @@ import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
 import Hedger.Domain.Fingerprint (GlobalFingerprint (..), Hash (..), PrefixChain (..))
 import Hedger.Domain.Fingerprint qualified as Fingerprint
 import Hedger.Domain.Internal.Cashflow qualified as Cashflow
+import Hedger.Domain.Internal.FamilyRelevance (familyRelevance)
 import Hedger.Domain.Internal.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Internal.NetWorth qualified as NetWorth
 import Hedger.Domain.Investment (
@@ -165,6 +166,11 @@ fixtureBenchmarks (name, path) =
                     "fingerprint"
                     [ bench "prefix-chain" $ nf (chainWeight (benchmarkConfig path)) snapshot
                     , bench "global" $ nf (globalWeight (benchmarkConfig path)) snapshot
+                    , bench "file-hashes" $ nf fileHashesWeight snapshot
+                    , bench "family-chains-cold" $
+                        nf (familyChainWeight Nothing (benchmarkConfig path)) snapshot
+                    , bench "family-chains-reused" $
+                        nf (familyChainWeight (Just input.previousChains) (benchmarkConfig path)) snapshot
                     ]
                 , bgroup
                     "cashflow-parts"
@@ -207,6 +213,7 @@ data FixtureInput = FixtureInput
     , xirrFlows :: [Xirr.CashFlow]
     , investmentCashFlows :: [Xirr.CashFlow]
     , page :: [Hledger.Transaction]
+    , previousChains :: Fingerprint.FamilyChains
     }
 
 instance NFData FixtureInput where
@@ -216,7 +223,8 @@ instance NFData FixtureInput where
                 rnf input.monthEnds `seq`
                     rnf (length (show input.xirrFlows)) `seq`
                         rnf (length (show input.investmentCashFlows)) `seq`
-                            rnf (forcePostingContents input.page)
+                            rnf (forcePostingContents input.page) `seq`
+                                rnf (chainsWeight input.previousChains)
 
 {- | Force everything a fixture's benchmarks read out of a snapshot, so 'env'
 pays derivation cost up front rather than inside a timed benchmark. hledger
@@ -285,6 +293,7 @@ loadFixtureInput path = do
             , -- A production transactions page is capped at 'maximumPageLimit' (200),
               -- so projection/encoding never see more than that many rows.
               page = take 200 snapshot.transactions
+            , previousChains = familyChainsOf Nothing configuration snapshot
             }
 
 benchmarkConfig :: Text.Text -> Config
@@ -633,6 +642,60 @@ chainWeight configuration snapshot =
             (Fingerprint.globalFingerprint snapshot.journal configuration)
             snapshot.transactions
             snapshot.journal.jpricedirectives
+
+{- | The whole-journal chain plus all three family chains.
+
+Passing the previous reload's chains is what engages the per-file pre-filter, and
+the two benchmark cases bracket its value: @Nothing@ measures a reload that has to
+hash every month, @Just@ over the same journal measures one where every file is
+byte-identical and no month needs hashing at all. A real edit falls between them
+in proportion to how much of the journal the edited file covers.
+-}
+familyChainWeight :: Maybe Fingerprint.FamilyChains -> Config -> Snapshot -> Int
+familyChainWeight previous configuration snapshot =
+    chainsWeight (familyChainsOf previous configuration snapshot)
+
+familyChainsOf :: Maybe Fingerprint.FamilyChains -> Config -> Snapshot -> Fingerprint.FamilyChains
+familyChainsOf previous configuration snapshot =
+    Fingerprint.familyChains
+        relevance
+        previous
+        snapshot.journal
+        (Fingerprint.globalFingerprint snapshot.journal configuration)
+        snapshot.transactions
+        snapshot.journal.jpricedirectives
+  where
+    relevance =
+        familyRelevance
+            snapshot.journal
+            configuration.assetClassMappings
+            configuration.investmentMappings
+
+{- | Force every chain to the last character of every digest. @months@ is derived
+from @monthContents@ by the rolling fold, so forcing the months forces the content
+digests behind them; a weight that only reached the fields would force one cons
+cell and measure nothing.
+-}
+chainsWeight :: Fingerprint.FamilyChains -> Int
+chainsWeight chains =
+    sum (chainMonthsWeight <$> chains.whole : fmap (`Fingerprint.chainFor` chains) Fingerprint.everyFamily)
+        + sum [Text.length digest | Hash digest <- Map.elems chains.files]
+        + sum [Text.length digest | Hash digest <- Map.elems chains.monthShapes]
+
+chainMonthsWeight :: PrefixChain -> Int
+chainMonthsWeight chain =
+    sum [length (show day) + Text.length digest | (day, Hash digest) <- chain.months]
+
+{- | What a per-file pre-filter would have to pay on every reload before it could
+skip anything: one content hash per included journal file.
+-}
+fileHashesWeight :: Snapshot -> Int
+fileHashesWeight snapshot =
+    sum
+        [ Text.length digest
+        | (_, contents) <- snapshot.journal.jfiles
+        , let Hash digest = Fingerprint.hashText contents
+        ]
 
 globalWeight :: Config -> Snapshot -> Int
 globalWeight configuration snapshot =

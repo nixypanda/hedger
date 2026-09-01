@@ -57,6 +57,7 @@ library
     Hedger.Domain.Internal.Account
     Hedger.Domain.Internal.Cashflow
     Hedger.Domain.Internal.CashflowCheckpoint
+    Hedger.Domain.Internal.FamilyRelevance
     Hedger.Domain.Internal.InvestmentCheckpoint
     Hedger.Domain.Internal.InvestmentPerformance
     Hedger.Domain.Internal.NetWorth

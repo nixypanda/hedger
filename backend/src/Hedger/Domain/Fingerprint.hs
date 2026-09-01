@@ -18,6 +18,14 @@ module Hedger.Domain.Fingerprint (
     globalFingerprint,
     hashText,
     prefixChain,
+
+    -- * Per-family chains
+    ReportFamily (..),
+    FamilyChains (..),
+    everyFamily,
+    familyChains,
+    chainFor,
+    diffFamilyChains,
 )
 where
 
@@ -32,6 +40,8 @@ import Data.Decimal qualified as Decimal
 import Data.List qualified as List
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
@@ -41,6 +51,7 @@ import Data.Time.Calendar qualified as Calendar
 import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Journal qualified as HledgerJournal
 import Hledger.Data.Types qualified as Hledger
+import Hledger.Utils.Parse qualified as HledgerParse
 
 import Hedger.Config (Config (..))
 
@@ -64,10 +75,24 @@ data GlobalFingerprint = GlobalFingerprint
 {- | A Merkle chain over journal history: one entry per month that contains at
 least one entry, oldest first, where each hash covers every entry dated at or
 before that month end.
+
+@monthContents@ is the same history one level down: the digest of each month's
+/own/ entries, before the rolling fold turns it into a prefix hash. It is
+retained because it is what the next reload's per-file pre-filter reuses — a
+month whose files are byte-identical keeps its content digest and pays nothing,
+while the fold that turns contents into prefix hashes is re-run in full and so
+still propagates every earlier change. Keeping /content/ digests rather than
+prefix hashes is what makes that sound: a month appearing or vanishing shifts
+every later prefix hash automatically.
+
+Because each month's prefix hash is a function of the content digests up to it,
+the two fields agree by construction and 'Eq' over both is the same relation as
+'Eq' over either.
 -}
 data PrefixChain = PrefixChain
     { global :: !GlobalFingerprint
     , months :: ![(Day, Hash)]
+    , monthContents :: ![(Day, Text)]
     }
     deriving stock (Eq, Show)
 
@@ -107,10 +132,11 @@ prefixChain ::
     [Hledger.PriceDirective] ->
     PrefixChain
 prefixChain fingerprint transactions directives =
-    PrefixChain
-        { global = fingerprint
-        , months = monthChain (sortedEntries transactions directives)
-        }
+    chainFrom
+        fingerprint
+        [ (day, monthContentDigest (entryDigest <$> entries))
+        | (day, entries) <- monthGroups (sortedEntries transactions directives)
+        ]
 
 -- | Compare an older chain against a newer one.
 diffChains :: PrefixChain -> PrefixChain -> ChainDiff
@@ -123,6 +149,261 @@ this day, if that month has an entry.
 -}
 chainHashAt :: PrefixChain -> Day -> Maybe Hash
 chainHashAt chain day = lookup (monthEnd day) chain.months
+
+-- * Per-family chains and the per-file pre-filter
+
+{- | The analytics families whose checkpoints are invalidated independently.
+
+A change at month /m/ only truncates a family that the change can actually
+reach: recategorising one expense to another cannot move an asset column or an
+investment scope scan, and a transfer between two bank accounts cannot move an
+income or expense column.
+-}
+data ReportFamily
+    = NetWorthFamily
+    | CashflowFamily
+    | InvestmentFamily
+    deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+everyFamily :: [ReportFamily]
+everyFamily = [minBound .. maxBound]
+
+{- | The whole-journal chain, one chain per family, and the two things the /next/
+reload needs in order to skip work: a content hash per included journal file, and
+a hash of each month's entry layout.
+
+Every family chain carries an entry for every month the whole chain has, even
+when the family has no relevant entry in it — a constant digest then stands in.
+That keeps all four chains aligned month for month, so a divergence date means
+the same thing in each, and it makes a reused month's lookup in the previous
+chain unconditional.
+-}
+data FamilyChains = FamilyChains
+    { whole :: !PrefixChain
+    , netWorth :: !PrefixChain
+    , cashflow :: !PrefixChain
+    , investments :: !PrefixChain
+    , files :: !(Map FilePath Hash)
+    , monthShapes :: !(Map Day Hash)
+    }
+    deriving stock (Eq, Show)
+
+{- | A family's own chain.
+
+One field per family rather than a @Map ReportFamily PrefixChain@, so that this
+is total without a default. A map would need one, and the only defensible default
+— the whole-journal chain — is unreachable code that reads exactly like a safety
+property: it would silently absorb a family someone forgot to populate, and no
+test could tell. With fields, forgetting one does not compile.
+-}
+chainFor :: ReportFamily -> FamilyChains -> PrefixChain
+chainFor family chains = case family of
+    NetWorthFamily -> chains.netWorth
+    CashflowFamily -> chains.cashflow
+    InvestmentFamily -> chains.investments
+
+-- | Compare one family's chain across two reloads.
+diffFamilyChains :: FamilyChains -> FamilyChains -> ReportFamily -> ChainDiff
+diffFamilyChains old new family = diffChains (chainFor family old) (chainFor family new)
+
+-- | The included files whose contents changed between two reloads.
+changedFiles :: Map FilePath Hash -> Map FilePath Hash -> Set FilePath
+changedFiles old new =
+    Map.keysSet (Map.filterWithKey (\path hash -> Map.lookup path new /= Just hash) old)
+
+{- | Build the whole-journal chain and every family chain in one pass, reusing
+the previous reload's month digests wherever the files behind a month are
+byte-identical.
+
+The pre-filter in front of the hashing is what makes a year-split journal cheap:
+editing @2024.journal@ leaves every month sourced only from earlier years with
+its digest intact, and those months are never re-encoded. It is conservative by
+construction — see 'reusableMonths' for every condition that gives up — because
+a wrongly reused digest is a silently stale journal with no other symptom.
+-}
+familyChains ::
+    {- | Which families a transaction can affect; see
+    "Hedger.Domain.Internal.FamilyRelevance".
+    -}
+    (Hledger.Transaction -> [ReportFamily]) ->
+    -- | The previous reload's chains, if there are any to reuse from.
+    Maybe FamilyChains ->
+    Hledger.Journal ->
+    GlobalFingerprint ->
+    [Hledger.Transaction] ->
+    [Hledger.PriceDirective] ->
+    FamilyChains
+familyChains relevance previous journal fingerprint transactions directives =
+    FamilyChains
+        { whole = chainOf Nothing
+        , netWorth = chainOf (Just NetWorthFamily)
+        , cashflow = chainOf (Just CashflowFamily)
+        , investments = chainOf (Just InvestmentFamily)
+        , files = currentFiles
+        , monthShapes = Map.fromList [(group.day, group.shape) | group <- groups]
+        }
+  where
+    currentFiles = Map.fromList [(path, hashText contents) | (path, contents) <- journal.jfiles]
+
+    -- \| Files are identified by a small integer for the rest of this pass. It is
+    --    worth the indirection: the layout hash and the per-month contributor set are
+    --    both computed for every entry on every reload, including the reloads that go
+    --    on to hash nothing, and a 'FilePath' is a 'String' whose every use would
+    --    otherwise mean a fresh 'Text' or a chain of character comparisons.
+    --    'unknownFile' is reserved for a file that is not in @jfiles@ at all.
+    --
+    fileIndexes = Map.fromList (zip (Map.keys currentFiles) [unknownFile + 1 ..])
+    fileIndex path = Map.findWithDefault unknownFile path fileIndexes
+
+    groups = monthGroupsFor relevance previous currentFiles fileIndex entryStream
+    entryStream = sortedEntries transactions directives
+
+    chainOf selector = chainFrom fingerprint [(group.day, contentOf group) | group <- groups]
+      where
+        stored = Map.fromList (maybe [] ((.monthContents) . selectedChain selector) previous)
+        contentOf group
+            | group.reusable, Just content <- Map.lookup group.day stored = content
+            | otherwise =
+                monthContentDigest
+                    [digest | (digest, families) <- group.classified, selects selector families]
+
+selectedChain :: Maybe ReportFamily -> FamilyChains -> PrefixChain
+selectedChain selector chains = maybe chains.whole (`chainFor` chains) selector
+
+selects :: Maybe ReportFamily -> [ReportFamily] -> Bool
+selects selector families = maybe True (`elem` families) selector
+
+{- | One month of entries, with the pre-filter's verdict attached.
+
+@classified@ is deliberately lazy. It is the expensive field — one digest per
+entry, which is the whole cost of the chain pass — and a month that every chain
+reuses never forces it. A month that any chain has to recompute forces it once
+and all four chains share the result.
+-}
+data MonthGroup = MonthGroup
+    { day :: !Day
+    , shape :: !Hash
+    , reusable :: !Bool
+    , classified :: [(Digest, [ReportFamily])]
+    }
+
+monthGroupsFor ::
+    (Hledger.Transaction -> [ReportFamily]) ->
+    Maybe FamilyChains ->
+    Map FilePath Hash ->
+    (FilePath -> Int) ->
+    [Entry] ->
+    [MonthGroup]
+monthGroupsFor relevance previous currentFiles fileIndex entries =
+    [ MonthGroup
+        { day = day
+        , shape = shape
+        , reusable = reuse day shape (Set.fromList (snd <$> labels))
+        , classified = [(entryDigest entry, entryFamilies relevance entry) | entry <- monthEntries]
+        }
+    | (day, monthEntries) <- monthGroups entries
+    , let labels = entryLabel fileIndex <$> monthEntries
+    , let shape = monthShape labels
+    ]
+  where
+    reuse = reusableMonths previous currentFiles fileIndex
+
+{- | Price directives are relevant to every family: each family values its
+columns through the journal's price oracle, so a directive dated inside a month
+can restate that month's output whatever accounts it mentions.
+-}
+entryFamilies :: (Hledger.Transaction -> [ReportFamily]) -> Entry -> [ReportFamily]
+entryFamilies relevance entry = case entry of
+    TransactionEntry transaction -> relevance transaction
+    PriceEntry _ -> everyFamily
+
+{- | What an entry contributes to its month's layout: whether it is a transaction
+or a price directive, and which file it came from.
+-}
+entryLabel :: (FilePath -> Int) -> Entry -> (Int, Int)
+entryLabel fileIndex entry = (kind, fileIndex (entryFile entry))
+  where
+    kind = case entry of
+        TransactionEntry _ -> 0
+        PriceEntry _ -> 1
+
+{- | A hash of a month's /layout/: the kind and source file of each of its
+entries, in order, without their contents.
+
+This is what makes reuse exact rather than merely plausible. A month's digest is
+over its entries in stream order, and stream order across two files is fixed by
+the journal's include structure — which lives in the text of some third file that
+may itself contribute no entry to this month. Comparing the layout catches any
+such reordering directly.
+
+Run-length encoded, which is injective for a sequence and is what keeps the
+layout hash cheap enough to compute on a reload that hashes nothing else: a month
+whose entries all come from one file is three builder writes rather than two per
+entry, and the encoding stays exact because consecutive equal labels can only be
+recovered one way.
+-}
+monthShape :: [(Int, Int)] -> Hash
+monthShape labels =
+    Hash . hexDigest . digestOf $ listPart "month-shape-v2" runPart (runLengths labels)
+  where
+    runPart ((kind, file), count) =
+        Builder.word8 (fromIntegral kind)
+            <> Builder.word64LE (fromIntegral file)
+            <> Builder.word64LE (fromIntegral count)
+
+runLengths :: (Eq label) => [label] -> [(label, Int)]
+runLengths [] = []
+runLengths (first : rest) =
+    let (same, others) = span (== first) rest
+     in (first, 1 + length same) : runLengths others
+
+{- | Whether one month's stored content digests may be reused, given the
+previous reload's chains and this reload's file hashes.
+
+Every clause is a way of giving up, and the order they are written in is the
+argument for correctness:
+
+* No previous chains means there is nothing to compare against. Note that this
+  clause is not what makes a boot reload safe: 'familyChains' also has no stored
+  month digests to look up in that case, so 'contentOf' recomputes regardless.
+  Mutating it to @True@ provably changes no behaviour. It is stated here so the
+  clause is read as the obvious value and not as a guard carrying weight.
+* A changed set of file /paths/ means a file was added, removed or renamed and
+  the include structure moved with it; the paths are also a component of
+  'GlobalFingerprint', so this case invalidates anyway. An /empty/ previous file
+  map is covered by the same comparison, since @jfiles@ is never empty for a
+  journal that parsed.
+* A month containing an entry sourced from a file that is not in @jfiles@ — file
+  index 0 — cannot be judged: that entry's dependence on file contents is
+  unaccounted for, so its month is recomputed.
+* A month absent from the previous reload, or one whose layout hash moved, is
+  recomputed: either its entries are new or they were reordered.
+* Finally, a month is reused only when /none/ of the files its entries came from
+  changed. Contributing files being byte-identical fixes each file's own
+  entries and their order; the layout hash fixes how those files interleave; so
+  the month's entry sequence, and therefore its digest, is unchanged.
+
+Note what the layout clause buys in the deletion case: removing a transaction
+from an otherwise unrelated file shortens that month's layout, so the month is
+recomputed even though the file that lost the entry no longer appears among the
+month's contributors.
+-}
+reusableMonths ::
+    Maybe FamilyChains -> Map FilePath Hash -> (FilePath -> Int) -> Day -> Hash -> Set Int -> Bool
+reusableMonths previous currentFiles fileIndex = case previous of
+    Nothing -> \_ _ _ -> False
+    Just prior
+        | Map.keysSet prior.files /= Map.keysSet currentFiles -> \_ _ _ -> False
+        | otherwise ->
+            let changed = Set.map fileIndex (changedFiles prior.files currentFiles)
+             in \day shape monthFiles ->
+                    Map.lookup day prior.monthShapes == Just shape
+                        && not (Set.member unknownFile monthFiles)
+                        && Set.disjoint changed monthFiles
+
+-- | The file index standing for "not among @jfiles@"; see 'familyChains'.
+unknownFile :: Int
+unknownFile = 0
 
 {- | Hash a tagged list of parts. Every part is length-delimited so that
 concatenation is injective: without it @["ab", "c"]@ and @["a", "bc"]@ would
@@ -256,26 +537,62 @@ configHash config =
         , textShow config.assetClassMappings
         ]
 
+{- | One hashable journal entry, kept unhashed so that the per-file pre-filter
+can decide whether the month it belongs to needs hashing at all.
+-}
+data Entry
+    = TransactionEntry !Hledger.Transaction
+    | PriceEntry !Hledger.PriceDirective
+
+entryDay :: Entry -> Day
+entryDay entry = case entry of
+    TransactionEntry transaction -> transaction.tdate
+    PriceEntry directive -> directive.pddate
+
+{- | The file the entry was parsed from. Read from the source position, which is
+never /hashed/ — hashing it would make an unrelated inserted line invalidate all
+of history — but is exactly the right thing to /group/ by, because it says which
+file's contents an entry's digest depends on.
+-}
+entryFile :: Entry -> FilePath
+entryFile entry = case entry of
+    TransactionEntry transaction -> HledgerParse.sourceName (fst transaction.tsourcepos)
+    PriceEntry directive -> HledgerParse.sourceName directive.pdsourcepos
+
+entryDigest :: Entry -> Digest
+entryDigest entry = case entry of
+    TransactionEntry transaction -> digestOf (transactionPart transaction)
+    PriceEntry directive -> digestOf (priceDirectivePart directive)
+
 {- | Transactions and price directives merged into one date-ordered stream. The
 sort is stable, so entries sharing a date keep their original relative order —
 which is itself semantic, because balance assertions depend on it.
 -}
-sortedEntries :: [Hledger.Transaction] -> [Hledger.PriceDirective] -> [(Day, Digest)]
+sortedEntries :: [Hledger.Transaction] -> [Hledger.PriceDirective] -> [Entry]
 sortedEntries transactions directives =
-    List.sortOn fst $
-        [(transaction.tdate, digestOf (transactionPart transaction)) | transaction <- transactions]
-            <> [(directive.pddate, digestOf (priceDirectivePart directive)) | directive <- directives]
+    List.sortOn entryDay $
+        (TransactionEntry <$> transactions) <> (PriceEntry <$> directives)
 
-monthChain :: [(Day, Digest)] -> [(Day, Hash)]
-monthChain = go absentHash
+-- | The date-ordered stream cut at month boundaries, oldest month first.
+monthGroups :: [Entry] -> [(Day, [Entry])]
+monthGroups [] = []
+monthGroups entries@(first : _) =
+    let boundary = monthEnd (entryDay first)
+        (thisMonth, laterMonths) = span ((== boundary) . monthEnd . entryDay) entries
+     in (boundary, thisMonth) : monthGroups laterMonths
+
+monthContentDigest :: [Digest] -> Text
+monthContentDigest digests = hexDigest (digestOf (listPart "month-v2" digestPart digests))
+
+-- | Roll per-month content digests up into the prefix hash chain.
+chainFrom :: GlobalFingerprint -> [(Day, Text)] -> PrefixChain
+chainFrom fingerprint contents =
+    PrefixChain{global = fingerprint, months = go absentHash contents, monthContents = contents}
   where
     go _ [] = []
-    go previous entries@((day, _) : _) =
-        let boundary = monthEnd day
-            (thisMonth, laterMonths) = span ((== boundary) . monthEnd . fst) entries
-            monthDigest = digestOf (listPart "month-v2" (digestPart . snd) thisMonth)
-            !boundaryHash = combineHash previous (hexDigest monthDigest)
-         in (boundary, boundaryHash) : go boundaryHash laterMonths
+    go previous ((day, content) : rest) =
+        let !boundaryHash = combineHash previous content
+         in (day, boundaryHash) : go boundaryHash rest
 
 firstDivergentMonth :: [(Day, Hash)] -> [(Day, Hash)] -> Maybe Day
 firstDivergentMonth [] [] = Nothing
