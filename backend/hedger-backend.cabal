@@ -141,6 +141,7 @@ test-suite hedger-backend-test
   other-modules:
     Hedger.Application.AppMSpec
     Hedger.Application.CacheSpec
+    Hedger.Application.CheckpointsSpec
     Hedger.Application.EventsSpec
     Hedger.Application.TransactionQuerySpec
     Hedger.Domain.AccountSpec

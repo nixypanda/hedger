@@ -4,6 +4,7 @@ import Test.Tasty (defaultMain, testGroup)
 
 import Hedger.Application.AppMSpec (appMSpec)
 import Hedger.Application.CacheSpec (cacheSpec)
+import Hedger.Application.CheckpointsSpec (checkpointsSpec)
 import Hedger.Application.EventsSpec (eventsSpec)
 import Hedger.Application.TransactionQuerySpec (transactionQuerySpec)
 import Hedger.ConfigSpec (configSpec)
@@ -64,4 +65,5 @@ main =
             , xirrSpec
             , appMSpec
             , cacheSpec
+            , checkpointsSpec
             ]

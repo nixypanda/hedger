@@ -39,6 +39,7 @@ import Hledger.Data.Types qualified as Hledger
 import Hledger.Query qualified as HledgerQuery
 
 import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot)
+import Hedger.Application.Cache (contributeCheckpoints, usableCheckpoints)
 import Hedger.Application.Common (
     AccountTypeClassifier,
     SnapshotMetadata,
@@ -56,17 +57,25 @@ import Hedger.Domain.Activity (
     computeActivity,
     parseActivityPeriod,
  )
-import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
+import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow, computeCashflowResumed)
+import Hedger.Domain.Internal.CashflowCheckpoint (CashflowColumns, columnCount)
+import Hedger.Domain.Internal.NetWorthCheckpoint (
+    OpeningBalances,
+    QueryKey (..),
+    openingBalanceCount,
+ )
 import Hedger.Domain.NetWorth (
     BreakdownItem (..),
     NetWorthFigures (..),
     PerformancePoint (..),
     TimelinePoint (..),
     computeNetWorth,
+    computeNetWorthResumed,
  )
 import Hedger.Domain.Period (Granularity (..), ReportPeriod (..), atIndex, epoch)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (ConversionWarning (..))
+import Hedger.Infrastructure.DerivedRevision qualified as DerivedRevision
 
 -- * Requests (unresolved boundary inputs) and UI read-models
 
@@ -170,18 +179,9 @@ netWorth request = do
     responseMetadata <- currentMetadata snapshotContext
     commodity <- resolvedCommodity request.displayCommodity
     let snapshot = snapshotContext.snapshot
-    matched <- parseTransactions snapshot request.query
-    let figures =
-            computeNetWorth
-                snapshot
-                matched
-                request.granularity
-                commodity
-                request.positivePeriod
-                request.negativePeriod
-                request.positiveDepth
-                request.negativeDepth
-        points = figures.timeline
+    (queryKey, matched) <- parseTransactions snapshot request.query
+    figures <- netWorthFigures snapshot queryKey matched request commodity
+    let points = figures.timeline
         selectedKey = figures.selectedKey
     pure
         NetWorthReport
@@ -207,17 +207,8 @@ cashflow request = do
     responseMetadata <- currentMetadata snapshotContext
     commodity <- resolvedCommodity request.displayCommodity
     let snapshot = snapshotContext.snapshot
-    matched <- parseTransactions snapshot request.query
-    let figures =
-            computeCashflow
-                snapshot
-                matched
-                request.granularity
-                commodity
-                request.positivePeriod
-                request.negativePeriod
-                request.positiveDepth
-                request.negativeDepth
+    (queryKey, matched) <- parseTransactions snapshot request.query
+    figures <- cashflowFigures snapshot queryKey matched request commodity
     pure
         CashflowReport
             { metadata = responseMetadata
@@ -243,8 +234,8 @@ activity request = do
     fiscalStart <- asks (.config.fiscalYearStartMonth)
     let snapshot = snapshotContext.snapshot
     filtered <- case request.kind of
-        IncomeActivity -> parseTransactions snapshot request.query
-        ExpenseActivity -> parseTransactions snapshot request.query
+        IncomeActivity -> snd <$> parseTransactions snapshot request.query
+        ExpenseActivity -> snd <$> parseTransactions snapshot request.query
         AssetActivity -> pure snapshot.transactions
         LiabilityActivity -> pure snapshot.transactions
     activityPeriod <-
@@ -271,6 +262,122 @@ activity request = do
             , classifyAccount = accountTypeClassifier snapshot.journal
             }
 
+-- * Calculation, resumed from the derived view's checkpoints where it can be
+
+{- | 'computeNetWorth', with the balance sheet's columns accumulated from
+checkpointed opening balances when the derived view describes this very snapshot,
+and computed from the start of the journal when it does not.
+-}
+netWorthFigures ::
+    Snapshot ->
+    QueryKey ->
+    [Hledger.Transaction] ->
+    AnalyticsRequest ->
+    Text ->
+    AppM NetWorthFigures
+netWorthFigures snapshot queryKey matched request commodity = do
+    checkpoints <- usableCheckpoints snapshot
+    case checkpoints of
+        Nothing ->
+            pure
+                ( computeNetWorth
+                    snapshot
+                    matched
+                    request.granularity
+                    commodity
+                    request.positivePeriod
+                    request.negativePeriod
+                    request.positiveDepth
+                    request.negativeDepth
+                )
+        Just (chain, caches) -> do
+            let (figures, openings) =
+                    computeNetWorthResumed
+                        snapshot
+                        matched
+                        queryKey
+                        chain
+                        caches.netWorth
+                        request.granularity
+                        commodity
+                        request.positivePeriod
+                        request.negativePeriod
+                        request.positiveDepth
+                        request.negativeDepth
+            contributeCheckpoints snapshot $ \current ->
+                current{DerivedRevision.netWorth = forcedOpeningBalances openings}
+            pure figures
+
+{- | 'computeCashflow', with each month's column taken from the checkpointed
+columns when the derived view describes this very snapshot.
+-}
+cashflowFigures ::
+    Snapshot ->
+    QueryKey ->
+    [Hledger.Transaction] ->
+    AnalyticsRequest ->
+    Text ->
+    AppM CashflowFigures
+cashflowFigures snapshot queryKey matched request commodity = do
+    checkpoints <- usableCheckpoints snapshot
+    case checkpoints of
+        Nothing ->
+            pure
+                ( computeCashflow
+                    snapshot
+                    matched
+                    request.granularity
+                    commodity
+                    request.positivePeriod
+                    request.negativePeriod
+                    request.positiveDepth
+                    request.negativeDepth
+                )
+        Just (chain, caches) -> do
+            let (figures, columns) =
+                    computeCashflowResumed
+                        snapshot
+                        matched
+                        chain
+                        caches.cashflow
+                        (cashflowQueryText queryKey)
+                        request.granularity
+                        commodity
+                        request.positivePeriod
+                        request.negativePeriod
+                        request.positiveDepth
+                        request.negativeDepth
+            contributeCheckpoints snapshot $ \current ->
+                current{DerivedRevision.cashflow = forcedCashflowColumns columns}
+            pure figures
+
+{- | The canonical query text the cashflow columns are cached under.
+
+A cashflow column is keyed by query text alone, so the date the query was
+resolved against has to travel inside that text. A relative term such as
+@date:thismonth@ denotes a different span once an append moves
+@latestJournalDate@, and it can restate arbitrarily old columns — which the month
+chain, diverging only at the appended month, would not flag. A 'Day' renders
+without spaces, so the separator cannot be imitated by the reference date.
+-}
+cashflowQueryText :: QueryKey -> Text
+cashflowQueryText queryKey = Text.pack (show queryKey.reference) <> " " <> queryKey.text
+
+{- | Force a request's opening balances before they reach the derived view.
+
+Each stored balance is already forced as it is inserted, but the map itself
+arrives as a thunk, so publishing it unforced would leave this request's
+accumulation — and the hledger report behind it — retained and deferred into
+whichever later request first reads a checkpoint. Reading the count forces the
+insert fold, and with it every payload the fold stored.
+-}
+forcedOpeningBalances :: OpeningBalances -> OpeningBalances
+forcedOpeningBalances openings = openingBalanceCount openings `seq` openings
+
+-- | Force a request's cashflow columns before they reach the derived view.
+forcedCashflowColumns :: CashflowColumns -> CashflowColumns
+forcedCashflowColumns columns = columnCount columns `seq` columns
+
 -- * Input resolution
 
 resolvedCommodity :: Maybe Text -> AppM Text
@@ -283,12 +390,24 @@ nonEmpty value
     | Text.null (Text.strip value) = Nothing
     | otherwise = Just (Text.strip value)
 
-parseTransactions :: Snapshot -> Maybe Text -> AppM [Hledger.Transaction]
+{- | The transactions a request's query matches, with the key that identifies the
+query to the checkpoint caches.
+
+The key carries the reference date as well as the normalized text because the
+text alone does not fix the query's meaning: it is resolved against
+@latestJournalDate@, so the same text denotes a different span once an append
+moves that date. The text is the normalized one actually parsed here, never the
+raw request field.
+-}
+parseTransactions :: Snapshot -> Maybe Text -> AppM (QueryKey, [Hledger.Transaction])
 parseTransactions snapshot requested = do
     let canonical = Text.strip (fromMaybe "" requested)
         reference = fromMaybe epoch snapshot.latestJournalDate
     parsed <- either throwError pure (parseHledgerQuery reference canonical)
-    pure (filter (HledgerQuery.matchesTransaction parsed) snapshot.transactions)
+    pure
+        ( QueryKey{text = canonical, reference = reference}
+        , filter (HledgerQuery.matchesTransaction parsed) snapshot.transactions
+        )
 
 -- * Read-model shaping (presentation, not calculation)
 

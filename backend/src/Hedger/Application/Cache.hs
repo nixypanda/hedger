@@ -2,13 +2,16 @@ module Hedger.Application.Cache (
     cachedResponse,
     dimensionKey,
     encodedSizeHint,
+    usableCheckpoints,
+    contributeCheckpoints,
 )
 where
 
 import Control.Exception (Exception, throwIO, try)
+import Control.Monad (void)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Reader (ask)
+import Control.Monad.Reader (ask, asks)
 import Data.Aeson (ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
@@ -19,7 +22,14 @@ import Data.Typeable (Typeable)
 import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot, runAppM)
 import Hedger.Application.Common (SnapshotMetadata, currentMetadata)
 import Hedger.Domain.Error (AppError)
+import Hedger.Domain.Fingerprint (PrefixChain)
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Infrastructure.DerivedRevision (
+    DerivedCaches,
+    DerivedView (..),
+    mergeDerivedCaches,
+    readDerivedView,
+ )
 import Hedger.Infrastructure.DerivedStore (
     CacheKey (..),
     DerivedStore,
@@ -73,6 +83,43 @@ runCached store key sizeHint produce = do
     pure $ case outcome of
         Left (ProducerFailed appError) -> Left appError
         Right value -> Right value
+
+{- | The checkpoint caches a request may resume from, with the prefix chain they
+are keyed against — or 'Nothing' when the request has to compute unchecked.
+
+There are two ways it is 'Nothing', and both must fall back rather than resume:
+
+* No chain has been published. The derived view is empty until the first rebuild
+  completes, and a request arriving before that still has to answer.
+* The published revision is not this snapshot's. The caches then describe a
+  different journal prefix, and the chain a resume validates its keys against
+  would not be the chain the response is being built from — so a checkpoint
+  covering a month that /did/ change would still hash-match the stale chain and
+  be accepted. This is the same class of guard as the checkpoint hash itself,
+  and it is what keeps one response inside a single snapshot revision.
+-}
+usableCheckpoints :: Snapshot -> AppM (Maybe (PrefixChain, DerivedCaches))
+usableCheckpoints snapshot = do
+    derivedState <- asks (.derivedState)
+    derivedView <- liftIO (readDerivedView derivedState)
+    pure $ do
+        chain <- derivedView.chain
+        if derivedView.revision == snapshot.revision
+            then Just (chain, derivedView.caches)
+            else Nothing
+
+{- | Contribute a request's updated checkpoints back to the derived view.
+
+The merge is discarded when the published revision has moved on while this
+request was computing: those checkpoints describe a superseded chain, and
+dropping them is the correct outcome rather than a failure to report. Under a
+fixed chain the maps are monotone, so a merge that does land is idempotent and
+independent of the order requests complete in.
+-}
+contributeCheckpoints :: Snapshot -> (DerivedCaches -> DerivedCaches) -> AppM ()
+contributeCheckpoints snapshot update = do
+    derivedState <- asks (.derivedState)
+    void (liftIO (mergeDerivedCaches derivedState snapshot.revision update))
 
 {- | A collision-free cache dimension from the already parsed and defaulted
 request fields, encoded as JSON so no field value can imitate a separator.
