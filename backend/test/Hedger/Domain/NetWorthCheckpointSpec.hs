@@ -18,6 +18,7 @@ import Control.Exception (bracket)
 import Control.Monad (when)
 import Data.Decimal (Decimal)
 import Data.Foldable (traverse_)
+import Data.List qualified as List
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -30,7 +31,6 @@ import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
-import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportTypes qualified as HledgerReportTypes
@@ -95,11 +95,14 @@ netWorthCheckpointSpec =
             "a global fingerprint change invalidates every opening balance"
             globalChangeInvalidatesOpenings
         , testCase
+            "an opening stored under one query reference date is not reused under another"
+            queryReferenceDateIsPartOfTheKey
+        , testCase
             "truncation drops exactly the openings at or after the divergence month"
             truncationDropsFromDivergence
         , testCase
-            "a row hledger elides for looking zero is elided by the resumed report too"
-            elidedZeroRowsAgree
+            "the rows hledger retains for a closed account and a residual are retained too"
+            retainedRowsAgree
         , testCase
             "a withheld KPI stays withheld when the columns are resumed"
             withheldKpiSurvivesResume
@@ -415,6 +418,37 @@ globalChangeInvalidatesOpenings =
             0
             (openingBalanceCount (truncateOpeningBalances beforeChain GlobalChanged cold.openings))
 
+{- | The reference date a query text was resolved against is part of the key.
+
+A query is resolved against the snapshot's latest journal date, so a relative term
+denotes a different span once that date moves — and it can restate arbitrarily old
+columns, which a month chain that diverges only at the appended month would not
+catch. Openings stored under one reference date must therefore not be reused under
+another, even though the query text and every month hash are identical.
+-}
+queryReferenceDateIsPartOfTheKey :: IO ()
+queryReferenceDateIsPartOfTheKey =
+    withTemporaryJournal "reference" (monthlyDeposits 26 []) $ \snapshot -> do
+        let matched = snapshot.transactions
+            chain = chainOf snapshot.journal
+            resolved = queryKeyFor snapshot
+            relative = QueryKey{text = "date:thismonth", reference = resolved.reference}
+            laterReference = QueryKey{text = "date:thismonth", reference = addDays 40 resolved.reference}
+            resume query openings = assetLiabilityResumed snapshot matched query chain openings Monthly "INR"
+            stored = (resume relative emptyOpeningBalances).openings
+        assertBool "the sweep must have stored openings" (openingBalanceCount stored > 0)
+        assertBool
+            "the same query text and reference date reuses them"
+            ((resume relative stored).resumedFrom /= Nothing)
+        assertEqual
+            "a later reference date reuses none of them"
+            Nothing
+            (resume laterReference stored).resumedFrom
+        assertEqual
+            "and neither does a different query text"
+            Nothing
+            (resume resolved stored).resumedFrom
+
 {- | 'DivergesFrom' keeps the months strictly before the divergence and drops the
 divergent month itself, because that month's own content is what changed.
 -}
@@ -442,21 +476,21 @@ assertTruncationKeeps chain query stored days divergence =
         (filter (< divergence) days)
         (openingBalanceDays query "INR" (truncateOpeningBalances chain (DivergesFrom divergence) stored))
 
--- * hledger's zero-row elision
+-- * The rows a report retains
 
-{- | A consolidated report's per-side totals are the sum of the rows hledger
+{- | A consolidated report's per-side totals are the sum of the rows the report
 retained, so the resumed report has to retain the same rows.
 
-Report amounts carry the precision of their own quantity rather than the
-journal's declared commodity style — even after valuation, where the result takes
-the precision of the converted quantity — so hledger's zero-row test only ever
-catches a balance that is exactly zero. What it therefore drops is an account
-that closed to zero before the window opened, which this journal has, alongside
-an account left holding an unconvertible residual, which hledger keeps and which
-must still appear as a missing commodity.
+hledger retains more than it might appear to. Its zero-row test asks both that
+the balance look zero in every column and that the account's posting count be
+zero in every column, and with @Historical@ accumulation those counts are
+cumulative, so an account that closed to zero before the window opened still has
+a row. This journal has one, alongside an account left holding a residual in a
+commodity the journal never prices, which must still surface as a missing
+commodity.
 -}
-elidedZeroRowsAgree :: IO ()
-elidedZeroRowsAgree =
+retainedRowsAgree :: IO ()
+retainedRowsAgree =
     withTemporaryJournal "elision" closedAccountJournal $ \snapshot -> do
         let matched = snapshot.transactions
             query = queryKeyFor snapshot
@@ -467,17 +501,11 @@ elidedZeroRowsAgree =
             warm = resume cold.openings Monthly "INR"
             assetSide report = reportSide snapshot.journal [Hledger.Asset, Hledger.Cash] report
             assetRows report = rowNames (assetSide report)
-        assertEqual
-            "DEBUG"
-            []
-            [ ( HledgerReportTypes.prrFullName row
-              , all (HledgerAmount.mixedAmountLooksZero . HledgerAmount.mixedAmountStripCosts) row.prrAmounts
-              , HledgerAmount.showMixedAmountDebug <$> take 1 row.prrAmounts
-              )
-            | row <- (reportSide snapshot.journal [Hledger.Asset, Hledger.Cash] full).rows
-            ]
         assertBool
-            "and a row it keeps, so the test is not simply dropping everything"
+            "the fixture must produce a zero row hledger retains, or this proves nothing"
+            ("assets:old:closed" `elem` assetRows full)
+        assertBool
+            "and a row holding an unconvertible residual"
             ("assets:old:bullion" `elem` assetRows full)
         assertEqual
             "the residual hledger keeps is reported as a missing commodity"
@@ -485,8 +513,8 @@ elidedZeroRowsAgree =
             (reportMissing "INR" (assetSide full))
         assertEqual
             "the resumed report retains exactly the same rows"
-            (assetRows full)
-            (assetRows warm.report)
+            (List.sort (assetRows full))
+            (List.sort (assetRows warm.report))
         assertReportsAgree snapshot Monthly "INR" 2 full ("empty seed", cold.report)
         assertReportsAgree snapshot Monthly "INR" 2 full ("own openings", warm.report)
 
