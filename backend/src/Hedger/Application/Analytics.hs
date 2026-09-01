@@ -58,16 +58,11 @@ import Hedger.Domain.Activity (
     parseActivityPeriod,
  )
 import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow, computeCashflowResumed)
-import Hedger.Domain.Internal.CashflowCheckpoint (CashflowColumns, columnCount)
-import Hedger.Domain.Internal.NetWorthCheckpoint (
-    OpeningBalances,
-    QueryKey (..),
-    openingBalanceCount,
- )
 import Hedger.Domain.NetWorth (
     BreakdownItem (..),
     NetWorthFigures (..),
     PerformancePoint (..),
+    QueryKey (..),
     TimelinePoint (..),
     computeNetWorth,
     computeNetWorthResumed,
@@ -305,7 +300,7 @@ netWorthFigures snapshot queryKey matched request commodity = do
                         request.positiveDepth
                         request.negativeDepth
             contributeCheckpoints snapshot $ \current ->
-                current{DerivedRevision.netWorth = forcedOpeningBalances openings}
+                current{DerivedRevision.netWorth = forcedCache openings}
             pure figures
 
 {- | 'computeCashflow', with each month's column taken from the checkpointed
@@ -348,7 +343,7 @@ cashflowFigures snapshot queryKey matched request commodity = do
                         request.positiveDepth
                         request.negativeDepth
             contributeCheckpoints snapshot $ \current ->
-                current{DerivedRevision.cashflow = forcedCashflowColumns columns}
+                current{DerivedRevision.cashflow = forcedCache columns}
             pure figures
 
 {- | The canonical query text the cashflow columns are cached under.
@@ -363,20 +358,21 @@ without spaces, so the separator cannot be imitated by the reference date.
 cashflowQueryText :: QueryKey -> Text
 cashflowQueryText queryKey = Text.pack (show queryKey.reference) <> " " <> queryKey.text
 
-{- | Force a request's opening balances before they reach the derived view.
+{- | Force a checkpoint cache before it reaches the derived view.
 
-Each stored balance is already forced as it is inserted, but the map itself
-arrives as a thunk, so publishing it unforced would leave this request's
-accumulation — and the hledger report behind it — retained and deferred into
-whichever later request first reads a checkpoint. Reading the count forces the
-insert fold, and with it every payload the fold stored.
+Each stored balance and column is already forced as it is inserted, but the cache
+itself arrives as a thunk, so publishing it unforced would leave this request's
+accumulation — and the hledger reports behind it — retained and deferred into
+whichever later request first reads a checkpoint. Each cache is a map, and the
+sweeps that build one insert strictly, so forcing it to weak head normal form
+runs the insert fold and with it every payload the fold stored.
+
+Deliberately not left to the strict fields of
+'Hedger.Infrastructure.DerivedRevision.DerivedCaches': the deferral this avoids
+is a property of what the use case hands over, not of where it is stored.
 -}
-forcedOpeningBalances :: OpeningBalances -> OpeningBalances
-forcedOpeningBalances openings = openingBalanceCount openings `seq` openings
-
--- | Force a request's cashflow columns before they reach the derived view.
-forcedCashflowColumns :: CashflowColumns -> CashflowColumns
-forcedCashflowColumns columns = columnCount columns `seq` columns
+forcedCache :: cache -> cache
+forcedCache cache = cache `seq` cache
 
 -- * Input resolution
 

@@ -28,7 +28,6 @@ import Hedger.Application.Cache (contributeCheckpoints, usableCheckpoints)
 import Hedger.Application.Common (SnapshotMetadata, currentMetadata)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (InternalError))
-import Hedger.Domain.Internal.InvestmentCheckpoint (checkpointCount, solvedRateCount)
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance (
     InvestmentPerformanceContext,
@@ -262,11 +261,11 @@ derived view.
 Each accumulator, scan and solved rate is forced as it is inserted, but the maps
 themselves arrive as thunks; publishing them unforced would retain this request's
 whole sweep and defer it into whichever later request first reads a checkpoint.
-Reading the counts forces the insert folds, and with them every payload stored.
+Both fields are strict maps built by strict insert folds, so forcing the record
+runs those folds and with them every payload stored.
 -}
 forcedScopeCache :: ScopeCache -> ScopeCache
-forcedScopeCache cache =
-    checkpointCount cache.checkpoints `seq` solvedRateCount cache.rates `seq` cache
+forcedScopeCache cache = cache.checkpoints `seq` cache.rates `seq` cache
 
 assetClassAllocations ::
     (Maybe Text -> Maybe SummaryResult) ->

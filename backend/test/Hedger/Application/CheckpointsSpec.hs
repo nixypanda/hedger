@@ -390,8 +390,10 @@ itemShape item = (item.account, item.quantity)
 warningShape :: ConversionWarning -> Set Text
 warningShape (MissingConversion missing) = missing
 
-summaryShape ::
-    InvestmentSummary ->
+{- | Every field 'InvestmentSummary' calculates. It has no 'Show' of its own, and
+naming the projection keeps the records that embed it readable.
+-}
+type SummaryShape =
     ( Maybe Decimal
     , Maybe Decimal
     , Maybe Decimal
@@ -401,6 +403,8 @@ summaryShape ::
     , Maybe Decimal
     , String
     )
+
+summaryShape :: InvestmentSummary -> SummaryShape
 summaryShape summary =
     ( summary.marketValue
     , summary.purchaseCost
@@ -412,9 +416,7 @@ summaryShape summary =
     , show summary.completeness
     )
 
-childShape ::
-    InvestmentChild ->
-    (Text, Text, Bool, String, Maybe Decimal, (Maybe Decimal, Maybe Decimal, Maybe Decimal, Maybe Decimal, Maybe Decimal, Maybe Decimal, Maybe Decimal, String))
+childShape :: InvestmentChild -> (Text, Text, Bool, String, Maybe Decimal, SummaryShape)
 childShape child =
     ( child.account
     , child.label
@@ -463,7 +465,7 @@ publishChainFor environment snapshot =
         environment.derivedState
         snapshot.revision
         (chainOf snapshot.journal)
-        emptyDerivedCaches
+        (const emptyDerivedCaches)
 
 chainOf :: Hledger.Journal -> PrefixChain
 chainOf journal =

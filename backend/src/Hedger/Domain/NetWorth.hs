@@ -9,6 +9,15 @@ module Hedger.Domain.NetWorth (
     NetWorthFigures (..),
     computeNetWorth,
     computeNetWorthResumed,
+
+    -- * The checkpoint cache 'computeNetWorthResumed' takes and returns
+    QueryKey (..),
+    OpeningBalances,
+    emptyOpeningBalances,
+    openingBalanceCount,
+    openingBalanceDays,
+    openingBalanceEntries,
+    truncateOpeningBalances,
 )
 where
 
@@ -26,9 +35,14 @@ import Hedger.Domain.Fingerprint (PrefixChain)
 import Hedger.Domain.Internal.NetWorth (assetLiabilityPeriodicReport, gainPeriodicReport)
 import Hedger.Domain.Internal.NetWorthCheckpoint (
     OpeningBalances,
-    QueryKey,
+    QueryKey (..),
     ResumedBalanceSheet (..),
     assetLiabilityResumed,
+    emptyOpeningBalances,
+    openingBalanceCount,
+    openingBalanceDays,
+    openingBalanceEntries,
+    truncateOpeningBalances,
  )
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),

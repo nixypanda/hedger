@@ -7,6 +7,13 @@ module Hedger.Domain.Cashflow (
     CashflowFigures (..),
     computeCashflow,
     computeCashflowResumed,
+
+    -- * The checkpoint cache 'computeCashflowResumed' takes and returns
+    CashflowColumns,
+    emptyColumns,
+    columnCount,
+    columnMonths,
+    truncateColumns,
 )
 where
 
@@ -27,9 +34,13 @@ import Hedger.Domain.Internal.CashflowCheckpoint (
     ColumnSide (..),
     cashflowColumnsResumed,
     collapseToDepth,
+    columnCount,
+    columnMonths,
     emptyColumn,
+    emptyColumns,
     monthEndsIn,
     sumColumns,
+    truncateColumns,
  )
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
