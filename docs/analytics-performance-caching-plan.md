@@ -1,6 +1,7 @@
 # Analytics caching plan: checkpointed folds over an immutable history
 
-_Status: designed, not started · Last updated: 2026-08-31_
+_Status: S0–S3 and S5 implemented and green; S4 in progress; not yet reachable
+from a request · Last updated: 2026-09-01_
 
 Part of the [analytics performance index](analytics-performance-plan.md). This is
 the only remaining optimization phase. Prerequisites are complete: see
@@ -12,6 +13,31 @@ This document is written to be implementable by someone who has not read the
 other two. It states the idea, the invariants that make it correct, the data
 shapes, and an ordered checklist of slices. Every slice is independently
 shippable and independently verifiable.
+
+## Implementation status
+
+| Slice | State | Notes |
+|---|---|---|
+| S0a `DerivedStore` | **Done** | Single-flight, byte-budgeted, revision-ordered eviction |
+| S0b response cache | **Done** | Five endpoints wired; metadata patched on every hit |
+| S1 `Fingerprint` | **Done** | Three plan corrections came out of it, recorded below |
+| S2 derived revision | **Done** | Rebuild in `reloadCycle`, at boot, and on `SIGHUP`; `refreshing` freshness |
+| S3 investment scope scan | **Done** | Pure. Three defects found and mutation-verified |
+| S4 net worth | **In progress** | Highest correctness risk |
+| S5 cashflow columns | **Done** | Pure. Refuted the `missing`-set half of yearly-from-monthly |
+| S6 scoped invalidation | Not started | |
+| **S7 wire checkpoints to the request path** | **Not started** | **Nothing below reads a checkpoint yet** |
+
+**The important caveat: S3 and S5 are pure and unreachable.** The application
+layer still calls `computeCashflow` and `summariesAtPrepared` directly, so the
+checkpoint work delivers no latency improvement yet. S7 is what makes it real,
+and it needs a design decision the original plan did not anticipate:
+`DerivedStore.lookupOrCompute` is a *memoizing* API with no put operation, so a
+checkpoint map that a request updates cannot be written back through it. The
+checkpoint caches most likely belong in `DerivedState` — rebuilt by the reload
+cycle and keyed by chain hash — with the LRU store kept for whole responses.
+That matches the `DerivedSnapshot` shape sketched under item 3 of the original
+plan, and it keeps request handlers from mutating shared derived state.
 
 ## The idea
 
