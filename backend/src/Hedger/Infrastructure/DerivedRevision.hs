@@ -67,9 +67,15 @@ import Hedger.Domain.Cashflow (
     truncateColumns,
  )
 import Hedger.Domain.Fingerprint (ChainDiff, PrefixChain)
-import Hedger.Domain.Internal.InvestmentCheckpoint (
+
+-- The one thing still reached through @Domain.Internal@ from outside @Domain@:
+-- 'checkpointCount' is a size accessor that
+-- "Hedger.Domain.InvestmentPerformance" does not re-export, unlike the cache
+-- type and its constructors beside it. Its net-worth and cashflow counterparts
+-- are re-exported, which is why nothing else here needs an internal module.
+import Hedger.Domain.Internal.InvestmentCheckpoint (checkpointCount)
+import Hedger.Domain.InvestmentPerformance (
     ScopeCache (..),
-    checkpointCount,
     emptyScopeCache,
     truncateScopeCache,
  )
