@@ -6,6 +6,7 @@ import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day)
+import System.Timeout (timeout)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 
@@ -19,10 +20,12 @@ import Hedger.Domain.Fingerprint (
  )
 import Hedger.Infrastructure.DerivedRevision (
     DerivedCaches (..),
+    DerivedNotice (..),
     DerivedState,
     DerivedView (..),
     RebuildMetrics (..),
     RebuildOutcome (..),
+    awaitDerivedNotice,
     currentGeneration,
     emptyDerivedCaches,
     mergeDerivedCaches,
@@ -31,6 +34,7 @@ import Hedger.Infrastructure.DerivedRevision (
     publishDerived,
     publishDerivedWith,
     readDerivedChain,
+    readDerivedNotice,
     readDerivedRevision,
     readDerivedView,
     readRebuildMetrics,
@@ -74,6 +78,16 @@ derivedRevisionSpec =
             [ testCase "leaves populated checkpoint counts after a rebuild" rebuildWarmsCheckpoints
             ]
         , testGroup
+            "subscriber notices"
+            [ testCase "advances the tick when a revision is published" publicationAdvancesTheTick
+            , testCase "spends no tick republishing the same revision" republicationSpendsNoTick
+            , testCase
+                "announces a revision again once a failed rebuild for it succeeds"
+                successAfterFailureIsAnnounced
+            , testCase "says nothing for an abandoned rebuild" abandonedRebuildSaysNothing
+            , testCase "returns immediately when the tick already moved" alreadyMovedDoesNotBlock
+            ]
+        , testGroup
             "rebuilds"
             [ testCase "completes and publishes when it is not superseded" completesRebuild
             , testCase "abandons a superseded rebuild without publishing" abandonsSupersededRebuild
@@ -97,10 +111,10 @@ supersededByGeneration state token = (/= token) <$> currentGeneration state
 neverSuperseded :: Int -> IO Bool
 neverSuperseded _ = pure False
 
-computeChain :: Text -> IO (Text, PrefixChain, DerivedCaches)
-computeChain revision = pure (revision, chainFixture, emptyDerivedCaches)
+computeChain :: IO (PrefixChain, DerivedCaches)
+computeChain = pure (chainFixture, emptyDerivedCaches)
 
-failingCompute :: IO (Text, PrefixChain, DerivedCaches)
+failingCompute :: IO (PrefixChain, DerivedCaches)
 failingCompute = throwIO (userError "boom")
 
 {- | Run the real reload rebuild over the shared fixture. This is the only way to
@@ -359,12 +373,88 @@ rebuildWarmsCheckpoints = do
         (allPositive (metricCounts metrics))
     assertBool "opening entries" (metrics.openingEntryCount > 0)
 
+-- * Subscriber notices
+
+publicationAdvancesTheTick :: IO ()
+publicationAdvancesTheTick = do
+    state <- newDerivedState
+    before <- readDerivedNotice state
+    publishDerived state "md5:one" chainFixture
+    notice <- noticeAfter state before.tick
+    assertEqual "revision" (Just "md5:one") (fmap (.revision) notice)
+    assertEqual "complete" (Just True) (fmap (.complete) notice)
+
+{- | A @touch@, or a @SIGHUP@ with nothing edited, reloads and rebuilds to the
+same revision. Without this deduplication every such reload would push a refetch
+to every connected client, which is what the old snapshot-revision comparison
+happened to avoid for free.
+-}
+republicationSpendsNoTick :: IO ()
+republicationSpendsNoTick = do
+    state <- newDerivedState
+    publishDerived state "md5:one" chainFixture
+    before <- readDerivedNotice state
+    publishDerived state "md5:one" chainFixture
+    assertEqual "no wakeup" Nothing =<< noticeAfter state before.tick
+
+{- | The reason a notice carries 'complete' rather than a revision alone. A
+rebuild for a revision can fail — which is announced, so nobody waits forever —
+and then succeed on a retry. Deduplicating on the revision alone would decide the
+second announcement was the same news and swallow it, leaving every client on
+stale analytics with the good news never sent.
+-}
+successAfterFailureIsAnnounced :: IO ()
+successAfterFailureIsAnnounced = do
+    state <- newDerivedState
+    _ <- rebuildDerived state "md5:one" neverSuperseded failingCompute
+    failureNotice <- readDerivedNotice state
+    assertEqual "failure announced" ("md5:one", False) (failureNotice.revision, failureNotice.complete)
+    publishDerived state "md5:one" chainFixture
+    recovered <- noticeAfter state failureNotice.tick
+    assertEqual "recovery announced" (Just ("md5:one", True)) (pairOf <$> recovered)
+
+{- | An abandoned rebuild has already been superseded by one that will itself
+publish or fail, so announcing here would only send clients at a view about to be
+replaced.
+-}
+abandonedRebuildSaysNothing :: IO ()
+abandonedRebuildSaysNothing = do
+    state <- newDerivedState
+    before <- readDerivedNotice state
+    let compute = nextGeneration state *> computeChain
+    outcome <- rebuildDerived state "md5:one" (supersededByGeneration state) compute
+    assertEqual "outcome" RebuildAbandoned outcome
+    assertEqual "no wakeup" Nothing =<< noticeAfter state before.tick
+
+{- | The no-missed-wakeup property from the subscriber's side: an advance that
+lands between taking a baseline and waiting on it leaves the wait returning
+without blocking, rather than blocking until the next one.
+-}
+alreadyMovedDoesNotBlock :: IO ()
+alreadyMovedDoesNotBlock = do
+    state <- newDerivedState
+    before <- readDerivedNotice state
+    publishDerived state "md5:one" chainFixture
+    publishDerived state "md5:two" chainFixture
+    notice <- noticeAfter state before.tick
+    assertEqual "latest revision" (Just "md5:two") (fmap (.revision) notice)
+
+pairOf :: DerivedNotice -> (Text, Bool)
+pairOf notice = (notice.revision, notice.complete)
+
+{- | Whether a notice past @seen@ arrives promptly. 'Nothing' is the "still
+waiting" answer, so a case asserting silence and a case asserting a wakeup differ
+only in what they expect.
+-}
+noticeAfter :: DerivedState -> Int -> IO (Maybe DerivedNotice)
+noticeAfter state seen = timeout 300_000 (awaitDerivedNotice state seen)
+
 -- * Rebuilds
 
 completesRebuild :: IO ()
 completesRebuild = do
     state <- newDerivedState
-    outcome <- rebuildDerived state neverSuperseded (computeChain "md5:new")
+    outcome <- rebuildDerived state "md5:new" neverSuperseded computeChain
     assertEqual "outcome" RebuildCompleted outcome
     assertEqual "revision" "md5:new" =<< readDerivedRevision state
     metrics <- readRebuildMetrics state
@@ -374,8 +464,8 @@ completesRebuild = do
 abandonsSupersededRebuild :: IO ()
 abandonsSupersededRebuild = do
     state <- newDerivedState
-    let compute = nextGeneration state *> computeChain "md5:new"
-    outcome <- rebuildDerived state (supersededByGeneration state) compute
+    let compute = nextGeneration state *> computeChain
+    outcome <- rebuildDerived state "md5:new" (supersededByGeneration state) compute
     assertEqual "outcome" RebuildAbandoned outcome
     assertEqual "revision" "" =<< readDerivedRevision state
     assertBool "chain" . isNothing =<< readDerivedChain state
@@ -393,7 +483,7 @@ retainsViewOnFailure = do
     populated <- cacheCounts warmed
     state <- newDerivedState
     publishDerivedWith state "md5:old" chainFixture (const warmed)
-    outcome <- rebuildDerived state neverSuperseded failingCompute
+    outcome <- rebuildDerived state "md5:new" neverSuperseded failingCompute
     assertBool "outcome" (isFailure outcome)
     view <- readDerivedView state
     assertEqual "revision" "md5:old" view.revision
@@ -406,9 +496,14 @@ retainsViewOnFailure = do
 countsRebuildOutcomes :: IO ()
 countsRebuildOutcomes = do
     state <- newDerivedState
-    _ <- rebuildDerived state neverSuperseded (computeChain "md5:one")
-    _ <- rebuildDerived state (supersededByGeneration state) (nextGeneration state *> computeChain "md5:two")
-    _ <- rebuildDerived state neverSuperseded failingCompute
+    _ <- rebuildDerived state "md5:one" neverSuperseded computeChain
+    _ <-
+        rebuildDerived
+            state
+            "md5:two"
+            (supersededByGeneration state)
+            (nextGeneration state *> computeChain)
+    _ <- rebuildDerived state "md5:three" neverSuperseded failingCompute
     metrics <- readRebuildMetrics state
     assertEqual "rebuilds" 1 metrics.rebuildCount
     assertEqual "abandoned" 1 metrics.abandonedCount

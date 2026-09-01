@@ -27,16 +27,18 @@ truncates the checkpoint caches by how far the prefix chain diverged and warms
 the view the dashboard opens on, so an append costs the months it touched rather
 than the journal's whole history.
 
-Two of the checkpoint modules are reached through @Domain.Internal@ because
-"Hedger.Domain.NetWorth" and "Hedger.Domain.Cashflow" re-export only their
-resumed entry points, not the cache types those entry points take and return.
-"Hedger.Domain.InvestmentPerformance" does re-export its cache, and is used
-through the public module for that reason.
+Behind @--shadow-verify@ it then recomputes that same view without checkpoints
+and compares. That check lives here, next to the warm, because both are
+statements about the same "default view" and a second module describing it
+independently could drift into verifying something the rebuild never warmed.
 -}
 module Hedger.Infrastructure.JournalWatcher (
     DerivedTargets (..),
+    ShadowDimension (..),
     guardReloaderStep,
     rebuildAfterReload,
+    shadowDivergences,
+    verifyShadow,
     watchTargets,
     withJournalWatcher,
 )
@@ -54,7 +56,8 @@ import Control.Exception (
     throwIO,
     try,
  )
-import Control.Monad (forever, when)
+import Control.Monad (forever, void, when)
+import Data.Decimal (Decimal)
 import Data.Foldable (traverse_)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (nub)
@@ -66,6 +69,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
+import Data.Time.Calendar (Day)
 import System.Directory qualified as Directory
 import System.FSNotify (
     Event,
@@ -79,25 +83,47 @@ import System.FilePath (takeDirectory)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Fingerprint (
     ChainDiff (DivergesFrom, GlobalChanged, Identical),
+    GlobalFingerprint (..),
+    Hash (..),
     PrefixChain (..),
     diffChains,
     globalFingerprint,
     prefixChain,
  )
 
-import Hedger.Domain.Cashflow (computeCashflowResumed)
-import Hedger.Domain.Internal.CashflowCheckpoint (columnCount)
+import Hedger.Domain.Cashflow (
+    BreakdownItem (..),
+    CashflowColumns,
+    CashflowFigures (..),
+    TimelinePoint (..),
+    columnCount,
+    computeCashflow,
+    computeCashflowResumed,
+ )
 import Hedger.Domain.Internal.InvestmentCheckpoint (checkpointCount, solvedRateCount)
-import Hedger.Domain.Internal.NetWorthCheckpoint (QueryKey (..), openingBalanceEntries)
 import Hedger.Domain.InvestmentPerformance (
+    InvestmentCompleteness,
+    InvestmentPerformanceContext,
+    InvestmentSummary (..),
+    InvestmentWarning,
     ScopeCache (..),
+    SummaryResult (..),
     investmentDataTransactions,
     prepareInvestmentPerformance,
     reportPeriods,
+    summariesAtPrepared,
     summariesAtResumed,
  )
-import Hedger.Domain.NetWorth (computeNetWorthResumed)
-import Hedger.Domain.Period (Granularity (Monthly), epoch)
+import Hedger.Domain.NetWorth (
+    NetWorthFigures (..),
+    OpeningBalances,
+    PerformancePoint (..),
+    QueryKey (..),
+    computeNetWorth,
+    computeNetWorthResumed,
+    openingBalanceEntries,
+ )
+import Hedger.Domain.Period (Granularity (Monthly), epoch, lastMaybe)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.DerivedRevision (
     DerivedCaches (..),
@@ -208,8 +234,16 @@ cost one month instead of the journal's whole history.
 -}
 rebuildAfterReload :: DerivedTargets -> TVar Bool -> Snapshot -> IO ()
 rebuildAfterReload derived wakeReloader snapshot = do
-    outcome <- rebuildDerived derived.derivedState (rebuildSuperseded derived wakeReloader) compute
+    outcome <-
+        rebuildDerived
+            derived.derivedState
+            snapshot.revision
+            (rebuildSuperseded derived wakeReloader)
+            compute
     Text.putStrLn (rebuildMessage snapshot outcome)
+    -- Strictly after the publication above, so the SSE notice and the warm
+    -- caches reach clients at the same moment they would with the flag off.
+    when (outcome == RebuildCompleted) (void (verifyShadow derived snapshot))
   where
     compute = do
         let fingerprint = globalFingerprint snapshot.journal derived.config
@@ -220,7 +254,7 @@ rebuildAfterReload derived wakeReloader snapshot = do
         forceChain chain
         let retained = truncateDerivedCaches chain difference previous.caches
         caches <- forceCaches (warmDefaultView derived snapshot chain retained)
-        pure (snapshot.revision, chain, caches)
+        pure (chain, caches)
 
 {- | The response store has no notion of a partially valid entry, so a
 divergence anywhere drops every response not keyed to the new revision. The
@@ -257,51 +291,81 @@ warmDefaultView :: DerivedTargets -> Snapshot -> PrefixChain -> DerivedCaches ->
 warmDefaultView derived snapshot chain caches =
     DerivedCaches{scopes = warmScopes, netWorth = warmNetWorth, cashflow = warmCashflow}
   where
+    request = defaultView derived snapshot
+    (_, warmNetWorth) = resumedNetWorth request snapshot chain caches.netWorth
+    (_, warmCashflow) = resumedCashflow request snapshot chain caches.cashflow
+    (_, warmScopes) = resumedSummaries request chain caches.scopes
+
+{- | The one set of request inputs the rebuild warms and shadow verification
+checks. Both need exactly the same inputs, and the investment context is dear
+enough to build that sharing it is worth the record.
+-}
+data DefaultView = DefaultView
+    { commodity :: !Text
+    , matched :: ![Hledger.Transaction]
+    {- ^ An empty query matches every transaction, so the matched set is the
+    snapshot's own and the canonical query text is empty.
+    -}
+    , queryKey :: !QueryKey
+    , scope :: !(Maybe Text)
+    , periodDays :: ![Day]
+    , context :: !InvestmentPerformanceContext
+    }
+
+defaultView :: DerivedTargets -> Snapshot -> DefaultView
+defaultView derived snapshot =
+    DefaultView
+        { commodity
+        , matched = snapshot.transactions
+        , queryKey = QueryKey{text = "", reference = latest}
+        , scope = rootScope
+        , periodDays = nub [end | (_, _, end) <- reportPeriods Monthly dataTransactions latest]
+        , context =
+            prepareInvestmentPerformance snapshot assetClasses mappings commodity
+        }
+  where
+    mappings = derived.config.investmentMappings
     commodity = derived.config.defaultDisplayCommodity
     latest = fromMaybe epoch snapshot.latestJournalDate
-    -- The unfiltered request: an empty query matches every transaction, so the
-    -- canonical query text is empty and the matched set is the snapshot's own.
-    matched = snapshot.transactions
-    queryKey = QueryKey{text = "", reference = latest}
-    (_, warmNetWorth) =
-        computeNetWorthResumed
-            snapshot
-            matched
-            queryKey
-            chain
-            caches.netWorth
-            Monthly
-            commodity
-            Nothing
-            Nothing
-            defaultDepth
-            defaultDepth
-    (_, warmCashflow) =
-        computeCashflowResumed
-            snapshot
-            matched
-            chain
-            caches.cashflow
-            ""
-            Monthly
-            commodity
-            Nothing
-            Nothing
-            defaultDepth
-            defaultDepth
-    (_, warmScopes) =
-        summariesAtResumed
-            (prepareInvestmentPerformance snapshot assetClasses derived.config.investmentMappings commodity)
-            chain
-            caches.scopes
-            rootScope
-            Monthly
-            periodDays
     assetClasses = derived.config.assetClassMappings
     rootScope = Nothing
-    periodDays =
-        nub [end | (_, _, end) <- reportPeriods Monthly dataTransactions latest]
     dataTransactions = investmentDataTransactions snapshot assetClasses rootScope
+
+resumedNetWorth ::
+    DefaultView -> Snapshot -> PrefixChain -> OpeningBalances -> (NetWorthFigures, OpeningBalances)
+resumedNetWorth request snapshot chain opening =
+    computeNetWorthResumed
+        snapshot
+        request.matched
+        request.queryKey
+        chain
+        opening
+        Monthly
+        request.commodity
+        Nothing
+        Nothing
+        defaultDepth
+        defaultDepth
+
+resumedCashflow ::
+    DefaultView -> Snapshot -> PrefixChain -> CashflowColumns -> (CashflowFigures, CashflowColumns)
+resumedCashflow request snapshot chain columns =
+    computeCashflowResumed
+        snapshot
+        request.matched
+        chain
+        columns
+        ""
+        Monthly
+        request.commodity
+        Nothing
+        Nothing
+        defaultDepth
+        defaultDepth
+
+resumedSummaries :: DefaultView -> PrefixChain -> ScopeCache -> ([SummaryResult], ScopeCache)
+resumedSummaries request chain scopes =
+    summariesAtResumed request.context chain scopes request.scope Monthly request.periodDays
 
 {- | The depth every analytics endpoint applies when the request omits one. Depth
 is a projection over unclipped cached rows, so it does not affect what is
@@ -346,6 +410,222 @@ forceCaches caches = do
     _ <- evaluate (openingBalanceEntries caches.netWorth)
     _ <- evaluate (columnCount caches.cashflow)
     evaluate caches
+
+-- * Shadow verification
+
+{- | Which analytics family disagreed with its own unchecked recomputation.
+
+There is deliberately no payload beyond the name. A wrongly kept checkpoint is
+found by re-running the comparison under a debugger or a test, not by reading a
+diff of two timelines out of a log line.
+-}
+data ShadowDimension
+    = ShadowNetWorth
+    | ShadowCashflow
+    | ShadowInvestments
+    deriving stock (Eq, Show)
+
+{- | Recompute the just-published default view without checkpoints and report
+every family whose figures disagree.
+
+This is the only check that can catch a checkpoint which was /kept/ when it
+should have been discarded — the failure mode that produces silently stale
+numbers and no error. Every checkpoint slice is verified against an oracle in the
+test suite, but only over fixtures and hand-built edit sequences; this runs
+against whatever chain and whatever edit a real journal produced.
+
+The resumed side is computed from the caches as published rather than from the
+values the rebuild happened to have in hand, because that is what a request will
+resume from. Nothing here is served or repaired: a divergence means a cached
+value is wrong, and quietly substituting the unchecked answer would remove the
+only symptom the bug has.
+-}
+shadowDivergences :: DerivedTargets -> Snapshot -> PrefixChain -> DerivedCaches -> [ShadowDimension]
+shadowDivergences derived snapshot chain caches =
+    concat
+        [ [ShadowNetWorth | netWorthProjection resumedWorth /= netWorthProjection uncheckedWorth]
+        , [ShadowCashflow | cashflowProjection resumedFlow /= cashflowProjection uncheckedFlow]
+        , [ ShadowInvestments
+          | (summaryProjection <$> resumedScopes) /= (summaryProjection <$> uncheckedScopes)
+          ]
+        ]
+  where
+    request = defaultView derived snapshot
+    (resumedWorth, _) = resumedNetWorth request snapshot chain caches.netWorth
+    (resumedFlow, _) = resumedCashflow request snapshot chain caches.cashflow
+    (resumedScopes, _) = resumedSummaries request chain caches.scopes
+    uncheckedWorth =
+        computeNetWorth
+            snapshot
+            request.matched
+            Monthly
+            request.commodity
+            Nothing
+            Nothing
+            defaultDepth
+            defaultDepth
+    uncheckedFlow =
+        computeCashflow
+            snapshot
+            request.matched
+            Monthly
+            request.commodity
+            Nothing
+            Nothing
+            defaultDepth
+            defaultDepth
+    uncheckedScopes = summariesAtPrepared request.context request.scope Monthly request.periodDays
+
+{- | Log every divergence in the published derived view, and return what was
+logged so that a caller — or a test — can tell "nothing diverged" from "nothing
+was compared".
+
+The flag check comes first, so with shadow verification off this costs one 'Bool'
+test and nothing else: no read of the derived state, no recomputation.
+
+The revision guard is not defensive padding. The rebuild published, but a newer
+one may have landed since, and comparing that view against /this/ snapshot would
+report a divergence that is only the two being from different revisions.
+-}
+verifyShadow :: DerivedTargets -> Snapshot -> IO [ShadowDimension]
+verifyShadow derived snapshot
+    | not derived.config.shadowVerification = pure []
+    | otherwise = do
+        view <- readDerivedView derived.derivedState
+        case view.chain of
+            Just chain
+                | view.revision == snapshot.revision -> do
+                    let divergences = shadowDivergences derived snapshot chain view.caches
+                    traverse_ (Text.putStrLn . divergenceMessage snapshot chain) divergences
+                    pure divergences
+            _ -> pure []
+
+divergenceMessage :: Snapshot -> PrefixChain -> ShadowDimension -> Text
+divergenceMessage snapshot chain dimension =
+    "SHADOW VERIFICATION DIVERGENCE in "
+        <> dimensionName dimension
+        <> ": resuming from checkpoints disagrees with a full recomputation, so a checkpoint was"
+        <> " kept that should have been discarded. Derived revision "
+        <> snapshot.revision
+        <> ", global fingerprint "
+        <> globalHashes chain.global
+        <> ", chain head "
+        <> chainHead chain
+        <> ". The resumed result is still what is being served; nothing was substituted."
+
+dimensionName :: ShadowDimension -> Text
+dimensionName dimension = case dimension of
+    ShadowNetWorth -> "net worth"
+    ShadowCashflow -> "cashflow"
+    ShadowInvestments -> "investment performance"
+
+{- | Every component separately, because which one moved is the first thing that
+narrows a wrongly kept checkpoint down.
+-}
+globalHashes :: GlobalFingerprint -> Text
+globalHashes fingerprint =
+    Text.intercalate
+        "/"
+        [ "files=" <> renderHash fingerprint.files
+        , "parse-options=" <> renderHash fingerprint.parseOptions
+        , "commodity-styles=" <> renderHash fingerprint.commodityStyles
+        , "account-types=" <> renderHash fingerprint.accountTypes
+        , "config=" <> renderHash fingerprint.configVersion
+        ]
+
+renderHash :: Hash -> Text
+renderHash (Hash value) = value
+
+chainHead :: PrefixChain -> Text
+chainHead chain = case lastMaybe chain.months of
+    Nothing -> "(empty chain)"
+    Just (month, hash) -> Text.pack (show month) <> "=" <> renderHash hash
+
+-- * Comparable projections
+
+--
+
+{- $projections
+The figures records carry no 'Eq' instance, so agreement is asserted over
+these projections instead. They are exhaustive over the fields each record
+has: a field left out would be a dimension in which a wrongly kept checkpoint
+could not be seen.
+-}
+
+type PointProjection = (Text, Day, Decimal, Decimal, Decimal, Set Text)
+
+type PerformanceProjection = (Text, Day, Decimal, Decimal, Decimal)
+
+type BreakdownProjection = (Text, Text, Decimal)
+
+type NetWorthProjection =
+    ( [PointProjection]
+    , [PerformanceProjection]
+    , (Int, Maybe Text, Set Text)
+    , (Maybe Decimal, Maybe Decimal, Maybe Decimal)
+    , [BreakdownProjection]
+    )
+
+type CashflowProjection =
+    ( [PointProjection]
+    , (Bool, Int, Int, Set Text)
+    , [BreakdownProjection]
+    )
+
+type SummaryProjection =
+    ( (Maybe Decimal, Maybe Decimal, Maybe Decimal, Maybe Decimal)
+    , (Maybe Decimal, Maybe Decimal, Maybe Decimal, InvestmentCompleteness)
+    , [InvestmentWarning]
+    )
+
+pointProjection :: TimelinePoint -> PointProjection
+pointProjection point =
+    (point.period, point.startDate, point.positive, point.negative, point.net, point.missing)
+
+performanceProjection :: PerformancePoint -> PerformanceProjection
+performanceProjection point =
+    (point.period, point.startDate, point.netInvestment, point.netWorth, point.gainLoss)
+
+{- | The period travels with each row so that a breakdown attributed to the wrong
+period is a divergence rather than an invisible relabelling.
+-}
+breakdownProjection :: Text -> BreakdownItem -> BreakdownProjection
+breakdownProjection period item = (period, item.account, item.quantity)
+
+netWorthProjection :: NetWorthFigures -> NetWorthProjection
+netWorthProjection figures =
+    ( pointProjection <$> figures.timeline
+    , performanceProjection <$> figures.performance
+    , (figures.incompletePeriods, figures.selectedKey, figures.missing)
+    , (figures.currentAssets, figures.currentLiabilities, figures.currentNetWorth)
+    , (breakdownProjection figures.assetsBreakdownPeriod <$> figures.assetsBreakdownItems)
+        <> (breakdownProjection figures.liabilitiesBreakdownPeriod <$> figures.liabilitiesBreakdownItems)
+    )
+
+cashflowProjection :: CashflowFigures -> CashflowProjection
+cashflowProjection figures =
+    ( pointProjection <$> figures.timeline
+    , (figures.available, figures.totalCount, figures.filteredCount, figures.missing)
+    , (breakdownProjection figures.incomeBreakdownPeriod <$> figures.incomeBreakdownItems)
+        <> (breakdownProjection figures.expenseBreakdownPeriod <$> figures.expenseBreakdownItems)
+    )
+
+summaryProjection :: SummaryResult -> SummaryProjection
+summaryProjection result =
+    (
+        ( result.summary.marketValue
+        , result.summary.purchaseCost
+        , result.summary.gainLoss
+        , result.summary.xirr
+        )
+    ,
+        ( result.summary.attributedIncome
+        , result.summary.realisedGain
+        , result.summary.totalProfit
+        , result.summary.completeness
+        )
+    , result.warnings
+    )
 
 {- | The coalescing requirement: a five-file save must drive one rebuild, not
 five sequential ones. A pending wake means the snapshot this rebuild was

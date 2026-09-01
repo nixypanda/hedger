@@ -16,6 +16,7 @@ so a truncation and the revision it follows from can never be observed apart.
 module Hedger.Infrastructure.DerivedRevision (
     DerivedState,
     DerivedCaches (..),
+    DerivedNotice (..),
     DerivedView (..),
     RebuildOutcome (..),
     RebuildMetrics (..),
@@ -26,6 +27,8 @@ module Hedger.Infrastructure.DerivedRevision (
     readDerivedRevision,
     readDerivedChain,
     readDerivedView,
+    readDerivedNotice,
+    awaitDerivedNotice,
     publishDerived,
     publishDerivedWith,
     nextGeneration,
@@ -35,6 +38,16 @@ module Hedger.Infrastructure.DerivedRevision (
 )
 where
 
+import Control.Concurrent.STM (
+    STM,
+    TVar,
+    atomically,
+    check,
+    modifyTVar',
+    newTVar,
+    readTVar,
+    readTVarIO,
+ )
 import Control.Exception (
     SomeAsyncException,
     SomeException,
@@ -43,25 +56,24 @@ import Control.Exception (
     throwIO,
     try,
  )
-import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time.Clock (NominalDiffTime, diffUTCTime, getCurrentTime)
 
-import Hedger.Domain.Fingerprint (ChainDiff, PrefixChain)
-import Hedger.Domain.Internal.CashflowCheckpoint (
+import Hedger.Domain.Cashflow (
     CashflowColumns,
     columnCount,
     emptyColumns,
     truncateColumns,
  )
+import Hedger.Domain.Fingerprint (ChainDiff, PrefixChain)
 import Hedger.Domain.Internal.InvestmentCheckpoint (
     ScopeCache (..),
     checkpointCount,
     emptyScopeCache,
     truncateScopeCache,
  )
-import Hedger.Domain.Internal.NetWorthCheckpoint (
+import Hedger.Domain.NetWorth (
     OpeningBalances,
     emptyOpeningBalances,
     openingBalanceCount,
@@ -154,13 +166,44 @@ data DerivedStateValue = DerivedStateValue
     , failure :: !(Maybe Text)
     }
 
+{- | What a subscriber is told when the derived view moves.
+
+'tick' is the wakeup signal and 'revision' is what to announce. The tick is a
+monotone counter rather than the revision text because the same revision can
+have to be announced twice for different reasons: a rebuild for it can fail
+(announcing that the /journal/ reached it while the derived view did not) and
+then succeed (announcing that the derived view caught up). Comparing revision
+text alone would swallow the second announcement.
+
+'complete' is what makes those two announcements distinguishable, and so is what
+the deduplication below compares: a tick is spent only when the
+@(revision, complete)@ pair actually changes, which keeps a content-free reload —
+a @touch@, or a @SIGHUP@ with nothing edited — from pushing an event to every
+connected client.
+-}
+data DerivedNotice = DerivedNotice
+    { tick :: !Int
+    , revision :: !Text
+    , complete :: !Bool
+    {- ^ Whether the derived view for 'revision' is published, as opposed to a
+    rebuild for it having failed.
+    -}
+    }
+    deriving stock (Eq, Show)
+
 {- | Concurrency invariant: the revision, its chain, its checkpoint caches, and
-the generation counter live in a single 'IORef' and are only ever replaced
-together by 'atomicModifyIORef'', so no reader can observe a revision paired
-with the chain or the checkpoints of a different rebuild, and no rebuild can
-publish on top of a token it did not take. Rebuilds need no lock because
-'Hedger.Infrastructure.JournalWatcher' runs one reloader thread, so they are
-serialized by construction.
+the generation counter live in a single 'TVar' and are only ever replaced
+together, so no reader can observe a revision paired with the chain or the
+checkpoints of a different rebuild, and no rebuild can publish on top of a token
+it did not take.
+
+The notice is a second 'TVar', written in the /same/ transaction as the value it
+announces. That is the whole reason this is STM and not an 'Data.IORef.IORef':
+a subscriber woken by the notice must be unable to read a derived view older
+than the one the notice describes, and one transaction over both variables is
+the cheapest way to say so. Keeping the notice separate rather than folding it
+into the value means a subscriber blocks on revision changes only, and is not
+woken by every request that merges checkpoints back.
 
 Requests, unlike rebuilds, are concurrent, and they write: a resumed
 calculation extends a checkpoint map and hands it back through
@@ -179,41 +222,62 @@ needed.
     merge whose revision no longer matches the published one is dropped rather
     than reconciled.
 -}
-newtype DerivedState = DerivedState (IORef DerivedStateValue)
+data DerivedState = DerivedState (TVar DerivedStateValue) (TVar DerivedNotice)
 
 newDerivedState :: IO DerivedState
 newDerivedState =
-    DerivedState
-        <$> newIORef
-            DerivedStateValue
-                { publishedRevision = ""
-                , publishedChain = Nothing
-                , publishedCaches = emptyDerivedCaches
-                , generationCounter = 0
-                , completed = 0
-                , duration = Nothing
-                , abandoned = 0
-                , failures = 0
-                , failure = Nothing
-                }
+    atomically $
+        DerivedState
+            <$> newTVar
+                DerivedStateValue
+                    { publishedRevision = ""
+                    , publishedChain = Nothing
+                    , publishedCaches = emptyDerivedCaches
+                    , generationCounter = 0
+                    , completed = 0
+                    , duration = Nothing
+                    , abandoned = 0
+                    , failures = 0
+                    , failure = Nothing
+                    }
+            <*> newTVar DerivedNotice{tick = 0, revision = "", complete = False}
 
 -- | The derived revision currently published, or @""@ before the first successful rebuild.
 readDerivedRevision :: DerivedState -> IO Text
-readDerivedRevision (DerivedState stateReference) = (.publishedRevision) <$> readIORef stateReference
+readDerivedRevision (DerivedState stateVar _) = (.publishedRevision) <$> readTVarIO stateVar
 
 readDerivedChain :: DerivedState -> IO (Maybe PrefixChain)
-readDerivedChain (DerivedState stateReference) = (.publishedChain) <$> readIORef stateReference
+readDerivedChain (DerivedState stateVar _) = (.publishedChain) <$> readTVarIO stateVar
 
--- | The revision, chain and caches as of one read of the 'IORef'.
+-- | The revision, chain and caches as of one read of the state variable.
 readDerivedView :: DerivedState -> IO DerivedView
-readDerivedView (DerivedState stateReference) = do
-    state <- readIORef stateReference
+readDerivedView (DerivedState stateVar _) = do
+    state <- readTVarIO stateVar
     pure
         DerivedView
             { revision = state.publishedRevision
             , chain = state.publishedChain
             , caches = state.publishedCaches
             }
+
+-- | The notice as it currently stands, for a subscriber establishing its baseline.
+readDerivedNotice :: DerivedState -> IO DerivedNotice
+readDerivedNotice (DerivedState _ noticeVar) = readTVarIO noticeVar
+
+{- | Block until the notice carries a tick other than @seen@.
+
+A subscriber cannot miss a wakeup: it takes its baseline tick from
+'readDerivedNotice' and every subsequent advance is a commit to the same
+variable, so an advance that lands between the baseline read and the
+'awaitDerivedNotice' call leaves the variable already differing and the
+transaction returns without blocking.
+-}
+awaitDerivedNotice :: DerivedState -> Int -> IO DerivedNotice
+awaitDerivedNotice (DerivedState _ noticeVar) seen =
+    atomically $ do
+        notice <- readTVar noticeVar
+        check (notice.tick /= seen)
+        pure notice
 
 {- | Swap in a complete derived view, leaving the checkpoint caches as they are.
 Bumping the generation here is what makes a rebuild that was still running
@@ -224,23 +288,40 @@ publishDerived state newRevision newChain = publishDerivedWith state newRevision
 
 {- | Publish a revision, its chain and a transformation of the checkpoint caches
 in one step, so a truncation can never be visible without the chain that
-justifies it (or the reverse).
+justifies it (or the reverse). The notice advances in the same transaction, so a
+subscriber woken by it always reads at least this view.
 
 Callers pass @const alreadyForcedCaches@ rather than the work itself: the
-transformation runs inside 'atomicModifyIORef'', which is the wrong place to
-discover that a cache field was a thunk.
+transformation runs inside the transaction, which is the wrong place to discover
+that a cache field was a thunk — and worse under STM than under an 'Data.IORef.IORef',
+because a conflicting commit would evaluate it again.
 -}
 publishDerivedWith :: DerivedState -> Text -> PrefixChain -> (DerivedCaches -> DerivedCaches) -> IO ()
-publishDerivedWith (DerivedState stateReference) newRevision newChain transform =
-    atomicModifyIORef' stateReference $ \state ->
-        ( state
-            { publishedRevision = newRevision
-            , publishedChain = Just newChain
-            , publishedCaches = transform state.publishedCaches
-            , generationCounter = state.generationCounter + 1
-            }
-        , ()
-        )
+publishDerivedWith (DerivedState stateVar noticeVar) newRevision newChain transform =
+    atomically $ do
+        modifyTVar' stateVar $ \state ->
+            state
+                { publishedRevision = newRevision
+                , publishedChain = Just newChain
+                , publishedCaches = transform state.publishedCaches
+                , generationCounter = state.generationCounter + 1
+                }
+        advanceNotice noticeVar newRevision True
+
+{- | Move the notice on, unless it already says exactly this. See 'DerivedNotice'
+for why the announcement is deduplicated on the pair rather than on the revision.
+-}
+advanceNotice :: TVar DerivedNotice -> Text -> Bool -> STM ()
+advanceNotice noticeVar newRevision nowComplete =
+    modifyTVar' noticeVar $ \notice ->
+        if notice.revision == newRevision && notice.complete == nowComplete
+            then notice
+            else
+                DerivedNotice
+                    { tick = notice.tick + 1
+                    , revision = newRevision
+                    , complete = nowComplete
+                    }
 
 {- | Merge checkpoints a request produced back into the published caches, but
 only while the revision they were computed against is still the published one.
@@ -252,25 +333,31 @@ view, and bumping would make an in-flight rebuild abandon itself over a request
 that agreed with it.
 -}
 mergeDerivedCaches :: DerivedState -> Text -> (DerivedCaches -> DerivedCaches) -> IO Bool
-mergeDerivedCaches (DerivedState stateReference) expectedRevision transform =
-    atomicModifyIORef' stateReference $ \state ->
+mergeDerivedCaches (DerivedState stateVar _) expectedRevision transform =
+    atomically $ do
+        state <- readTVar stateVar
         if state.publishedRevision == expectedRevision
-            then (state{publishedCaches = transform state.publishedCaches}, True)
-            else (state, False)
+            then do
+                modifyTVar' stateVar $ \current ->
+                    current{publishedCaches = transform current.publishedCaches}
+                pure True
+            else pure False
 
 -- | Claim the next generation token; the claim itself supersedes any rebuild in flight.
 nextGeneration :: DerivedState -> IO Int
-nextGeneration (DerivedState stateReference) =
-    atomicModifyIORef' stateReference $ \state ->
+nextGeneration (DerivedState stateVar _) =
+    atomically $ do
+        state <- readTVar stateVar
         let claimed = state.generationCounter + 1
-         in (state{generationCounter = claimed}, claimed)
+        modifyTVar' stateVar (\current -> current{generationCounter = claimed})
+        pure claimed
 
 currentGeneration :: DerivedState -> IO Int
-currentGeneration (DerivedState stateReference) = (.generationCounter) <$> readIORef stateReference
+currentGeneration (DerivedState stateVar _) = (.generationCounter) <$> readTVarIO stateVar
 
 readRebuildMetrics :: DerivedState -> IO RebuildMetrics
-readRebuildMetrics (DerivedState stateReference) = do
-    state <- readIORef stateReference
+readRebuildMetrics (DerivedState stateVar _) = do
+    state <- readTVarIO stateVar
     pure
         RebuildMetrics
             { revision = state.publishedRevision
@@ -286,41 +373,59 @@ readRebuildMetrics (DerivedState stateReference) = do
             , cashflowColumnCount = columnCount state.publishedCaches.cashflow
             }
 
-{- | Run one derived rebuild: take a generation token, compute, and publish only
-if the token still describes the newest rebuild.
+{- | Run one derived rebuild for @target@: take a generation token, compute, and
+publish only if the token still describes the newest rebuild.
 
 @superseded@ is consulted immediately before publishing rather than after
 computing, because that is the last moment at which abandoning still costs
 nothing. A synchronous exception from @compute@ leaves the previous derived view
 in place: a partial derived view is indistinguishable from a correct one to a
 reader, so it must never be published.
+
+Each of the three outcomes has to leave subscribers in a defensible state, and
+they differ:
+
+  * Completed publishes, which advances the notice as a completion.
+  * Failed advances the notice as an incompletion, naming @target@. The derived
+    view has /not/ moved, so this is not an invitation to expect fresh analytics;
+    it is what stops a client from waiting indefinitely while the snapshot — and
+    therefore transactions, accounts and the register — moves on without it. The
+    @refreshing@/@stale@ metadata on the analytics responses continues to say
+    that the numbers trail the journal.
+  * Abandoned deliberately says nothing. A newer rebuild has already claimed the
+    state and will itself complete or fail, so the wakeup arrives from there;
+    announcing here would only push a client onto a view about to be replaced.
+    The chain terminates because the reloader clears its wake flag before
+    reloading, so the last rebuild of a burst is never superseded.
 -}
 rebuildDerived ::
     DerivedState ->
+    -- | The revision this rebuild is for, known before @compute@ so a failure can name it.
+    Text ->
     -- | Whether the rebuild holding this generation token has been superseded.
     (Int -> IO Bool) ->
-    {- | Computes the revision, chain and checkpoint caches to publish; may
-    invalidate the response store as a side effect. The caches it returns must
-    already be forced — see 'publishDerivedWith'.
+    {- | Computes the chain and checkpoint caches to publish; may invalidate the
+    response store as a side effect. The caches it returns must already be
+    forced — see 'publishDerivedWith'.
     -}
-    IO (Text, PrefixChain, DerivedCaches) ->
+    IO (PrefixChain, DerivedCaches) ->
     IO RebuildOutcome
-rebuildDerived state superseded compute = do
+rebuildDerived state target superseded compute = do
     token <- nextGeneration state
     startedAt <- getCurrentTime
     result <- try (attempt token)
     finishedAt <- getCurrentTime
     outcome <- either rethrowAsynchronous pure result
-    recordOutcome state outcome (diffUTCTime finishedAt startedAt)
+    recordOutcome state target outcome (diffUTCTime finishedAt startedAt)
     pure outcome
   where
     attempt token = do
-        (newRevision, newChain, newCaches) <- compute
+        (newChain, newCaches) <- compute
         lost <- superseded token
         if lost
             then pure RebuildAbandoned
             else do
-                publishDerivedWith state newRevision newChain (const newCaches)
+                publishDerivedWith state target newChain (const newCaches)
                 pure RebuildCompleted
 
 rethrowAsynchronous :: SomeException -> IO RebuildOutcome
@@ -329,10 +434,14 @@ rethrowAsynchronous exception =
         Just _ -> throwIO exception
         Nothing -> pure (RebuildFailed (Text.pack (displayException exception)))
 
-recordOutcome :: DerivedState -> RebuildOutcome -> NominalDiffTime -> IO ()
-recordOutcome (DerivedState stateReference) outcome elapsed =
-    atomicModifyIORef' stateReference $ \state ->
-        (counted state{duration = Just elapsed}, ())
+recordOutcome :: DerivedState -> Text -> RebuildOutcome -> NominalDiffTime -> IO ()
+recordOutcome (DerivedState stateVar noticeVar) target outcome elapsed =
+    atomically $ do
+        modifyTVar' stateVar (\state -> counted state{duration = Just elapsed})
+        case outcome of
+            RebuildFailed _ -> advanceNotice noticeVar target False
+            RebuildCompleted -> pure ()
+            RebuildAbandoned -> pure ()
   where
     counted state = case outcome of
         RebuildCompleted -> state{completed = state.completed + 1}

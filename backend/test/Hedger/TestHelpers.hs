@@ -50,6 +50,7 @@ configuration =
         , fiscalYearStartMonth = 4
         , investmentMappings = emptyInvestmentMappings
         , assetClassMappings = configuredAssetClasses
+        , shadowVerification = False
         }
 
 configuredAssetClasses :: AssetClassMappings

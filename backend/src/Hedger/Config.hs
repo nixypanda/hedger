@@ -28,6 +28,14 @@ data Config = Config
     , fiscalYearStartMonth :: Int
     , investmentMappings :: Investment.InvestmentMappings
     , assetClassMappings :: Investment.AssetClassMappings
+    , shadowVerification :: Bool
+    {- ^ Recompute analytics the unchecked way after every derived rebuild and
+    log any disagreement. Off by default: it roughly doubles the cost of a
+    rebuild, and it exists to hunt a wrongly kept checkpoint, not to run
+    permanently. Deliberately absent from
+    'Hedger.Domain.Fingerprint.configHash' — verifying caches must not
+    invalidate them.
+    -}
     }
     deriving stock (Eq, Show)
 
@@ -37,6 +45,14 @@ data FileConfig = FileConfig
     , server :: Maybe ServerFileConfig
     , display :: Maybe DisplayFileConfig
     , investments :: Maybe InvestmentsFileConfig
+    , verification :: Maybe VerificationFileConfig
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+-- | Diagnostics that are meant to be switched on for a soak and then off again.
+data VerificationFileConfig = VerificationFileConfig
+    { shadow :: Maybe Bool
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON)
@@ -90,6 +106,7 @@ data CliOptions = CliOptions
     , cliListenPort :: Maybe Int
     , cliDisplayCommodity :: Maybe Text
     , cliFiscalYearStartMonth :: Maybe Int
+    , cliShadowVerification :: Maybe Bool
     }
 
 loadConfig :: IO (Either Text Config)
@@ -147,6 +164,9 @@ resolveConfig fileConfig cli = do
                     `orDefault` 4
             , investmentMappings = mappings
             , assetClassMappings = assetClasses
+            , shadowVerification =
+                (cli.cliShadowVerification <|> (fileConfig.verification >>= (.shadow)))
+                    `orDefault` False
             }
 
 investmentMappingsFrom :: Maybe InvestmentsFileConfig -> Either Text Investment.InvestmentMappings
@@ -204,6 +224,7 @@ emptyFileConfig =
         , server = Nothing
         , display = Nothing
         , investments = Nothing
+        , verification = Nothing
         }
 
 orDefault :: Maybe value -> value -> value
@@ -235,6 +256,9 @@ cliOptionsParser =
         <*> optionalAuto "port" "PORT" "Listen port (default: 8080)"
         <*> optionalText "display-commodity" "COMMODITY" "Default display commodity (default: INR)"
         <*> optionalAuto "fiscal-year-start" "MONTH" "Fiscal-year start month (default: 4)"
+        <*> optionalFlag
+            "shadow-verify"
+            "Recompute analytics without checkpoints after every reload and log disagreements (default: off)"
 
 optionalText :: Text -> Text -> Text -> Options.Parser (Maybe Text)
 optionalText name valueName description =
@@ -245,6 +269,17 @@ optionalText name valueName description =
                     <> Options.metavar (Text.unpack valueName)
                     <> Options.help (Text.unpack description)
                 )
+        )
+
+{- | A switch that stays distinguishable from its own absence, so a @false@ in the
+configuration file is not silently overridden by the flag not being passed.
+-}
+optionalFlag :: Text -> Text -> Options.Parser (Maybe Bool)
+optionalFlag name description =
+    Options.optional
+        ( Options.flag'
+            True
+            (Options.long (Text.unpack name) <> Options.help (Text.unpack description))
         )
 
 optionalAuto :: (Read value) => Text -> Text -> Text -> Options.Parser (Maybe value)

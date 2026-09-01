@@ -1,6 +1,7 @@
 module Hedger.Interface.HTTP.EventsSpec (httpEventsSpec) where
 
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.STM (newTVarIO)
 import Control.Exception (bracket)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
@@ -15,9 +16,10 @@ import Test.Tasty.HUnit (assertBool, assertFailure, testCase)
 
 import Hedger.Application.AppM (Env (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Infrastructure.JournalWatcher (DerivedTargets (..), rebuildAfterReload)
 import Hedger.Infrastructure.SnapshotStore (reloadSnapshot)
 import Hedger.Interface.HTTP.Events (HeartbeatInterval (..), eventsApplicationWithHeartbeat)
-import Hedger.TestHelpers (configuration, loadedStore, testEnv)
+import Hedger.TestHelpers (loadedStore, testEnv)
 
 httpEventsSpec :: TestTree
 httpEventsSpec =
@@ -47,10 +49,22 @@ reconnectsAfterDisconnect = do
             case reloadResult of
                 Left _ -> assertFailure "replacement snapshot load failed"
                 Right snapshot -> do
+                    -- The stream is gated on the derived revision, so a reload
+                    -- alone emits nothing; the rebuild is what clients follow.
+                    wake <- newTVarIO False
+                    rebuildAfterReload (targetsFor environment) wake snapshot
                     response <- receiveContaining (TextEncoding.encodeUtf8 snapshot.revision) client
                     assertBool
                         "revision event should be named"
                         ("event:revision" `ByteString.isInfixOf` response)
+
+targetsFor :: Env -> DerivedTargets
+targetsFor environment =
+    DerivedTargets
+        { derivedState = environment.derivedState
+        , derivedStore = environment.derivedStore
+        , config = environment.config
+        }
 
 withEventsServer :: (Int -> IO a) -> IO a
 withEventsServer action = do

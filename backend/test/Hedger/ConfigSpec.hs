@@ -32,6 +32,8 @@ configSpec =
         , testCase "rejects overlapping asset class prefixes" rejectsOverlappingAssetClassPrefix
         , testCase "rejects out-of-range asset class targets" rejectsOutOfRangeAssetClassTarget
         , testCase "rejects asset class targets that do not total 100" rejectsInvalidAssetClassTargetTotal
+        , testCase "leaves shadow verification off unless asked" shadowVerificationDefaultsOff
+        , testCase "enables shadow verification from YAML or the CLI" enablesShadowVerification
         , testCase "validates bounded port" validatesPort
         , testCase "validates fiscal month" validatesFiscalMonth
         ]
@@ -69,6 +71,43 @@ cliOverridesYaml = do
         , "INR"
         , "--fiscal-year-start"
         , "4"
+        ]
+
+{- | The flag doubles the cost of every rebuild, so its default is part of its
+contract rather than an incidental.
+-}
+shadowVerificationDefaultsOff :: IO ()
+shadowVerificationDefaultsOff = do
+    config <- requireConfig (parseConfig (Just exampleConfig) [])
+    assertEqual "default" False config.shadowVerification
+
+{- | Both routes, including a CLI switch overriding an explicit @false@ in the
+file: the switch is parsed as an optional flag rather than a plain @switch@ so
+that not passing it stays distinguishable from passing it off.
+-}
+enablesShadowVerification :: IO ()
+enablesShadowVerification = do
+    fromYaml <- requireConfig (parseConfig (Just shadowEnabledConfig) [])
+    assertEqual "from YAML" True fromYaml.shadowVerification
+    fromCli <- requireConfig (parseConfig (Just shadowDisabledConfig) ["--shadow-verify"])
+    assertEqual "from the CLI over a file false" True fromCli.shadowVerification
+    fileWins <- requireConfig (parseConfig (Just shadowDisabledConfig) [])
+    assertEqual "file false without the switch" False fileWins.shadowVerification
+
+shadowEnabledConfig :: ByteString
+shadowEnabledConfig = verificationConfig "true"
+
+shadowDisabledConfig :: ByteString
+shadowDisabledConfig = verificationConfig "false"
+
+verificationConfig :: ByteString -> ByteString
+verificationConfig shadow =
+    ByteString.unlines
+        [ "version: 1"
+        , "journal:"
+        , "  path: \"/var/lib/hedger/main.journal\""
+        , "verification:"
+        , "  shadow: " <> shadow
         ]
 
 loadsGainMappings :: IO ()

@@ -2,7 +2,6 @@ module Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
     SnapshotStoreRead (..),
     SnapshotStore,
-    awaitRevisionChange,
     currentRevision,
     loadSnapshot,
     newSnapshotStore,
@@ -15,7 +14,7 @@ where
 
 import Control.Applicative ((<|>))
 import Control.Concurrent.MVar (MVar, newMVar, withMVar)
-import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, readTVarIO, writeTVar)
+import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVarIO, writeTVar)
 import Control.Exception (SomeAsyncException, SomeException, displayException, fromException, tryJust)
 import Crypto.Hash.MD5 qualified as MD5
 import Data.ByteString qualified as ByteString
@@ -88,18 +87,15 @@ reloadSnapshot (SnapshotStore stateReference revisionVar updateLock) path = do
             Left _ -> pure ()
     pure result
 
--- | The revision currently published, or @""@ before the first successful load.
+{- | The revision currently published, or @""@ before the first successful load.
+
+Nothing blocks on this. Clients follow the /derived/ revision instead
+("Hedger.Application.Events"), because being told to refetch the moment the
+journal parses points every one of them at analytics that have not been rebuilt
+yet.
+-}
 currentRevision :: SnapshotStore -> IO Text
 currentRevision (SnapshotStore _ revisionVar _) = readTVarIO revisionVar
-
--- Blocks until a revision different from @seen@ is published, so a caller can
--- react to reloads without polling.
-awaitRevisionChange :: SnapshotStore -> Text -> IO Text
-awaitRevisionChange (SnapshotStore _ revisionVar _) seen =
-    atomically $ do
-        revision <- readTVar revisionVar
-        check (revision /= seen)
-        pure revision
 
 loadSnapshot :: Text -> IO (Either SnapshotLoadError Snapshot)
 loadSnapshot configuredPath = do
