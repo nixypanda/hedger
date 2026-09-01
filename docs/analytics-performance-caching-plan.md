@@ -1,7 +1,7 @@
 # Analytics caching plan: checkpointed folds over an immutable history
 
-_Status: S0–S5 implemented and green; not yet reachable from a request · Last
-updated: 2026-09-01_
+_Status: S0–S5, S7 and S8 implemented, wired and green at 1001 tests; S6 and the
+end-to-end latency measurement remain · Last updated: 2026-09-01_
 
 Part of the [analytics performance index](analytics-performance-plan.md). This is
 the only remaining optimization phase. Prerequisites are complete: see
