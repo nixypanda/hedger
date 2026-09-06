@@ -41,7 +41,7 @@
           pname = "hedger-frontend";
           version = "0.1.0";
           src = ./frontend-web;
-          npmDepsHash = "sha256-MGpNbE7moQI4mAk5RGYwUXg9YZFv/glU7a3mDdBpZeU=";
+          npmDepsHash = "sha256-FUaGdrUwfZLMCeYrVY4MN7LqhIFNCM9W7TCAo9Lyt58=";
           nativeBuildInputs = [ pkgs.elmPackages.elm ];
           postConfigure = pkgs.elmPackages.fetchElmDeps {
             elmPackages = import ./frontend-web/elm-srcs.nix;
