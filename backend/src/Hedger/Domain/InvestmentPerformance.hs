@@ -2,6 +2,7 @@ module Hedger.Domain.InvestmentPerformance (
     -- * Value objects
     InvestmentCompleteness (..),
     InvestmentSummary (..),
+    AssetClassAllocation (..),
     InvestmentWarning (..),
     WarningKind (..),
     SummaryResult (..),
@@ -13,6 +14,8 @@ module Hedger.Domain.InvestmentPerformance (
     summaryAtPrepared,
     summariesAtPrepared,
     summariesAtScopesPrepared,
+    assetClassAllocations,
+    allocationPercentage,
     summaryAt,
     investmentSummaryAt,
 
