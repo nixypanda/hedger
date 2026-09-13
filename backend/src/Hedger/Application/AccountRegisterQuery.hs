@@ -17,6 +17,7 @@ import Hledger.Reports.ReportOptions qualified as ReportOptions
 
 import Hedger.Application.Error (AppError (..))
 import Hedger.Application.Internal.Cursor (decodeRegisterCursor, encodeRegisterCursor)
+import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Snapshot (Snapshot (..))
 
 data RegisterPageRequest = RegisterPageRequest
@@ -32,6 +33,8 @@ data RegisterEntry = RegisterEntry
     { rawItem :: AccountReport.AccountTransactionsReportItem
     , displayItem :: AccountReport.AccountTransactionsReportItem
     , matchedAccounts :: [Text]
+    , amountCompleteness :: Account.ValuationCompleteness
+    , balanceCompleteness :: Account.ValuationCompleteness
     }
 
 data RegisterPage = RegisterPage
@@ -57,7 +60,7 @@ registerPage snapshot resolvedCommodity request = do
                 (valuedReportSpec resolvedCommodity reportSpec)
                 snapshot.journal
                 accountQuery
-    paired <- pairReports accountQuery (reverse rawReport) (reverse valuedReport)
+    paired <- pairReports resolvedCommodity accountQuery (reverse rawReport) (reverse valuedReport)
     if offset > length paired
         then Left (InvalidCursor "The cursor position is no longer valid.")
         else do
@@ -106,20 +109,22 @@ dateQuery start end =
         )
 
 pairReports ::
+    Text ->
     HledgerQuery.Query ->
     AccountReport.AccountTransactionsReport ->
     AccountReport.AccountTransactionsReport ->
     Either AppError [RegisterEntry]
-pairReports accountQuery raw valued
+pairReports resolvedCommodity accountQuery raw valued
     | length raw /= length valued = Left InternalError
-    | otherwise = Right (zipWith (registerEntry accountQuery) raw valued)
+    | otherwise = Right (zipWith (registerEntry resolvedCommodity accountQuery) raw valued)
 
 registerEntry ::
+    Text ->
     HledgerQuery.Query ->
     AccountReport.AccountTransactionsReportItem ->
     AccountReport.AccountTransactionsReportItem ->
     RegisterEntry
-registerEntry accountQuery raw valued =
+registerEntry resolvedCommodity accountQuery raw valued =
     RegisterEntry
         { rawItem = raw
         , displayItem = valued
@@ -128,6 +133,9 @@ registerEntry accountQuery raw valued =
             | posting <- originalTransaction.tpostings
             , HledgerQuery.matchesPosting accountQuery posting
             ]
+        , amountCompleteness = Account.valuationCompleteness resolvedCommodity valuedAmount
+        , balanceCompleteness = Account.valuationCompleteness resolvedCommodity valuedBalance
         }
   where
     (originalTransaction, _, _, _, _, _) = raw
+    (_, _, _, _, valuedAmount, valuedBalance) = valued

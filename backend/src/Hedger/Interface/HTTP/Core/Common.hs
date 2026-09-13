@@ -7,7 +7,6 @@ module Hedger.Interface.HTTP.Core.Common (
     granularityText,
     investmentCompletenessText,
     parseGranularity,
-    projectedCompletenessText,
     toResponseMetadata,
     valuationCompletenessText,
     runAction,
@@ -139,14 +138,6 @@ investmentCompletenessText status = case status of
     Performance.Complete -> "complete"
     Performance.Partial -> "partial"
     Performance.Unavailable -> "unavailable"
-
-projectedCompletenessText :: Text -> Hledger.MixedAmount -> Text
-projectedCompletenessText displayCommodity valuedAmount
-    | all ((== displayCommodity) . (.commodity)) projected = "complete"
-    | any ((== displayCommodity) . (.commodity)) projected = "partial"
-    | otherwise = "unavailable"
-  where
-    projected = commodityQuantities valuedAmount
 
 toCommodityQuantity :: Hledger.Amount -> CommodityQuantity
 toCommodityQuantity amount =

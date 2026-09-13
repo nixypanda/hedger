@@ -31,7 +31,6 @@ import Hedger.Interface.HTTP.Core.Common (
     parseCanonicalAccountPath,
     parseDay,
     parseLimit,
-    projectedCompletenessText,
     runAction,
     servantError,
     toResponseMetadata,
@@ -179,30 +178,37 @@ toAccountRegisterResponse value =
     AccountRegisterResponse
         { metadata = toResponseMetadata value.metadata
         , displayCommodity = value.displayCommodity
-        , entries = toRegisterEntries value.displayCommodity value.entries
+        , entries = toRegisterEntries value.entries
         , nextCursor = value.nextCursor
         }
 
-toRegisterEntries :: Text -> [RegisterEntry] -> [RegisterEntryDto]
-toRegisterEntries displayCommodity = fmap (toRegisterEntry displayCommodity)
+toRegisterEntries :: [RegisterEntry] -> [RegisterEntryDto]
+toRegisterEntries = fmap toRegisterEntry
 
-toRegisterEntry :: Text -> RegisterEntry -> RegisterEntryDto
-toRegisterEntry displayCommodity RegisterEntry{rawItem = raw, displayItem = valued, matchedAccounts} =
-    RegisterEntryDto
-        { date = valuedTransaction.tdate
-        , description = valuedTransaction.tdescription
-        , account = Text.intercalate ", " matchedAccounts
-        , amount = valueDto displayCommodity rawAmount valuedAmount
-        , balance = valueDto displayCommodity rawBalance valuedBalance
-        }
-  where
-    (_, valuedTransaction, _, _, rawAmount, rawBalance) = raw
-    (_, _, _, _, valuedAmount, valuedBalance) = valued
+toRegisterEntry :: RegisterEntry -> RegisterEntryDto
+toRegisterEntry
+    RegisterEntry
+        { rawItem = raw
+        , displayItem = valued
+        , matchedAccounts
+        , amountCompleteness
+        , balanceCompleteness
+        } =
+        RegisterEntryDto
+            { date = valuedTransaction.tdate
+            , description = valuedTransaction.tdescription
+            , account = Text.intercalate ", " matchedAccounts
+            , amount = valueDto rawAmount valuedAmount amountCompleteness
+            , balance = valueDto rawBalance valuedBalance balanceCompleteness
+            }
+      where
+        (_, valuedTransaction, _, _, rawAmount, rawBalance) = raw
+        (_, _, _, _, valuedAmount, valuedBalance) = valued
 
-valueDto :: Text -> Hledger.MixedAmount -> Hledger.MixedAmount -> RegisterValueDto
-valueDto displayCommodity rawAmount valuedAmount =
+valueDto :: Hledger.MixedAmount -> Hledger.MixedAmount -> Account.ValuationCompleteness -> RegisterValueDto
+valueDto rawAmount valuedAmount completeness =
     RegisterValueDto
         { raw = commodityQuantities rawAmount
         , display = commodityQuantities valuedAmount
-        , completeness = projectedCompletenessText displayCommodity valuedAmount
+        , completeness = valuationCompletenessText completeness
         }

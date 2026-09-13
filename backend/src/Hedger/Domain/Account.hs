@@ -8,6 +8,7 @@ module Hedger.Domain.Account (
     atDepth,
     isCashOnly,
     mkValuationContext,
+    valuationCompleteness,
     valueAt,
     valueBalances,
 )
@@ -64,7 +65,10 @@ valueBalances context direct subtree =
     ValuedBalances
         { directBalance = valuedDirect
         , subtreeBalance = valuedSubtree
-        , completeness = valuationCompleteness context.targetCommodity valuedDirect valuedSubtree
+        , completeness =
+            valuationCompletenessFor
+                context.targetCommodity
+                [valuedDirect, valuedSubtree]
         }
   where
     valuedDirect = context.valueAtDate direct
@@ -73,11 +77,14 @@ valueBalances context direct subtree =
 valueAt :: ValuationContext -> Hledger.MixedAmount -> Hledger.MixedAmount
 valueAt context = context.valueAtDate
 
-valuationCompleteness :: Text -> Hledger.MixedAmount -> Hledger.MixedAmount -> ValuationCompleteness
-valuationCompleteness target direct subtree
+valuationCompleteness :: Text -> Hledger.MixedAmount -> ValuationCompleteness
+valuationCompleteness target = valuationCompletenessFor target . pure
+
+valuationCompletenessFor :: Text -> [Hledger.MixedAmount] -> ValuationCompleteness
+valuationCompletenessFor target valuedAmounts
     | all isTarget projected = Complete
     | any isTarget projected = Partial
     | otherwise = Unavailable
   where
-    projected = HledgerAmount.amountsRaw direct <> HledgerAmount.amountsRaw subtree
+    projected = valuedAmounts >>= HledgerAmount.amountsRaw
     isTarget amount = amount.acommodity == target
