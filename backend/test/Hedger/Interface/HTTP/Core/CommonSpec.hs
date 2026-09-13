@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.CommonSpec (commonSpec) where
+module Hedger.Interface.HTTP.Core.CommonSpec (commonSpec) where
 
 import Data.Aeson (Value (..), toJSON)
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -12,7 +12,7 @@ import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Period (Granularity (..))
-import Hedger.Interface.HTTP.Common (
+import Hedger.Interface.HTTP.Core.Common (
     CommodityQuantity (..),
     commodityQuantities,
     decimalText,
@@ -21,7 +21,7 @@ import Hedger.Interface.HTTP.Common (
     parseGranularity,
     valuationCompletenessText,
  )
-import Hedger.Interface.HTTP.Errors (toEnvelope)
+import Hedger.Interface.HTTP.Core.Errors (toEnvelope)
 
 commonSpec :: TestTree
 commonSpec =

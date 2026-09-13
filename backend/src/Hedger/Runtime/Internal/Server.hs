@@ -30,7 +30,7 @@ import Hedger.Infrastructure.SnapshotStore (
     reloadSnapshot,
  )
 import Hedger.Interface.HTTP.API (application)
-import Hedger.Interface.HTTP.Middleware (requestContextMiddleware)
+import Hedger.Interface.HTTP.Core.Middleware (requestContextMiddleware)
 
 makeApplication :: Config -> SnapshotStore -> Application
 makeApplication configuration store =

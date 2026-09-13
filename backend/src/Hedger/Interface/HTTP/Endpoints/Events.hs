@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Events (
+module Hedger.Interface.HTTP.Endpoints.Events (
     EventsAPI,
     HeartbeatInterval (..),
     eventsApplicationWithHeartbeat,

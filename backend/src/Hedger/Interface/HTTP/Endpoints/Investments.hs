@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Investments (InvestmentsAPI, investmentsServer) where
+module Hedger.Interface.HTTP.Endpoints.Investments (InvestmentsAPI, investmentsServer) where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
@@ -11,7 +11,7 @@ import Hedger.Application.Investments qualified as Investments
 import Hedger.Domain.Error (AppError)
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance qualified as Performance
-import Hedger.Interface.HTTP.Common (
+import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata,
     decimalText,
     granularityText,

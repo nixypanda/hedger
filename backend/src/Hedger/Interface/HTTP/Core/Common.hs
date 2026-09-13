@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Common (
+module Hedger.Interface.HTTP.Core.Common (
     CommodityQuantity (..),
     ResponseMetadata (..),
     accountTypeText,
@@ -43,7 +43,7 @@ import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Period (Granularity (..))
-import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
+import Hedger.Interface.HTTP.Core.Errors (appErrorStatus, toEnvelope)
 
 runAction :: Env -> Maybe Text -> AppM value -> Handler value
 runAction env requestId action = do

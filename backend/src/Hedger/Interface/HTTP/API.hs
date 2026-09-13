@@ -9,12 +9,12 @@ import Data.Text (Text)
 import Servant
 
 import Hedger.Application.AppM (Env)
-import Hedger.Interface.HTTP.Accounts (AccountsAPI, accountsServer)
-import Hedger.Interface.HTTP.Analytics (AnalyticsAPI, analyticsServer)
-import Hedger.Interface.HTTP.Events (EventsAPI, eventsServer)
-import Hedger.Interface.HTTP.Investments (InvestmentsAPI, investmentsServer)
-import Hedger.Interface.HTTP.System (SystemAPI, systemServer)
-import Hedger.Interface.HTTP.Transactions (TransactionsAPI, transactionsServer)
+import Hedger.Interface.HTTP.Endpoints.Accounts (AccountsAPI, accountsServer)
+import Hedger.Interface.HTTP.Endpoints.Analytics (AnalyticsAPI, analyticsServer)
+import Hedger.Interface.HTTP.Endpoints.Events (EventsAPI, eventsServer)
+import Hedger.Interface.HTTP.Endpoints.Investments (InvestmentsAPI, investmentsServer)
+import Hedger.Interface.HTTP.Endpoints.System (SystemAPI, systemServer)
+import Hedger.Interface.HTTP.Endpoints.Transactions (TransactionsAPI, transactionsServer)
 
 type API =
     "api"

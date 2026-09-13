@@ -7,7 +7,7 @@ import Network.Wai.Test (SResponse (..), defaultRequest, request, runSession, se
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 
-import Hedger.Interface.HTTP.Middleware (requestContextMiddleware)
+import Hedger.Interface.HTTP.Core.Middleware (requestContextMiddleware)
 
 serverSpec :: TestTree
 serverSpec =

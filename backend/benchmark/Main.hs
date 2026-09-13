@@ -53,8 +53,8 @@ import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..))
 import Hedger.Domain.Xirr qualified as Xirr
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot, newSnapshotStore, reloadSnapshot)
-import Hedger.Interface.HTTP.Common (ResponseMetadata (..))
-import Hedger.Interface.HTTP.Transactions (
+import Hedger.Interface.HTTP.Core.Common (ResponseMetadata (..))
+import Hedger.Interface.HTTP.Endpoints.Transactions (
     AmountDto (..),
     CostDto (..),
     PostingDto (..),

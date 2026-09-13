@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Middleware (
+module Hedger.Interface.HTTP.Core.Middleware (
     requestContextMiddleware,
 )
 where
@@ -16,7 +16,7 @@ import Network.Wai qualified as Wai
 import System.IO.Unsafe (unsafePerformIO)
 
 import Hedger.Domain.Error (AppError (..))
-import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
+import Hedger.Interface.HTTP.Core.Errors (appErrorStatus, toEnvelope)
 
 requestContextMiddleware :: Wai.Middleware
 requestContextMiddleware app request respond = do

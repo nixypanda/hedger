@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.EventsSpec (httpEventsSpec) where
+module Hedger.Interface.HTTP.Endpoints.EventsSpec (httpEventsSpec) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (bracket)
@@ -16,7 +16,7 @@ import Test.Tasty.HUnit (assertBool, assertFailure, testCase)
 import Hedger.Application.AppM (Env (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore (..), reloadSnapshot)
-import Hedger.Interface.HTTP.Events (HeartbeatInterval (..), eventsApplicationWithHeartbeat)
+import Hedger.Interface.HTTP.Endpoints.Events (HeartbeatInterval (..), eventsApplicationWithHeartbeat)
 import Hedger.TestHelpers (configuration, loadedStore)
 
 httpEventsSpec :: TestTree

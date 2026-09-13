@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Analytics (AnalyticsAPI, analyticsServer) where
+module Hedger.Interface.HTTP.Endpoints.Analytics (AnalyticsAPI, analyticsServer) where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Set qualified as Set
@@ -12,7 +12,7 @@ import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Common (AccountTypeClassifier)
 import Hedger.Domain.Error (AppError (..))
-import Hedger.Interface.HTTP.Common (
+import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata,
     accountTypeText,
     decimalText,
@@ -22,7 +22,7 @@ import Hedger.Interface.HTTP.Common (
     servantError,
     toResponseMetadata,
  )
-import Hedger.Interface.HTTP.Transactions (TransactionDto, toTransactionDto)
+import Hedger.Interface.HTTP.Endpoints.Transactions (TransactionDto, toTransactionDto)
 
 data AnalyticsRequestDto = AnalyticsRequestDto
     { query :: Maybe Text

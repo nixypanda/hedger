@@ -70,15 +70,15 @@ library
     Hedger.Infrastructure.JournalWatcher
     Hedger.Infrastructure.SnapshotStore
     Hedger.Interface.HTTP.API
-    Hedger.Interface.HTTP.Accounts
-    Hedger.Interface.HTTP.Analytics
-    Hedger.Interface.HTTP.Common
-    Hedger.Interface.HTTP.Errors
-    Hedger.Interface.HTTP.Events
-    Hedger.Interface.HTTP.Investments
-    Hedger.Interface.HTTP.Middleware
-    Hedger.Interface.HTTP.System
-    Hedger.Interface.HTTP.Transactions
+    Hedger.Interface.HTTP.Core.Common
+    Hedger.Interface.HTTP.Core.Errors
+    Hedger.Interface.HTTP.Core.Middleware
+    Hedger.Interface.HTTP.Endpoints.Accounts
+    Hedger.Interface.HTTP.Endpoints.Analytics
+    Hedger.Interface.HTTP.Endpoints.Events
+    Hedger.Interface.HTTP.Endpoints.Investments
+    Hedger.Interface.HTTP.Endpoints.System
+    Hedger.Interface.HTTP.Endpoints.Transactions
     Hedger.Runtime.Internal.Server
     Hedger.Runtime.Server
 
@@ -152,8 +152,8 @@ test-suite hedger-backend-test
     Hedger.Infrastructure.JournalWatcherSpec
     Hedger.Infrastructure.SnapshotStoreSpec
     Hedger.Interface.HTTP.APISpec
-    Hedger.Interface.HTTP.CommonSpec
-    Hedger.Interface.HTTP.EventsSpec
+    Hedger.Interface.HTTP.Core.CommonSpec
+    Hedger.Interface.HTTP.Endpoints.EventsSpec
     Hedger.Runtime.ServerSpec
     Hedger.SyntheticTransactions
     Hedger.TestHelpers
