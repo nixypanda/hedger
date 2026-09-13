@@ -38,7 +38,7 @@ import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AppM (AppM, Env, runAppM)
-import Hedger.Application.Common (SnapshotMetadata (..))
+import Hedger.Application.Common (SnapshotFreshness (..), SnapshotMetadata (..))
 import Hedger.Application.Error (AppError (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.InvestmentPerformance qualified as Performance
@@ -159,9 +159,18 @@ toResponseMetadata :: SnapshotMetadata -> ResponseMetadata
 toResponseMetadata value =
     ResponseMetadata
         { revision = value.revision
-        , freshness = value.freshness
-        , warnings = value.warnings
+        , freshness = freshnessText value.freshness
+        , warnings = freshnessWarnings value.freshness
         }
+
+freshnessText :: SnapshotFreshness -> Text
+freshnessText Fresh = "fresh"
+freshnessText Stale = "stale"
+
+freshnessWarnings :: SnapshotFreshness -> [Text]
+freshnessWarnings Fresh = []
+freshnessWarnings Stale =
+    ["The latest journal reload failed; the last usable snapshot is shown."]
 
 accountTypeText :: Hledger.AccountType -> Text
 accountTypeText accountType = case accountType of

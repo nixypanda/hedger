@@ -8,17 +8,20 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Application.Common (SnapshotFreshness (..), SnapshotMetadata (..))
 import Hedger.Application.Error (AppError (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Period (Granularity (..))
 import Hedger.Interface.HTTP.Core.Common (
     CommodityQuantity (..),
+    ResponseMetadata (..),
     commodityQuantities,
     decimalText,
     granularityText,
     investmentCompletenessText,
     parseGranularity,
+    toResponseMetadata,
     valuationCompletenessText,
  )
 import Hedger.Interface.HTTP.Core.Errors (toEnvelope)
@@ -36,8 +39,28 @@ commonSpec =
             assertEqual "" "partial" (valuationCompletenessText Account.Partial)
         , testCase "renders investment completeness consistently" $
             assertEqual "" "unavailable" (investmentCompletenessText Performance.Unavailable)
+        , testCase "renders fresh snapshot metadata" rendersFreshMetadata
+        , testCase "renders stale snapshot metadata" rendersStaleMetadata
         , testCase "error envelope serializes its payload under the error key" errorEnvelopeUsesErrorKey
         ]
+
+rendersFreshMetadata :: IO ()
+rendersFreshMetadata =
+    assertEqual
+        "fresh metadata"
+        ResponseMetadata{revision = "md5:fresh", freshness = "fresh", warnings = []}
+        (toResponseMetadata SnapshotMetadata{revision = "md5:fresh", freshness = Fresh})
+
+rendersStaleMetadata :: IO ()
+rendersStaleMetadata =
+    assertEqual
+        "stale metadata"
+        ResponseMetadata
+            { revision = "md5:stale"
+            , freshness = "stale"
+            , warnings = ["The latest journal reload failed; the last usable snapshot is shown."]
+            }
+        (toResponseMetadata SnapshotMetadata{revision = "md5:stale", freshness = Stale})
 
 aggregatesSameCommodity :: IO ()
 aggregatesSameCommodity =
