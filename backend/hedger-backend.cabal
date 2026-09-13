@@ -79,6 +79,7 @@ library
     Hedger.Interface.HTTP.Middleware
     Hedger.Interface.HTTP.System
     Hedger.Interface.HTTP.Transactions
+    Hedger.Runtime.Internal.Server
     Hedger.Runtime.Server
 
   hs-source-dirs: src
