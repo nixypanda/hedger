@@ -24,6 +24,8 @@ import Hedger.Interface.HTTP.Core.Common (
  )
 import Hedger.Interface.HTTP.Endpoints.Transactions (TransactionDto, toTransactionDto)
 
+-- DTO declaration
+
 data AnalyticsRequestDto = AnalyticsRequestDto
     { query :: Maybe Text
     , granularity :: Text
@@ -161,6 +163,8 @@ data ActivityResponse = ActivityResponse
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON)
 
+-- API and server
+
 type AnalyticsAPI =
     "net-worth" :> "query" :> ReqBody '[JSON] AnalyticsRequestDto :> Post '[JSON] NetWorthResponse
         :<|> "cashflow" :> "query" :> ReqBody '[JSON] AnalyticsRequestDto :> Post '[JSON] CashflowResponse
@@ -184,6 +188,8 @@ analyticsServer env requestId =
         case toActivityRequest request of
             Left err -> throwError (servantError requestId err)
             Right parsed -> runAction env requestId (toActivity <$> Analytics.activity parsed)
+
+-- Mapper: domain <-> DTO
 
 toAnalyticsRequest :: AnalyticsRequestDto -> Either AppError Analytics.AnalyticsRequest
 toAnalyticsRequest request = do

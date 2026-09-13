@@ -22,6 +22,8 @@ import Hedger.Interface.HTTP.Core.Common (
     toResponseMetadata,
  )
 
+-- DTO declaration
+
 data InvestmentsRequestDto = InvestmentsRequestDto
     { granularity :: Text
     , displayCommodity :: Maybe Text
@@ -108,6 +110,8 @@ data InvestmentsResponse = InvestmentsResponse
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON)
 
+-- API and server
+
 type InvestmentsAPI =
     "investments" :> "query" :> ReqBody '[JSON] InvestmentsRequestDto :> Post '[JSON] InvestmentsResponse
 
@@ -116,6 +120,8 @@ investmentsServer env requestId request =
     case toRequest request of
         Left err -> throwError (servantError requestId err)
         Right parsed -> runAction env requestId (toResponse <$> Investments.investments parsed)
+
+-- Mapper: domain <-> DTO
 
 toRequest :: InvestmentsRequestDto -> Either AppError Investments.InvestmentsRequest
 toRequest request = do
