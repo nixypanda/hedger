@@ -3,7 +3,6 @@ module Main (main) where
 import Test.Tasty (defaultMain, testGroup)
 
 import Hedger.Application.AppMSpec (appMSpec)
-import Hedger.Application.EventsSpec (eventsSpec)
 import Hedger.Application.TransactionQuerySpec (transactionQuerySpec)
 import Hedger.ConfigSpec (configSpec)
 import Hedger.Domain.AccountSpec (accountSpec)
@@ -18,6 +17,7 @@ import Hedger.Domain.ValuationSpec (valuationSpec)
 import Hedger.Domain.XirrSpec (xirrSpec)
 import Hedger.Infrastructure.Internal.CursorSpec (cursorSpec)
 import Hedger.Infrastructure.JournalWatcherSpec (journalWatcherSpec)
+import Hedger.Infrastructure.RevisionSubscriptionSpec (revisionSubscriptionSpec)
 import Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec)
 import Hedger.Interface.HTTP.APISpec (apiSpec)
 import Hedger.Interface.HTTP.Core.CommonSpec (commonSpec)
@@ -45,7 +45,7 @@ main =
             , transactionQuerySpec
             , apiSpec
             , commonSpec
-            , eventsSpec
+            , revisionSubscriptionSpec
             , serverSpec
             , periodSpec
             , accountSpec

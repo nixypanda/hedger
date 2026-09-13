@@ -68,6 +68,7 @@ library
     Hedger.Domain.Valuation
     Hedger.Domain.Xirr
     Hedger.Infrastructure.JournalWatcher
+    Hedger.Infrastructure.RevisionSubscription
     Hedger.Infrastructure.SnapshotStore
     Hedger.Interface.HTTP.API
     Hedger.Interface.HTTP.Core.Common
@@ -135,7 +136,6 @@ test-suite hedger-backend-test
   hs-source-dirs: test
   other-modules:
     Hedger.Application.AppMSpec
-    Hedger.Application.EventsSpec
     Hedger.Application.TransactionQuerySpec
     Hedger.Domain.AccountSpec
     Hedger.Domain.ActivitySpec
@@ -151,6 +151,7 @@ test-suite hedger-backend-test
     Hedger.Generators
     Hedger.Infrastructure.Internal.CursorSpec
     Hedger.Infrastructure.JournalWatcherSpec
+    Hedger.Infrastructure.RevisionSubscriptionSpec
     Hedger.Infrastructure.SnapshotStoreSpec
     Hedger.Interface.HTTP.APISpec
     Hedger.Interface.HTTP.Core.CommonSpec
