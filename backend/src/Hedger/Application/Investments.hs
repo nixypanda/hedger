@@ -24,10 +24,11 @@ import Hledger.Data.AccountName qualified as HledgerAccountName
 
 import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot)
 import Hedger.Application.Common (SnapshotMetadata, metadataFor)
+import Hedger.Application.Error (AppError (InternalError, InvalidRequest))
 import Hedger.Config (Config (..))
-import Hedger.Domain.Error (AppError (InternalError))
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance (
+    InvestmentScopeError (..),
     InvestmentSummary (..),
     InvestmentWarning,
     SummaryResult (..),
@@ -98,7 +99,11 @@ investments :: InvestmentsRequest -> AppM InvestmentsReport
 investments request = do
     snapshotContext <- requireSnapshot
     config <- asks (.config)
-    scope <- either throwError pure (validateScope config.investmentMappings request.accountPrefix)
+    scope <-
+        either
+            (throwError . investmentScopeError)
+            pure
+            (validateScope config.investmentMappings request.accountPrefix)
     let snapshot = snapshotContext.snapshot
         responseMetadata = metadataFor snapshotContext
         commodity = fromMaybe config.defaultDisplayCommodity (request.displayCommodity >>= nonEmpty)
@@ -193,6 +198,10 @@ investments request = do
             , assetClassAllocations = allocations
             , warnings = current.warnings
             }
+
+investmentScopeError :: InvestmentScopeError -> AppError
+investmentScopeError NonAssetAccountScope =
+    InvalidRequest "Account prefix must be an asset account."
 
 assetClassAllocations ::
     (Maybe Text -> Maybe SummaryResult) ->

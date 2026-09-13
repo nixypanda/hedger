@@ -6,6 +6,7 @@ module Hedger.Domain.InvestmentPerformance (
     WarningKind (..),
     SummaryResult (..),
     InvestmentPerformanceContext,
+    InvestmentScopeError (..),
 
     -- * Performance calculation
     prepareInvestmentPerformance,

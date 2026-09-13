@@ -15,8 +15,8 @@ import Hledger.Query qualified as HledgerQuery
 import Hledger.Reports.AccountTransactionsReport qualified as AccountReport
 import Hledger.Reports.ReportOptions qualified as ReportOptions
 
+import Hedger.Application.Error (AppError (..))
 import Hedger.Application.Internal.Cursor (decodeRegisterCursor, encodeRegisterCursor)
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 
 data RegisterPageRequest = RegisterPageRequest

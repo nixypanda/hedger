@@ -39,8 +39,8 @@ import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AppM (AppM, Env, runAppM)
 import Hedger.Application.Common (SnapshotMetadata (..))
+import Hedger.Application.Error (AppError (..))
 import Hedger.Domain.Account qualified as Account
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Period (Granularity (..))
 import Hedger.Interface.HTTP.Core.Errors (appErrorStatus, toEnvelope)

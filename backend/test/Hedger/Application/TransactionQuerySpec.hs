@@ -13,12 +13,12 @@ import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Application.Error (AppError (..))
 import Hedger.Application.TransactionQuery (
     TransactionPage (..),
     TransactionPageRequest (..),
     transactionPage,
  )
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Internal.Transaction (newestFirst)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Generators (genTransactions)

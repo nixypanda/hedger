@@ -9,13 +9,13 @@ import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
+import Hedger.Application.Error (AppError (..))
 import Hedger.Application.Internal.Cursor (
     decodeRegisterCursor,
     decodeTransactionCursor,
     encodeRegisterCursor,
     encodeTransactionCursor,
  )
-import Hedger.Domain.Error (AppError (..))
 
 cursorSpec :: TestTree
 cursorSpec =

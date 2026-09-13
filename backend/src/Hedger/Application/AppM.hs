@@ -18,8 +18,8 @@ import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 
+import Hedger.Application.Error (AppError (InternalError, JournalUnavailable))
 import Hedger.Config (Config (..))
-import Hedger.Domain.Error (AppError (InternalError, JournalUnavailable))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError,

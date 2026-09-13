@@ -21,8 +21,8 @@ import Hedger.Application.Accounts (
     accountsTree,
  )
 import Hedger.Application.AppM (Env)
+import Hedger.Application.Error (AppError)
 import Hedger.Domain.Account qualified as Account
-import Hedger.Domain.Error (AppError)
 import Hedger.Interface.HTTP.Core.Common (
     CommodityQuantity (..),
     ResponseMetadata (..),

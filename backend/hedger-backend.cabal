@@ -41,6 +41,7 @@ library
     Hedger.Application.Accounts
     Hedger.Application.AppM
     Hedger.Application.Common
+    Hedger.Application.Error
     Hedger.Application.Events
     Hedger.Application.Internal.Cursor
     Hedger.Application.Investments
@@ -51,7 +52,6 @@ library
     Hedger.Domain.Account
     Hedger.Domain.Activity
     Hedger.Domain.Cashflow
-    Hedger.Domain.Error
     Hedger.Domain.Internal.Account
     Hedger.Domain.Internal.Cashflow
     Hedger.Domain.Internal.InvestmentPerformance

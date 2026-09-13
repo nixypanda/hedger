@@ -6,6 +6,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     WarningKind (..),
     SummaryResult (..),
     InvestmentPerformanceContext (..),
+    InvestmentScopeError (..),
 
     -- * Performance calculation
     prepareInvestmentPerformance,
@@ -68,7 +69,6 @@ import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 import Hledger.Reports.ReportTypes qualified as HledgerReportTypes
 
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Investment (accountWithin)
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.Period (
@@ -86,6 +86,9 @@ import Hedger.Domain.Valuation (completeDecimal, missingCommodities, valueMixedA
 import Hedger.Domain.Xirr qualified as Xirr
 
 data InvestmentCompleteness = Complete | Partial | Unavailable
+    deriving stock (Eq, Show)
+
+data InvestmentScopeError = NonAssetAccountScope
     deriving stock (Eq, Show)
 
 data InvestmentSummary = InvestmentSummary
@@ -1135,15 +1138,17 @@ reportPeriods granularity transactions latest =
     reportLastDay =
         fromMaybe latest (HledgerReportOptions.reportPeriodOrJournalLastDay reportSpec journal)
 
-validateScope :: Investment.InvestmentMappings -> Maybe Text -> Either AppError (Maybe Text)
+validateScope ::
+    Investment.InvestmentMappings ->
+    Maybe Text ->
+    Either InvestmentScopeError (Maybe Text)
 validateScope _ requested = case requested >>= scopeText of
     Nothing -> Right Nothing
     Just scope
         | "assets" `accountWithin` scope ->
             Right (Just scope)
         | otherwise ->
-            Left
-                (InvalidRequest "Account prefix must be an asset account.")
+            Left NonAssetAccountScope
 
 scopeText :: Text -> Maybe Text
 scopeText value

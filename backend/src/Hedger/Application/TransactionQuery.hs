@@ -20,8 +20,8 @@ import Hledger.Query qualified as Hledger
 import Hledger.Reports.EntriesReport qualified as HledgerEntries
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
+import Hedger.Application.Error (AppError (..))
 import Hedger.Application.Internal.Cursor (decodeTransactionCursor, encodeTransactionCursor)
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 
 data TransactionPageRequest = TransactionPageRequest

@@ -8,8 +8,8 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Application.Error (AppError (..))
 import Hedger.Domain.Account qualified as Account
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Period (Granularity (..))
 import Hedger.Interface.HTTP.Core.Common (

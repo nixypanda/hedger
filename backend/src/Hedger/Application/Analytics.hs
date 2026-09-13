@@ -45,6 +45,7 @@ import Hedger.Application.Common (
     accountTypeClassifier,
     metadataFor,
  )
+import Hedger.Application.Error (AppError (InvalidRequest))
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Activity (
@@ -52,6 +53,7 @@ import Hedger.Domain.Activity (
     ActivityDirection (..),
     ActivityFigures (..),
     ActivityKind (..),
+    ActivityPeriodError (..),
     ActivityRange (..),
     computeActivity,
     parseActivityPeriod,
@@ -248,7 +250,10 @@ activity request = do
         AssetActivity -> pure snapshot.transactions
         LiabilityActivity -> pure snapshot.transactions
     activityPeriod <-
-        either throwError pure (parseActivityPeriod fiscalStart request.range request.period)
+        either
+            (throwError . activityPeriodError)
+            pure
+            (parseActivityPeriod fiscalStart request.range request.period)
     let figures =
             computeActivity
                 snapshot
@@ -272,6 +277,15 @@ activity request = do
             }
 
 -- * Input resolution
+
+activityPeriodError :: ActivityPeriodError -> AppError
+activityPeriodError InvalidActivityMonth =
+    InvalidRequest "Activity month must use YYYY-MM."
+activityPeriodError InvalidFiscalActivityPeriod =
+    InvalidRequest
+        ( "Fiscal activity period must be the configured fiscal-year start "
+            <> "month in YYYY-MM form."
+        )
 
 resolvedCommodity :: Maybe Text -> AppM Text
 resolvedCommodity requested = do

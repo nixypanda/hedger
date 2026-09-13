@@ -7,8 +7,8 @@ import GHC.Generics (Generic)
 import Servant
 
 import Hedger.Application.AppM (Env)
+import Hedger.Application.Error (AppError)
 import Hedger.Application.Investments qualified as Investments
-import Hedger.Domain.Error (AppError)
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Interface.HTTP.Core.Common (

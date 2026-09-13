@@ -16,7 +16,7 @@ import Data.Word (Word8)
 import Numeric (showHex)
 import Text.Read (readMaybe)
 
-import Hedger.Domain.Error (AppError (..))
+import Hedger.Application.Error (AppError (..))
 
 -- Transaction
 
