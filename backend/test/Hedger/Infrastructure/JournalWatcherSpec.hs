@@ -42,9 +42,9 @@ watchesRootOnly =
     withJournalDir "root-only" $ \dir -> do
         let path = dir </> "main.journal"
         writeFile path (openingBalance <> "\n")
-        store <- newSnapshotStore
-        _ <- reloadSnapshot store (Text.pack path)
-        targets <- watchTargets store (Text.pack path)
+        store <- newSnapshotStore (Text.pack path)
+        _ <- reloadSnapshot store
+        targets <- watchTargets store
         assertEqual "only the root journal should be watched" 1 (length targets)
 
 watchesIncludedFiles :: IO ()
@@ -54,9 +54,9 @@ watchesIncludedFiles =
             includedPath = dir </> "extra.journal"
         writeFile includedPath (secondTransaction <> "\n")
         writeFile mainPath (openingBalance <> "\ninclude extra.journal\n")
-        store <- newSnapshotStore
-        _ <- reloadSnapshot store (Text.pack mainPath)
-        targets <- watchTargets store (Text.pack mainPath)
+        store <- newSnapshotStore (Text.pack mainPath)
+        _ <- reloadSnapshot store
+        targets <- watchTargets store
         assertEqual "the root and the included file should both be watched" 2 (length targets)
 
 reloadsOnChange :: IO ()
@@ -64,10 +64,10 @@ reloadsOnChange =
     withJournalDir "reload" $ \dir -> do
         let path = dir </> "main.journal"
         writeFile path (openingBalance <> "\n")
-        store <- newSnapshotStore
-        _ <- reloadSnapshot store (Text.pack path)
+        store <- newSnapshotStore (Text.pack path)
+        _ <- reloadSnapshot store
         revisionBefore <- currentRevision store
-        withJournalWatcher store (Text.pack path) $ do
+        withJournalWatcher store $ do
             waitForWatchInstall
             appendFile path ("\n" <> secondTransaction <> "\n")
             changed <- waitForRevisionChange store revisionBefore
@@ -80,10 +80,10 @@ reloadsOnIncludedChange =
             includedPath = dir </> "extra.journal"
         writeFile includedPath (secondTransaction <> "\n")
         writeFile mainPath (openingBalance <> "\ninclude extra.journal\n")
-        store <- newSnapshotStore
-        _ <- reloadSnapshot store (Text.pack mainPath)
+        store <- newSnapshotStore (Text.pack mainPath)
+        _ <- reloadSnapshot store
         revisionBefore <- currentRevision store
-        withJournalWatcher store (Text.pack mainPath) $ do
+        withJournalWatcher store $ do
             waitForWatchInstall
             appendFile includedPath ("\n" <> thirdTransaction <> "\n")
             changed <- waitForRevisionChange store revisionBefore

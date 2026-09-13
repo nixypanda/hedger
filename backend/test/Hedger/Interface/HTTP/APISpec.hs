@@ -14,7 +14,7 @@ import Network.Wai.Test (SResponse (simpleStatus))
 import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
-import Hedger.Runtime.Server (makeApplication)
+import Hedger.Runtime.Internal.Server (makeApplication)
 import Hedger.TestHelpers (configuration, getJson, loadedStore, postJson)
 
 apiSpec :: TestTree

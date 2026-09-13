@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Accounts (
+module Hedger.Interface.HTTP.Endpoints.Accounts (
     AccountsAPI,
     accountsServer,
 ) where
@@ -23,7 +23,7 @@ import Hedger.Application.Accounts (
 import Hedger.Application.AppM (Env)
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError)
-import Hedger.Interface.HTTP.Common (
+import Hedger.Interface.HTTP.Core.Common (
     CommodityQuantity (..),
     ResponseMetadata (..),
     accountTypeText,

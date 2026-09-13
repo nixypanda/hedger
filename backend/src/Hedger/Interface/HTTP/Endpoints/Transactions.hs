@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Transactions (
+module Hedger.Interface.HTTP.Endpoints.Transactions (
     TransactionsAPI,
     transactionsServer,
     toTransactions,
@@ -27,7 +27,7 @@ import Hedger.Application.Common (AccountTypeClassifier)
 import Hedger.Application.TransactionQuery (TransactionPageRequest (..))
 import Hedger.Application.Transactions (TransactionList (..), transactionList)
 import Hedger.Domain.Transaction qualified as Domain
-import Hedger.Interface.HTTP.Common (
+import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata (..),
     accountTypeText,
     parseLimit,

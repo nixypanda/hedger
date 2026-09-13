@@ -155,7 +155,6 @@ Transactions and Cashflow share the same hledger query parser:
 - Query text capped at 2048 characters.
 - Unsupported options (`inacct:`, `inacctonly:`, `interval:`) are rejected
   with stable validation errors.
-- Query is redacted from access logs for privacy.
 
 ## Investment Performance Model
 

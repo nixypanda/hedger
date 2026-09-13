@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.EventsSpec (httpEventsSpec) where
+module Hedger.Interface.HTTP.Endpoints.EventsSpec (httpEventsSpec) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (bracket)
@@ -15,8 +15,8 @@ import Test.Tasty.HUnit (assertBool, assertFailure, testCase)
 
 import Hedger.Application.AppM (Env (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.SnapshotStore (reloadSnapshot)
-import Hedger.Interface.HTTP.Events (HeartbeatInterval (..), eventsApplicationWithHeartbeat)
+import Hedger.Infrastructure.SnapshotStore (SnapshotStore (..), reloadSnapshot)
+import Hedger.Interface.HTTP.Endpoints.Events (HeartbeatInterval (..), eventsApplicationWithHeartbeat)
 import Hedger.TestHelpers (configuration, loadedStore)
 
 httpEventsSpec :: TestTree
@@ -43,11 +43,17 @@ reconnectsAfterDisconnect = do
         threadDelay 50000
         withClient port $ \client -> do
             _ <- receiveContaining "heartbeat" client
-            reloadResult <- reloadSnapshot store "test/fixtures/investments.journal"
+            let altStore =
+                    SnapshotStore
+                        { storeState = store.storeState
+                        , journalPath = "test/fixtures/investments.journal"
+                        }
+            reloadResult <- reloadSnapshot altStore
             case reloadResult of
                 Left _ -> assertFailure "replacement snapshot load failed"
                 Right snapshot -> do
-                    response <- receiveContaining (TextEncoding.encodeUtf8 snapshot.revision) client
+                    let rev = TextEncoding.encodeUtf8 snapshot.revision
+                    response <- receiveContaining rev client
                     assertBool
                         "revision event should be named"
                         ("event:revision" `ByteString.isInfixOf` response)

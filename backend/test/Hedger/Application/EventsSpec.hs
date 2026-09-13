@@ -8,8 +8,12 @@ import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 import Hedger.Application.AppM (Env (..))
 import Hedger.Application.Events (awaitNextRevision, subscribeToRevisions)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.SnapshotStore (reloadSnapshot)
-import Hedger.TestHelpers (configuration, loadedStore)
+import Hedger.Infrastructure.SnapshotStore (
+    SnapshotStore (..),
+    newSnapshotStore,
+    reloadSnapshot,
+ )
+import Hedger.TestHelpers (configuration)
 
 eventsSpec :: TestTree
 eventsSpec =
@@ -19,9 +23,15 @@ eventsSpec =
 
 emitsNextRevision :: IO ()
 emitsNextRevision = do
-    store <- loadedStore
+    store <- newSnapshotStore "test/fixtures/shared.journal"
+    _ <- reloadSnapshot store
     subscription <- subscribeToRevisions Env{config = configuration, snapshotStore = store}
-    reloadResult <- reloadSnapshot store "test/fixtures/investments.journal"
+    let altStore =
+            SnapshotStore
+                { storeState = store.storeState
+                , journalPath = "test/fixtures/investments.journal"
+                }
+    reloadResult <- reloadSnapshot altStore
     expectedRevision <- case reloadResult of
         Left _ -> fail "replacement snapshot load failed"
         Right snapshot -> pure snapshot.revision

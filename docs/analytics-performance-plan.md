@@ -94,9 +94,7 @@ Wanted across all of it — metrics or structured timings for:
 - response revision and whether it was served stale or refreshing; and
 - worker-pool saturation.
 
-Avoid logging free-form journal queries or sensitive account data.
-`Middleware.redactQueryString` already redacts the `query` parameter for access
-logs; keep to report family, normalized non-sensitive dimensions, request ID,
+Keep to report family, normalized non-sensitive dimensions, request ID,
 revision, and timing.
 
 ## Standing rules for anyone working in this area

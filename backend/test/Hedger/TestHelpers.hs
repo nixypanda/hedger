@@ -54,8 +54,8 @@ configuredAssetClasses =
 
 loadedStore :: IO SnapshotStore
 loadedStore = do
-    store <- newSnapshotStore
-    result <- reloadSnapshot store "test/fixtures/shared.journal"
+    store <- newSnapshotStore "test/fixtures/shared.journal"
+    result <- reloadSnapshot store
     assertBool "snapshot load failed" (isRight result)
     pure store
 

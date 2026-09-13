@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Investments (InvestmentsAPI, investmentsServer) where
+module Hedger.Interface.HTTP.Endpoints.Investments (InvestmentsAPI, investmentsServer) where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
@@ -11,7 +11,7 @@ import Hedger.Application.Investments qualified as Investments
 import Hedger.Domain.Error (AppError)
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance qualified as Performance
-import Hedger.Interface.HTTP.Common (
+import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata,
     decimalText,
     granularityText,
@@ -21,6 +21,8 @@ import Hedger.Interface.HTTP.Common (
     servantError,
     toResponseMetadata,
  )
+
+-- DTO declaration
 
 data InvestmentsRequestDto = InvestmentsRequestDto
     { granularity :: Text
@@ -108,6 +110,8 @@ data InvestmentsResponse = InvestmentsResponse
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON)
 
+-- API and server
+
 type InvestmentsAPI =
     "investments" :> "query" :> ReqBody '[JSON] InvestmentsRequestDto :> Post '[JSON] InvestmentsResponse
 
@@ -116,6 +120,8 @@ investmentsServer env requestId request =
     case toRequest request of
         Left err -> throwError (servantError requestId err)
         Right parsed -> runAction env requestId (toResponse <$> Investments.investments parsed)
+
+-- Mapper: domain <-> DTO
 
 toRequest :: InvestmentsRequestDto -> Either AppError Investments.InvestmentsRequest
 toRequest request = do

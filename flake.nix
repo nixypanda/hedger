@@ -90,6 +90,7 @@
                   servant
                   servant-server
                   tasty-bench
+                  uuid
                   wai
                   wai-extra
                   warp

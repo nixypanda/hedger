@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.System (
+module Hedger.Interface.HTTP.Endpoints.System (
     SystemAPI,
     systemServer,
 ) where
@@ -10,7 +10,7 @@ import Servant
 
 import Hedger.Application.AppM (Env)
 import Hedger.Application.System (BootstrapInfo (..), bootstrap, liveness, readiness)
-import Hedger.Interface.HTTP.Common (ResponseMetadata (..), runAction, toResponseMetadata)
+import Hedger.Interface.HTTP.Core.Common (ResponseMetadata (..), runAction, toResponseMetadata)
 
 -- DTO declaration
 

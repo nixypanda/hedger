@@ -53,8 +53,8 @@ import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..))
 import Hedger.Domain.Xirr qualified as Xirr
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot, newSnapshotStore, reloadSnapshot)
-import Hedger.Interface.HTTP.Common (ResponseMetadata (..))
-import Hedger.Interface.HTTP.Transactions (
+import Hedger.Interface.HTTP.Core.Common (ResponseMetadata (..))
+import Hedger.Interface.HTTP.Endpoints.Transactions (
     AmountDto (..),
     CostDto (..),
     PostingDto (..),
@@ -245,8 +245,8 @@ forceAmounts mixed =
 
 loadFixtureInput :: Text.Text -> IO FixtureInput
 loadFixtureInput path = do
-    store <- newSnapshotStore
-    loaded <- reloadSnapshot store path
+    store <- newSnapshotStore path
+    loaded <- reloadSnapshot store
     snapshot <- case loaded of
         Left loadError -> fail (show loadError)
         Right loadedSnapshot -> do

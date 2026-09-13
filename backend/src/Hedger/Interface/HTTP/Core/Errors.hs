@@ -1,4 +1,4 @@
-module Hedger.Interface.HTTP.Errors (
+module Hedger.Interface.HTTP.Core.Errors (
     ErrorEnvelope (..),
     ErrorPayload (..),
     ValidationDetails (..),

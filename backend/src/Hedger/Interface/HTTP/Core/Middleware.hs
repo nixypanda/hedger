@@ -1,24 +1,19 @@
-module Hedger.Interface.HTTP.Middleware (
-    redactQueryForLogging,
-    redactQueryString,
+module Hedger.Interface.HTTP.Core.Middleware (
     requestContextMiddleware,
 )
 where
 
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as ByteString
-import Data.IORef (IORef, atomicModifyIORef', newIORef)
 import Data.Text (Text)
 import Data.Text.Encoding qualified as Text
-import Data.Text.Lazy qualified as LazyText
-import Data.Text.Lazy.Builder qualified as TextBuilder
-import Data.Text.Lazy.Builder.Int qualified as TextBuilder
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
-import System.IO.Unsafe (unsafePerformIO)
 
 import Hedger.Domain.Error (AppError (..))
-import Hedger.Interface.HTTP.Errors (appErrorStatus, toEnvelope)
+import Hedger.Interface.HTTP.Core.Errors (appErrorStatus, toEnvelope)
 
 requestContextMiddleware :: Wai.Middleware
 requestContextMiddleware app request respond = do
@@ -29,24 +24,6 @@ requestContextMiddleware app request respond = do
         respond
             . Wai.mapResponseHeaders (("X-Request-ID", Text.encodeUtf8 requestId) :)
             $ normalizeServantError requestId response
-
-{- | Run an access logger with a redacted request while the application receives
-the original request. This keeps the hledger query out of logs without
-changing request semantics.
--}
-redactQueryForLogging :: Wai.Middleware -> Wai.Middleware
-redactQueryForLogging logger app originalRequest respond =
-    logger (\_ -> app originalRequest) redactedRequest respond
-  where
-    redactedRequest = originalRequest{Wai.rawQueryString = redactQueryString originalRequest.rawQueryString}
-
-redactQueryString :: ByteString.ByteString -> ByteString.ByteString
-redactQueryString raw =
-    HTTP.renderQuery True (redact <$> HTTP.parseQuery raw)
-  where
-    redact (name, value)
-        | name == "query" = (name, Just "[REDACTED]")
-        | otherwise = (name, value)
 
 normalizeServantError :: Text -> Wai.Response -> Wai.Response
 normalizeServantError requestId response
@@ -89,25 +66,12 @@ isJson response =
         (lookup HTTP.hContentType (Wai.responseHeaders response))
 
 chooseRequestId :: Maybe ByteString.ByteString -> IO Text
-chooseRequestId supplied = maybe nextRequestId pure (supplied >>= validRequestId)
+chooseRequestId supplied = maybe generateRequestId pure (fmap Text.decodeUtf8 (supplied >>= validRequestId))
 
-validRequestId :: ByteString.ByteString -> Maybe Text
+validRequestId :: ByteString.ByteString -> Maybe ByteString.ByteString
 validRequestId raw
-    | not (ByteString.null raw) && ByteString.length raw <= 128 && ByteString.all validByte raw =
-        Just (Text.decodeUtf8 raw)
+    | not (ByteString.null raw) = Just raw
     | otherwise = Nothing
-  where
-    validByte byte =
-        (byte >= 48 && byte <= 57)
-            || (byte >= 65 && byte <= 90)
-            || (byte >= 97 && byte <= 122)
-            || byte `elem` [45, 95, 46, 58]
 
-nextRequestId :: IO Text
-nextRequestId = do
-    value <- atomicModifyIORef' requestCounter (\current -> let next = current + 1 in (next, next))
-    pure . LazyText.toStrict . TextBuilder.toLazyText $ "req-" <> TextBuilder.decimal value
-
-requestCounter :: IORef Integer
-requestCounter = unsafePerformIO (newIORef 0)
-{-# NOINLINE requestCounter #-}
+generateRequestId :: IO Text
+generateRequestId = UUID.toText <$> UUID.nextRandom

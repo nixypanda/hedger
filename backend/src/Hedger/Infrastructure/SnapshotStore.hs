@@ -1,7 +1,7 @@
 module Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
     SnapshotStoreRead (..),
-    SnapshotStore,
+    SnapshotStore (..),
     awaitRevisionChange,
     currentRevision,
     loadSnapshot,
@@ -14,12 +14,10 @@ module Hedger.Infrastructure.SnapshotStore (
 where
 
 import Control.Applicative ((<|>))
-import Control.Concurrent.MVar (MVar, newMVar, withMVar)
-import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, readTVarIO, writeTVar)
+import Control.Concurrent.STM (TVar, atomically, check, modifyTVar', newTVarIO, readTVar, readTVarIO)
 import Control.Exception (SomeAsyncException, SomeException, displayException, fromException, tryJust)
 import Crypto.Hash.MD5 qualified as MD5
 import Data.ByteString qualified as ByteString
-import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
@@ -33,73 +31,91 @@ import Hledger.Read qualified as Hledger
 
 import Hedger.Domain.Snapshot (Snapshot (..))
 
+-- Store model
+
 newtype SnapshotLoadError = JournalReadFailed Text
     deriving stock (Eq, Show)
 
-data SnapshotState = SnapshotState
-    { currentSnapshot :: Maybe Snapshot
-    , lastReloadError :: Maybe SnapshotLoadError
-    }
+data SnapshotStoreRead
+    = SnapshotNotLoaded
+    | SnapshotLoadFailed SnapshotLoadError
+    | SnapshotFresh Snapshot
+    | SnapshotStale Snapshot SnapshotLoadError
 
-data SnapshotStoreRead = SnapshotStoreRead
-    { snapshot :: Maybe Snapshot
-    , reloadError :: Maybe SnapshotLoadError
-    }
-
-{- | The @IORef@ snapshot and the @TVar@ revision are only ever written together
-while holding @updateLock@, so a reader never observes a revision published
-for a different reload than the snapshot it accompanies.
+{- | The store state is kept in one transactional variable so a snapshot and
+its published revision cannot be observed independently.
 -}
-data SnapshotStore = SnapshotStore (IORef SnapshotState) (TVar Text) (MVar ())
+data SnapshotStore = SnapshotStore
+    { storeState :: TVar SnapshotStoreRead
+    , journalPath :: Text
+    }
 
-newSnapshotStore :: IO SnapshotStore
-newSnapshotStore =
-    SnapshotStore
-        <$> newIORef SnapshotState{currentSnapshot = Nothing, lastReloadError = Nothing}
-        <*> newTVarIO ""
-        <*> newMVar ()
+-- Store operations
+
+newSnapshotStore :: Text -> IO SnapshotStore
+newSnapshotStore path = SnapshotStore <$> newTVarIO SnapshotNotLoaded <*> pure path
 
 readCurrentSnapshot :: SnapshotStore -> IO (Maybe Snapshot)
-readCurrentSnapshot (SnapshotStore stateReference _ _) = (.currentSnapshot) <$> readIORef stateReference
+readCurrentSnapshot SnapshotStore{..} = do
+    state <- readTVarIO storeState
+    pure $ case state of
+        SnapshotNotLoaded -> Nothing
+        SnapshotLoadFailed _ -> Nothing
+        SnapshotFresh snapshot -> Just snapshot
+        SnapshotStale snapshot _ -> Just snapshot
 
 readLastReloadError :: SnapshotStore -> IO (Maybe SnapshotLoadError)
-readLastReloadError (SnapshotStore stateReference _ _) = (.lastReloadError) <$> readIORef stateReference
+readLastReloadError SnapshotStore{..} = do
+    state <- readTVarIO storeState
+    pure $ case state of
+        SnapshotNotLoaded -> Nothing
+        SnapshotLoadFailed loadError -> Just loadError
+        SnapshotFresh _ -> Nothing
+        SnapshotStale _ loadError -> Just loadError
 
 readSnapshotStore :: SnapshotStore -> IO SnapshotStoreRead
-readSnapshotStore (SnapshotStore stateReference _ _) = do
-    state <- readIORef stateReference
-    pure
-        SnapshotStoreRead
-            { snapshot = state.currentSnapshot
-            , reloadError = state.lastReloadError
-            }
+readSnapshotStore SnapshotStore{..} = readTVarIO storeState
 
-reloadSnapshot :: SnapshotStore -> Text -> IO (Either SnapshotLoadError Snapshot)
-reloadSnapshot (SnapshotStore stateReference revisionVar updateLock) path = do
-    result <- loadSnapshot path
-    withMVar updateLock $ \_ -> do
-        atomicModifyIORef' stateReference $ \state ->
-            case result of
-                Left loadError -> (state{lastReloadError = Just loadError}, ())
-                Right snapshot ->
-                    (SnapshotState{currentSnapshot = Just snapshot, lastReloadError = Nothing}, ())
-        case result of
-            Right snapshot -> atomically (writeTVar revisionVar snapshot.revision)
-            Left _ -> pure ()
+reloadSnapshot :: SnapshotStore -> IO (Either SnapshotLoadError Snapshot)
+reloadSnapshot SnapshotStore{..} = do
+    result <- loadSnapshot journalPath
+    atomically (modifyTVar' storeState (storeReloadResult result))
     pure result
 
 -- | The revision currently published, or @""@ before the first successful load.
 currentRevision :: SnapshotStore -> IO Text
-currentRevision (SnapshotStore _ revisionVar _) = readTVarIO revisionVar
+currentRevision SnapshotStore{..} = storeRevision <$> readTVarIO storeState
 
 -- Blocks until a revision different from @seen@ is published, so a caller can
 -- react to reloads without polling.
 awaitRevisionChange :: SnapshotStore -> Text -> IO Text
-awaitRevisionChange (SnapshotStore _ revisionVar _) seen =
+awaitRevisionChange SnapshotStore{..} seen =
     atomically $ do
-        revision <- readTVar revisionVar
+        revision <- storeRevision <$> readTVar storeState
         check (revision /= seen)
         pure revision
+
+-- State projections and transitions
+
+storeReloadResult :: Either SnapshotLoadError Snapshot -> SnapshotStoreRead -> SnapshotStoreRead
+storeReloadResult result state =
+    case result of
+        Right snapshot -> SnapshotFresh snapshot
+        Left loadError -> case state of
+            SnapshotNotLoaded -> SnapshotLoadFailed loadError
+            SnapshotLoadFailed _ -> SnapshotLoadFailed loadError
+            SnapshotFresh snapshot -> SnapshotStale snapshot loadError
+            SnapshotStale snapshot _ -> SnapshotStale snapshot loadError
+
+storeRevision :: SnapshotStoreRead -> Text
+storeRevision state =
+    case state of
+        SnapshotNotLoaded -> ""
+        SnapshotLoadFailed _ -> ""
+        SnapshotFresh snapshot -> snapshot.revision
+        SnapshotStale snapshot _ -> snapshot.revision
+
+-- Snapshot loading
 
 loadSnapshot :: Text -> IO (Either SnapshotLoadError Snapshot)
 loadSnapshot configuredPath = do
@@ -134,6 +150,8 @@ synchronousException exception =
 maximumMaybe :: (Ord value) => [value] -> Maybe value
 maximumMaybe [] = Nothing
 maximumMaybe values = Just (maximum values)
+
+-- Revision hashing
 
 journalRevision :: Hledger.Journal -> Text
 journalRevision journal =

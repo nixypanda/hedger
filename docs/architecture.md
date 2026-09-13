@@ -109,7 +109,7 @@ Key modules:
   per-feature endpoint handlers.
 - `Common` — shared DTOs, `ResponseMetadata`, pagination helpers.
 - `Errors` — error envelope construction.
-- `Middleware` — request context, query redaction for logging.
+- `Middleware` — request context, error normalization.
 
 ### Infrastructure (`Hedger.Infrastructure.*`)
 
