@@ -48,7 +48,7 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..))
+import Hedger.Domain.Period (Granularity (..), latestPeriods)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..))
 import Hedger.Domain.Xirr qualified as Xirr
@@ -583,7 +583,17 @@ a partial weight would silently skip, hiding two whole report passes.
 -}
 netWorthWeight :: Snapshot -> Int
 netWorthWeight snapshot =
-    let figures = computeNetWorth snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+    let figures =
+            computeNetWorth
+                snapshot
+                snapshot.transactions
+                Monthly
+                (latestPeriods 24)
+                "INR"
+                Nothing
+                Nothing
+                2
+                2
      in sum (timelineWeight <$> figures.timeline)
             + sum (breakdownWeight <$> figures.assetsBreakdownItems)
             + sum (breakdownWeight <$> figures.liabilitiesBreakdownItems)
@@ -599,7 +609,17 @@ netWorthWeight snapshot =
 
 cashflowWeight :: Snapshot -> Int
 cashflowWeight snapshot =
-    let figures = computeCashflow snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+    let figures =
+            computeCashflow
+                snapshot
+                snapshot.transactions
+                Monthly
+                (latestPeriods 24)
+                "INR"
+                Nothing
+                Nothing
+                2
+                2
      in sum (timelineWeight <$> figures.timeline)
             + sum (breakdownWeight <$> figures.incomeBreakdownItems)
             + sum (breakdownWeight <$> figures.expenseBreakdownItems)
@@ -627,37 +647,43 @@ performanceWeight point =
 incomeExpensePeriodicWeight :: Snapshot -> Int
 incomeExpensePeriodicWeight snapshot =
     periodicReportWeight
-        (Cashflow.incomeExpensePeriodicReport snapshot snapshot.transactions Monthly "INR")
+        (Cashflow.incomeExpensePeriodicReport snapshot snapshot.transactions Monthly (latestPeriods 24) "INR")
 
 incomeGainPeriodicWeight :: Snapshot -> Int
 incomeGainPeriodicWeight snapshot =
     periodicReportWeight
-        (Cashflow.incomeGainPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (Cashflow.incomeGainPeriodicReport snapshot snapshot.transactions Monthly (latestPeriods 24) "INR" 2)
 
 expensePeriodicWeight :: Snapshot -> Int
 expensePeriodicWeight snapshot =
     periodicReportWeight
-        (Cashflow.expensePeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (Cashflow.expensePeriodicReport snapshot snapshot.transactions Monthly (latestPeriods 24) "INR" 2)
 
 assetCashPeriodicWeight :: Snapshot -> Int
 assetCashPeriodicWeight snapshot =
     periodicReportWeight
-        (NetWorth.assetCashPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (NetWorth.assetCashPeriodicReport snapshot snapshot.transactions Monthly (latestPeriods 24) "INR" 2)
 
 liabilityPeriodicWeight :: Snapshot -> Int
 liabilityPeriodicWeight snapshot =
     periodicReportWeight
-        (NetWorth.liabilityPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (NetWorth.liabilityPeriodicReport snapshot snapshot.transactions Monthly (latestPeriods 24) "INR" 2)
 
 assetLiabilityPeriodicWeight :: Snapshot -> Int
 assetLiabilityPeriodicWeight snapshot =
     periodicReportWeight
-        (NetWorth.assetLiabilityPeriodicReport snapshot snapshot.transactions Monthly "INR")
+        ( NetWorth.assetLiabilityPeriodicReport
+            snapshot
+            snapshot.transactions
+            Monthly
+            (latestPeriods 24)
+            "INR"
+        )
 
 gainPeriodicWeight :: Snapshot -> Int
 gainPeriodicWeight snapshot =
     periodicReportWeight
-        (NetWorth.gainPeriodicReport snapshot snapshot.transactions Monthly "INR")
+        (NetWorth.gainPeriodicReport snapshot snapshot.transactions Monthly (latestPeriods 24) "INR")
 
 currentAssetCashWeight :: Snapshot -> Int
 currentAssetCashWeight snapshot =

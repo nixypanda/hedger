@@ -7,7 +7,7 @@ import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 
 import Hedger.Domain.Internal.NetWorth (currentAssetCashBalance, currentLiabilityBalance)
 import Hedger.Domain.NetWorth (NetWorthFigures (..), TimelinePoint (..), computeNetWorth)
-import Hedger.Domain.Period (Granularity (..))
+import Hedger.Domain.Period (Granularity (..), ReportWindow, allPeriods, latestPeriods)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..))
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
@@ -35,7 +35,17 @@ netWorthSpec =
 finalMonthlyPeriodUsesLatestJournalDate :: IO ()
 finalMonthlyPeriodUsesLatestJournalDate = do
     snapshot <- loadFixture "test/fixtures/net-worth-future-price.journal"
-    let figures = computeNetWorth snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+    let figures =
+            computeNetWorth
+                snapshot
+                snapshot.transactions
+                Monthly
+                (latestPeriods 24)
+                "INR"
+                Nothing
+                Nothing
+                2
+                2
     assertEqual "strict current assets" (Just 100) figures.currentAssets
     case figures.timeline of
         [point] -> do
@@ -64,7 +74,17 @@ referenceJournals =
 currentAgreesWithReference :: Text -> Granularity -> Text -> IO ()
 currentAgreesWithReference path granularity commodity = do
     snapshot <- loadFixture path
-    let figures = computeNetWorth snapshot snapshot.transactions granularity commodity Nothing Nothing 2 2
+    let figures =
+            computeNetWorth
+                snapshot
+                snapshot.transactions
+                granularity
+                (windowFor granularity)
+                commodity
+                Nothing
+                Nothing
+                2
+                2
         referenceAssets = currentAssetCashBalance snapshot snapshot.transactions commodity
         referenceLiabilities = currentLiabilityBalance snapshot snapshot.transactions commodity
     assertEqual "current assets" referenceAssets.value figures.currentAssets
@@ -73,6 +93,10 @@ currentAgreesWithReference path granularity commodity = do
         "current net worth"
         ((-) <$> referenceAssets.value <*> referenceLiabilities.value)
         figures.currentNetWorth
+
+windowFor :: Granularity -> ReportWindow
+windowFor Monthly = latestPeriods 24
+windowFor Yearly = allPeriods
 
 loadFixture :: Text -> IO Snapshot
 loadFixture path = loadSnapshot path >>= either (assertFailure . show) pure

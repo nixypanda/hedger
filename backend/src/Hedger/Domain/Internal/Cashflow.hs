@@ -16,7 +16,7 @@ import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
 import Hedger.Domain.Internal.PeriodReport (periodicBalanceReport)
-import Hedger.Domain.Period (Granularity)
+import Hedger.Domain.Period (Granularity, ReportWindow)
 import Hedger.Domain.Snapshot (Snapshot)
 
 {- | Both cashflow sides in a single report; 'Hedger.Domain.Internal.PeriodReport.reportSide'
@@ -26,13 +26,15 @@ incomeExpensePeriodicReport ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     HledgerMultiBalance.MultiBalanceReport
-incomeExpensePeriodicReport snapshot transactions granularity commodity =
+incomeExpensePeriodicReport snapshot transactions granularity window commodity =
     periodicBalanceReport
         snapshot
         transactions
         granularity
+        window
         commodity
         [Hledger.Revenue, Hledger.Gain, Hledger.Expense]
         HledgerReportOptions.CalcChange
@@ -43,14 +45,16 @@ incomeGainPeriodicReport ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     Int ->
     HledgerMultiBalance.MultiBalanceReport
-incomeGainPeriodicReport snapshot transactions granularity commodity depth =
+incomeGainPeriodicReport snapshot transactions granularity window commodity depth =
     periodicBalanceReport
         snapshot
         transactions
         granularity
+        window
         commodity
         [Hledger.Revenue, Hledger.Gain]
         HledgerReportOptions.CalcChange
@@ -61,14 +65,16 @@ expensePeriodicReport ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     Int ->
     HledgerMultiBalance.MultiBalanceReport
-expensePeriodicReport snapshot transactions granularity commodity depth =
+expensePeriodicReport snapshot transactions granularity window commodity depth =
     periodicBalanceReport
         snapshot
         transactions
         granularity
+        window
         commodity
         [Hledger.Expense]
         HledgerReportOptions.CalcChange

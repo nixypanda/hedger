@@ -66,7 +66,15 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..), ReportPeriod (..), atIndex, epoch)
+import Hedger.Domain.Period (
+    Granularity (..),
+    ReportPeriod (..),
+    ReportWindow,
+    allPeriods,
+    atIndex,
+    epoch,
+    latestPeriods,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (ConversionWarning (..))
 
@@ -178,6 +186,7 @@ netWorth request = do
                 snapshot
                 matched
                 request.granularity
+                (reportWindowFor request.granularity)
                 commodity
                 request.positivePeriod
                 request.negativePeriod
@@ -215,6 +224,7 @@ cashflow request = do
                 snapshot
                 matched
                 request.granularity
+                (reportWindowFor request.granularity)
                 commodity
                 request.positivePeriod
                 request.negativePeriod
@@ -275,6 +285,10 @@ activity request = do
             , warnings = conversionWarnings figures.missing
             , classifyAccount = accountTypeClassifier snapshot.journal
             }
+
+reportWindowFor :: Granularity -> ReportWindow
+reportWindowFor Monthly = latestPeriods 24
+reportWindowFor Yearly = allPeriods
 
 -- * Input resolution
 

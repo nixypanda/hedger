@@ -34,7 +34,14 @@ import Hedger.Domain.Internal.PeriodReport (
     reportTotals,
     wholeReport,
  )
-import Hedger.Domain.Period (Granularity (..), ReportPeriod, lastMaybe)
+import Hedger.Domain.Period (
+    Granularity (..),
+    ReportPeriod,
+    ReportWindow,
+    allPeriods,
+    lastMaybe,
+    latestPeriods,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..))
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
@@ -84,9 +91,10 @@ sidesAgree :: Text -> Granularity -> Text -> Int -> IO ()
 sidesAgree path granularity commodity depth = do
     snapshot <- loadSnapshot path >>= either (assertFailure . show) pure
     let transactions = snapshot.transactions
-        balances = assetLiabilityPeriodicReport snapshot transactions granularity commodity
-        flows = incomeExpensePeriodicReport snapshot transactions granularity commodity
-        separate report = wholeReport (report snapshot transactions granularity commodity depth)
+        window = windowFor granularity
+        balances = assetLiabilityPeriodicReport snapshot transactions granularity window commodity
+        flows = incomeExpensePeriodicReport snapshot transactions granularity window commodity
+        separate report = wholeReport (report snapshot transactions granularity window commodity depth)
         side = reportSide snapshot.journal
     traverse_
         (agrees commodity depth (reportPeriodsFrom granularity balances))
@@ -98,6 +106,9 @@ sidesAgree path granularity commodity depth = do
         [ ("income", side [Hledger.Revenue, Hledger.Gain] flows, separate incomeGainPeriodicReport)
         , ("expenses", side [Hledger.Expense] flows, separate expensePeriodicReport)
         ]
+windowFor :: Granularity -> ReportWindow
+windowFor Monthly = latestPeriods 24
+windowFor Yearly = allPeriods
 
 agrees :: Text -> Int -> [ReportPeriod] -> (String, ReportSide, ReportSide) -> IO ()
 agrees commodity depth periods (side, consolidated, separate) = do

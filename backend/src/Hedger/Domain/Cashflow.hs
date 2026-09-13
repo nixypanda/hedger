@@ -29,7 +29,7 @@ import Hedger.Domain.Internal.PeriodReport (
     reportTotals,
     selectedPeriod,
  )
-import Hedger.Domain.Period (Granularity, ReportPeriod (..))
+import Hedger.Domain.Period (Granularity, ReportPeriod (..), ReportWindow)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..))
 
@@ -49,52 +49,62 @@ computeCashflow ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     Maybe Text ->
     Maybe Text ->
     Int ->
     Int ->
     CashflowFigures
-computeCashflow snapshot matched granularity commodity positiveReq negativeReq positiveDepth negativeDepth =
-    CashflowFigures
-        { timeline = points
-        , available = available
-        , totalCount = length snapshot.transactions
-        , filteredCount = length matched
-        , incomeBreakdownPeriod = fst incomeBreakdown
-        , incomeBreakdownItems = snd incomeBreakdown
-        , expenseBreakdownPeriod = fst expenseBreakdown
-        , expenseBreakdownItems = snd expenseBreakdown
-        , missing = missing
-        }
-  where
-    combinedReport = incomeExpensePeriodicReport snapshot matched granularity commodity
-    incomeSide = reportSide snapshot.journal [Hledger.Revenue, Hledger.Gain] combinedReport
-    expenseSide = reportSide snapshot.journal [Hledger.Expense] combinedReport
-    reportPeriods = reportPeriodsFrom granularity combinedReport
-    dataPeriods = periodsWithData granularity matched reportPeriods
-    dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
-    incomeTotals = fmap (fmap negate) (reportTotals commodity incomeSide)
-    expenseTotals = reportTotals commodity expenseSide
-    missing = reportMissing commodity incomeSide <> reportMissing commodity expenseSide
-    available = Set.null missing
-    points =
-        if available
-            then
-                filter
-                    ((`Set.member` dataPeriodKeys) . (.period))
-                    (zipWith3 cashflowPointFrom reportPeriods incomeTotals expenseTotals)
-            else []
-    positivePeriod = selectedPeriod positiveReq dataPeriods
-    negativePeriod = selectedPeriod negativeReq dataPeriods
-    incomeBreakdown =
-        if available
-            then breakdownItemsFor commodity positiveDepth positivePeriod reportPeriods incomeSide
-            else (maybe "" (.key) positivePeriod, [])
-    expenseBreakdown =
-        if available
-            then breakdownItemsFor commodity negativeDepth negativePeriod reportPeriods expenseSide
-            else (maybe "" (.key) negativePeriod, [])
+computeCashflow
+    snapshot
+    matched
+    granularity
+    window
+    commodity
+    positiveReq
+    negativeReq
+    positiveDepth
+    negativeDepth =
+        CashflowFigures
+            { timeline = points
+            , available = available
+            , totalCount = length snapshot.transactions
+            , filteredCount = length matched
+            , incomeBreakdownPeriod = fst incomeBreakdown
+            , incomeBreakdownItems = snd incomeBreakdown
+            , expenseBreakdownPeriod = fst expenseBreakdown
+            , expenseBreakdownItems = snd expenseBreakdown
+            , missing = missing
+            }
+      where
+        combinedReport = incomeExpensePeriodicReport snapshot matched granularity window commodity
+        incomeSide = reportSide snapshot.journal [Hledger.Revenue, Hledger.Gain] combinedReport
+        expenseSide = reportSide snapshot.journal [Hledger.Expense] combinedReport
+        reportPeriods = reportPeriodsFrom granularity combinedReport
+        dataPeriods = periodsWithData granularity matched reportPeriods
+        dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
+        incomeTotals = fmap (fmap negate) (reportTotals commodity incomeSide)
+        expenseTotals = reportTotals commodity expenseSide
+        missing = reportMissing commodity incomeSide <> reportMissing commodity expenseSide
+        available = Set.null missing
+        points =
+            if available
+                then
+                    filter
+                        ((`Set.member` dataPeriodKeys) . (.period))
+                        (zipWith3 cashflowPointFrom reportPeriods incomeTotals expenseTotals)
+                else []
+        positivePeriod = selectedPeriod positiveReq dataPeriods
+        negativePeriod = selectedPeriod negativeReq dataPeriods
+        incomeBreakdown =
+            if available
+                then breakdownItemsFor commodity positiveDepth positivePeriod reportPeriods incomeSide
+                else (maybe "" (.key) positivePeriod, [])
+        expenseBreakdown =
+            if available
+                then breakdownItemsFor commodity negativeDepth negativePeriod reportPeriods expenseSide
+                else (maybe "" (.key) negativePeriod, [])
 
 cashflowPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
 cashflowPointFrom period incomeResult expenseResult =
