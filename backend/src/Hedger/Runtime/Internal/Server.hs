@@ -19,7 +19,6 @@ import Network.Wai.Handler.Warp (
     setInstallShutdownHandler,
     setPort,
  )
-import Network.Wai.Middleware.RequestLogger qualified as RequestLogger
 import System.Posix.Signals (Handler (Catch), installHandler, sigHUP, sigTERM)
 
 import Hedger.Application.AppM (Env (..))
@@ -31,14 +30,14 @@ import Hedger.Infrastructure.SnapshotStore (
     reloadSnapshot,
  )
 import Hedger.Interface.HTTP.API (application)
-import Hedger.Interface.HTTP.Middleware (redactQueryForLogging, requestContextMiddleware)
+import Hedger.Interface.HTTP.Middleware (requestContextMiddleware)
 
 makeApplication :: Config -> SnapshotStore -> Application
 makeApplication configuration store =
-    productionMiddleware id (coreApplication configuration store)
+    productionMiddleware (coreApplication configuration store)
 
-productionMiddleware :: Middleware -> Middleware
-productionMiddleware logger = requestContextMiddleware . redactQueryForLogging logger
+productionMiddleware :: Middleware
+productionMiddleware = requestContextMiddleware
 
 coreApplication :: Config -> SnapshotStore -> Application
 coreApplication configuration store =
@@ -60,7 +59,7 @@ runServer configuration = do
     withJournalWatcher store $
         runSettings
             settings
-            (productionMiddleware RequestLogger.logStdout (coreApplication configuration store))
+            (productionMiddleware (coreApplication configuration store))
 
 installShutdownHandler :: IO () -> IO ()
 installShutdownHandler closeSocket = void (installHandler sigTERM (Catch closeSocket) Nothing)

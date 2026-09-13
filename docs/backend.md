@@ -46,7 +46,7 @@ backend/src/Hedger/
       System.hs              # system endpoints
       Common.hs              # shared DTOs, ResponseMetadata
       Errors.hs              # error envelope
-      Middleware.hs          # request context, query redaction
+      Middleware.hs          # request context, error normalization
   Infrastructure/
     SnapshotStore.hs         # journal loading, IORef snapshot publication
   Runtime/

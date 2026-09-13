@@ -1,6 +1,4 @@
 module Hedger.Interface.HTTP.Middleware (
-    redactQueryForLogging,
-    redactQueryString,
     requestContextMiddleware,
 )
 where
@@ -29,24 +27,6 @@ requestContextMiddleware app request respond = do
         respond
             . Wai.mapResponseHeaders (("X-Request-ID", Text.encodeUtf8 requestId) :)
             $ normalizeServantError requestId response
-
-{- | Run an access logger with a redacted request while the application receives
-the original request. This keeps the hledger query out of logs without
-changing request semantics.
--}
-redactQueryForLogging :: Wai.Middleware -> Wai.Middleware
-redactQueryForLogging logger app originalRequest respond =
-    logger (\_ -> app originalRequest) redactedRequest respond
-  where
-    redactedRequest = originalRequest{Wai.rawQueryString = redactQueryString originalRequest.rawQueryString}
-
-redactQueryString :: ByteString.ByteString -> ByteString.ByteString
-redactQueryString raw =
-    HTTP.renderQuery True (redact <$> HTTP.parseQuery raw)
-  where
-    redact (name, value)
-        | name == "query" = (name, Just "[REDACTED]")
-        | otherwise = (name, value)
 
 normalizeServantError :: Text -> Wai.Response -> Wai.Response
 normalizeServantError requestId response
