@@ -155,6 +155,7 @@ test-suite hedger-backend-test
     Hedger.Interface.HTTP.APISpec
     Hedger.Interface.HTTP.Core.CommonSpec
     Hedger.Interface.HTTP.Endpoints.EventsSpec
+    Hedger.Interface.HTTP.Endpoints.TransactionsSpec
     Hedger.Runtime.ServerSpec
     Hedger.SyntheticTransactions
     Hedger.TestHelpers

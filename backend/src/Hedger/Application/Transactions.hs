@@ -1,5 +1,7 @@
 module Hedger.Application.Transactions (
+    TransactionItem (..),
     TransactionList (..),
+    transactionItem,
     transactionList,
 )
 where
@@ -19,10 +21,18 @@ import Hedger.Application.Common (
 import Hedger.Application.TransactionQuery (TransactionPageRequest (..))
 import Hedger.Application.TransactionQuery qualified as TransactionQuery
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Transaction (TransactionClassification)
+import Hedger.Domain.Transaction qualified as Transaction
+
+data TransactionItem = TransactionItem
+    { transaction :: Hledger.Transaction
+    , classification :: TransactionClassification
+    }
+    deriving stock (Show)
 
 data TransactionList = TransactionList
     { metadata :: SnapshotMetadata
-    , transactions :: [Hledger.Transaction]
+    , transactions :: [TransactionItem]
     , nextCursor :: Maybe Text
     , classifyAccount :: AccountTypeClassifier
     }
@@ -36,7 +46,14 @@ transactionList request = do
     pure
         TransactionList
             { metadata = responseMetadata
-            , transactions = page.transactions
+            , transactions = transactionItem <$> page.transactions
             , nextCursor = page.nextCursor
             , classifyAccount = accountTypeClassifier snapshot.journal
             }
+
+transactionItem :: Hledger.Transaction -> TransactionItem
+transactionItem transaction =
+    TransactionItem
+        { transaction
+        , classification = Transaction.classificationFor transaction
+        }

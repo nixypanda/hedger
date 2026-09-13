@@ -47,6 +47,7 @@ import Hedger.Application.Common (
  )
 import Hedger.Application.Error (AppError (InvalidRequest))
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
+import Hedger.Application.Transactions (TransactionItem, transactionItem)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Activity (
     ActivityBucketFigures (..),
@@ -152,7 +153,7 @@ data ActivityBucket = ActivityBucket
     , reallocated :: Decimal
     , categories :: [BreakdownItem]
     , directions :: [DirectionBreakdown]
-    , transactions :: [Hledger.Transaction]
+    , transactions :: [TransactionItem]
     }
 
 data DirectionBreakdown = DirectionBreakdown
@@ -396,7 +397,7 @@ toActivityBucket figures =
             [ DirectionBreakdown{direction, categories = fst (groupOther items)}
             | (direction, items) <- figures.directionItems
             ]
-        , transactions = figures.transactions
+        , transactions = transactionItem <$> figures.transactions
         }
 
 conversionWarnings :: Set Text -> [ConversionWarning]

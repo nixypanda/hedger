@@ -2,12 +2,12 @@ module Hedger.Application.TransactionQuery (
     TransactionPageRequest (..),
     TransactionPage (..),
     transactionPage,
+    newestFirst,
     parseHledgerQuery,
 )
 where
 
 import Data.Char (isDigit)
-import Data.Function (on)
 import Data.List qualified as List
 import Data.Ord (Down (Down))
 import Data.Text (Text)
@@ -52,11 +52,7 @@ transactionPage snapshot request = do
                 , HledgerReportOptions._rsQuery = parsedQuery
                 }
         journal = snapshot.journal{Hledger.jtxns = snapshot.transactions}
-        matchingAscending = HledgerEntries.entriesReport reportSpec journal
-        matching =
-            concatMap
-                (List.sortOn (Down . (.tindex)))
-                (reverse (List.groupBy ((==) `on` (.tdate)) matchingAscending))
+        matching = newestFirst (HledgerEntries.entriesReport reportSpec journal)
     if offset > length matching
         then Left (InvalidCursor "The cursor position is no longer valid.")
         else do
@@ -75,6 +71,9 @@ transactionPage snapshot request = do
                                 )
                         else Nothing
             pure TransactionPage{transactions = page, nextCursor = cursor}
+
+newestFirst :: [Hledger.Transaction] -> [Hledger.Transaction]
+newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex))
 
 maximumQueryLength :: Int
 maximumQueryLength = 2048

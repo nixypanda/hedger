@@ -22,6 +22,7 @@ import Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec)
 import Hedger.Interface.HTTP.APISpec (apiSpec)
 import Hedger.Interface.HTTP.Core.CommonSpec (commonSpec)
 import Hedger.Interface.HTTP.Endpoints.EventsSpec (httpEventsSpec)
+import Hedger.Interface.HTTP.Endpoints.TransactionsSpec (transactionsSpec)
 import Hedger.Runtime.ServerSpec (serverSpec)
 
 main :: IO ()
@@ -31,6 +32,7 @@ main =
             "hedger"
             [ configSpec
             , httpEventsSpec
+            , transactionsSpec
             , investmentsSpec
             , investmentSpec
             , netWorthSpec

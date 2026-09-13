@@ -25,8 +25,13 @@ import Hledger.Data.Types qualified as Hledger
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Common (AccountTypeClassifier)
 import Hedger.Application.TransactionQuery (TransactionPageRequest (..))
-import Hedger.Application.Transactions (TransactionList (..), transactionList)
-import Hedger.Domain.Transaction qualified as Domain
+import Hedger.Application.Transactions (
+    TransactionItem (..),
+    TransactionList (..),
+    transactionList,
+ )
+import Hedger.Domain.Transaction (TransactionClassification)
+import Hedger.Domain.Transaction qualified as Transaction
 import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata (..),
     accountTypeText,
@@ -127,11 +132,11 @@ toTransactionsResponse value =
         , nextCursor = value.nextCursor
         }
 
-toTransactions :: AccountTypeClassifier -> [Hledger.Transaction] -> [TransactionDto]
-toTransactions classify = fmap (toTransactionDto classify) . Domain.newestFirst
+toTransactions :: AccountTypeClassifier -> [TransactionItem] -> [TransactionDto]
+toTransactions classify = fmap (toTransactionDto classify)
 
-toTransactionDto :: AccountTypeClassifier -> Hledger.Transaction -> TransactionDto
-toTransactionDto classify transaction =
+toTransactionDto :: AccountTypeClassifier -> TransactionItem -> TransactionDto
+toTransactionDto classify item =
     TransactionDto
         { primaryDate = transaction.tdate
         , secondaryDate = transaction.tdate2
@@ -141,8 +146,10 @@ toTransactionDto classify transaction =
         , comment = nonEmpty transaction.tcomment
         , tags = projectTags transaction.ttags
         , postings = projectPosting classify <$> transaction.tpostings
-        , presentation = presentationDto (Domain.presentationFor transaction)
+        , presentation = presentationDto item.classification
         }
+  where
+    transaction = item.transaction
 
 projectPosting :: AccountTypeClassifier -> Hledger.Posting -> PostingDto
 projectPosting classify posting =
@@ -192,22 +199,22 @@ nonEmpty value
     | Text.null value = Nothing
     | otherwise = Just value
 
-presentationDto :: Domain.TransactionPresentation -> TransactionPresentationDto
-presentationDto presentation =
+presentationDto :: TransactionClassification -> TransactionPresentationDto
+presentationDto classification =
     TransactionPresentationDto
-        { classification = classificationText presentation.classification
+        { classification = classificationText classification
         }
 
-classificationText :: Domain.TransactionClassification -> Text
+classificationText :: TransactionClassification -> Text
 classificationText classification =
     case classification of
-        Domain.TransactionIncome -> "income"
-        Domain.TransactionExpense -> "expense"
-        Domain.TransactionTransfer -> "transfer"
-        Domain.OpeningBalance -> "opening_balance"
-        Domain.Borrowing -> "borrowing"
-        Domain.Repayment -> "repayment"
-        Domain.AssetAcquisition -> "asset_acquisition"
-        Domain.AssetDisposal -> "asset_disposal"
-        Domain.AssetReallocation -> "asset_reallocation"
-        Domain.Unclassified -> "unclassified"
+        Transaction.TransactionIncome -> "income"
+        Transaction.TransactionExpense -> "expense"
+        Transaction.TransactionTransfer -> "transfer"
+        Transaction.OpeningBalance -> "opening_balance"
+        Transaction.Borrowing -> "borrowing"
+        Transaction.Repayment -> "repayment"
+        Transaction.AssetAcquisition -> "asset_acquisition"
+        Transaction.AssetDisposal -> "asset_disposal"
+        Transaction.AssetReallocation -> "asset_reallocation"
+        Transaction.Unclassified -> "unclassified"
