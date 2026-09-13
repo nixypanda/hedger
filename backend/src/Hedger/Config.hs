@@ -20,6 +20,8 @@ import Options.Applicative qualified as Options
 
 import Hedger.Domain.Investment qualified as Investment
 
+-- * Resolved configuration
+
 data Config = Config
     { journalPath :: Text
     , listenAddress :: Text
@@ -30,6 +32,8 @@ data Config = Config
     , assetClassMappings :: Investment.AssetClassMappings
     }
     deriving stock (Eq, Show)
+
+-- * Boundary configuration types
 
 data FileConfig = FileConfig
     { version :: Int
@@ -92,6 +96,8 @@ data CliOptions = CliOptions
     , cliFiscalYearStartMonth :: Maybe Int
     }
 
+-- * Public entry points
+
 loadConfig :: IO (Either Text Config)
 loadConfig = do
     cli <- Options.execParser parserInfo
@@ -115,6 +121,8 @@ parseConfig document arguments = do
     fileConfig <- maybe (Right emptyFileConfig) decodeFileConfig document
     resolveConfig fileConfig cli
 
+-- * Configuration file parsing
+
 readConfigurationFile :: FilePath -> IO (Either IOException ByteString)
 readConfigurationFile = try . ByteString.readFile
 
@@ -125,6 +133,18 @@ decodeFileConfig contents =
         Right fileConfig
             | fileConfig.version == 1 -> Right fileConfig
             | otherwise -> Left "Configuration version must be 1."
+
+emptyFileConfig :: FileConfig
+emptyFileConfig =
+    FileConfig
+        { version = 1
+        , journal = Nothing
+        , server = Nothing
+        , display = Nothing
+        , investments = Nothing
+        }
+
+-- * Configuration resolution
 
 resolveConfig :: FileConfig -> CliOptions -> Either Text Config
 resolveConfig fileConfig cli = do
@@ -196,18 +216,33 @@ assetClassFrom kind = case kind of
     "other" -> Right Investment.Other
     _ -> Left ("Unsupported asset class kind: " <> kind)
 
-emptyFileConfig :: FileConfig
-emptyFileConfig =
-    FileConfig
-        { version = 1
-        , journal = Nothing
-        , server = Nothing
-        , display = Nothing
-        , investments = Nothing
-        }
+validate :: Config -> Either Text Config
+validate config = do
+    requireNonBlank "journal path" config.journalPath
+    requireToken "listen address" config.listenAddress
+    requireToken "display commodity" config.defaultDisplayCommodity
+    if
+        | config.listenPort < 1 || config.listenPort > 65535 ->
+            Left "Port must be between 1 and 65535."
+        | config.fiscalYearStartMonth < 1 || config.fiscalYearStartMonth > 12 ->
+            Left "Fiscal-year start must be between 1 and 12."
+        | otherwise -> pure ()
+    pure config
+
+requireNonBlank :: Text -> Text -> Either Text ()
+requireNonBlank label value
+    | Text.any (not . Char.isSpace) value = Right ()
+    | otherwise = Left ("A non-empty " <> label <> " is required.")
+
+requireToken :: Text -> Text -> Either Text ()
+requireToken label value
+    | not (Text.null value) && not (Text.any Char.isSpace value) = Right ()
+    | otherwise = Left ("A non-empty " <> label <> " is required.")
 
 orDefault :: Maybe value -> value -> value
 orDefault configured fallback = maybe fallback id configured
+
+-- * Command-line parsing
 
 parseArguments :: [Text] -> Either Text CliOptions
 parseArguments arguments =
@@ -257,26 +292,3 @@ optionalAuto name valueName description =
                 <> Options.help (Text.unpack description)
             )
         )
-
-validate :: Config -> Either Text Config
-validate config = do
-    requireNonBlank "journal path" config.journalPath
-    requireToken "listen address" config.listenAddress
-    requireToken "display commodity" config.defaultDisplayCommodity
-    if
-        | config.listenPort < 1 || config.listenPort > 65535 ->
-            Left "Port must be between 1 and 65535."
-        | config.fiscalYearStartMonth < 1 || config.fiscalYearStartMonth > 12 ->
-            Left "Fiscal-year start must be between 1 and 12."
-        | otherwise -> pure ()
-    pure config
-
-requireNonBlank :: Text -> Text -> Either Text ()
-requireNonBlank label value
-    | Text.any (not . Char.isSpace) value = Right ()
-    | otherwise = Left ("A non-empty " <> label <> " is required.")
-
-requireToken :: Text -> Text -> Either Text ()
-requireToken label value
-    | not (Text.null value) && not (Text.any Char.isSpace value) = Right ()
-    | otherwise = Left ("A non-empty " <> label <> " is required.")
