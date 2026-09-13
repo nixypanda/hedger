@@ -245,8 +245,8 @@ forceAmounts mixed =
 
 loadFixtureInput :: Text.Text -> IO FixtureInput
 loadFixtureInput path = do
-    store <- newSnapshotStore
-    loaded <- reloadSnapshot store path
+    store <- newSnapshotStore path
+    loaded <- reloadSnapshot store
     snapshot <- case loaded of
         Left loadError -> fail (show loadError)
         Right loadedSnapshot -> do

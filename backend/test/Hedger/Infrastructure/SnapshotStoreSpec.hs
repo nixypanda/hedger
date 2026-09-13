@@ -15,6 +15,8 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
+    SnapshotLoadError (..),
+    SnapshotStore (..),
     SnapshotStoreRead (..),
     currentRevision,
     loadSnapshot,
@@ -54,15 +56,15 @@ snapshotStoreSpec =
 
 startsNotLoaded :: IO ()
 startsNotLoaded = do
-    storeRead <- readSnapshotStore =<< newSnapshotStore
+    storeRead <- readSnapshotStore =<< newSnapshotStore "test/fixtures/shared.journal"
     case storeRead of
         SnapshotNotLoaded -> pure ()
         _ -> assertFailure "expected a newly-created store to be not loaded"
 
 modelsInitialLoadFailure :: IO ()
 modelsInitialLoadFailure = do
-    store <- newSnapshotStore
-    _ <- reloadSnapshot store "test/fixtures/does-not-exist.journal"
+    store <- newSnapshotStore "test/fixtures/does-not-exist.journal"
+    _ <- reloadSnapshot store
     storeRead <- readSnapshotStore store
     case storeRead of
         SnapshotLoadFailed _ -> pure ()
@@ -95,7 +97,7 @@ keepsSnapshotOnFailedReload :: IO ()
 keepsSnapshotOnFailedReload = do
     store <- loadedStore
     snapshotBefore <- readCurrentSnapshot store
-    reloadResult <- reloadSnapshot store (Text.pack "test/fixtures/does-not-exist.journal")
+    reloadResult <- reloadWith store "test/fixtures/does-not-exist.journal"
     assertBool "reload should fail" (isLeft reloadResult)
     snapshotAfter <- readCurrentSnapshot store
     assertEqual
@@ -108,11 +110,19 @@ keepsSnapshotOnFailedReload = do
 readsCoherentStoreView :: IO ()
 readsCoherentStoreView = do
     store <- loadedStore
-    _ <- reloadSnapshot store (Text.pack "test/fixtures/does-not-exist.journal")
+    _ <- reloadWith store "test/fixtures/does-not-exist.journal"
     storeRead <- readSnapshotStore store
     case storeRead of
         SnapshotStale _ _ -> pure ()
         _ -> assertFailure "expected a stale snapshot with its reload error"
+
+{- | Reload a store with a different journal path by creating a temporary store
+with the new path and copying its TVar.
+-}
+reloadWith :: SnapshotStore -> FilePath -> IO (Either SnapshotLoadError Snapshot)
+reloadWith store path =
+    reloadSnapshot
+        SnapshotStore{storeState = store.storeState, journalPath = Text.pack path}
 
 -- Stress-tests the invariant that the revision published via `currentRevision`
 -- always agrees with the revision of the snapshot `readCurrentSnapshot` returns.
@@ -122,16 +132,17 @@ readsCoherentStoreView = do
 concurrentReloadsKeepRevisionInSyncWithSnapshot :: IO ()
 concurrentReloadsKeepRevisionInSyncWithSnapshot =
     withRaceJournals "concurrent-reload" $ \pathA pathB -> do
-        store <- newSnapshotStore
+        storeA <- newSnapshotStore pathA
+        storeB <- newSnapshotStore pathB
         forM_ [1 .. rounds] $ \_ -> do
             done <- newEmptyMVar
             forM_ [1 .. tasksPerRound] $ \index ->
                 forkIO $ do
-                    _ <- reloadSnapshot store (if even (index :: Int) then pathA else pathB)
+                    _ <- reloadSnapshot (if even (index :: Int) then storeA else storeB)
                     putMVar done ()
             replicateM_ tasksPerRound (takeMVar done)
-        snapshotAfter <- readCurrentSnapshot store
-        revisionAfter <- currentRevision store
+        snapshotAfter <- readCurrentSnapshot storeA
+        revisionAfter <- currentRevision storeA
         case snapshotAfter of
             Nothing -> assertFailure "expected a snapshot after concurrent reloads"
             Just snapshot ->
@@ -180,8 +191,8 @@ raceJournalB =
 
 snapshotAvailable :: FilePath -> IO Bool
 snapshotAvailable path = do
-    store <- newSnapshotStore
-    result <- reloadSnapshot store (Text.pack path)
+    store <- newSnapshotStore (Text.pack path)
+    result <- reloadSnapshot store
     case result of
         Left _ -> pure False
         Right _ -> pure True

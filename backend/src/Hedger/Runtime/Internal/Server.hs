@@ -46,9 +46,9 @@ coreApplication configuration store =
 
 runServer :: Config -> IO ()
 runServer configuration = do
-    store <- newSnapshotStore
-    void (reloadSnapshot store configuration.journalPath)
-    void (installHandler sigHUP (Catch (void (reloadSnapshot store configuration.journalPath))) Nothing)
+    store <- newSnapshotStore configuration.journalPath
+    void (reloadSnapshot store)
+    void (installHandler sigHUP (Catch (void (reloadSnapshot store))) Nothing)
     let settings =
             setInstallShutdownHandler installShutdownHandler
                 . setBeforeMainLoop
@@ -57,7 +57,7 @@ runServer configuration = do
                 . setHost (fromString (Text.unpack configuration.listenAddress))
                 . setPort configuration.listenPort
                 $ defaultSettings
-    withJournalWatcher store configuration.journalPath $
+    withJournalWatcher store $
         runSettings
             settings
             (productionMiddleware RequestLogger.logStdout (coreApplication configuration store))

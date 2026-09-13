@@ -6,6 +6,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase)
 
 import Hedger.Application.AppM (AppM, Env (..), runAppM)
+import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (InternalError))
 import Hedger.Infrastructure.SnapshotStore (newSnapshotStore)
 import Hedger.TestHelpers (configuration)
@@ -21,7 +22,7 @@ appMSpec =
 
 convertsSynchronousExceptionToInternalError :: IO ()
 convertsSynchronousExceptionToInternalError = do
-    store <- newSnapshotStore
+    store <- newSnapshotStore configuration.journalPath
     let env = Env{config = configuration, snapshotStore = store}
     result <- try (runAppM env badAction) :: IO (Either SomeException (Either AppError Int))
     case result of

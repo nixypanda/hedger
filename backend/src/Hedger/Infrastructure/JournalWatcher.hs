@@ -64,7 +64,7 @@ import System.FilePath (takeDirectory)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
-    SnapshotStore,
+    SnapshotStore (..),
     readCurrentSnapshot,
     reloadSnapshot,
  )
@@ -82,17 +82,17 @@ single save that emits several events triggers just one reload.
 debounceMicroseconds :: Int
 debounceMicroseconds = 100_000
 
-withJournalWatcher :: SnapshotStore -> Text -> IO a -> IO a
-withJournalWatcher store journalPath action =
+withJournalWatcher :: SnapshotStore -> IO a -> IO a
+withJournalWatcher store action =
     withManager $ \manager -> do
         watchedDirs' <- newIORef Map.empty
         watchTargets' <- newIORef Set.empty
         let ws = WatchState watchedDirs' watchTargets'
         wakeReloader <- newTVarIO False
         let requestReload = atomically (writeTVar wakeReloader True)
-        reconcileWatches manager store journalPath ws requestReload
+        reconcileWatches manager store ws requestReload
         reloader <-
-            forkIO (runReloader store journalPath manager ws requestReload wakeReloader)
+            forkIO (runReloader store manager ws requestReload wakeReloader)
         action `finally` killThread reloader
 
 {- | Runs 'reloadCycle' forever, guarding each iteration with 'guardReloaderStep'
@@ -100,23 +100,23 @@ so a synchronous exception (e.g. a watched path vanishing mid-reconcile during
 an atomic-rename storm) is logged and the loop keeps going instead of the
 reloader thread dying silently.
 -}
-runReloader :: SnapshotStore -> Text -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
-runReloader store journalPath manager ws requestReload wakeReloader =
+runReloader :: SnapshotStore -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
+runReloader store manager ws requestReload wakeReloader =
     forever (guardReloaderStep step)
   where
-    step = reloadCycle store journalPath manager ws requestReload wakeReloader
+    step = reloadCycle store manager ws requestReload wakeReloader
 
-reloadCycle :: SnapshotStore -> Text -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
-reloadCycle store journalPath manager ws requestReload wakeReloader = do
+reloadCycle :: SnapshotStore -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
+reloadCycle store manager ws requestReload wakeReloader = do
     atomically (readTVar wakeReloader >>= check)
     threadDelay debounceMicroseconds
     -- Clear the flag so events coalesced during the debounce window are
     -- covered by the reload below; any that arrive afterwards set it again
     -- and drive a fresh cycle, so no change is missed.
     atomically (writeTVar wakeReloader False)
-    result <- reloadSnapshot store journalPath
+    result <- reloadSnapshot store
     Text.putStrLn (reloadMessage result)
-    reconcileWatches manager store journalPath ws requestReload
+    reconcileWatches manager store ws requestReload
 
 {- | Runs an action, catching and logging a synchronous exception so the
 caller (the reloader's @forever@ loop) can continue instead of dying.
@@ -148,9 +148,9 @@ reloadMessage result = case result of
     Left (JournalReadFailed problem) ->
         "Journal reload after a file change failed; keeping the previous snapshot: " <> problem
 
-reconcileWatches :: WatchManager -> SnapshotStore -> Text -> WatchState -> IO () -> IO ()
-reconcileWatches manager store journalPath ws requestReload = do
-    files <- watchTargets store journalPath
+reconcileWatches :: WatchManager -> SnapshotStore -> WatchState -> IO () -> IO ()
+reconcileWatches manager store ws requestReload = do
+    files <- watchTargets store
     writeIORef ws.watchTargets (Set.fromList files)
     let desiredDirs = Set.fromList (takeDirectory <$> files)
     existing <- readIORef ws.watchedDirs
@@ -171,9 +171,9 @@ handleEvent ws requestReload event = do
 
 -- The root path is always included so a journal that currently fails to parse
 -- is still watched and picked up once it parses again.
-watchTargets :: SnapshotStore -> Text -> IO [FilePath]
-watchTargets store journalPath = do
-    snapshot <- readCurrentSnapshot store
+watchTargets :: SnapshotStore -> IO [FilePath]
+watchTargets SnapshotStore{..} = do
+    snapshot <- readCurrentSnapshot SnapshotStore{..}
     let included = maybe [] (fmap fst . (.jfiles) . (.journal)) snapshot
     root <- canonicalize (Text.unpack journalPath)
     absoluteIncluded <- traverse canonicalize included

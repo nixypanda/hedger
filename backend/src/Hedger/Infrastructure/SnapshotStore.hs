@@ -1,7 +1,7 @@
 module Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
     SnapshotStoreRead (..),
-    SnapshotStore,
+    SnapshotStore (..),
     awaitRevisionChange,
     currentRevision,
     loadSnapshot,
@@ -45,16 +45,19 @@ data SnapshotStoreRead
 {- | The store state is kept in one transactional variable so a snapshot and
 its published revision cannot be observed independently.
 -}
-newtype SnapshotStore = SnapshotStore (TVar SnapshotStoreRead)
+data SnapshotStore = SnapshotStore
+    { storeState :: TVar SnapshotStoreRead
+    , journalPath :: Text
+    }
 
 -- Store operations
 
-newSnapshotStore :: IO SnapshotStore
-newSnapshotStore = SnapshotStore <$> newTVarIO SnapshotNotLoaded
+newSnapshotStore :: Text -> IO SnapshotStore
+newSnapshotStore path = SnapshotStore <$> newTVarIO SnapshotNotLoaded <*> pure path
 
 readCurrentSnapshot :: SnapshotStore -> IO (Maybe Snapshot)
-readCurrentSnapshot (SnapshotStore stateVar) = do
-    state <- readTVarIO stateVar
+readCurrentSnapshot SnapshotStore{..} = do
+    state <- readTVarIO storeState
     pure $ case state of
         SnapshotNotLoaded -> Nothing
         SnapshotLoadFailed _ -> Nothing
@@ -62,8 +65,8 @@ readCurrentSnapshot (SnapshotStore stateVar) = do
         SnapshotStale snapshot _ -> Just snapshot
 
 readLastReloadError :: SnapshotStore -> IO (Maybe SnapshotLoadError)
-readLastReloadError (SnapshotStore stateVar) = do
-    state <- readTVarIO stateVar
+readLastReloadError SnapshotStore{..} = do
+    state <- readTVarIO storeState
     pure $ case state of
         SnapshotNotLoaded -> Nothing
         SnapshotLoadFailed loadError -> Just loadError
@@ -71,24 +74,24 @@ readLastReloadError (SnapshotStore stateVar) = do
         SnapshotStale _ loadError -> Just loadError
 
 readSnapshotStore :: SnapshotStore -> IO SnapshotStoreRead
-readSnapshotStore (SnapshotStore stateVar) = readTVarIO stateVar
+readSnapshotStore SnapshotStore{..} = readTVarIO storeState
 
-reloadSnapshot :: SnapshotStore -> Text -> IO (Either SnapshotLoadError Snapshot)
-reloadSnapshot (SnapshotStore stateVar) path = do
-    result <- loadSnapshot path
-    atomically (modifyTVar' stateVar (storeReloadResult result))
+reloadSnapshot :: SnapshotStore -> IO (Either SnapshotLoadError Snapshot)
+reloadSnapshot SnapshotStore{..} = do
+    result <- loadSnapshot journalPath
+    atomically (modifyTVar' storeState (storeReloadResult result))
     pure result
 
 -- | The revision currently published, or @""@ before the first successful load.
 currentRevision :: SnapshotStore -> IO Text
-currentRevision (SnapshotStore stateVar) = storeRevision <$> readTVarIO stateVar
+currentRevision SnapshotStore{..} = storeRevision <$> readTVarIO storeState
 
 -- Blocks until a revision different from @seen@ is published, so a caller can
 -- react to reloads without polling.
 awaitRevisionChange :: SnapshotStore -> Text -> IO Text
-awaitRevisionChange (SnapshotStore stateVar) seen =
+awaitRevisionChange SnapshotStore{..} seen =
     atomically $ do
-        revision <- storeRevision <$> readTVar stateVar
+        revision <- storeRevision <$> readTVar storeState
         check (revision /= seen)
         pure revision
 
