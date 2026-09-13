@@ -36,43 +36,45 @@ import Hedger.Domain.Snapshot (Snapshot (..))
 newtype SnapshotLoadError = JournalReadFailed Text
     deriving stock (Eq, Show)
 
-data SnapshotState = SnapshotState
-    { currentSnapshot :: Maybe Snapshot
-    , lastReloadError :: Maybe SnapshotLoadError
-    }
+data SnapshotStoreRead
+    = SnapshotNotLoaded
+    | SnapshotLoadFailed SnapshotLoadError
+    | SnapshotFresh Snapshot
+    | SnapshotStale Snapshot SnapshotLoadError
 
-data SnapshotStoreRead = SnapshotStoreRead
-    { snapshot :: Maybe Snapshot
-    , reloadError :: Maybe SnapshotLoadError
-    }
-
-{- | The @IORef@ snapshot and the @TVar@ revision are only ever written together
-while holding @updateLock@, so a reader never observes a revision published
-for a different reload than the snapshot it accompanies.
+{- | Updates to the @IORef@ state and the @TVar@ revision are serialized by
+@updateLock@. A successful snapshot is stored before its revision is published,
+so revision subscribers cannot wake before the corresponding snapshot is ready.
 -}
-data SnapshotStore = SnapshotStore (IORef SnapshotState) (TVar Text) (MVar ())
+data SnapshotStore = SnapshotStore (IORef SnapshotStoreRead) (TVar Text) (MVar ())
 
 newSnapshotStore :: IO SnapshotStore
 newSnapshotStore =
     SnapshotStore
-        <$> newIORef SnapshotState{currentSnapshot = Nothing, lastReloadError = Nothing}
+        <$> newIORef SnapshotNotLoaded
         <*> newTVarIO ""
         <*> newMVar ()
 
 readCurrentSnapshot :: SnapshotStore -> IO (Maybe Snapshot)
-readCurrentSnapshot (SnapshotStore stateReference _ _) = (.currentSnapshot) <$> readIORef stateReference
+readCurrentSnapshot (SnapshotStore stateReference _ _) = do
+    state <- readIORef stateReference
+    pure $ case state of
+        SnapshotNotLoaded -> Nothing
+        SnapshotLoadFailed _ -> Nothing
+        SnapshotFresh snapshot -> Just snapshot
+        SnapshotStale snapshot _ -> Just snapshot
 
 readLastReloadError :: SnapshotStore -> IO (Maybe SnapshotLoadError)
-readLastReloadError (SnapshotStore stateReference _ _) = (.lastReloadError) <$> readIORef stateReference
+readLastReloadError (SnapshotStore stateReference _ _) = do
+    state <- readIORef stateReference
+    pure $ case state of
+        SnapshotNotLoaded -> Nothing
+        SnapshotLoadFailed loadError -> Just loadError
+        SnapshotFresh _ -> Nothing
+        SnapshotStale _ loadError -> Just loadError
 
 readSnapshotStore :: SnapshotStore -> IO SnapshotStoreRead
-readSnapshotStore (SnapshotStore stateReference _ _) = do
-    state <- readIORef stateReference
-    pure
-        SnapshotStoreRead
-            { snapshot = state.currentSnapshot
-            , reloadError = state.lastReloadError
-            }
+readSnapshotStore (SnapshotStore stateReference _ _) = readIORef stateReference
 
 reloadSnapshot :: SnapshotStore -> Text -> IO (Either SnapshotLoadError Snapshot)
 reloadSnapshot (SnapshotStore stateReference revisionVar updateLock) path = do
@@ -80,9 +82,15 @@ reloadSnapshot (SnapshotStore stateReference revisionVar updateLock) path = do
     withMVar updateLock $ \_ -> do
         atomicModifyIORef' stateReference $ \state ->
             case result of
-                Left loadError -> (state{lastReloadError = Just loadError}, ())
-                Right snapshot ->
-                    (SnapshotState{currentSnapshot = Just snapshot, lastReloadError = Nothing}, ())
+                Left loadError ->
+                    ( case state of
+                        SnapshotNotLoaded -> SnapshotLoadFailed loadError
+                        SnapshotLoadFailed _ -> SnapshotLoadFailed loadError
+                        SnapshotFresh snapshot -> SnapshotStale snapshot loadError
+                        SnapshotStale snapshot _ -> SnapshotStale snapshot loadError
+                    , ()
+                    )
+                Right snapshot -> (SnapshotFresh snapshot, ())
         case result of
             Right snapshot -> atomically (writeTVar revisionVar snapshot.revision)
             Left _ -> pure ()

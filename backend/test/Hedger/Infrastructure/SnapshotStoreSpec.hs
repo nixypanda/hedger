@@ -42,12 +42,38 @@ snapshotStoreSpec =
         , testCase "rejects malformed journals instead of treating readable files as ready" $ do
             result <- loadSnapshot "test/fixtures/malformed.journal"
             assertBool "malformed journal should fail" (isLeft result)
+        , testCase "starts in the explicit not-loaded state" startsNotLoaded
+        , testCase "models an initial load failure explicitly" modelsInitialLoadFailure
+        , testCase "models a successful load as fresh" modelsSuccessfulLoadAsFresh
         , testCase "keeps the last good immutable snapshot when a reload fails" keepsSnapshotOnFailedReload
         , testCase "reads the snapshot and reload error as one store view" readsCoherentStoreView
         , testCase
             "keeps the published revision matching the returned snapshot under concurrent reloads"
             concurrentReloadsKeepRevisionInSyncWithSnapshot
         ]
+
+startsNotLoaded :: IO ()
+startsNotLoaded = do
+    storeRead <- readSnapshotStore =<< newSnapshotStore
+    case storeRead of
+        SnapshotNotLoaded -> pure ()
+        _ -> assertFailure "expected a newly-created store to be not loaded"
+
+modelsInitialLoadFailure :: IO ()
+modelsInitialLoadFailure = do
+    store <- newSnapshotStore
+    _ <- reloadSnapshot store "test/fixtures/does-not-exist.journal"
+    storeRead <- readSnapshotStore store
+    case storeRead of
+        SnapshotLoadFailed _ -> pure ()
+        _ -> assertFailure "expected an initial load failure without a snapshot"
+
+modelsSuccessfulLoadAsFresh :: IO ()
+modelsSuccessfulLoadAsFresh = do
+    storeRead <- readSnapshotStore =<< loadedStore
+    case storeRead of
+        SnapshotFresh _ -> pure ()
+        _ -> assertFailure "expected a successful load to produce a fresh snapshot"
 
 parsesSharedJournal :: IO ()
 parsesSharedJournal = do
@@ -84,8 +110,9 @@ readsCoherentStoreView = do
     store <- loadedStore
     _ <- reloadSnapshot store (Text.pack "test/fixtures/does-not-exist.journal")
     storeRead <- readSnapshotStore store
-    assertBool "should retain the usable snapshot" (isJust storeRead.snapshot)
-    assertBool "should report the failed reload from the same read" (isJust storeRead.reloadError)
+    case storeRead of
+        SnapshotStale _ _ -> pure ()
+        _ -> assertFailure "expected a stale snapshot with its reload error"
 
 -- Stress-tests the invariant that the revision published via `currentRevision`
 -- always agrees with the revision of the snapshot `readCurrentSnapshot` returns.

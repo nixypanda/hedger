@@ -57,6 +57,9 @@ requireSnapshot :: AppM SnapshotContext
 requireSnapshot = do
     store <- asks (.snapshotStore)
     storeRead <- liftIO (readSnapshotStore store)
-    case storeRead.snapshot of
-        Just snapshot -> pure SnapshotContext{snapshot, reloadError = storeRead.reloadError}
-        Nothing -> throwError JournalUnavailable
+    case storeRead of
+        SnapshotNotLoaded -> throwError JournalUnavailable
+        SnapshotLoadFailed _ -> throwError JournalUnavailable
+        SnapshotFresh snapshot -> pure SnapshotContext{snapshot, reloadError = Nothing}
+        SnapshotStale snapshot loadError ->
+            pure SnapshotContext{snapshot, reloadError = Just loadError}
