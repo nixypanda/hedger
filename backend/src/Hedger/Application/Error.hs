@@ -1,4 +1,4 @@
-module Hedger.Domain.Error (
+module Hedger.Application.Error (
     AppError (..),
 )
 where

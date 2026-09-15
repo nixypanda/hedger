@@ -11,7 +11,7 @@ import Servant
 import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Common (AccountTypeClassifier)
-import Hedger.Domain.Error (AppError (..))
+import Hedger.Application.Error (AppError (..))
 import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata,
     accountTypeText,

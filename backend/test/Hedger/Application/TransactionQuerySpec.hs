@@ -1,8 +1,8 @@
 module Hedger.Application.TransactionQuerySpec (transactionQuerySpec) where
 
 import Data.Text qualified as Text
-import Data.Time (fromGregorian)
-import Hedgehog (Property, forAll, property, (===))
+import Data.Time (Day, fromGregorian)
+import Hedgehog (Property, assert, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
@@ -13,13 +13,13 @@ import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Application.Error (AppError (..))
 import Hedger.Application.TransactionQuery (
     TransactionPage (..),
     TransactionPageRequest (..),
+    newestFirst,
     transactionPage,
  )
-import Hedger.Domain.Error (AppError (..))
-import Hedger.Domain.Internal.Transaction (newestFirst)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Generators (genTransactions)
 import Hedger.SyntheticTransactions (mkSnapshot)
@@ -28,7 +28,9 @@ transactionQuerySpec :: TestTree
 transactionQuerySpec =
     testGroup
         "hledger transaction queries"
-        [ testCase "uses pinned hledger transaction matching for payee and note" matchesPayeeAndNote
+        [ testCase "orders newest dates and indexes first" ordersNewestFirst
+        , testProperty "result is sorted in descending order by (date, index)" sortedProperty
+        , testCase "uses pinned hledger transaction matching for payee and note" matchesPayeeAndNote
         , testProperty
             "concatenates cursor pages without gaps or duplicates for generated limits"
             paginationProperty
@@ -36,6 +38,35 @@ transactionQuerySpec =
             "binds cursors to query, revision, ordering, and relative-date reference"
             bindsCursorsCorrectly
         ]
+
+ordersNewestFirst :: IO ()
+ordersNewestFirst = do
+    let older = transaction 3 (fromGregorian 2024 1 1) "older"
+        earlierIndex = transaction 1 (fromGregorian 2024 1 2) "earlier index"
+        laterIndex = transaction 2 (fromGregorian 2024 1 2) "later index"
+        descriptions = fmap (.tdescription) (newestFirst [earlierIndex, older, laterIndex])
+    assertEqual "" ["later index", "earlier index", "older"] descriptions
+
+sortedProperty :: Property
+sortedProperty = property $ do
+    transactions <- forAll (genTransactions (Range.linear 0 80))
+    let result = newestFirst transactions
+        keys = (\transactionValue -> (transactionValue.tdate, transactionValue.tindex)) <$> result
+    assert (isDescending keys)
+
+isDescending :: (Ord value) => [value] -> Bool
+isDescending [] = True
+isDescending [_] = True
+isDescending (value : next : rest) = value >= next && isDescending (next : rest)
+
+transaction :: Integer -> Day -> Text.Text -> Hledger.Transaction
+transaction index date description =
+    nulltransaction
+        { Hledger.tindex = index
+        , Hledger.tdate = date
+        , Hledger.tdescription = description
+        , Hledger.tpostings = [nullposting]
+        }
 
 matchesPayeeAndNote :: IO ()
 matchesPayeeAndNote = do

@@ -1,7 +1,11 @@
 module Hedger.Domain.Period (
     -- * Types
     Granularity (..),
+    ReportWindow,
     ReportPeriod (..),
+    allPeriods,
+    latestPeriods,
+    applyReportWindow,
 
     -- * Calendar anchors and keys
     epoch,
@@ -24,9 +28,11 @@ module Hedger.Domain.Period (
 )
 where
 
+import Data.List qualified as List
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, fromGregorian, toGregorian)
+import Numeric.Natural (Natural)
 import Text.Read (readMaybe)
 
 import Hledger.Data.DayPartition qualified as HledgerDayPartition
@@ -36,6 +42,23 @@ import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 -- | The reporting cadence shared by the analytics and investment timelines.
 data Granularity = Monthly | Yearly
     deriving stock (Eq, Show)
+
+-- | How much of the available reporting history a periodic calculation uses.
+data ReportWindow
+    = AllPeriods
+    | LatestPeriods Natural
+    deriving stock (Eq, Show)
+
+allPeriods :: ReportWindow
+allPeriods = AllPeriods
+
+-- | Use the requested number of latest periods, with a minimum of one.
+latestPeriods :: Natural -> ReportWindow
+latestPeriods = LatestPeriods . max 1
+
+applyReportWindow :: ReportWindow -> [value] -> [value]
+applyReportWindow AllPeriods = id
+applyReportWindow (LatestPeriods count) = reverse . List.genericTake count . reverse
 
 -- | An inclusive reporting window identified by a stable textual key.
 data ReportPeriod = ReportPeriod

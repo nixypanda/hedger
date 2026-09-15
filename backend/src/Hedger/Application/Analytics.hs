@@ -45,13 +45,16 @@ import Hedger.Application.Common (
     accountTypeClassifier,
     metadataFor,
  )
+import Hedger.Application.Error (AppError (InvalidRequest))
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
+import Hedger.Application.Transactions (TransactionItem, transactionItem)
 import Hedger.Config (Config (..))
 import Hedger.Domain.Activity (
     ActivityBucketFigures (..),
     ActivityDirection (..),
     ActivityFigures (..),
     ActivityKind (..),
+    ActivityPeriodError (..),
     ActivityRange (..),
     computeActivity,
     parseActivityPeriod,
@@ -64,7 +67,15 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..), ReportPeriod (..), atIndex, epoch)
+import Hedger.Domain.Period (
+    Granularity (..),
+    ReportPeriod (..),
+    ReportWindow,
+    allPeriods,
+    atIndex,
+    epoch,
+    latestPeriods,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (ConversionWarning (..))
 
@@ -142,7 +153,7 @@ data ActivityBucket = ActivityBucket
     , reallocated :: Decimal
     , categories :: [BreakdownItem]
     , directions :: [DirectionBreakdown]
-    , transactions :: [Hledger.Transaction]
+    , transactions :: [TransactionItem]
     }
 
 data DirectionBreakdown = DirectionBreakdown
@@ -176,6 +187,7 @@ netWorth request = do
                 snapshot
                 matched
                 request.granularity
+                (reportWindowFor request.granularity)
                 commodity
                 request.positivePeriod
                 request.negativePeriod
@@ -213,6 +225,7 @@ cashflow request = do
                 snapshot
                 matched
                 request.granularity
+                (reportWindowFor request.granularity)
                 commodity
                 request.positivePeriod
                 request.negativePeriod
@@ -248,7 +261,10 @@ activity request = do
         AssetActivity -> pure snapshot.transactions
         LiabilityActivity -> pure snapshot.transactions
     activityPeriod <-
-        either throwError pure (parseActivityPeriod fiscalStart request.range request.period)
+        either
+            (throwError . activityPeriodError)
+            pure
+            (parseActivityPeriod fiscalStart request.range request.period)
     let figures =
             computeActivity
                 snapshot
@@ -271,7 +287,20 @@ activity request = do
             , classifyAccount = accountTypeClassifier snapshot.journal
             }
 
+reportWindowFor :: Granularity -> ReportWindow
+reportWindowFor Monthly = latestPeriods 24
+reportWindowFor Yearly = allPeriods
+
 -- * Input resolution
+
+activityPeriodError :: ActivityPeriodError -> AppError
+activityPeriodError InvalidActivityMonth =
+    InvalidRequest "Activity month must use YYYY-MM."
+activityPeriodError InvalidFiscalActivityPeriod =
+    InvalidRequest
+        ( "Fiscal activity period must be the configured fiscal-year start "
+            <> "month in YYYY-MM form."
+        )
 
 resolvedCommodity :: Maybe Text -> AppM Text
 resolvedCommodity requested = do
@@ -368,7 +397,7 @@ toActivityBucket figures =
             [ DirectionBreakdown{direction, categories = fst (groupOther items)}
             | (direction, items) <- figures.directionItems
             ]
-        , transactions = figures.transactions
+        , transactions = transactionItem <$> figures.transactions
         }
 
 conversionWarnings :: Set Text -> [ConversionWarning]

@@ -41,6 +41,7 @@ library
     Hedger.Application.Accounts
     Hedger.Application.AppM
     Hedger.Application.Common
+    Hedger.Application.Error
     Hedger.Application.Events
     Hedger.Application.Internal.Cursor
     Hedger.Application.Investments
@@ -51,7 +52,6 @@ library
     Hedger.Domain.Account
     Hedger.Domain.Activity
     Hedger.Domain.Cashflow
-    Hedger.Domain.Error
     Hedger.Domain.Internal.Account
     Hedger.Domain.Internal.Cashflow
     Hedger.Domain.Internal.InvestmentPerformance
@@ -68,6 +68,7 @@ library
     Hedger.Domain.Valuation
     Hedger.Domain.Xirr
     Hedger.Infrastructure.JournalWatcher
+    Hedger.Infrastructure.RevisionSubscription
     Hedger.Infrastructure.SnapshotStore
     Hedger.Interface.HTTP.API
     Hedger.Interface.HTTP.Core.Common
@@ -135,7 +136,6 @@ test-suite hedger-backend-test
   hs-source-dirs: test
   other-modules:
     Hedger.Application.AppMSpec
-    Hedger.Application.EventsSpec
     Hedger.Application.TransactionQuerySpec
     Hedger.Domain.AccountSpec
     Hedger.Domain.ActivitySpec
@@ -151,10 +151,12 @@ test-suite hedger-backend-test
     Hedger.Generators
     Hedger.Infrastructure.Internal.CursorSpec
     Hedger.Infrastructure.JournalWatcherSpec
+    Hedger.Infrastructure.RevisionSubscriptionSpec
     Hedger.Infrastructure.SnapshotStoreSpec
     Hedger.Interface.HTTP.APISpec
     Hedger.Interface.HTTP.Core.CommonSpec
     Hedger.Interface.HTTP.Endpoints.EventsSpec
+    Hedger.Interface.HTTP.Endpoints.TransactionsSpec
     Hedger.Runtime.ServerSpec
     Hedger.SyntheticTransactions
     Hedger.TestHelpers

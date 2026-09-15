@@ -7,7 +7,6 @@ module Hedger.Interface.HTTP.Core.Common (
     granularityText,
     investmentCompletenessText,
     parseGranularity,
-    projectedCompletenessText,
     toResponseMetadata,
     valuationCompletenessText,
     runAction,
@@ -38,9 +37,9 @@ import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AppM (AppM, Env, runAppM)
-import Hedger.Application.Common (SnapshotMetadata (..))
+import Hedger.Application.Common (SnapshotFreshness (..), SnapshotMetadata (..))
+import Hedger.Application.Error (AppError (..))
 import Hedger.Domain.Account qualified as Account
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.InvestmentPerformance qualified as Performance
 import Hedger.Domain.Period (Granularity (..))
 import Hedger.Interface.HTTP.Core.Errors (appErrorStatus, toEnvelope)
@@ -140,14 +139,6 @@ investmentCompletenessText status = case status of
     Performance.Partial -> "partial"
     Performance.Unavailable -> "unavailable"
 
-projectedCompletenessText :: Text -> Hledger.MixedAmount -> Text
-projectedCompletenessText displayCommodity valuedAmount
-    | all ((== displayCommodity) . (.commodity)) projected = "complete"
-    | any ((== displayCommodity) . (.commodity)) projected = "partial"
-    | otherwise = "unavailable"
-  where
-    projected = commodityQuantities valuedAmount
-
 toCommodityQuantity :: Hledger.Amount -> CommodityQuantity
 toCommodityQuantity amount =
     CommodityQuantity
@@ -159,9 +150,18 @@ toResponseMetadata :: SnapshotMetadata -> ResponseMetadata
 toResponseMetadata value =
     ResponseMetadata
         { revision = value.revision
-        , freshness = value.freshness
-        , warnings = value.warnings
+        , freshness = freshnessText value.freshness
+        , warnings = freshnessWarnings value.freshness
         }
+
+freshnessText :: SnapshotFreshness -> Text
+freshnessText Fresh = "fresh"
+freshnessText Stale = "stale"
+
+freshnessWarnings :: SnapshotFreshness -> [Text]
+freshnessWarnings Fresh = []
+freshnessWarnings Stale =
+    ["The latest journal reload failed; the last usable snapshot is shown."]
 
 accountTypeText :: Hledger.AccountType -> Text
 accountTypeText accountType = case accountType of

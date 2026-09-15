@@ -2,12 +2,12 @@ module Hedger.Application.TransactionQuery (
     TransactionPageRequest (..),
     TransactionPage (..),
     transactionPage,
+    newestFirst,
     parseHledgerQuery,
 )
 where
 
 import Data.Char (isDigit)
-import Data.Function (on)
 import Data.List qualified as List
 import Data.Ord (Down (Down))
 import Data.Text (Text)
@@ -20,8 +20,8 @@ import Hledger.Query qualified as Hledger
 import Hledger.Reports.EntriesReport qualified as HledgerEntries
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
+import Hedger.Application.Error (AppError (..))
 import Hedger.Application.Internal.Cursor (decodeTransactionCursor, encodeTransactionCursor)
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 
 data TransactionPageRequest = TransactionPageRequest
@@ -52,11 +52,7 @@ transactionPage snapshot request = do
                 , HledgerReportOptions._rsQuery = parsedQuery
                 }
         journal = snapshot.journal{Hledger.jtxns = snapshot.transactions}
-        matchingAscending = HledgerEntries.entriesReport reportSpec journal
-        matching =
-            concatMap
-                (List.sortOn (Down . (.tindex)))
-                (reverse (List.groupBy ((==) `on` (.tdate)) matchingAscending))
+        matching = newestFirst (HledgerEntries.entriesReport reportSpec journal)
     if offset > length matching
         then Left (InvalidCursor "The cursor position is no longer valid.")
         else do
@@ -75,6 +71,9 @@ transactionPage snapshot request = do
                                 )
                         else Nothing
             pure TransactionPage{transactions = page, nextCursor = cursor}
+
+newestFirst :: [Hledger.Transaction] -> [Hledger.Transaction]
+newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex))
 
 maximumQueryLength :: Int
 maximumQueryLength = 2048

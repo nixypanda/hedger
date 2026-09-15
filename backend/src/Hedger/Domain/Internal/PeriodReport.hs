@@ -41,13 +41,14 @@ import Hedger.Domain.Account (atDepth)
 import Hedger.Domain.Period (
     Granularity (..),
     ReportPeriod (..),
+    ReportWindow,
+    applyReportWindow,
     atIndex,
     epoch,
     lastMaybe,
     monthKey,
     periodsFromDateSpan,
     periodsFromReport,
-    takeLast,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..), conversionFromMixed, missingCommodities)
@@ -110,6 +111,7 @@ periodicBalanceReport ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     [Hledger.AccountType] ->
     HledgerReportOptions.BalanceCalculation ->
@@ -121,6 +123,7 @@ periodicBalanceReport
     snapshot
     transactions
     granularity
+    window
     commodity
     accountTypes
     calculation
@@ -128,7 +131,7 @@ periodicBalanceReport
     depth =
         HledgerMultiBalance.multiBalanceReport reportSpec filteredJournal
       where
-        (reportPeriod, reportInterval) = reportWindow granularity filteredJournal windowSpec
+        (reportPeriod, reportInterval) = reportWindow granularity window filteredJournal windowSpec
         valuation = case accumulation of
             HledgerReportOptions.PerPeriod -> HledgerValuation.AtThen (Just commodity)
             HledgerReportOptions.Cumulative -> HledgerValuation.AtEnd (Just commodity)
@@ -187,10 +190,11 @@ periodicBalanceReport
 
 reportWindow ::
     Granularity ->
+    ReportWindow ->
     Hledger.Journal ->
     HledgerReportOptions.ReportSpec ->
     (Hledger.Period, Hledger.Interval)
-reportWindow granularity journal reportSpec =
+reportWindow granularity window journal reportSpec =
     case selectedPeriods of
         [] -> (Hledger.PeriodAll, interval)
         first : rest ->
@@ -201,9 +205,7 @@ reportWindow granularity journal reportSpec =
         Monthly -> Hledger.Months 1
         Yearly -> Hledger.Years 1
     periods = periodsFromReport granularity journal reportSpec
-    selectedPeriods = case granularity of
-        Monthly -> takeLast 24 periods
-        Yearly -> periods
+    selectedPeriods = applyReportWindow window periods
 
 reportPeriodsFrom :: Granularity -> HledgerMultiBalance.MultiBalanceReport -> [ReportPeriod]
 reportPeriodsFrom granularity report = concatMap (periodsFromDateSpan granularity) report.prDates

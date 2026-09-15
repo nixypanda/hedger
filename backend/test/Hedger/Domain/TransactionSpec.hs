@@ -22,17 +22,14 @@ import Hedger.Domain.Internal.Transaction (
     classificationFor,
     dominantMovement,
     isOpening,
-    newestFirst,
  )
-import Hedger.Generators (genAccountComponent, genTransactions)
+import Hedger.Generators (genAccountComponent)
 
 transactionSpec :: TestTree
 transactionSpec =
     testGroup
-        "transaction projection"
-        [ testCase "orders newest dates first and reverses journal order within a date" ordersNewestFirst
-        , testProperty "result is sorted in descending order by (date, index)" sortedProperty
-        , testGroup
+        "transaction domain"
+        [ testGroup
             "classificationFor"
             [ testCase "expense transaction" classificationExpense
             , testCase "income transaction" classificationIncome
@@ -580,67 +577,6 @@ dominantCreditIgnored = do
                     ]
                 }
     assertEqual "different credits same debits" (dominantMovement txFromIncome) (dominantMovement txFromAsset)
-
--- Sorting tests
-
-syntheticTransactions :: [Hledger.Transaction]
-syntheticTransactions =
-    [ nulltransaction
-        { Hledger.tindex = 1
-        , Hledger.tdate = fromGregorian 2024 1 1
-        , Hledger.tdescription = "Transaction A"
-        , Hledger.tpostings = [nullposting]
-        }
-    , nulltransaction
-        { Hledger.tindex = 2
-        , Hledger.tdate = fromGregorian 2024 1 2
-        , Hledger.tdescription = "Transaction B"
-        , Hledger.tpostings = [nullposting]
-        }
-    , nulltransaction
-        { Hledger.tindex = 3
-        , Hledger.tdate = fromGregorian 2024 1 3
-        , Hledger.tdescription = "Transaction C"
-        , Hledger.tpostings = [nullposting]
-        }
-    , nulltransaction
-        { Hledger.tindex = 4
-        , Hledger.tdate = fromGregorian 2024 1 4
-        , Hledger.tdescription = "Transaction D"
-        , Hledger.tpostings = [nullposting]
-        }
-    , nulltransaction
-        { Hledger.tindex = 5
-        , Hledger.tdate = fromGregorian 2024 1 5
-        , Hledger.tdescription = "Transaction E"
-        , Hledger.tpostings = [nullposting]
-        }
-    ]
-
-ordersNewestFirst :: Assertion
-ordersNewestFirst = do
-    let sameDate =
-            zipWith
-                (\index t -> t{Hledger.tdate = fromGregorian 2024 1 1, Hledger.tindex = index})
-                [1 ..]
-                (take 3 syntheticTransactions)
-        sourceIndexes = (.tindex) <$> sameDate
-        orderedIndexes = (.tindex) <$> newestFirst sameDate
-    assertEqual "" (reverse sourceIndexes) orderedIndexes
-
-sortedProperty :: Hedgehog.Property
-sortedProperty = property $ do
-    transactions <- forAll (genTransactions (Range.linear 0 80))
-    let result = newestFirst transactions
-        keys = (\t -> (t.tdate, t.tindex)) <$> result
-    assert (isDescending keys)
-
--- Internal helpers
-
-isDescending :: (Ord a) => [a] -> Bool
-isDescending [] = True
-isDescending [_] = True
-isDescending (x : y : rest) = x >= y && isDescending (y : rest)
 
 -- dominantMovement properties
 

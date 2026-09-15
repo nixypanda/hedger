@@ -13,7 +13,7 @@ import Data.Text qualified as Text
 import GHC.Generics (Generic)
 import Network.HTTP.Types qualified as HTTP
 
-import Hedger.Domain.Error (AppError (..))
+import Hedger.Application.Error (AppError (..))
 
 data ErrorPayload = ErrorPayload
     { code :: Text

@@ -6,8 +6,8 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase)
 
 import Hedger.Application.AppM (AppM, Env (..), runAppM)
+import Hedger.Application.Error (AppError (InternalError))
 import Hedger.Config (Config (..))
-import Hedger.Domain.Error (AppError (InternalError))
 import Hedger.Infrastructure.SnapshotStore (newSnapshotStore)
 import Hedger.TestHelpers (configuration)
 

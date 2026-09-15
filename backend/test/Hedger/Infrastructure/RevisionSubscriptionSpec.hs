@@ -1,31 +1,29 @@
-module Hedger.Application.EventsSpec (eventsSpec) where
+module Hedger.Infrastructure.RevisionSubscriptionSpec (revisionSubscriptionSpec) where
 
 import Data.Maybe (isJust)
 import System.Timeout (timeout)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 
-import Hedger.Application.AppM (Env (..))
-import Hedger.Application.Events (awaitNextRevision, subscribeToRevisions)
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Infrastructure.RevisionSubscription (awaitNextRevision, subscribeToRevisions)
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotStore (..),
     newSnapshotStore,
     reloadSnapshot,
  )
-import Hedger.TestHelpers (configuration)
 
-eventsSpec :: TestTree
-eventsSpec =
+revisionSubscriptionSpec :: TestTree
+revisionSubscriptionSpec =
     testGroup
-        "application events"
+        "revision subscription"
         [testCase "emits the next revision published after subscribing" emitsNextRevision]
 
 emitsNextRevision :: IO ()
 emitsNextRevision = do
     store <- newSnapshotStore "test/fixtures/shared.journal"
     _ <- reloadSnapshot store
-    subscription <- subscribeToRevisions Env{config = configuration, snapshotStore = store}
+    subscription <- subscribeToRevisions store
     let altStore =
             SnapshotStore
                 { storeState = store.storeState

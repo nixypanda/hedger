@@ -25,7 +25,7 @@ import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
 import Hedger.Domain.Internal.PeriodReport (periodicBalanceReport)
-import Hedger.Domain.Period (Granularity)
+import Hedger.Domain.Period (Granularity, ReportWindow)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion, complete, conversionFromMixed, requireComplete)
 
@@ -37,13 +37,15 @@ assetLiabilityPeriodicReport ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     HledgerMultiBalance.MultiBalanceReport
-assetLiabilityPeriodicReport snapshot transactions granularity commodity =
+assetLiabilityPeriodicReport snapshot transactions granularity window commodity =
     periodicBalanceReport
         snapshot
         transactions
         granularity
+        window
         commodity
         [Hledger.Asset, Hledger.Cash, Hledger.Liability]
         HledgerReportOptions.CalcChange
@@ -54,14 +56,16 @@ assetCashPeriodicReport ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     Int ->
     HledgerMultiBalance.MultiBalanceReport
-assetCashPeriodicReport snapshot transactions granularity commodity depth =
+assetCashPeriodicReport snapshot transactions granularity window commodity depth =
     periodicBalanceReport
         snapshot
         transactions
         granularity
+        window
         commodity
         [Hledger.Asset, Hledger.Cash]
         HledgerReportOptions.CalcChange
@@ -72,14 +76,16 @@ liabilityPeriodicReport ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     Int ->
     HledgerMultiBalance.MultiBalanceReport
-liabilityPeriodicReport snapshot transactions granularity commodity depth =
+liabilityPeriodicReport snapshot transactions granularity window commodity depth =
     periodicBalanceReport
         snapshot
         transactions
         granularity
+        window
         commodity
         [Hledger.Liability]
         HledgerReportOptions.CalcChange
@@ -90,13 +96,15 @@ gainPeriodicReport ::
     Snapshot ->
     [Hledger.Transaction] ->
     Granularity ->
+    ReportWindow ->
     Text ->
     HledgerMultiBalance.MultiBalanceReport
-gainPeriodicReport snapshot transactions granularity commodity =
+gainPeriodicReport snapshot transactions granularity window commodity =
     periodicBalanceReport
         snapshot
         transactions
         granularity
+        window
         commodity
         [Hledger.Asset, Hledger.Cash, Hledger.Liability]
         HledgerReportOptions.CalcGain

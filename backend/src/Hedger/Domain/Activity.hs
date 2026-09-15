@@ -7,6 +7,7 @@ module Hedger.Domain.Activity (
     ActivityKind (..),
     ActivityDirection (..),
     ActivityRange (..),
+    ActivityPeriodError (..),
     BreakdownItem (..),
     ActivityBucketFigures (..),
     ActivityFigures (..),
@@ -28,7 +29,6 @@ import Text.Read (readMaybe)
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Domain.Account qualified as Account
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Internal.PeriodReport (BreakdownItem (..))
 import Hedger.Domain.Period (
     ReportPeriod (..),
@@ -57,6 +57,11 @@ data ActivityDirection
     deriving stock (Eq, Ord, Show, Enum, Bounded)
 
 data ActivityRange = MonthActivity | FiscalYearActivity
+    deriving stock (Eq, Show)
+
+data ActivityPeriodError
+    = InvalidActivityMonth
+    | InvalidFiscalActivityPeriod
     deriving stock (Eq, Show)
 
 data Movement = Movement
@@ -350,13 +355,13 @@ activityBucketKey :: ActivityRange -> Day -> Text
 activityBucketKey MonthActivity = dayKey
 activityBucketKey FiscalYearActivity = monthKey
 
-parseActivityPeriod :: Int -> ActivityRange -> Text -> Either AppError ReportPeriod
+parseActivityPeriod :: Int -> ActivityRange -> Text -> Either ActivityPeriodError ReportPeriod
 parseActivityPeriod fiscalStart activityRange raw =
     case activityRange of
         MonthActivity ->
             case parseYearMonth raw of
                 Just (year, month) -> Right (monthPeriod (fromGregorian year month 1))
-                Nothing -> Left (InvalidRequest "Activity month must use YYYY-MM.")
+                Nothing -> Left InvalidActivityMonth
         FiscalYearActivity ->
             case parseYearMonth raw of
                 Just (year, month)
@@ -364,9 +369,4 @@ parseActivityPeriod fiscalStart activityRange raw =
                         let first = fromGregorian year month 1
                          in Right (fiscalYearPeriod fiscalStart first)
                 _ ->
-                    Left
-                        ( InvalidRequest
-                            ( "Fiscal activity period must be the configured fiscal-year start "
-                                <> "month in YYYY-MM form."
-                            )
-                        )
+                    Left InvalidFiscalActivityPeriod

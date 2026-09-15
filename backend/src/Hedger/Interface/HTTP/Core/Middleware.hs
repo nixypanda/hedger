@@ -12,7 +12,7 @@ import Data.UUID.V4 qualified as UUID
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 
-import Hedger.Domain.Error (AppError (..))
+import Hedger.Application.Error (AppError (..))
 import Hedger.Interface.HTTP.Core.Errors (appErrorStatus, toEnvelope)
 
 requestContextMiddleware :: Wai.Middleware

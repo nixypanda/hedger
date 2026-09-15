@@ -2,16 +2,20 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     -- * Value objects
     InvestmentCompleteness (..),
     InvestmentSummary (..),
+    AssetClassAllocation (..),
     InvestmentWarning (..),
     WarningKind (..),
     SummaryResult (..),
     InvestmentPerformanceContext (..),
+    InvestmentScopeError (..),
 
     -- * Performance calculation
     prepareInvestmentPerformance,
     summaryAtPrepared,
     summariesAtPrepared,
     summariesAtScopesPrepared,
+    assetClassAllocations,
+    allocationPercentage,
     summaryAt,
     investmentSummaryAt,
     emptySummary,
@@ -68,7 +72,6 @@ import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 import Hledger.Reports.ReportTypes qualified as HledgerReportTypes
 
-import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Investment (accountWithin)
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.Period (
@@ -88,6 +91,9 @@ import Hedger.Domain.Xirr qualified as Xirr
 data InvestmentCompleteness = Complete | Partial | Unavailable
     deriving stock (Eq, Show)
 
+data InvestmentScopeError = NonAssetAccountScope
+    deriving stock (Eq, Show)
+
 data InvestmentSummary = InvestmentSummary
     { marketValue :: Maybe Decimal
     , purchaseCost :: Maybe Decimal
@@ -97,6 +103,13 @@ data InvestmentSummary = InvestmentSummary
     , realisedGain :: Maybe Decimal
     , totalProfit :: Maybe Decimal
     , completeness :: InvestmentCompleteness
+    }
+
+data AssetClassAllocation = AssetClassAllocation
+    { assetClass :: Investment.AssetClass
+    , marketValue :: Maybe Decimal
+    , currentPercentage :: Maybe Decimal
+    , targetPercentage :: Maybe Decimal
     }
 
 {- | A data-quality condition detected while computing an investment summary.
@@ -259,6 +272,47 @@ summariesAtScopesPrepared context day scopes =
   where
     holdingsForCost =
         holdingsForScopesAtWithJournal context.historicalCostJournal context.assetClasses scopes day
+
+assetClassAllocations ::
+    (Maybe Text -> Maybe SummaryResult) ->
+    Maybe Decimal ->
+    Investment.AssetClassMappings ->
+    [AssetClassAllocation]
+assetClassAllocations summaryFor total mappings =
+    fmap allocationFor configuredClasses
+  where
+    configured = Investment.assetClassMappingsList mappings
+    configuredClasses = List.nub (fmap (.assetClass) configured)
+    allocationFor assetClass =
+        let matching = filter ((== assetClass) . (.assetClass)) configured
+            values =
+                [ result.summary.marketValue
+                | mapping <- matching
+                , prefix <- mapping.accountPrefixes
+                , Just result <- [summaryFor (Just prefix)]
+                ]
+            value =
+                if null values
+                    then Nothing
+                    else Just (sum (fromMaybe 0 <$> values))
+            target = firstJust ((.targetPercentage) <$> matching)
+         in AssetClassAllocation
+                { assetClass
+                , marketValue = value
+                , currentPercentage = allocationPercentage total value
+                , targetPercentage = target
+                }
+
+allocationPercentage :: Maybe Decimal -> Maybe Decimal -> Maybe Decimal
+allocationPercentage parentValue childValue = do
+    total <- parentValue
+    value <- childValue
+    if abs total < 0.000001 then Nothing else Just (value / total * 100)
+
+firstJust :: [Maybe value] -> Maybe value
+firstJust [] = Nothing
+firstJust (Just value : _) = Just value
+firstJust (Nothing : rest) = firstJust rest
 
 -- | The per-day summary calculation, shared by the single-day and bulk entry points.
 summaryFromHoldings ::
@@ -1135,15 +1189,17 @@ reportPeriods granularity transactions latest =
     reportLastDay =
         fromMaybe latest (HledgerReportOptions.reportPeriodOrJournalLastDay reportSpec journal)
 
-validateScope :: Investment.InvestmentMappings -> Maybe Text -> Either AppError (Maybe Text)
+validateScope ::
+    Investment.InvestmentMappings ->
+    Maybe Text ->
+    Either InvestmentScopeError (Maybe Text)
 validateScope _ requested = case requested >>= scopeText of
     Nothing -> Right Nothing
     Just scope
         | "assets" `accountWithin` scope ->
             Right (Just scope)
         | otherwise ->
-            Left
-                (InvalidRequest "Account prefix must be an asset account.")
+            Left NonAssetAccountScope
 
 scopeText :: Text -> Maybe Text
 scopeText value

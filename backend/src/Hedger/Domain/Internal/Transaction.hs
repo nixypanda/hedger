@@ -1,11 +1,6 @@
 module Hedger.Domain.Internal.Transaction (
     -- * Types
     TransactionClassification (..),
-    TransactionPresentation (..),
-
-    -- * Core API
-    newestFirst,
-    presentationFor,
 
     -- * Domain queries
     classificationFor,
@@ -14,9 +9,7 @@ module Hedger.Domain.Internal.Transaction (
 )
 where
 
-import Data.List qualified as List
 import Data.Map.Strict qualified as Map
-import Data.Ord (Down (Down))
 import Data.Text qualified as Text
 
 import Hledger.Data.Amount qualified as Hledger
@@ -36,14 +29,6 @@ data TransactionClassification
     | TransactionTransfer
     | Unclassified
     deriving stock (Eq, Show)
-
-data TransactionPresentation = TransactionPresentation
-    { classification :: TransactionClassification
-    }
-    deriving stock (Eq, Show)
-
-newestFirst :: [Hledger.Transaction] -> [Hledger.Transaction]
-newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex))
 
 -- * Domain queries
 
@@ -136,14 +121,6 @@ dominantMovement tx =
             else case Map.lookup dominantGroup groupAmounts of
                 Just amount -> amount / totalDebit
                 Nothing -> 0.0
--- * Core API
-
-presentationFor :: Hledger.Transaction -> TransactionPresentation
-presentationFor tx =
-    TransactionPresentation
-        { classification = classificationFor tx
-        }
-
 -- * Internal (shared between domain functions)
 
 postingAccountInfos :: [Hledger.Posting] -> [AccountInfo]

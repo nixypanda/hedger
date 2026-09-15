@@ -24,13 +24,17 @@ import Hledger.Data.AccountName qualified as HledgerAccountName
 
 import Hedger.Application.AppM (AppM, Env (..), SnapshotContext (..), requireSnapshot)
 import Hedger.Application.Common (SnapshotMetadata, metadataFor)
+import Hedger.Application.Error (AppError (InternalError, InvalidRequest))
 import Hedger.Config (Config (..))
-import Hedger.Domain.Error (AppError (InternalError))
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance (
+    AssetClassAllocation (..),
+    InvestmentScopeError (..),
     InvestmentSummary (..),
     InvestmentWarning,
     SummaryResult (..),
+    allocationPercentage,
+    assetClassAllocations,
     childrenOf,
     investmentAccountsAt,
     investmentDataTransactions,
@@ -69,13 +73,6 @@ data InvestmentChild = InvestmentChild
     , allocationPercentage :: Maybe Decimal
     }
 
-data AssetClassAllocation = AssetClassAllocation
-    { assetClass :: Investment.AssetClass
-    , marketValue :: Maybe Decimal
-    , currentPercentage :: Maybe Decimal
-    , targetPercentage :: Maybe Decimal
-    }
-
 data InvestmentsReport = InvestmentsReport
     { metadata :: SnapshotMetadata
     , displayCommodity :: Text
@@ -98,7 +95,11 @@ investments :: InvestmentsRequest -> AppM InvestmentsReport
 investments request = do
     snapshotContext <- requireSnapshot
     config <- asks (.config)
-    scope <- either throwError pure (validateScope config.investmentMappings request.accountPrefix)
+    scope <-
+        either
+            (throwError . investmentScopeError)
+            pure
+            (validateScope config.investmentMappings request.accountPrefix)
     let snapshot = snapshotContext.snapshot
         responseMetadata = metadataFor snapshotContext
         commodity = fromMaybe config.defaultDisplayCommodity (request.displayCommodity >>= nonEmpty)
@@ -194,40 +195,9 @@ investments request = do
             , warnings = current.warnings
             }
 
-assetClassAllocations ::
-    (Maybe Text -> Maybe SummaryResult) ->
-    Maybe Decimal ->
-    Investment.AssetClassMappings ->
-    [AssetClassAllocation]
-assetClassAllocations summaryFor total mappings =
-    fmap allocationFor configuredClasses
-  where
-    configured = Investment.assetClassMappingsList mappings
-    configuredClasses = List.nub (fmap (.assetClass) configured)
-    allocationFor assetClass =
-        let matching = filter ((== assetClass) . (.assetClass)) configured
-            values =
-                [ result.summary.marketValue
-                | mapping <- matching
-                , prefix <- mapping.accountPrefixes
-                , Just result <- [summaryFor (Just prefix)]
-                ]
-            value =
-                if null values
-                    then Nothing
-                    else Just (sum (fromMaybe 0 <$> values))
-            target = firstJust ((.targetPercentage) <$> matching)
-         in AssetClassAllocation
-                { assetClass
-                , marketValue = value
-                , currentPercentage = allocationPercentage total value
-                , targetPercentage = target
-                }
-
-firstJust :: [Maybe value] -> Maybe value
-firstJust [] = Nothing
-firstJust (Just value : _) = Just value
-firstJust (Nothing : rest) = firstJust rest
+investmentScopeError :: InvestmentScopeError -> AppError
+investmentScopeError NonAssetAccountScope =
+    InvalidRequest "Account prefix must be an asset account."
 
 breadcrumbsFor :: Maybe Text -> [InvestmentBreadcrumb]
 breadcrumbsFor Nothing = []
@@ -245,9 +215,3 @@ nonEmpty :: Text -> Maybe Text
 nonEmpty value
     | Text.null (Text.strip value) = Nothing
     | otherwise = Just (Text.strip value)
-
-allocationPercentage :: Maybe Decimal -> Maybe Decimal -> Maybe Decimal
-allocationPercentage parentValue childValue = do
-    total <- parentValue
-    value <- childValue
-    if abs total < 0.000001 then Nothing else Just (value / total * 100)
