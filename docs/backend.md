@@ -334,7 +334,7 @@ backend/test/
 Run tests:
 
 ```bash
-just check-backend-tests
+just test-backend
 # or directly:
 cd backend && cabal test --offline all
 ```

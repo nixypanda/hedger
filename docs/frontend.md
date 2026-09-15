@@ -391,7 +391,7 @@ just check-frontend          # all frontend checks
 just check-frontend-format   # elm-format validation
 just check-frontend-line-length  # 110 char limit
 just format-frontend         # elm-format in-place
-just serve-frontend          # Vite dev server
+just dev-frontend            # Vite dev server
 ```
 
 Or directly:

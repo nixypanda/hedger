@@ -14,7 +14,7 @@ files may add to or override them within their directory.
   restricted to a single project (e.g. only `backend/` or only `frontend-web/`),
   use that project's specific commands instead of the full `just check`:
   - Backend only: `just check-backend` (or narrower subsets like
-    `check-backend-tests`, `check-backend-format`).
+    `test-backend`, `check-backend-format`).
   - Frontend only: `just check-frontend` (or narrower subsets like
     `check-frontend-format`, `check-frontend-line-length`).
   Run the full repository-mandated `just check` before handing work back, or

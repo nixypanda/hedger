@@ -43,18 +43,18 @@ light/dark themes, automatic journal reloads, and live frontend refresh.
 
 ## Run the example
 
-Start the backend with `hedger.example.yaml`:
+Enter the development environment and start the backend and frontend:
 
 ```console
 nix develop
-just serve-backend
+just dev
 ```
 
-Start the frontend in another terminal:
+To run them separately instead:
 
 ```console
-nix develop
-just serve-frontend
+just dev-backend
+just dev-frontend  # in another terminal
 ```
 
 Open <http://localhost:1234>. The example portfolio and all displayed data are
