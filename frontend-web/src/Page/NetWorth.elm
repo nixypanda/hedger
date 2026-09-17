@@ -7,11 +7,11 @@ import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Background as Background
 import Element.Font as Font
-import Html.Attributes
 import Page.Shared.Analysis as Analysis
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
@@ -246,7 +246,7 @@ dashboard theme viewport data =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll analytics-page")
+        , Typography.uiClass "page-scroll analytics-page"
         ]
         [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
@@ -356,10 +356,10 @@ dashboardContent theme viewport data =
 responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
 responsiveGrid layout items =
     if Responsive.isCompact layout then
-        Element.column [ Element.width Element.fill, Element.spacing 16 ] items
+        Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
     else
-        Element.row [ Element.width Element.fill, Element.spacing 16 ] items
+        Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
 
 netWorthSkeleton : Theme -> Viewport -> Element Msg
@@ -368,7 +368,7 @@ netWorthSkeleton theme viewport =
         layout =
             Responsive.contentLayout viewport
     in
-    Element.column [ Element.width Element.fill, Element.spacing 16 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ responsiveGrid layout
             [ Skeleton.kpiCard theme
             , Skeleton.kpiCard theme
@@ -376,7 +376,7 @@ netWorthSkeleton theme viewport =
             ]
         , Typography.sectionTitle theme "Performance"
         , Skeleton.chartCard theme
-        , Element.column [ Element.width Element.fill, Element.spacing 16 ]
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
             [ Skeleton.chartCard theme
             , responsiveGrid layout
                 [ Skeleton.chartCard theme
@@ -388,10 +388,10 @@ netWorthSkeleton theme viewport =
 
 chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
 chartLegend theme items =
-    Element.wrappedRow [ Element.spacing 14 ]
+    Element.wrappedRow [ Element.spacing Tokens.space14 ]
         (List.map
             (\( color, label ) ->
-                Element.row [ Element.spacing 5 ]
+                Element.row [ Element.spacing Tokens.space5 ]
                     [ Ui.accentDot color
                     , Element.el [ Font.color theme.textMuted ] (Element.text label)
                     ]

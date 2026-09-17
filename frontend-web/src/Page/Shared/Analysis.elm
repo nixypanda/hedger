@@ -34,6 +34,7 @@ import Element exposing (Element)
 import Element.Font as Font
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -553,7 +554,7 @@ view theme viewport config report (Model data) =
             else
                 6
     in
-    Element.column [ Element.width Element.fill, Element.spacing 16 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Typography.sectionTitle theme config.timelineSectionTitle
         , timelineView theme chartWidth config report data
         , AnalyticsView.warningList theme report.warnings
@@ -573,14 +574,17 @@ compositionHeader theme layout data =
             else
                 Element.row
     in
-    container [ Element.width Element.fill, Element.spacing 12, Element.alignTop ]
+    container [ Element.width Element.fill, Element.spacing Tokens.space12, Element.alignTop ]
         [ Element.el [ Element.width Element.fill ]
             (Typography.sectionTitle theme "Composition and activity")
-        , Element.column [ Element.width Element.fill, Element.spacing 8 ]
-            [ Element.row [ Element.width Element.fill, Element.spacing 8 ]
-                [ Element.el [ Element.width (Element.fillPortion 1), Element.alignLeft ]
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+            [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+                [ Element.el
+                    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+                    , Element.alignLeft
+                    ]
                     (Typography.mutedBody theme "Period")
-                , Element.row [ Element.width (Element.fillPortion 2) ]
+                , Element.row [ Element.width (Element.fillPortion Tokens.layoutPortionDouble) ]
                     [ Element.el [ Element.width Element.fill ] Element.none
                     , Ui.periodNavigation theme
                         { label = selectedPeriodLabel data
@@ -596,10 +600,13 @@ compositionHeader theme layout data =
                         }
                     ]
                 ]
-            , Element.row [ Element.width Element.fill, Element.spacing 10 ]
-                [ Element.el [ Element.width (Element.fillPortion 1), Element.alignLeft ]
+            , Element.row [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+                [ Element.el
+                    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+                    , Element.alignLeft
+                    ]
                     (Typography.mutedBody theme "Account depth")
-                , Element.row [ Element.width (Element.fillPortion 2) ]
+                , Element.row [ Element.width (Element.fillPortion Tokens.layoutPortionDouble) ]
                     [ Element.el [ Element.width Element.fill ] Element.none
                     , AnalyticsView.depthControl theme (Time.depthValue data.depth) DepthSelected
                     ]
@@ -1006,18 +1013,18 @@ periodFromString granularity value =
 responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
 responsiveGrid layout items =
     if Responsive.isCompact layout then
-        Element.column [ Element.width Element.fill, Element.spacing 16 ] items
+        Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
     else
-        Element.row [ Element.width Element.fill, Element.spacing 16 ] items
+        Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
 
 chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
 chartLegend theme items =
-    Element.wrappedRow [ Element.spacing 14 ]
+    Element.wrappedRow [ Element.spacing Tokens.space14 ]
         (List.map
             (\( color, label ) ->
-                Element.row [ Element.spacing 5 ]
+                Element.row [ Element.spacing Tokens.space5 ]
                     [ Ui.accentDot color
                     , Element.el [ Font.color theme.textMuted ] (Element.text label)
                     ]

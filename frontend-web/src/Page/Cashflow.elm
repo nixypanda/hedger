@@ -6,12 +6,12 @@ import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Background as Background
-import Html.Attributes
 import Page.Shared.Analysis as Analysis
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
@@ -261,7 +261,7 @@ dashboard theme viewport data =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll analytics-page")
+        , Typography.uiClass "page-scroll analytics-page"
         ]
         [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
@@ -360,32 +360,32 @@ cashflowSkeleton theme viewport =
         isCompact =
             Responsive.isCompact layout
     in
-    Element.column [ Element.width Element.fill, Element.spacing 16 ]
-        [ Element.column [ Element.width Element.fill, Element.spacing 8 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
+        [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             [ Skeleton.inputBar theme
             , Skeleton.chipRow theme
             ]
         , Typography.mutedBody theme "Loading transactions…"
         , Skeleton.chartCard theme
         , if isCompact then
-            Element.column [ Element.width Element.fill, Element.spacing 16 ]
+            Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                 [ Skeleton.chartCard theme
                 , Skeleton.chartCard theme
                 ]
 
           else
-            Element.row [ Element.width Element.fill, Element.spacing 16 ]
+            Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                 [ Skeleton.chartCard theme
                 , Skeleton.chartCard theme
                 ]
         , if isCompact then
-            Element.column [ Element.width Element.fill, Element.spacing 16 ]
+            Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                 [ Skeleton.chartCard theme
                 , Skeleton.chartCard theme
                 ]
 
           else
-            Element.row [ Element.width Element.fill, Element.spacing 16 ]
+            Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                 [ Skeleton.chartCard theme
                 , Skeleton.chartCard theme
                 ]

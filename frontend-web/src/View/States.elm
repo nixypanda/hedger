@@ -9,6 +9,7 @@ import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
 import RemoteData exposing (RemoteData(..))
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Theme exposing (Theme)
 
 
@@ -71,6 +72,6 @@ noticeSlot : Element msg -> Element msg
 noticeSlot notice =
     Element.el
         [ Element.width Element.fill
-        , Element.height (Element.px 20)
+        , Element.height (Element.px Tokens.iconSizeSmall)
         ]
         notice

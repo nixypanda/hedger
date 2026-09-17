@@ -6,6 +6,7 @@ module Ui.Theme exposing
     , modeFromString
     , modeToString
     , toggle
+    , transparentColor
     )
 
 import Element exposing (Color, rgb255)
@@ -25,15 +26,18 @@ type alias Theme =
     , textPrimary : Color
     , textMedium : Color
     , textMuted : Color
+    , transparent : Color
     , divider : Color
     , inputFill : Color
     , primary : Color
+    , primaryButtonFg : Color
     , primaryPressed : Color
     , primarySoft : Color
     , primaryDisabled : Color
     , dangerBg : Color
     , dangerFg : Color
     , dangerSolid : Color
+    , dangerSolidFg : Color
     , successBg : Color
     , successFg : Color
     , successSolid : Color
@@ -63,12 +67,23 @@ type alias Theme =
     , repaymentFg : Color
     , assetBg : Color
     , assetFg : Color
+    , navigationActiveBg : Color
+    , navigationActiveFg : Color
+    , navigationBrandBg : Color
+    , navigationFg : Color
+    , navigationGradientEnd : Color
+    , navigationGradientStart : Color
     , chartSeries : List Color
     , acquireScale : List Color
     , rebalanceScale : List Color
     , disposeScale : List Color
     , cardShadow : String
     }
+
+
+transparentColor : Color
+transparentColor =
+    Element.rgba 0 0 0 0
 
 
 light : Theme
@@ -81,15 +96,18 @@ light =
     , textPrimary = rgb255 30 24 61
     , textMedium = rgb255 73 66 105
     , textMuted = rgb255 126 120 151
+    , transparent = transparentColor
     , divider = rgb255 232 230 246
     , inputFill = rgb255 249 248 255
     , primary = rgb255 112 62 232
+    , primaryButtonFg = rgb255 255 255 255
     , primaryPressed = rgb255 83 44 194
     , primarySoft = rgb255 241 236 255
     , primaryDisabled = rgb255 186 165 235
     , dangerBg = rgb255 254 242 242
     , dangerFg = rgb255 153 27 27
     , dangerSolid = rgb255 220 38 38
+    , dangerSolidFg = rgb255 255 255 255
     , successBg = rgb255 236 253 245
     , successFg = rgb255 4 120 87
     , successSolid = rgb255 5 150 105
@@ -119,6 +137,12 @@ light =
     , repaymentFg = rgb255 190 18 60
     , assetBg = rgb255 239 246 255
     , assetFg = rgb255 37 99 235
+    , navigationActiveBg = rgb255 255 255 255
+    , navigationActiveFg = rgb255 89 49 190
+    , navigationBrandBg = Element.rgba255 255 255 255 0.18
+    , navigationFg = rgb255 239 236 255
+    , navigationGradientEnd = rgb255 69 80 229
+    , navigationGradientStart = rgb255 126 48 232
     , chartSeries =
         [ rgb255 112 62 232
         , rgb255 16 185 129
@@ -169,15 +193,18 @@ dark =
     , textPrimary = rgb255 241 245 249
     , textMedium = rgb255 203 213 225
     , textMuted = rgb255 148 163 184
+    , transparent = transparentColor
     , divider = rgb255 51 65 85
     , inputFill = rgb255 15 23 42
     , primary = rgb255 96 165 250
+    , primaryButtonFg = rgb255 15 23 42
     , primaryPressed = rgb255 147 197 253
     , primarySoft = rgb255 30 58 95
     , primaryDisabled = rgb255 51 89 137
     , dangerBg = rgb255 69 26 32
     , dangerFg = rgb255 252 165 165
     , dangerSolid = rgb255 248 113 113
+    , dangerSolidFg = rgb255 15 23 42
     , successBg = rgb255 20 66 54
     , successFg = rgb255 110 231 183
     , successSolid = rgb255 52 211 153
@@ -207,6 +234,12 @@ dark =
     , repaymentFg = rgb255 251 113 133
     , assetBg = rgb255 23 37 84
     , assetFg = rgb255 147 197 253
+    , navigationActiveBg = rgb255 255 255 255
+    , navigationActiveFg = rgb255 89 49 190
+    , navigationBrandBg = Element.rgba255 255 255 255 0.18
+    , navigationFg = rgb255 239 236 255
+    , navigationGradientEnd = rgb255 69 80 229
+    , navigationGradientStart = rgb255 126 48 232
     , chartSeries =
         [ rgb255 96 165 250
         , rgb255 52 211 153

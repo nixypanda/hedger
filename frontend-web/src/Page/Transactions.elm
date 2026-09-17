@@ -43,6 +43,7 @@ import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
@@ -534,7 +535,7 @@ listPage theme compact model =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll transactions-page")
+        , Typography.uiClass "page-scroll transactions-page"
         ]
         [ transactionsHeader theme
         , Ui.pageContainer
@@ -555,15 +556,14 @@ wideLayout theme model response selected =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Element.clip
-        , Element.htmlAttribute (Html.Attributes.class "transactions-wide-layout")
+        , Typography.uiClass "transactions-wide-layout"
         ]
         [ Element.column
-            [ Element.width (Element.fillPortion 2)
+            [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
             , Element.height Element.fill
             , Element.scrollbarY
             , Background.color theme.pageBg
-            , Element.htmlAttribute
-                (Html.Attributes.class "transactions-master-pane transactions-page")
+            , Typography.uiClass "transactions-master-pane transactions-page"
             ]
             [ transactionsHeader theme
             , Ui.pageContainer
@@ -578,10 +578,10 @@ wideLayout theme model response selected =
                 ]
             ]
         , Element.el
-            [ Element.width (Element.fillPortion 3)
+            [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
             , Element.height Element.fill
             , Element.clipY
-            , Element.htmlAttribute (Html.Attributes.class "transactions-detail-pane")
+            , Typography.uiClass "transactions-detail-pane"
             ]
             (detailPage theme (Just Back) selected)
         ]
@@ -689,7 +689,7 @@ transactionContent :
     -> Response
     -> Element Msg
 transactionContent theme compact model response =
-    Element.column [ Element.width Element.fill, Element.spacing 12 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ remoteNotice theme (remoteData model) response
         , transactionCount theme response.transactions
         , if List.isEmpty response.transactions then
@@ -722,7 +722,7 @@ pagingControls : Theme -> Model -> Response -> Element Msg
 pagingControls theme model response =
     Element.column
         [ Element.width Element.fill
-        , Element.spacing 8
+        , Element.spacing Tokens.space8
         , Element.htmlAttribute (Html.Attributes.id "transaction-list-end")
         ]
         [ case loadMoreError model of
@@ -800,7 +800,7 @@ transactionsList :
 transactionsList theme compact selected transactions =
     Element.column
         [ Element.width Element.fill
-        , Element.spacing 12
+        , Element.spacing Tokens.space12
         , Element.htmlAttribute (Html.Attributes.id "transaction-list")
         ]
         (List.map
@@ -816,8 +816,15 @@ monthSection :
     -> ( String, List Transaction )
     -> Element Msg
 monthSection theme compact selected ( month, transactions ) =
-    Element.column [ Element.width Element.fill, Element.spacing 4 ]
-        (Element.el [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
+        (Element.el
+            [ Element.paddingEach
+                { top = Tokens.space8
+                , right = Tokens.space0
+                , bottom = Tokens.space4
+                , left = Tokens.space4
+                }
+            ]
             (Typography.subsectionTitle theme (TimeExtra.monthLabel month))
             :: List.map (transactionRow theme compact selected) transactions
         )
@@ -833,7 +840,10 @@ transactionRow theme compact selected transaction =
     let
         rowContent =
             Element.column
-                (Ui.rowSurfaceAttrs theme (selected == Just transaction) ++ [ Element.spacing 8 ])
+                (Ui.rowSurfaceAttrs theme (selected == Just transaction)
+                    ++ [ Element.spacing Tokens.space8
+                       ]
+                )
                 [ if compact then
                     phonePrimaryRow theme transaction
 
@@ -841,8 +851,13 @@ transactionRow theme compact selected transaction =
                     desktopPrimaryRow theme transaction
                 , Element.column
                     [ Element.width Element.fill
-                    , Element.spacing 3
-                    , Element.paddingEach { top = 0, right = 0, bottom = 0, left = 12 }
+                    , Element.spacing Tokens.space3
+                    , Element.paddingEach
+                        { top = Tokens.space0
+                        , right = Tokens.space0
+                        , bottom = Tokens.space0
+                        , left = Tokens.space12
+                        }
                     ]
                     (List.map (postingPreviewRow theme) (List.take 5 transaction.postings))
                 , let
@@ -850,24 +865,31 @@ transactionRow theme compact selected transaction =
                         max 0 (List.length transaction.postings - 5)
                   in
                   if omitted > 0 then
-                    Element.el [ Element.paddingEach { top = 0, right = 0, bottom = 0, left = 12 } ]
+                    Element.el
+                        [ Element.paddingEach
+                            { top = Tokens.space0
+                            , right = Tokens.space0
+                            , bottom = Tokens.space0
+                            , left = Tokens.space12
+                            }
+                        ]
                         (Typography.mutedCaption theme ("+" ++ String.fromInt omitted ++ " more"))
 
                   else
                     Element.none
                 ]
     in
-    Input.button [ Element.width Element.fill, Element.padding 0 ]
+    Input.button [ Element.width Element.fill, Element.padding Tokens.space0 ]
         { onPress = Just (Select transaction), label = rowContent }
 
 
 desktopPrimaryRow : Theme -> Transaction -> Element msg
 desktopPrimaryRow theme transaction =
-    Element.row [ Element.width Element.fill, Element.spacing 12 ]
+    Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ Element.el
             [ Typography.rowDate
             , Font.color theme.textMuted
-            , Element.width (Element.px 92)
+            , Element.width (Element.px Tokens.registerDateWidth)
             ]
             (Element.text (Date.toString transaction.primaryDate))
         , Element.el
@@ -885,11 +907,11 @@ desktopPrimaryRow theme transaction =
 
 phonePrimaryRow : Theme -> Transaction -> Element msg
 phonePrimaryRow theme transaction =
-    Element.column [ Element.width Element.fill, Element.spacing 3 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space3 ]
         [ Element.el
             [ Typography.rowDate, Font.color theme.textMuted ]
             (Element.text (Date.toString transaction.primaryDate))
-        , Element.row [ Element.width Element.fill, Element.spacing 8 ]
+        , Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             [ Element.paragraph
                 [ Typography.rowTitle
                 , Font.semiBold
@@ -911,7 +933,7 @@ trailingSummary theme transaction =
             Element.none
 
         _ ->
-            Element.column [ Element.alignRight, Element.spacing 2 ]
+            Element.column [ Element.alignRight, Element.spacing Tokens.space2 ]
                 [ Element.el [ Element.alignRight ]
                     (Ui.financialBadge theme
                         (TransactionView.classificationTone transaction.presentation.classification)
@@ -922,10 +944,10 @@ trailingSummary theme transaction =
 
 postingPreviewRow : Theme -> Posting -> Element msg
 postingPreviewRow theme posting =
-    Element.row [ Element.width Element.fill, Element.spacing 4 ]
+    Element.row [ Element.width Element.fill, Element.spacing Tokens.space4 ]
         [ Icon.view
             { icon = AccountPresentation.iconForAccount posting.accountType posting.account
-            , size = 14
+            , size = Tokens.iconSizeTinyGlyph
             , color = theme.textMuted
             }
         , Element.paragraph
@@ -940,7 +962,7 @@ postingPreviewRow theme posting =
             [ Typography.rowMetadata
             , Font.color theme.textMuted
             , Element.alignRight
-            , Element.width (Element.shrink |> Element.maximum 180)
+            , Element.width (Element.shrink |> Element.maximum Tokens.narrowContentWidth)
             , Typography.minWidthZero
             , Typography.uiClass "ui-text-ellipsis"
             , Typography.financeNumber
@@ -956,11 +978,11 @@ detailPage theme onBack transaction =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll transaction-detail-page")
+        , Typography.uiClass "page-scroll transaction-detail-page"
         , Element.htmlAttribute (Html.Attributes.id "transaction-detail")
         ]
         [ Ui.pageHeaderBand theme <|
-            Element.row [ Element.width Element.fill, Element.spacing 8 ]
+            Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ case onBack of
                     Just message ->
                         Ui.backButton theme { onPress = message }
@@ -977,8 +999,15 @@ transactionsSkeleton : Theme -> Element Msg
 transactionsSkeleton theme =
     Ui.card theme
         [ Typography.mutedBody theme "Loading transactions…"
-        , Element.column [ Element.width Element.fill, Element.spacing 4 ]
-            [ Element.el [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
+            [ Element.el
+                [ Element.paddingEach
+                    { top = Tokens.space8
+                    , right = Tokens.space0
+                    , bottom = Tokens.space4
+                    , left = Tokens.space4
+                    }
+                ]
                 (Typography.subsectionTitle theme "January 2026")
             , Skeleton.listRow theme
             , Ui.hairline theme

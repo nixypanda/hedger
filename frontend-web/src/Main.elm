@@ -9,7 +9,6 @@ import Browser.Navigation as Nav
 import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
 import Element.Font as Font
-import Html.Attributes
 import Json.Decode as Decode
 import Page
 import Ports
@@ -19,6 +18,7 @@ import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Skeleton
 import Ui.Theme exposing (Theme)
@@ -378,7 +378,7 @@ pageView theme model =
     else
         Element.column
             [ Element.width Element.fill
-            , Element.htmlAttribute (Html.Attributes.class "page-scroll")
+            , Typography.uiClass "page-scroll"
             ]
             [ Ui.pageHeaderBand theme <|
                 Ui.pageHeader theme
@@ -457,7 +457,7 @@ bootstrapStatus theme remote =
 
 bootstrapSummary : Theme -> Bootstrap -> Element msg
 bootstrapSummary theme bootstrap =
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ Ui.statusBadge theme Ui.StatusSuccess (bootstrap.appName ++ " API " ++ bootstrap.apiVersion)
         , Ui.badge theme ("Fiscal year starts in month " ++ String.fromInt bootstrap.fiscalYearStartMonth)
         , bootstrap.metadata.revision

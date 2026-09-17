@@ -33,11 +33,11 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Html.Attributes
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
@@ -343,13 +343,13 @@ view theme viewport (Model data) =
                     , Element.clip
                     ]
                     [ Element.el
-                        [ Element.width (Element.fillPortion 2)
+                        [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
                         , Element.height Element.fill
                         , Element.scrollbarY
                         ]
                         (listPage theme True (Model data))
                     , Element.el
-                        [ Element.width (Element.fillPortion 3)
+                        [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
                         , Element.height Element.fill
                         , Element.scrollbarY
                         ]
@@ -372,7 +372,7 @@ listPage theme compact model =
         , Element.height Element.fill
         , Element.scrollbarY
         , Background.color theme.pageBg
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll account-register-page")
+        , Typography.uiClass "page-scroll account-register-page"
         ]
         [ Ui.pageHeaderBand theme <|
             registerHeader theme compact model
@@ -387,8 +387,12 @@ registerHeader theme compact model =
             modelAccount model
     in
     if compact then
-        Element.column [ Element.width Element.fill, Element.spacing 16, Typography.minWidthZero ]
-            [ Element.row [ Element.width Element.fill, Element.spacing 8 ]
+        Element.column
+            [ Element.width Element.fill
+            , Element.spacing Tokens.space16
+            , Typography.minWidthZero
+            ]
+            [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ Ui.backButton theme { onPress = BackToAccounts }
                 , Element.el [ Element.alignRight ]
                     (Ui.iconButton theme
@@ -397,7 +401,7 @@ registerHeader theme compact model =
                 ]
             , Element.column
                 [ Element.width Element.fill
-                , Element.spacing 8
+                , Element.spacing Tokens.space8
                 , Typography.minWidthZero
                 ]
                 [ Typography.delimitedPageTitle theme ":" account
@@ -424,14 +428,19 @@ filters theme model =
             modelFilters model
     in
     Ui.card theme
-        [ Element.wrappedRow [ Element.width Element.fill, Element.spacing 12 ]
-            [ Element.el [ Element.width (Element.fill |> Element.maximum 220) ] <|
+        [ Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+            [ Element.el
+                [ Element.width (Element.fill |> Element.maximum Tokens.splitPaneControlWidth) ]
+              <|
                 Ui.dateInput theme
                     { label = "From"
                     , value = from
                     , onChange = FromChange
                     }
-            , Element.el [ Element.width (Element.fill |> Element.maximum 220) ] <|
+            , Element.el
+                [ Element.width (Element.fill |> Element.maximum Tokens.splitPaneControlWidth)
+                ]
+              <|
                 Ui.dateInput theme { label = "To", value = to, onChange = ToChange }
             ]
         ]
@@ -459,14 +468,14 @@ content theme compact (Model data) =
                 ]
 
         ( Paginated.RefreshFailure, Just response ) ->
-            Element.column [ Element.width Element.fill, Element.spacing 12 ]
+            Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
                 [ Ui.errorBanner theme
                     ("Refresh failed; showing stale register: " ++ failureMessage data.paginated)
                 , registerContent theme compact (Model data) response
                 ]
 
         ( Paginated.LoadMoreFailure, Just response ) ->
-            Element.column [ Element.width Element.fill, Element.spacing 12 ]
+            Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
                 [ Ui.errorBanner theme
                     ("Loading more entries failed: " ++ failureMessage data.paginated)
                 , registerContent theme compact (Model data) response
@@ -488,7 +497,7 @@ failureMessage paginated =
 
 registerContent : Theme -> Bool -> Model -> Response -> Element Msg
 registerContent theme compact model response =
-    Element.column [ Element.width Element.fill, Element.spacing 12 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ States.freshnessBanner theme response.metadata.freshness
         , if List.isEmpty response.entries then
             Ui.card theme [ Ui.emptyState theme "No register entries match this date range." ]
@@ -515,7 +524,7 @@ paging theme (Model data) response =
 
 registerRows : Theme -> Bool -> Model -> String -> List Entry -> Element Msg
 registerRows theme compact model commodity entries =
-    Element.column [ Element.width Element.fill, Element.spacing 12 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         (List.map
             (monthSection theme compact model commodity)
             (TimeExtra.groupByKey (Date.toString << .date) entries)
@@ -524,9 +533,15 @@ registerRows theme compact model commodity entries =
 
 monthSection : Theme -> Bool -> Model -> String -> ( String, List Entry ) -> Element Msg
 monthSection theme compact model commodity ( month, entries ) =
-    Element.column [ Element.width Element.fill, Element.spacing 4 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
         (Element.el
-            [ Element.paddingEach { top = 8, right = 0, bottom = 4, left = 4 } ]
+            [ Element.paddingEach
+                { top = Tokens.space8
+                , right = Tokens.space0
+                , bottom = Tokens.space4
+                , left = Tokens.space4
+                }
+            ]
             (Typography.subsectionTitle theme month)
             :: List.map (entryRow theme compact model commodity) entries
         )
@@ -543,8 +558,8 @@ entryRow theme compact model commodity entry =
 
         description =
             Element.column
-                [ Element.width (Element.fillPortion 3)
-                , Element.spacing 3
+                [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
+                , Element.spacing Tokens.space3
                 , Typography.minWidthZero
                 ]
                 [ Ui.truncatedText entry.description
@@ -557,20 +572,24 @@ entryRow theme compact model commodity entry =
 
         chevron =
             if hasDetails then
-                Icon.view { icon = Icon.ChevronRight, size = 16, color = theme.textMuted }
+                Icon.view
+                    { icon = Icon.ChevronRight
+                    , size = Tokens.iconSizeSmallGlyph
+                    , color = theme.textMuted
+                    }
 
             else
                 Element.none
 
         rowContent =
-            Element.column (Ui.rowSurfaceAttrs theme False ++ [ Element.spacing 8 ])
+            Element.column (Ui.rowSurfaceAttrs theme False ++ [ Element.spacing Tokens.space8 ])
                 [ if compact then
-                    Element.column [ Element.width Element.fill, Element.spacing 8 ]
+                    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                         [ Element.text (Date.toString entry.date)
                             |> Element.el [ Typography.caption, Font.color theme.textMuted ]
                         , Element.row
                             [ Element.width Element.fill
-                            , Element.spacing 8
+                            , Element.spacing Tokens.space8
                             , Typography.minWidthZero
                             ]
                             [ description
@@ -578,7 +597,7 @@ entryRow theme compact model commodity entry =
                             ]
                         , Element.column
                             [ Element.width Element.fill
-                            , Element.spacing 4
+                            , Element.spacing Tokens.space4
                             , Typography.minWidthZero
                             ]
                             [ labeledValue theme "Amount" amount
@@ -589,22 +608,22 @@ entryRow theme compact model commodity entry =
                   else
                     Element.row
                         [ Element.width Element.fill
-                        , Element.spacing 12
+                        , Element.spacing Tokens.space12
                         , Typography.minWidthZero
                         ]
                         [ Element.text (Date.toString entry.date)
                             |> Element.el
-                                [ Element.width (Element.px 92)
+                                [ Element.width (Element.px Tokens.registerDateWidth)
                                 , Font.color theme.textMuted
                                 ]
                         , description
                         , Element.el
-                            [ Element.width (Element.px 150)
+                            [ Element.width (Element.px Tokens.registerAmountWidth)
                             , Typography.minWidthZero
                             ]
                             amount
                         , Element.el
-                            [ Element.width (Element.px 150)
+                            [ Element.width (Element.px Tokens.registerAmountWidth)
                             , Typography.minWidthZero
                             ]
                             balance
@@ -613,7 +632,7 @@ entryRow theme compact model commodity entry =
                 ]
     in
     if hasDetails then
-        Input.button [ Element.width Element.fill, Element.padding 0 ]
+        Input.button [ Element.width Element.fill, Element.padding Tokens.space0 ]
             { onPress = Just (SelectDetail entry), label = rowContent }
 
     else
@@ -624,7 +643,7 @@ labeledValue : Theme -> String -> Element msg -> Element msg
 labeledValue theme label valueEl =
     Element.row
         [ Element.width Element.fill
-        , Element.spacing 8
+        , Element.spacing Tokens.space8
         , Typography.minWidthZero
         ]
         [ Element.text label
@@ -635,7 +654,11 @@ labeledValue theme label valueEl =
 
 valueDisplay : Theme -> String -> Bool -> Value -> Element msg
 valueDisplay theme commodity isMovement value =
-    Element.row [ Element.width Element.fill, Element.spacing 4, Typography.minWidthZero ]
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing Tokens.space4
+        , Typography.minWidthZero
+        ]
         [ Ui.truncatedText (displayValue commodity value)
             |> Element.el
                 ([ Element.width Element.fill, Font.alignRight ]
@@ -680,10 +703,10 @@ detailPage theme onClose commodity entry =
         , Element.height Element.fill
         , Element.scrollbarY
         , Background.color theme.pageBg
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll register-detail-page")
+        , Typography.uiClass "page-scroll register-detail-page"
         ]
         [ Ui.pageHeaderBand theme <|
-            Element.row [ Element.width Element.fill, Element.spacing 8 ]
+            Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ Ui.backButton theme { onPress = onClose }
                 , Typography.sectionTitle theme "Details"
                 ]
@@ -702,13 +725,17 @@ detailPage theme onClose commodity entry =
 
 valueDetails : Theme -> String -> String -> Value -> Element msg
 valueDetails theme commodity label value =
-    Element.column [ Element.width Element.fill, Element.spacing 8 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         [ Typography.subsectionTitle theme label
-        , Element.text (displayValue commodity value) |> Element.el [ Font.size 22, Font.semiBold ]
+        , Element.text (displayValue commodity value)
+            |> Element.el
+                [ Typography.detailHeroValue
+                , Font.semiBold
+                ]
         , States.registerCompletenessBadge theme value.completeness
         , Typography.mutedCaption theme "Raw amounts included"
         , Element.column
-            [ Element.width Element.fill, Element.spacing 8 ]
+            [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             (List.map (rawRow theme) value.raw)
         , if value.completeness == Partial then
             Typography.mutedParagraph theme
@@ -723,9 +750,9 @@ rawRow : Theme -> Quantity -> Element msg
 rawRow theme quantity =
     Element.row
         [ Element.width Element.fill
-        , Element.paddingXY 10 8
+        , Element.paddingXY Tokens.space10 Tokens.space8
         , Background.color theme.inputFill
-        , Border.rounded 6
+        , Border.rounded Tokens.radiusControl
         ]
         [ Element.text (Quantity.commodity quantity)
             |> Element.el [ Element.width Element.fill, Font.color theme.textMedium ]

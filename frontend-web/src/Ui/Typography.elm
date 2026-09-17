@@ -2,8 +2,10 @@ module Ui.Typography exposing
     ( body
     , brandLabel
     , caption
+    , chartLabel
     , delimitedPageTitle
     , delimitedSectionTitle
+    , detailHeroValue
     , detailLabel
     , detailValue
     , financeNumber
@@ -75,6 +77,16 @@ detailLabel =
 detailValue : Element.Attribute msg
 detailValue =
     Font.size 14
+
+
+detailHeroValue : Element.Attribute msg
+detailHeroValue =
+    Font.size 22
+
+
+chartLabel : Element.Attribute msg
+chartLabel =
+    Font.size 15
 
 
 kpiValue : Element.Attribute msg

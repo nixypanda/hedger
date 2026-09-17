@@ -109,7 +109,10 @@ format-frontend:
     elm-format frontend-web/src frontend-web/tests --yes
 
 # Run all frontend checks.
-check-frontend: check-frontend-format check-frontend-line-length build-frontend test-frontend
+check-frontend: check-frontend-ui-boundary check-frontend-format check-frontend-line-length build-frontend test-frontend
+
+check-frontend-ui-boundary:
+    cd frontend-web && npm run check:ui-boundary
 
 check-frontend-format:
     elm-format frontend-web/src frontend-web/tests --validate

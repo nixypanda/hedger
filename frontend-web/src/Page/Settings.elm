@@ -1,7 +1,6 @@
 module Page.Settings exposing (Model, Msg(..), OutMsg(..), init, update, view)
 
 import Element exposing (Element)
-import Html.Attributes
 import Preferences exposing (ThemeMode(..))
 import Ui
 import Ui.Theme exposing (Theme)
@@ -51,7 +50,7 @@ view : Theme -> Model -> Element Msg
 view theme model =
     Element.column
         [ Element.width Element.fill
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll")
+        , Typography.uiClass "page-scroll"
         ]
         [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme

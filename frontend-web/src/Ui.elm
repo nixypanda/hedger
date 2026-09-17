@@ -322,7 +322,7 @@ primaryButton theme config =
         { label = Element.text config.label
         , onPress = Just config.onPress
         , background = theme.primary
-        , foreground = Element.rgb255 255 255 255
+        , foreground = theme.primaryButtonFg
         , border = theme.primary
         , hoverBackground = theme.primaryPressed
         }
@@ -346,7 +346,7 @@ dangerButton theme config =
         { label = Element.text config.label
         , onPress = Just config.onPress
         , background = theme.dangerSolid
-        , foreground = Element.rgb255 255 255 255
+        , foreground = theme.dangerSolidFg
         , border = theme.dangerSolid
         , hoverBackground = theme.dangerFg
         }

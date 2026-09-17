@@ -7,12 +7,15 @@ module Ui.Chart exposing
     , layout
     , marker
     , plotAttributes
+    , ringDayLabel
+    , ringMonthCenter
+    , ringValueText
     , roundedBar
     , xAxisLabel
     )
 
-import Element exposing (Element)
-import Html
+import Element exposing (Color, Element)
+import Html exposing (Html)
 import Html.Attributes as Attr
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
@@ -73,6 +76,47 @@ layout availableWidth count height targetSlotWidth =
     , slotWidth = slotWidth
     , barWidth = min 18 (slotWidth * 0.64)
     }
+
+
+ringDayLabel : Theme -> String -> Html msg
+ringDayLabel theme label =
+    Html.div
+        [ Typography.htmlCaption
+        , Attr.style "color" (Css.toCssColor theme.textPrimary)
+        ]
+        [ Html.text label ]
+
+
+ringMonthCenter : Theme -> String -> List (Html msg) -> Html msg
+ringMonthCenter theme label values =
+    Html.div
+        [ Attr.style "display" "flex"
+        , Attr.style "flex-direction" "column"
+        , Attr.style "align-items" "center"
+        , Attr.style "justify-content" "center"
+        , Attr.style "gap" "2px"
+        ]
+        (Html.div
+            [ Typography.htmlCaption
+            , Attr.style "font-weight" "600"
+            , Attr.style "color" (Css.toCssColor theme.textMuted)
+            , Attr.style "line-height" "1"
+            ]
+            [ Html.text label ]
+            :: values
+        )
+
+
+ringValueText : Color -> String -> Html msg
+ringValueText color content =
+    Html.div
+        [ Typography.htmlCaption
+        , Attr.style "font-weight" "600"
+        , Attr.style "color" (Css.toCssColor color)
+        , Attr.style "line-height" "1.25"
+        , Attr.style "white-space" "nowrap"
+        ]
+        [ Html.text content ]
 
 
 fixedAxis :
@@ -193,7 +237,7 @@ activeBand theme chartLayout selected center =
         Svg.g [] []
 
 
-roundedBar : Element.Color -> Float -> Float -> Float -> Float -> Float -> Svg msg
+roundedBar : Color -> Float -> Float -> Float -> Float -> Float -> Svg msg
 roundedBar color barWidth center zeroY valueY value =
     let
         top =
@@ -250,7 +294,7 @@ hitTarget chartLayout center period label onSelect =
         []
 
 
-marker : Theme -> Element.Color -> Float -> Float -> Svg msg
+marker : Theme -> Color -> Float -> Float -> Svg msg
 marker theme color x y =
     Svg.circle
         [ SvgA.cx (float x)

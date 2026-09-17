@@ -12,9 +12,9 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
-import Html.Attributes
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
@@ -63,14 +63,14 @@ view config =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Background.color config.theme.pageBg
-        , Element.htmlAttribute (Html.Attributes.class "app-shell")
+        , Typography.uiClass "app-shell"
         ]
         [ noticeView config.theme config.notice
         , Element.row
             [ Element.width Element.fill
             , Element.height Element.fill
             , Element.clipY
-            , Element.htmlAttribute (Html.Attributes.class "shell-body")
+            , Typography.uiClass "shell-body"
             ]
             (if Responsive.usesBottomNavigation config.viewport then
                 [ content config.page ]
@@ -92,7 +92,7 @@ content page =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Element.clipX
-        , Element.htmlAttribute (Html.Attributes.class "app-content")
+        , Typography.uiClass "app-content"
         ]
         page
 
@@ -126,13 +126,18 @@ banner : Theme -> Icon -> String -> List (Element msg) -> Element msg
 banner theme icon message actions =
     Element.row
         [ Element.width Element.fill
-        , Element.paddingXY 16 12
-        , Element.spacing 12
+        , Element.paddingXY Tokens.space16 Tokens.space12
+        , Element.spacing Tokens.space12
         , Background.color theme.primarySoft
         , Border.color theme.divider
-        , Border.widthEach { top = 0, right = 0, bottom = 1, left = 0 }
+        , Border.widthEach
+            { top = Tokens.space0
+            , right = Tokens.space0
+            , bottom = Tokens.borderHairline
+            , left = Tokens.space0
+            }
         ]
-        ([ Icon.view { icon = icon, size = 20, color = theme.primary }
+        ([ Icon.view { icon = icon, size = Tokens.iconSizeSmall, color = theme.primary }
          , Element.paragraph [ Element.width Element.fill ] [ Element.text message ]
          ]
             ++ actions
@@ -142,40 +147,53 @@ banner theme icon message actions =
 sidebar : Config msg -> Element msg
 sidebar config =
     Element.column
-        [ Element.width (Element.px 232)
+        [ Element.width (Element.px Tokens.sidebarWidth)
         , Element.height Element.fill
         , Background.gradient
             { angle = pi
-            , steps = [ Element.rgb255 126 48 232, Element.rgb255 69 80 229 ]
+            , steps =
+                [ config.theme.navigationGradientStart
+                , config.theme.navigationGradientEnd
+                ]
             }
-        , Element.padding 20
-        , Element.spacing 12
+        , Element.padding Tokens.space20
+        , Element.spacing Tokens.space12
         ]
-        [ brand
-        , Element.column [ Element.width Element.fill, Element.spacing 12 ]
+        [ brand config.theme
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
             (List.map (navItem config) config.navigation)
         ]
 
 
-brand : Element msg
-brand =
+brand : Theme -> Element msg
+brand theme =
     Element.row
-        [ Element.spacing 12
-        , Element.paddingEach { top = 0, right = 4, bottom = 24, left = 4 }
+        [ Element.spacing Tokens.space12
+        , Element.paddingEach
+            { top = Tokens.space0
+            , right = Tokens.space4
+            , bottom = Tokens.space24
+            , left = Tokens.space4
+            }
         ]
         [ Element.el
-            [ Element.width (Element.px 34)
-            , Element.height (Element.px 34)
-            , Border.rounded 10
-            , Background.color (Element.rgba255 255 255 255 0.18)
+            [ Element.width (Element.px Tokens.navigationBrandSize)
+            , Element.height (Element.px Tokens.navigationBrandSize)
+            , Border.rounded Tokens.radiusMedium
+            , Background.color theme.navigationBrandBg
             ]
             (Element.el [ Element.centerX, Element.centerY ]
-                (Icon.view { icon = Icon.Wallet, size = 19, color = Element.rgb255 255 255 255 })
+                (Icon.view
+                    { icon = Icon.Wallet
+                    , size = Tokens.iconSizeNavigation
+                    , color = theme.navigationFg
+                    }
+                )
             )
         , Element.el
             [ Typography.brandLabel
             , Font.semiBold
-            , Font.color (Element.rgb255 255 255 255)
+            , Font.color theme.navigationFg
             , Element.centerY
             ]
             (Element.text "Hedger")
@@ -187,30 +205,34 @@ navItem config destination =
     let
         foreground =
             if destination.active then
-                Element.rgb255 89 49 190
+                config.theme.navigationActiveFg
 
             else
-                Element.rgb255 239 236 255
+                config.theme.navigationFg
     in
     Input.button
         [ Element.width Element.fill
         , Ui.touchTargetHeight
-        , Element.paddingXY 16 12
+        , Element.paddingXY Tokens.space16 Tokens.space12
         , Background.color
             (if destination.active then
-                Element.rgb255 255 255 255
+                config.theme.navigationActiveBg
 
              else
-                Element.rgba 0 0 0 0
+                config.theme.transparent
             )
-        , Border.rounded 10
+        , Border.rounded Tokens.radiusMedium
         , Font.color foreground
-        , Element.htmlAttribute (Html.Attributes.class "ui-motion")
+        , Typography.uiClass "ui-motion"
         ]
         { onPress = Just destination.onPress
         , label =
-            Element.row [ Element.spacing 12 ]
-                [ Icon.view { icon = destination.icon, size = 18, color = foreground }
+            Element.row [ Element.spacing Tokens.space12 ]
+                [ Icon.view
+                    { icon = destination.icon
+                    , size = Tokens.iconSizeCaption
+                    , color = foreground
+                    }
                 , Element.text destination.label
                 ]
         }
@@ -220,11 +242,16 @@ tabBar : Config msg -> Element msg
 tabBar config =
     Element.row
         [ Element.width Element.fill
-        , Element.height (Element.px 72)
+        , Element.height (Element.px Tokens.navigationBarHeight)
         , Background.color config.theme.surface
         , Border.color config.theme.divider
-        , Border.widthEach { top = 1, right = 0, bottom = 0, left = 0 }
-        , Element.paddingXY 0 4
+        , Border.widthEach
+            { top = Tokens.borderHairline
+            , right = Tokens.space0
+            , bottom = Tokens.space0
+            , left = Tokens.space0
+            }
+        , Element.paddingXY Tokens.space0 Tokens.space4
         ]
         (List.map (tabItem config) config.navigation)
 
@@ -247,9 +274,9 @@ tabItem config destination =
                 config.theme.selectedBg
 
              else
-                Element.rgba 0 0 0 0
+                config.theme.transparent
             )
-        , Border.rounded 6
+        , Border.rounded Tokens.radiusControl
         , Font.color foreground
         , Region.description destination.label
         ]
@@ -258,9 +285,13 @@ tabItem config destination =
             Element.column
                 [ Element.centerX
                 , Element.centerY
-                , Element.spacing 4
+                , Element.spacing Tokens.space4
                 ]
-                [ Icon.view { icon = destination.icon, size = 18, color = foreground }
+                [ Icon.view
+                    { icon = destination.icon
+                    , size = Tokens.iconSizeCaption
+                    , color = foreground
+                    }
                 , Element.el
                     [ Typography.tabLabel
                     , Font.center
