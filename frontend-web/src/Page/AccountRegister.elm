@@ -719,11 +719,6 @@ valueDetails theme commodity label value =
         ]
 
 
-emptyValue : Value
-emptyValue =
-    { raw = [], display = [], completeness = Unavailable }
-
-
 rawRow : Theme -> Quantity -> Element msg
 rawRow theme quantity =
     Element.row

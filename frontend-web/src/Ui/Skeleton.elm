@@ -18,7 +18,6 @@ import Ui.DesignTokens
         ( radiusCard
         , radiusSmall
         , space12
-        , space16
         , space20
         , space4
         , space8

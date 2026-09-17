@@ -515,7 +515,16 @@ sampleTransaction number =
             { transaction | description = "Transaction " ++ String.fromInt number }
 
         Nothing ->
-            Debug.todo "sampleResponse must contain a transaction"
+            { primaryDate = Date.Date { year = 2024, month = 4, day = 2 }
+            , secondaryDate = Nothing
+            , status = Status.Unmarked
+            , code = Nothing
+            , description = "Transaction " ++ String.fromInt number
+            , comment = Nothing
+            , tags = []
+            , postings = []
+            , presentation = { classification = "expense" }
+            }
 
 
 metadata : String -> Metadata

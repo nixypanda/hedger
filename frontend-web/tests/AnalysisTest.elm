@@ -1,6 +1,7 @@
 module AnalysisTest exposing (suite)
 
 import Api.Analytics as Analytics exposing (Timeline(..))
+import Data.Analytics exposing (TimelinePoint)
 import Data.Completeness exposing (Completeness(..))
 import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
@@ -64,6 +65,7 @@ context =
     }
 
 
+sideConfig : Analytics.ActivityKind -> Palette -> ActivityTone -> Analysis.SideConfig
 sideConfig kind palette tone =
     { label = "Side"
     , monthActivityTitle = "Month"
@@ -98,6 +100,7 @@ yearlyReport =
     }
 
 
+point : String -> Int -> TimelinePoint
 point period month =
     { period = period
     , startDate = Date { year = 2024, month = month, day = 1 }

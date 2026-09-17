@@ -7,7 +7,7 @@ module Ui.Chart.Cartesian exposing
     )
 
 import Element exposing (Element)
-import Svg
+import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Ui.Chart as Chart
 import Ui.Css as Css
@@ -344,7 +344,7 @@ areaSegments :
         }
     -> Int
     -> ( item, item )
-    -> List (Svg.Svg msg)
+    -> List (Svg msg)
 areaSegments x y area index ( firstItem, secondItem ) =
     let
         firstX =
@@ -421,6 +421,11 @@ areaSegments x y area index ( firstItem, secondItem ) =
             []
 
 
+float : Float -> String
+float =
+    String.fromFloat
+
+
 adjacentPairs : List value -> List ( value, value )
 adjacentPairs values =
     case values of
@@ -429,8 +434,3 @@ adjacentPairs values =
 
         _ ->
             []
-
-
-float : Float -> String
-float =
-    String.fromFloat

@@ -10,7 +10,7 @@ module Api.Client exposing
     , transactionsUrl
     )
 
-import Api.Account as Account exposing (Response)
+import Api.Account as Account
 import Api.Analytics as Analytics
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
@@ -20,7 +20,7 @@ import Api.Transaction as Transaction exposing (Response)
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Url.Builder as UrlBuilder
+import Url.Builder as Builder
 
 
 getBootstrap : (Result ApiError Bootstrap -> msg) -> Cmd msg
@@ -41,9 +41,9 @@ getAccounts commodity toMsg =
 
 accountsUrl : Maybe String -> String
 accountsUrl commodity =
-    UrlBuilder.absolute [ "api", "v1", "accounts", "tree" ]
+    Builder.absolute [ "api", "v1", "accounts", "tree" ]
         (commodity
-            |> Maybe.map (UrlBuilder.string "commodity" >> List.singleton)
+            |> Maybe.map (Builder.string "commodity" >> List.singleton)
             |> Maybe.withDefault []
         )
 
@@ -100,7 +100,7 @@ analyticsPost :
     -> Cmd msg
 analyticsPost screen body decoder toMsg =
     Http.post
-        { url = UrlBuilder.absolute [ "api", "v1", screen, "query" ] []
+        { url = Builder.absolute [ "api", "v1", screen, "query" ] []
         , body = Http.jsonBody body
         , expect = expectApiJson toMsg decoder
         }
@@ -131,9 +131,9 @@ accountRegisterUrl :
     }
     -> String
 accountRegisterUrl request =
-    UrlBuilder.absolute [ "api", "v1", "accounts", request.account, "register" ]
+    Builder.absolute [ "api", "v1", "accounts", request.account, "register" ]
         (List.concat
-            [ [ UrlBuilder.int "limit" 50 ]
+            [ [ Builder.int "limit" 50 ]
             , optionalQuery "commodity" request.commodity
             , optionalQuery "from" request.from
             , optionalQuery "to" request.to
@@ -142,25 +142,25 @@ accountRegisterUrl request =
         )
 
 
-optionalQuery : String -> Maybe String -> List UrlBuilder.QueryParameter
+optionalQuery : String -> Maybe String -> List Builder.QueryParameter
 optionalQuery name value =
     value
-        |> Maybe.map (UrlBuilder.string name >> List.singleton)
+        |> Maybe.map (Builder.string name >> List.singleton)
         |> Maybe.withDefault []
 
 
 transactionsUrl : { query : String, cursor : Maybe String } -> String
 transactionsUrl request =
-    UrlBuilder.absolute [ "api", "v1", "transactions" ]
+    Builder.absolute [ "api", "v1", "transactions" ]
         (List.concat
             [ if String.isEmpty request.query then
                 []
 
               else
-                [ UrlBuilder.string "query" request.query ]
-            , [ UrlBuilder.int "limit" 50 ]
+                [ Builder.string "query" request.query ]
+            , [ Builder.int "limit" 50 ]
             , request.cursor
-                |> Maybe.map (UrlBuilder.string "cursor" >> List.singleton)
+                |> Maybe.map (Builder.string "cursor" >> List.singleton)
                 |> Maybe.withDefault []
             ]
         )

@@ -34,7 +34,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Html
+import Html exposing (Html)
 import Html.Attributes as Attr
 import List
 import Ui
@@ -1662,7 +1662,7 @@ presentDirections specs bucket =
             )
 
 
-monthRingCenter : Theme -> ActivityTone -> String -> Bool -> ActivityBucket -> List (Html.Html msg)
+monthRingCenter : Theme -> ActivityTone -> String -> Bool -> ActivityBucket -> List (Html msg)
 monthRingCenter theme tone commodity isEmpty bucket =
     case directionSpecsFor theme tone of
         Just specs ->
@@ -1685,12 +1685,12 @@ monthRingCenter theme tone commodity isEmpty bucket =
             ]
 
 
-directionValueText : String -> ( DirectionSpec, Decimal ) -> Html.Html msg
+directionValueText : String -> ( DirectionSpec, Decimal ) -> Html msg
 directionValueText commodity ( spec, amount ) =
     ringValueText (scaleColor spec.scale 0) (money commodity amount)
 
 
-ringValueText : Element.Color -> String -> Html.Html msg
+ringValueText : Element.Color -> String -> Html msg
 ringValueText color content =
     Html.div
         [ Attr.style "font-size" "10px"
@@ -1826,11 +1826,6 @@ categoryLabel account =
 
             [] ->
                 account
-
-
-float : Float -> String
-float =
-    String.fromFloat
 
 
 chunks : Int -> List value -> List (List value)

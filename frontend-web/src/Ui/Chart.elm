@@ -14,7 +14,7 @@ module Ui.Chart exposing
 import Element exposing (Element)
 import Html
 import Html.Attributes as Attr
-import Svg
+import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
 import Ui.Css as Css
@@ -81,7 +81,7 @@ fixedAxis :
     -> Layout
     -> List Float
     -> (Float -> Float)
-    -> Svg.Svg msg
+    -> Svg msg
     -> Element msg
 fixedAxis theme formatTick chartLayout ticks y plot =
     let
@@ -153,7 +153,7 @@ plotAttributes chartLayout label =
     ]
 
 
-gridLines : Theme -> Layout -> (Float -> Float) -> List Float -> List (Svg.Svg msg)
+gridLines : Theme -> Layout -> (Float -> Float) -> List Float -> List (Svg msg)
 gridLines theme chartLayout y ticks =
     List.map
         (\tick ->
@@ -176,7 +176,7 @@ gridLines theme chartLayout y ticks =
         ticks
 
 
-activeBand : Theme -> Layout -> Bool -> Float -> Svg.Svg msg
+activeBand : Theme -> Layout -> Bool -> Float -> Svg msg
 activeBand theme chartLayout selected center =
     if selected then
         Svg.rect
@@ -193,7 +193,7 @@ activeBand theme chartLayout selected center =
         Svg.g [] []
 
 
-roundedBar : Element.Color -> Float -> Float -> Float -> Float -> Float -> Svg.Svg msg
+roundedBar : Element.Color -> Float -> Float -> Float -> Float -> Float -> Svg msg
 roundedBar color barWidth center zeroY valueY value =
     let
         top =
@@ -220,7 +220,7 @@ roundedBar color barWidth center zeroY valueY value =
         []
 
 
-xAxisLabel : Theme -> Layout -> Float -> String -> Svg.Svg msg
+xAxisLabel : Theme -> Layout -> Float -> String -> Svg msg
 xAxisLabel theme chartLayout center label =
     Svg.text_
         [ SvgA.x (float center)
@@ -232,7 +232,7 @@ xAxisLabel theme chartLayout center label =
         [ Svg.text label ]
 
 
-hitTarget : Layout -> Float -> String -> String -> msg -> Svg.Svg msg
+hitTarget : Layout -> Float -> String -> String -> msg -> Svg msg
 hitTarget chartLayout center period label onSelect =
     Svg.rect
         [ SvgA.x (float (center - chartLayout.slotWidth / 2))
@@ -250,7 +250,7 @@ hitTarget chartLayout center period label onSelect =
         []
 
 
-marker : Theme -> Element.Color -> Float -> Float -> Svg.Svg msg
+marker : Theme -> Element.Color -> Float -> Float -> Svg msg
 marker theme color x y =
     Svg.circle
         [ SvgA.cx (float x)
