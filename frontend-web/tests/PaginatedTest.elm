@@ -209,9 +209,17 @@ suite =
                 in
                 case Paginated.beginLoadMore config showing of
                     Just ( loadingMore, nextRequest ) ->
-                        ( Paginated.receive config nextRequest (Ok (page "r1" [ 3 ] Nothing)) refreshing
+                        ( Paginated.receive
+                            config
+                            nextRequest
+                            (Ok (page "r1" [ 3 ] Nothing))
+                            refreshing
                             |> Paginated.status
-                        , Paginated.receive config firstRequest (Ok (page "r1" [ 3 ] Nothing)) loadingMore
+                        , Paginated.receive
+                            config
+                            firstRequest
+                            (Ok (page "r1" [ 3 ] Nothing))
+                            loadingMore
                             |> Paginated.status
                         )
                             |> Expect.equal ( Paginated.Refreshing_, Paginated.LoadingMore_ )

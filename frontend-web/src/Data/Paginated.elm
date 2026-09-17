@@ -151,7 +151,10 @@ beginRefresh newCriteria (Paginated internals) =
 {-| Request the next page behind the window's cursor. Yields `Nothing` when
 there is no retryable window and cursor to advance from.
 -}
-beginLoadMore : Config page -> Paginated criteria page -> Maybe ( Paginated criteria page, Request criteria )
+beginLoadMore :
+    Config page
+    -> Paginated criteria page
+    -> Maybe ( Paginated criteria page, Request criteria )
 beginLoadMore config (Paginated internals) =
     loadMoreTarget config internals.state
         |> Maybe.map

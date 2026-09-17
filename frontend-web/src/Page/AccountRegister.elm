@@ -337,7 +337,11 @@ view theme viewport (Model data) =
                 listPage theme compact (Model data)
 
             Selected entry ->
-                Element.row [ Element.width Element.fill, Element.height Element.fill, Element.clip ]
+                Element.row
+                    [ Element.width Element.fill
+                    , Element.height Element.fill
+                    , Element.clip
+                    ]
                     [ Element.el
                         [ Element.width (Element.fillPortion 2)
                         , Element.height Element.fill
@@ -391,7 +395,11 @@ registerHeader theme compact model =
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     )
                 ]
-            , Element.column [ Element.width Element.fill, Element.spacing 8, Typography.minWidthZero ]
+            , Element.column
+                [ Element.width Element.fill
+                , Element.spacing 8
+                , Typography.minWidthZero
+                ]
                 [ Typography.delimitedPageTitle theme ":" account
                 , Typography.mutedParagraph theme "Account register"
                 ]
@@ -540,7 +548,8 @@ entryRow theme compact model commodity entry =
                 , Typography.minWidthZero
                 ]
                 [ Ui.truncatedText entry.description
-                , Element.text entry.account |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+                , Element.text entry.account
+                    |> Element.el [ Font.size 12, Font.color theme.textMuted ]
                 ]
 
         hasDetails =
@@ -578,12 +587,27 @@ entryRow theme compact model commodity entry =
                         ]
 
                   else
-                    Element.row [ Element.width Element.fill, Element.spacing 12, Typography.minWidthZero ]
+                    Element.row
+                        [ Element.width Element.fill
+                        , Element.spacing 12
+                        , Typography.minWidthZero
+                        ]
                         [ Element.text (Date.toString entry.date)
-                            |> Element.el [ Element.width (Element.px 92), Font.color theme.textMuted ]
+                            |> Element.el
+                                [ Element.width (Element.px 92)
+                                , Font.color theme.textMuted
+                                ]
                         , description
-                        , Element.el [ Element.width (Element.px 150), Typography.minWidthZero ] amount
-                        , Element.el [ Element.width (Element.px 150), Typography.minWidthZero ] balance
+                        , Element.el
+                            [ Element.width (Element.px 150)
+                            , Typography.minWidthZero
+                            ]
+                            amount
+                        , Element.el
+                            [ Element.width (Element.px 150)
+                            , Typography.minWidthZero
+                            ]
+                            balance
                         , chevron
                         ]
                 ]
@@ -683,7 +707,9 @@ valueDetails theme commodity label value =
         , Element.text (displayValue commodity value) |> Element.el [ Font.size 22, Font.semiBold ]
         , States.registerCompletenessBadge theme value.completeness
         , Typography.mutedCaption theme "Raw amounts included"
-        , Element.column [ Element.width Element.fill, Element.spacing 8 ] (List.map (rawRow theme) value.raw)
+        , Element.column
+            [ Element.width Element.fill, Element.spacing 8 ]
+            (List.map (rawRow theme) value.raw)
         , if value.completeness == Partial then
             Typography.mutedParagraph theme
                 "The displayed total excludes the listed unconvertible commodity amounts."

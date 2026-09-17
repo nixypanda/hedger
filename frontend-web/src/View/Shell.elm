@@ -149,7 +149,10 @@ sidebar config =
 
 brand : Element msg
 brand =
-    Element.row [ Element.spacing 12, Element.paddingEach { top = 0, right = 4, bottom = 24, left = 4 } ]
+    Element.row
+        [ Element.spacing 12
+        , Element.paddingEach { top = 0, right = 4, bottom = 24, left = 4 }
+        ]
         [ Element.el
             [ Element.width (Element.px 34)
             , Element.height (Element.px 34)

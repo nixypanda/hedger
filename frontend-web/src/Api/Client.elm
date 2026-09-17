@@ -48,7 +48,10 @@ accountsUrl commodity =
         )
 
 
-getTransactions : { query : String, cursor : Maybe String } -> (Result ApiError Response -> msg) -> Cmd msg
+getTransactions :
+    { query : String, cursor : Maybe String }
+    -> (Result ApiError Response -> msg)
+    -> Cmd msg
 getTransactions request toMsg =
     Http.get
         { url = transactionsUrl request
@@ -56,12 +59,18 @@ getTransactions request toMsg =
         }
 
 
-getNetWorth : Analytics.AnalyticsRequest -> (Result ApiError Analytics.NetWorthResponse -> msg) -> Cmd msg
+getNetWorth :
+    Analytics.AnalyticsRequest
+    -> (Result ApiError Analytics.NetWorthResponse -> msg)
+    -> Cmd msg
 getNetWorth request toMsg =
     analyticsPost "net-worth" (Analytics.requestEncoder request) Analytics.netWorthDecoder toMsg
 
 
-getCashflow : Analytics.AnalyticsRequest -> (Result ApiError Analytics.CashflowResponse -> msg) -> Cmd msg
+getCashflow :
+    Analytics.AnalyticsRequest
+    -> (Result ApiError Analytics.CashflowResponse -> msg)
+    -> Cmd msg
 getCashflow request toMsg =
     analyticsPost "cashflow" (Analytics.requestEncoder request) Analytics.cashflowDecoder toMsg
 
@@ -71,12 +80,24 @@ getInvestments request toMsg =
     analyticsPost "investments" (Investments.requestEncoder request) Investments.decoder toMsg
 
 
-getActivity : Analytics.ActivityRequest -> (Result ApiError Analytics.ActivityResponse -> msg) -> Cmd msg
+getActivity :
+    Analytics.ActivityRequest
+    -> (Result ApiError Analytics.ActivityResponse -> msg)
+    -> Cmd msg
 getActivity request toMsg =
-    analyticsPost "activity" (Analytics.activityRequestEncoder request) Analytics.activityDecoder toMsg
+    analyticsPost
+        "activity"
+        (Analytics.activityRequestEncoder request)
+        Analytics.activityDecoder
+        toMsg
 
 
-analyticsPost : String -> Encode.Value -> Decode.Decoder value -> (Result ApiError value -> msg) -> Cmd msg
+analyticsPost :
+    String
+    -> Encode.Value
+    -> Decode.Decoder value
+    -> (Result ApiError value -> msg)
+    -> Cmd msg
 analyticsPost screen body decoder toMsg =
     Http.post
         { url = UrlBuilder.absolute [ "api", "v1", screen, "query" ] []
@@ -159,7 +180,10 @@ expectApiJson toMsg valueDecoder =
         (responseToResult valueDecoder)
 
 
-responseToResult : Decode.Decoder value -> Http.Response String -> Result Http.Error (Result ApiError value)
+responseToResult :
+    Decode.Decoder value
+    -> Http.Response String
+    -> Result Http.Error (Result ApiError value)
 responseToResult valueDecoder response =
     case response of
         Http.GoodStatus_ _ body ->

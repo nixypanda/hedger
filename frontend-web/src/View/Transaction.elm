@@ -1,4 +1,9 @@
-module View.Transaction exposing (amountsText, classificationLabel, classificationTone, transactionDetail)
+module View.Transaction exposing
+    ( amountsText
+    , classificationLabel
+    , classificationTone
+    , transactionDetail
+    )
 
 import Data.Date as Date
 import Data.Status as Status
@@ -84,7 +89,10 @@ transactionDetail theme transaction =
         [ Ui.card theme
             (List.concat
                 [ [ detailRow theme "Date" (Date.toString transaction.primaryDate) ]
-                , maybeDetailRow theme "Secondary date" (Maybe.map Date.toString transaction.secondaryDate)
+                , maybeDetailRow
+                    theme
+                    "Secondary date"
+                    (Maybe.map Date.toString transaction.secondaryDate)
                 , [ detailRow theme "Status" (Status.toString transaction.status) ]
                 , maybeDetailRow theme "Code" transaction.code
                 , [ detailRow theme "Description" transaction.description ]
@@ -224,7 +232,9 @@ postingAmountLine theme amount =
 
 maybeCaption : Theme -> Maybe String -> List (Element msg)
 maybeCaption theme value =
-    value |> Maybe.map (\current -> [ Typography.mutedCaption theme current ]) |> Maybe.withDefault []
+    value
+        |> Maybe.map (\current -> [ Typography.mutedCaption theme current ])
+        |> Maybe.withDefault []
 
 
 tagsText : List Tag -> String

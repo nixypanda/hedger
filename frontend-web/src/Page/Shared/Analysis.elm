@@ -486,8 +486,14 @@ activityEffect context side data =
 controlsView : Theme -> Model -> Element Msg
 controlsView theme (Model data) =
     Ui.wideSegmentedControl theme
-        [ { label = "M", selected = data.granularity == Monthly, onPress = GranularitySelected Monthly }
-        , { label = "Y", selected = data.granularity == Yearly, onPress = GranularitySelected Yearly }
+        [ { label = "M"
+          , selected = data.granularity == Monthly
+          , onPress = GranularitySelected Monthly
+          }
+        , { label = "Y"
+          , selected = data.granularity == Yearly
+          , onPress = GranularitySelected Yearly
+          }
         ]
 
 

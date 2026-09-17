@@ -26,7 +26,10 @@ suite =
                             , xirr = response.summary.xirr |> Maybe.map Decimal.toString
                             , periods = List.length response.timeline
                             , child = response.children |> List.head |> Maybe.map .account
-                            , childAssetClass = response.children |> List.head |> Maybe.map .assetClass
+                            , childAssetClass =
+                                response.children
+                                    |> List.head
+                                    |> Maybe.map .assetClass
                             , childAllocation =
                                 response.children
                                     |> List.head

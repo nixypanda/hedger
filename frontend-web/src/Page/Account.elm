@@ -153,7 +153,10 @@ update props msg (Model model) =
                 ( selectValue path (Model model), Cmd.none, NoOutMsg )
 
             else
-                ( Model model, Cmd.none, Navigate (AccountValue (Account.accountPathToString path)) )
+                ( Model model
+                , Cmd.none
+                , Navigate (AccountValue (Account.accountPathToString path))
+                )
 
         CloseAccountValue ->
             ( clearValue (Model model), Cmd.none, NoOutMsg )
@@ -659,7 +662,9 @@ detailForPath theme path response =
                     accountDetailHeader theme (Just BackToAccounts)
                 , Ui.pageContainer
                     [ Ui.card theme
-                        [ Ui.errorBanner theme "That account is no longer present in the current snapshot." ]
+                        [ Ui.errorBanner theme
+                            "That account is no longer present in the current snapshot."
+                        ]
                     ]
                 ]
 

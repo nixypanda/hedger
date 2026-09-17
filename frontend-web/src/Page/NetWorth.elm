@@ -71,12 +71,18 @@ update msg (Model data) =
         ResponseLoaded result ->
             case result of
                 Err error ->
-                    ( Model { data | response = Failure error (RemoteData.value data.response) }, Cmd.none )
+                    ( Model
+                        { data | response = Failure error (RemoteData.value data.response) }
+                    , Cmd.none
+                    )
 
                 Ok response ->
                     let
                         ( analysis, effects ) =
-                            Analysis.reportLoaded analysisContext (analysisReport response) data.analysis
+                            Analysis.reportLoaded
+                                analysisContext
+                                (analysisReport response)
+                                data.analysis
                     in
                     ( Model { data | response = Success response, analysis = analysis }
                     , performEffects effects
@@ -337,7 +343,13 @@ dashboardContent theme viewport data =
                     ]
                 ]
             , Element.map AnalysisMsg
-                (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
+                (Analysis.view
+                    theme
+                    viewport
+                    analysisConfig
+                    (analysisReport response)
+                    data.analysis
+                )
             ]
 
 

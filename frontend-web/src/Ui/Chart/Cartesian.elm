@@ -411,7 +411,10 @@ areaSegments x y area index ( firstItem, secondItem ) =
                 [ polygon (colorFor firstDifference)
                     [ ( firstX, firstValue ), ( crossX, crossValue ), ( firstX, firstBaseline ) ]
                 , polygon (colorFor secondDifference)
-                    [ ( crossX, crossValue ), ( secondX, secondValue ), ( secondX, secondBaseline ) ]
+                    [ ( crossX, crossValue )
+                    , ( secondX, secondValue )
+                    , ( secondX, secondBaseline )
+                    ]
                 ]
 
         _ ->

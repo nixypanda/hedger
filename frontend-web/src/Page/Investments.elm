@@ -108,7 +108,8 @@ update msg (Model data) =
                             | response = Success response
                             , granularity = response.granularity
                             , accountPrefix = response.accountPrefix
-                            , selectedPeriod = synchronizedPeriod data.selectedPeriod response.timeline
+                            , selectedPeriod =
+                                synchronizedPeriod data.selectedPeriod response.timeline
                         }
                     , Cmd.none
                     )
@@ -194,7 +195,8 @@ view theme viewport (Model data) =
                 , subtitle = Just "Value, invested capital, and investment performance"
                 , actions =
                     [ granularityControl theme data.granularity
-                    , Ui.iconButton theme { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                    , Ui.iconButton theme
+                        { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
         , Ui.pageContainer (content theme viewport data)
@@ -401,7 +403,8 @@ assetClassAllocationRow theme commodity allocation =
                     )
                 )
             , Element.column [ Element.width Element.fill, Element.spacing 2 ]
-                [ Element.el [ Font.semiBold ] (Element.text (assetClassLabel allocation.assetClass))
+                [ Element.el [ Font.semiBold ]
+                    (Element.text (assetClassLabel allocation.assetClass))
                 , Typography.mutedCaption theme (investmentMoney commodity allocation.marketValue)
                 ]
             , Element.column [ Element.alignRight, Element.spacing 2 ]
@@ -944,7 +947,10 @@ investmentNavigatorPath theme breadcrumbs =
                             (Element.text crumb.label)
 
                       else
-                        investmentNavigatorPathButton theme crumb.label (AccountSelected crumb.account)
+                        investmentNavigatorPathButton
+                            theme
+                            crumb.label
+                            (AccountSelected crumb.account)
                     ]
                 )
                 (List.indexedMap Tuple.pair breadcrumbs)
@@ -1094,7 +1100,8 @@ selectedInvestmentPeriod theme commodity selected points =
                 , Background.color theme.primarySoft
                 ]
                 [ Element.row [ Element.width Element.fill ]
-                    [ Element.el [ Font.semiBold ] (Element.text (investmentPeriodLabel point.period))
+                    [ Element.el [ Font.semiBold ]
+                        (Element.text (investmentPeriodLabel point.period))
                     , Element.el [ Element.alignRight ]
                         (investmentCompletenessBadge theme point.summary.completeness)
                     ]
@@ -1152,9 +1159,13 @@ investmentChartLegend theme selectedMode points =
             ValueChart ->
                 Element.wrappedRow [ Element.spacing 16 ]
                     [ Element.row [ Element.spacing 6 ]
-                        [ Ui.accentDot theme.primary, Typography.mutedCaption theme "Portfolio value" ]
+                        [ Ui.accentDot theme.primary
+                        , Typography.mutedCaption theme "Portfolio value"
+                        ]
                     , Element.row [ Element.spacing 6 ]
-                        [ Ui.accentDot theme.textMuted, Typography.mutedCaption theme "Invested capital" ]
+                        [ Ui.accentDot theme.textMuted
+                        , Typography.mutedCaption theme "Invested capital"
+                        ]
                     , Element.row [ Element.spacing 6 ]
                         [ Ui.accentDot theme.positive, Typography.mutedCaption theme "Gain" ]
                     , Element.row [ Element.spacing 6 ]

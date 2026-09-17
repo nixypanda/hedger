@@ -116,7 +116,12 @@ view config =
                 ]
                 [ Svg.g
                     [ SvgA.transform
-                        ("translate(" ++ String.fromFloat center ++ "," ++ String.fromFloat center ++ ")")
+                        ("translate("
+                            ++ String.fromFloat center
+                            ++ ","
+                            ++ String.fromFloat center
+                            ++ ")"
+                        )
                     ]
                     (List.map
                         (\( index, item, arc ) -> renderSlice index item arc)

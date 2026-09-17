@@ -84,7 +84,10 @@ update msg (Model data) =
         ResponseLoaded result ->
             case result of
                 Err error ->
-                    ( Model { data | response = Failure error (RemoteData.value data.response) }, Cmd.none )
+                    ( Model
+                        { data | response = Failure error (RemoteData.value data.response) }
+                    , Cmd.none
+                    )
 
                 Ok response ->
                     let
@@ -291,7 +294,13 @@ queryPanel theme viewport data =
         , helpText =
             "Filter this entire dashboard with an hledger query. Category, timeline, "
                 ++ "and activity results always use the same applied filter."
-        , examples = [ "acct:expenses", "desc:grocery", "date:2026-01-01..2026-07-31", "cur:INR", "status:*" ]
+        , examples =
+            [ "acct:expenses"
+            , "desc:grocery"
+            , "date:2026-01-01..2026-07-31"
+            , "cur:INR"
+            , "status:*"
+            ]
         , baseId = "cashflow-query"
         }
 
@@ -318,7 +327,13 @@ dashboardContent theme viewport data =
                     ++ " transactions"
                 )
             , Element.map AnalysisMsg
-                (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
+                (Analysis.view
+                    theme
+                    viewport
+                    analysisConfig
+                    (analysisReport response)
+                    data.analysis
+                )
             ]
 
 

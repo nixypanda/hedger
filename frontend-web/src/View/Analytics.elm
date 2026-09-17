@@ -564,7 +564,11 @@ categoryRows theme config =
                                 config.highlightedCategory
                                     == Just index
                         in
-                        if item.account == "Other" && not (List.isEmpty config.breakdown.otherItems) then
+                        if
+                            item.account
+                                == "Other"
+                                && not (List.isEmpty config.breakdown.otherItems)
+                        then
                             Input.button
                                 [ Element.width Element.fill
                                 , Element.htmlAttribute
@@ -686,7 +690,11 @@ activityMonth theme config =
                     dayKey config.period day
             in
             config.response
-                |> Maybe.andThen (\response -> List.filter (.key >> (==) key) response.buckets |> List.head)
+                |> Maybe.andThen
+                    (\response ->
+                        List.filter (.key >> (==) key) response.buckets
+                            |> List.head
+                    )
 
         categories =
             config.response
@@ -701,16 +709,20 @@ activityMonth theme config =
                 , cellHeight = 72
                 , viewDay =
                     \day attributes ->
-                        dayCell attributes
-                            theme
-                            config.tone
-                            config.commodity
-                            categories
-                            config.highlightedCategory
-                            (Maybe.map .key config.selectedBucket == Just (dayKey config.period day))
-                            day
-                            (bucketFor day)
-                            config.onSelect
+                        dayCell
+                            { attributes = attributes
+                            , theme = theme
+                            , tone = config.tone
+                            , commodity = config.commodity
+                            , categories = categories
+                            , highlightedCategory = config.highlightedCategory
+                            , selected =
+                                Maybe.map .key config.selectedBucket
+                                    == Just (dayKey config.period day)
+                            , day = day
+                            , maybeBucket = bucketFor day
+                            , onSelect = config.onSelect
+                            }
                 }
     in
     Ui.cardWith [ Element.width (Element.fillPortion 1), Element.alignTop ]
@@ -742,20 +754,53 @@ dayKey period day =
     period ++ "-" ++ String.padLeft 2 '0' (String.fromInt day)
 
 
-dayCell :
-    List (Element.Attribute msg)
-    -> Theme
-    -> ActivityTone
-    -> String
-    -> List BreakdownItem
-    -> Maybe Int
-    -> Bool
-    -> Int
-    -> Maybe ActivityBucket
-    -> (ActivityBucket -> msg)
-    -> Element msg
-dayCell attributes theme tone commodity categories highlightedCategory selected day maybeBucket onSelect =
+type alias DayCellConfig msg =
+    { attributes : List (Element.Attribute msg)
+    , theme : Theme
+    , tone : ActivityTone
+    , commodity : String
+    , categories : List BreakdownItem
+    , highlightedCategory : Maybe Int
+    , selected : Bool
+    , day : Int
+    , maybeBucket : Maybe ActivityBucket
+    , onSelect : ActivityBucket -> msg
+    }
+
+
+dayCell : DayCellConfig msg -> Element msg
+dayCell config =
     let
+        attributes =
+            config.attributes
+
+        theme =
+            config.theme
+
+        tone =
+            config.tone
+
+        commodity =
+            config.commodity
+
+        categories =
+            config.categories
+
+        highlightedCategory =
+            config.highlightedCategory
+
+        selected =
+            config.selected
+
+        day =
+            config.day
+
+        maybeBucket =
+            config.maybeBucket
+
+        onSelect =
+            config.onSelect
+
         label =
             Element.column
                 [ Element.width Element.fill
@@ -764,7 +809,15 @@ dayCell attributes theme tone commodity categories highlightedCategory selected 
                 , Element.paddingXY 2 4
                 ]
                 [ Element.el [ Element.centerX ]
-                    (activityDayRing theme tone categories highlightedCategory selected day maybeBucket)
+                    (activityDayRing
+                        theme
+                        tone
+                        categories
+                        highlightedCategory
+                        selected
+                        day
+                        maybeBucket
+                    )
                 , maybeBucket
                     |> Maybe.map
                         (\bucket ->
@@ -808,16 +861,41 @@ activityCategories response =
         |> List.sortBy .account
 
 
-activityCategoryLegend :
-    Theme
-    -> ActivityTone
-    -> List BreakdownItem
-    -> LegendState
-    -> msg
-    -> Maybe Int
-    -> (Int -> msg)
-    -> Element msg
-activityCategoryLegend theme tone categories legendState onToggle highlightedCategory onCategoryHighlight =
+type alias ActivityCategoryLegendConfig msg =
+    { theme : Theme
+    , tone : ActivityTone
+    , categories : List BreakdownItem
+    , legendState : LegendState
+    , onToggle : msg
+    , highlightedCategory : Maybe Int
+    , onCategoryHighlight : Int -> msg
+    }
+
+
+activityCategoryLegend : ActivityCategoryLegendConfig msg -> Element msg
+activityCategoryLegend config =
+    let
+        theme =
+            config.theme
+
+        tone =
+            config.tone
+
+        categories =
+            config.categories
+
+        legendState =
+            config.legendState
+
+        onToggle =
+            config.onToggle
+
+        highlightedCategory =
+            config.highlightedCategory
+
+        onCategoryHighlight =
+            config.onCategoryHighlight
+    in
     if List.isEmpty categories then
         Element.none
 
@@ -1127,7 +1205,8 @@ activityTransactionList theme title transactions onSelect =
                 ]
                 (List.map
                     (\transaction ->
-                        Input.button (Ui.rowSurfaceAttrs theme False ++ [ Element.width Element.fill ])
+                        Input.button
+                            (Ui.rowSurfaceAttrs theme False ++ [ Element.width Element.fill ])
                             { onPress = Just (onSelect transaction)
                             , label =
                                 Element.row
@@ -1216,7 +1295,9 @@ activityYear theme config =
                                                                 config.tone
                                                                 categories
                                                                 config.highlightedCategory
-                                                                (Maybe.map .key selected == Just bucket.key)
+                                                                (Maybe.map .key selected
+                                                                    == Just bucket.key
+                                                                )
                                                                 bucket
                                                                 config.onSelect
                                                             )
@@ -1338,7 +1419,10 @@ activityCategoryYearLegend theme commodity tone bucket =
                     in
                     Element.row [ Element.width Element.fill, Element.spacing 8 ]
                         [ Icon.view
-                            { icon = AccountPresentation.iconForAccount item.accountType item.account
+                            { icon =
+                                AccountPresentation.iconForAccount
+                                    item.accountType
+                                    item.account
                             , size = 16
                             , color =
                                 if item.account == "Other" then
@@ -1633,7 +1717,15 @@ activityLegend theme tone categories legendState onToggle highlighted onHighligh
             activityDirectionLegend theme specs highlighted onHighlight
 
         Nothing ->
-            activityCategoryLegend theme tone categories legendState onToggle highlighted onHighlight
+            activityCategoryLegend
+                { theme = theme
+                , tone = tone
+                , categories = categories
+                , legendState = legendState
+                , onToggle = onToggle
+                , highlightedCategory = highlighted
+                , onCategoryHighlight = onHighlight
+                }
 
 
 activityDirectionLegend : Theme -> List DirectionSpec -> Maybe Int -> (Int -> msg) -> Element msg
@@ -1669,7 +1761,9 @@ activityDirectionLegend theme specs highlighted onHighlight =
 
 money : String -> Decimal -> String
 money commodity amount =
-    Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity) (decimalFloat amount)
+    Formatting.formatAmountDisplay
+        (Formatting.commodityDisplaySymbol commodity)
+        (decimalFloat amount)
 
 
 moneyFloat : String -> Float -> String

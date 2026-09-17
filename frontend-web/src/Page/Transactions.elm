@@ -562,7 +562,8 @@ wideLayout theme model response selected =
             , Element.height Element.fill
             , Element.scrollbarY
             , Background.color theme.pageBg
-            , Element.htmlAttribute (Html.Attributes.class "transactions-master-pane transactions-page")
+            , Element.htmlAttribute
+                (Html.Attributes.class "transactions-master-pane transactions-page")
             ]
             [ transactionsHeader theme
             , Ui.pageContainer
@@ -726,7 +727,8 @@ pagingControls theme model response =
         ]
         [ case loadMoreError model of
             Just error ->
-                Ui.errorBanner theme ("Could not load more transactions: " ++ ApiError.message error)
+                Ui.errorBanner theme
+                    ("Could not load more transactions: " ++ ApiError.message error)
 
             Nothing ->
                 Element.none
@@ -862,7 +864,11 @@ transactionRow theme compact selected transaction =
 desktopPrimaryRow : Theme -> Transaction -> Element msg
 desktopPrimaryRow theme transaction =
     Element.row [ Element.width Element.fill, Element.spacing 12 ]
-        [ Element.el [ Typography.rowDate, Font.color theme.textMuted, Element.width (Element.px 92) ]
+        [ Element.el
+            [ Typography.rowDate
+            , Font.color theme.textMuted
+            , Element.width (Element.px 92)
+            ]
             (Element.text (Date.toString transaction.primaryDate))
         , Element.el
             [ Typography.rowTitle

@@ -137,7 +137,12 @@ fixedAxis theme formatTick chartLayout ticks y plot =
 
 plotAttributes : Layout -> String -> List (Svg.Attribute msg)
 plotAttributes chartLayout label =
-    [ SvgA.viewBox ("0 0 " ++ float chartLayout.plotWidth ++ " " ++ String.fromInt chartLayout.height)
+    [ SvgA.viewBox
+        ("0 0 "
+            ++ float chartLayout.plotWidth
+            ++ " "
+            ++ String.fromInt chartLayout.height
+        )
     , SvgA.width (float chartLayout.plotWidth)
     , SvgA.height (String.fromInt chartLayout.height)
     , SvgA.preserveAspectRatio "none"
