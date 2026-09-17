@@ -42,7 +42,7 @@ type Model
 
 
 type alias ModelData =
-    { response : RemoteData Investments.Response
+    { response : RemoteData ApiError Investments.Response
     , granularity : Granularity
     , chartMode : ChartMode
     , accountPrefix : Maybe String
@@ -227,7 +227,7 @@ content theme viewport data =
                     [ investmentsSkeleton theme viewport ]
 
         Just response ->
-            [ States.remoteNotice theme response.metadata.freshness data.response
+            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , if isEmpty response then
                 Ui.emptyState theme "No investment holdings were found in this account scope."
 

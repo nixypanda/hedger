@@ -1,19 +1,6 @@
 module Api.Analytics exposing
-    ( ActivityBucket
-    , ActivityDirection
-    , ActivityKind(..)
-    , ActivityRange(..)
-    , ActivityRequest
-    , ActivityResponse
+    ( ActivityRequest
     , AnalyticsRequest
-    , BreakdownItem
-    , CashflowResponse
-    , CategoryBreakdown
-    , DirectionBreakdown
-    , NetWorthResponse
-    , PerformancePoint
-    , Report
-    , Timeline(..)
     , activityDecoder
     , activityRequestEncoder
     , cashflowDecoder
@@ -22,28 +9,31 @@ module Api.Analytics exposing
     )
 
 import Api.Json exposing (maybeString, required)
-import Api.Metadata as Metadata exposing (Metadata)
+import Api.Metadata as Metadata
 import Api.Transaction as Transaction
 import Data.AccountType as AccountType
-import Data.Analytics as AnalyticsData exposing (Kpi, TimelinePoint)
+import Data.Analytics as AnalyticsData
+    exposing
+        ( ActivityBucket
+        , ActivityDirection
+        , ActivityKind(..)
+        , ActivityRange(..)
+        , ActivityResponse
+        , BreakdownItem
+        , CashflowResponse
+        , CategoryBreakdown
+        , DirectionBreakdown
+        , Kpi
+        , NetWorthResponse
+        , PerformancePoint
+        , TimelinePoint
+        )
 import Data.Completeness as Completeness
-import Data.Date as Date exposing (Date)
-import Data.Decimal as Decimal exposing (Decimal)
+import Data.Date as Date
+import Data.Decimal as Decimal
 import Data.Granularity as Granularity exposing (Granularity)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-
-
-type ActivityKind
-    = IncomeActivity
-    | ExpenseActivity
-    | AssetActivity
-    | LiabilityActivity
-
-
-type ActivityRange
-    = MonthActivity
-    | YearActivity
 
 
 type alias AnalyticsRequest =
@@ -64,95 +54,6 @@ type alias ActivityRequest =
     , query : String
     , displayCommodity : Maybe String
     , depth : Int
-    }
-
-
-type alias BreakdownItem =
-    AnalyticsData.BreakdownItem
-
-
-type alias CategoryBreakdown =
-    { period : String
-    , total : Decimal
-    , items : List BreakdownItem
-    , otherItems : List BreakdownItem
-    }
-
-
-type alias PerformancePoint =
-    { period : String
-    , startDate : Date
-    , netInvestment : Decimal
-    , netWorth : Decimal
-    , gainLoss : Decimal
-    }
-
-
-type alias NetWorthResponse =
-    { metadata : Metadata
-    , displayCommodity : String
-    , granularity : Granularity
-    , netWorth : Kpi
-    , assets : Kpi
-    , liabilities : Kpi
-    , timeline : List TimelinePoint
-    , assetsBreakdown : CategoryBreakdown
-    , liabilitiesBreakdown : CategoryBreakdown
-    , performance : List PerformancePoint
-    , incompletePeriods : Int
-    , warnings : List String
-    }
-
-
-type alias CashflowResponse =
-    { metadata : Metadata
-    , displayCommodity : String
-    , granularity : Granularity
-    , totalCount : Int
-    , filteredCount : Int
-    , timelineAvailable : Bool
-    , timeline : List TimelinePoint
-    , incomeBreakdown : CategoryBreakdown
-    , expenseBreakdown : CategoryBreakdown
-    , warnings : List String
-    }
-
-
-type alias ActivityBucket =
-    AnalyticsData.ActivityBucket
-
-
-type alias DirectionBreakdown =
-    AnalyticsData.DirectionBreakdown
-
-
-type alias ActivityDirection =
-    AnalyticsData.ActivityDirection
-
-
-type alias ActivityResponse =
-    { metadata : Metadata
-    , displayCommodity : String
-    , kind : ActivityKind
-    , range : ActivityRange
-    , period : String
-    , fiscalYearStartMonth : Int
-    , buckets : List ActivityBucket
-    , warnings : List String
-    }
-
-
-type Timeline
-    = TimelineAvailable (List TimelinePoint)
-    | TimelineUnavailable String (List TimelinePoint)
-
-
-type alias Report =
-    { displayCommodity : String
-    , timeline : Timeline
-    , positiveBreakdown : CategoryBreakdown
-    , negativeBreakdown : CategoryBreakdown
-    , warnings : List String
     }
 
 

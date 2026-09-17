@@ -1,8 +1,8 @@
 module Page.NetWorth exposing (Model, Msg(..), init, update, view)
 
-import Api.Analytics as Analytics
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Background as Background
@@ -31,7 +31,7 @@ type Model
 
 
 type alias ModelData =
-    { response : RemoteData Analytics.NetWorthResponse
+    { response : RemoteData ApiError Analytics.NetWorthResponse
     , analysis : Analysis.Model
     , selectedPerformance : Maybe String
     }
@@ -162,10 +162,10 @@ analysisConfig =
     }
 
 
-analysisReport : Analytics.NetWorthResponse -> Analytics.Report
+analysisReport : Analytics.NetWorthResponse -> Analysis.Report
 analysisReport response =
     { displayCommodity = response.displayCommodity
-    , timeline = Analytics.TimelineAvailable response.timeline
+    , timeline = Analysis.TimelineAvailable response.timeline
     , positiveBreakdown = response.assetsBreakdown
     , negativeBreakdown = response.liabilitiesBreakdown
     , warnings = response.warnings
@@ -289,7 +289,7 @@ dashboardContent theme viewport data =
                     [ netWorthSkeleton theme viewport ]
 
         Just response ->
-            [ States.remoteNotice theme response.metadata.freshness data.response
+            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , responsiveGrid layout
                 [ AnalyticsView.kpiCard theme
                     { title = "Net worth"

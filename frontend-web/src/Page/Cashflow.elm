@@ -1,8 +1,8 @@
 module Page.Cashflow exposing (Model, Msg(..), init, update, view)
 
-import Api.Analytics as Analytics
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Background as Background
@@ -31,7 +31,7 @@ type Model
 
 
 type alias ModelData =
-    { response : RemoteData Analytics.CashflowResponse
+    { response : RemoteData ApiError Analytics.CashflowResponse
     , draftQuery : String
     , appliedQuery : String
     , analysis : Analysis.Model
@@ -168,15 +168,15 @@ analysisConfig =
     }
 
 
-analysisReport : Analytics.CashflowResponse -> Analytics.Report
+analysisReport : Analytics.CashflowResponse -> Analysis.Report
 analysisReport response =
     { displayCommodity = response.displayCommodity
     , timeline =
         if response.timelineAvailable then
-            Analytics.TimelineAvailable response.timeline
+            Analysis.TimelineAvailable response.timeline
 
         else
-            Analytics.TimelineUnavailable
+            Analysis.TimelineUnavailable
                 ("Cashflow is unavailable because at least one participating amount "
                     ++ "cannot be converted to the display commodity."
                 )
@@ -319,7 +319,7 @@ dashboardContent theme viewport data =
                     [ cashflowSkeleton theme viewport ]
 
         Just response ->
-            [ States.remoteNotice theme response.metadata.freshness data.response
+            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , Typography.mutedBody theme
                 (String.fromInt response.filteredCount
                     ++ " of "
@@ -337,7 +337,7 @@ dashboardContent theme viewport data =
             ]
 
 
-queryError : RemoteData value -> Maybe ApiError
+queryError : RemoteData ApiError value -> Maybe ApiError
 queryError remote =
     case remote of
         Failure error _ ->

@@ -3,11 +3,12 @@ module Api.Account exposing
     , decoder
     )
 
-import Api.Metadata as Metadata exposing (Metadata)
+import Api.Metadata as Metadata
 import Data.Account exposing (AccountNode(..), Valuation, accountPath)
 import Data.AccountType as AccountType exposing (AccountType)
 import Data.Completeness as Completeness
 import Data.Date as Date
+import Data.Metadata exposing (Metadata)
 import Data.Quantity as Quantity exposing (Quantity)
 import Json.Decode as Decode exposing (Decoder)
 

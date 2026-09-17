@@ -61,7 +61,7 @@ type Model
 
 
 type alias ModelData =
-    { paginated : Paginated AppliedQuery PageData
+    { paginated : Paginated ApiError AppliedQuery PageData
     , draft : DraftQuery
     , selection : Maybe Transaction
     }
@@ -417,7 +417,7 @@ status (Model data) =
 {-| Project the machine onto `RemoteData` for the view: refreshes surface the
 stale window as loading, and failures over a window keep it as stale data.
 -}
-remoteData : Model -> RemoteData Response
+remoteData : Model -> RemoteData ApiError Response
 remoteData (Model data) =
     let
         visible =
@@ -449,7 +449,7 @@ remoteData (Model data) =
             successOrLoading visible
 
 
-successOrLoading : Maybe Response -> RemoteData Response
+successOrLoading : Maybe Response -> RemoteData ApiError Response
 successOrLoading visible =
     case visible of
         Just response ->
@@ -459,7 +459,7 @@ successOrLoading visible =
             Loading Nothing
 
 
-activeError : Paginated AppliedQuery PageData -> ApiError
+activeError : Paginated ApiError AppliedQuery PageData -> ApiError
 activeError paginated =
     Paginated.error paginated
         |> Maybe.withDefault
@@ -630,7 +630,7 @@ queryPanel theme compact model =
         }
 
 
-queryError : RemoteData Response -> Maybe ApiError
+queryError : RemoteData ApiError Response -> Maybe ApiError
 queryError remote =
     case remote of
         Failure error _ ->
@@ -758,7 +758,7 @@ pagingControls theme model response =
         ]
 
 
-remoteNotice : Theme -> RemoteData Response -> Response -> Element msg
+remoteNotice : Theme -> RemoteData ApiError Response -> Response -> Element msg
 remoteNotice theme remote response =
     case remote of
         Loading _ ->

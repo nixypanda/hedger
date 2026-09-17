@@ -1,13 +1,15 @@
 module AnalysisTest exposing (suite)
 
-import Api.Analytics as Analytics exposing (Timeline(..))
-import Data.Analytics exposing (TimelinePoint)
+import Data.Analytics as Analytics exposing (TimelinePoint)
 import Data.Completeness exposing (Completeness(..))
 import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
 import Data.Granularity exposing (Granularity(..))
 import Expect
 import Page.Shared.Analysis as Analysis
+    exposing
+        ( Timeline(..)
+        )
 import Test exposing (Test, test)
 import View.Analytics exposing (ActivityTone(..), Palette(..))
 
@@ -76,7 +78,7 @@ sideConfig kind palette tone =
     }
 
 
-monthlyReport : Analytics.Report
+monthlyReport : Analysis.Report
 monthlyReport =
     { displayCommodity = "INR"
     , timeline =
@@ -90,7 +92,7 @@ monthlyReport =
     }
 
 
-yearlyReport : Analytics.Report
+yearlyReport : Analysis.Report
 yearlyReport =
     { displayCommodity = "INR"
     , timeline = TimelineAvailable [ point "2025" 1 ]

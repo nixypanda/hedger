@@ -56,7 +56,7 @@ type Model
 
 
 type alias ModelData =
-    { paginated : Paginated Criteria Response
+    { paginated : Paginated ApiError Criteria Response
     , account : String
     , from : String
     , to : String
@@ -479,7 +479,7 @@ content theme compact (Model data) =
             Ui.card theme [ Ui.loading theme "Loading register…" ]
 
 
-failureMessage : Paginated Criteria Response -> String
+failureMessage : Paginated ApiError Criteria Response -> String
 failureMessage paginated =
     Paginated.error paginated
         |> Maybe.map ApiError.message

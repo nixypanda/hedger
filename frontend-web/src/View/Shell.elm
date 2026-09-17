@@ -1,4 +1,10 @@
-module View.Shell exposing (view)
+module View.Shell exposing
+    ( ActionStyle(..)
+    , Destination
+    , Notice
+    , NoticeAction
+    , view
+    )
 
 import Element exposing (Element)
 import Element.Background as Background
@@ -7,14 +13,6 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes
-import Pwa
-    exposing
-        ( InstallHintState(..)
-        , InstallPromptState(..)
-        , InstallationState(..)
-        , ServiceWorkerState(..)
-        )
-import Route exposing (Route(..))
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Icon as Icon exposing (Icon)
@@ -24,13 +22,38 @@ import Ui.Typography as Typography
 
 
 type alias Config msg =
-    { route : Route
-    , viewport : Viewport
+    { viewport : Viewport
     , theme : Theme
-    , pwa : Pwa.Model
+    , notice : Maybe (Notice msg)
+    , navigation : List (Destination msg)
     , page : Element msg
-    , onNavigate : Route -> msg
-    , onPwa : Pwa.Msg -> msg
+    }
+
+
+type alias Notice msg =
+    { icon : Icon
+    , message : String
+    , actions : List (NoticeAction msg)
+    }
+
+
+type alias NoticeAction msg =
+    { label : String
+    , onPress : msg
+    , style : ActionStyle
+    }
+
+
+type ActionStyle
+    = PrimaryAction
+    | GhostAction
+
+
+type alias Destination msg =
+    { label : String
+    , icon : Icon
+    , active : Bool
+    , onPress : msg
     }
 
 
@@ -42,7 +65,7 @@ view config =
         , Background.color config.theme.pageBg
         , Element.htmlAttribute (Html.Attributes.class "app-shell")
         ]
-        [ pwaBanner config
+        [ noticeView config.theme config.notice
         , Element.row
             [ Element.width Element.fill
             , Element.height Element.fill
@@ -74,36 +97,29 @@ content page =
         page
 
 
-pwaBanner : Config msg -> Element msg
-pwaBanner config =
-    case config.pwa.serviceWorker of
-        ServiceWorkerUpdateReady ->
-            banner config.theme
-                Icon.Refresh
-                "A new version of Hedger is ready."
-                [ Ui.primaryButton config.theme
-                    { label = "Update", onPress = config.onPwa Pwa.ApplyServiceWorkerUpdate }
-                ]
+noticeView : Theme -> Maybe (Notice msg) -> Element msg
+noticeView theme maybeNotice =
+    case maybeNotice of
+        Just notice ->
+            banner theme
+                notice.icon
+                notice.message
+                (List.map (noticeAction theme) notice.actions)
 
-        _ ->
-            case config.pwa.installation of
-                IosBrowser InstallHintVisible ->
-                    banner config.theme
-                        Icon.Info
-                        "Add Hedger to your Home Screen from Safari's Share menu."
-                        [ dismissButton config ]
+        Nothing ->
+            Element.none
 
-                InstallableBrowser InstallPromptAvailable ->
-                    banner config.theme
-                        Icon.Download
-                        "Install Hedger for quick offline access."
-                        [ Ui.primaryButton config.theme
-                            { label = "Install", onPress = config.onPwa Pwa.PromptInstall }
-                        , dismissButton config
-                        ]
 
-                _ ->
-                    Element.none
+noticeAction : Theme -> NoticeAction msg -> Element msg
+noticeAction theme action =
+    case action.style of
+        PrimaryAction ->
+            Ui.primaryButton theme
+                { label = action.label, onPress = action.onPress }
+
+        GhostAction ->
+            Ui.ghostButton theme
+                { label = action.label, onPress = action.onPress }
 
 
 banner : Theme -> Icon -> String -> List (Element msg) -> Element msg
@@ -123,12 +139,6 @@ banner theme icon message actions =
         )
 
 
-dismissButton : Config msg -> Element msg
-dismissButton config =
-    Ui.ghostButton config.theme
-        { label = "Dismiss", onPress = config.onPwa Pwa.DismissInstallPrompt }
-
-
 sidebar : Config msg -> Element msg
 sidebar config =
     Element.column
@@ -143,7 +153,7 @@ sidebar config =
         ]
         [ brand
         , Element.column [ Element.width Element.fill, Element.spacing 12 ]
-            (List.map (navItem config) navigation)
+            (List.map (navItem config) config.navigation)
         ]
 
 
@@ -172,37 +182,11 @@ brand =
         ]
 
 
-type alias Destination =
-    { label : String, icon : Icon, route : Route }
-
-
-navigation : List Destination
-navigation =
-    [ { label = "Net Worth", icon = Icon.TrendingUp, route = NetWorth }
-    , { label = "Investments", icon = Icon.ChartBar, route = Investments }
-    , { label = "Cashflow", icon = Icon.ChartPie, route = Cashflow }
-    , { label = "Accounts", icon = Icon.Wallet, route = Accounts }
-    , { label = "Transactions", icon = Icon.Receipt, route = Transactions }
-    , { label = "Settings", icon = Icon.Settings, route = Settings }
-    ]
-
-
-navItem : Config msg -> Destination -> Element msg
+navItem : Config msg -> Destination msg -> Element msg
 navItem config destination =
     let
-        active =
-            case ( config.route, destination.route ) of
-                ( Account _, Accounts ) ->
-                    True
-
-                ( AccountValue _, Accounts ) ->
-                    True
-
-                _ ->
-                    config.route == destination.route
-
         foreground =
-            if active then
+            if destination.active then
                 Element.rgb255 89 49 190
 
             else
@@ -212,7 +196,7 @@ navItem config destination =
         [ Element.width Element.fill
         , Element.paddingXY 16 12
         , Background.color
-            (if active then
+            (if destination.active then
                 Element.rgb255 255 255 255
 
              else
@@ -222,7 +206,7 @@ navItem config destination =
         , Font.color foreground
         , Element.htmlAttribute (Html.Attributes.class "ui-motion")
         ]
-        { onPress = Just (config.onNavigate destination.route)
+        { onPress = Just destination.onPress
         , label =
             Element.row [ Element.spacing 12 ]
                 [ Icon.view { icon = destination.icon, size = 18, color = foreground }
@@ -241,25 +225,14 @@ tabBar config =
         , Border.widthEach { top = 1, right = 0, bottom = 0, left = 0 }
         , Element.paddingXY 0 4
         ]
-        (List.map (tabItem config) navigation)
+        (List.map (tabItem config) config.navigation)
 
 
-tabItem : Config msg -> Destination -> Element msg
+tabItem : Config msg -> Destination msg -> Element msg
 tabItem config destination =
     let
-        active =
-            case ( config.route, destination.route ) of
-                ( Account _, Accounts ) ->
-                    True
-
-                ( AccountValue _, Accounts ) ->
-                    True
-
-                _ ->
-                    config.route == destination.route
-
         foreground =
-            if active then
+            if destination.active then
                 config.theme.primary
 
             else
@@ -269,7 +242,7 @@ tabItem config destination =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Background.color
-            (if active then
+            (if destination.active then
                 config.theme.selectedBg
 
              else
@@ -279,7 +252,7 @@ tabItem config destination =
         , Font.color foreground
         , Region.description destination.label
         ]
-        { onPress = Just (config.onNavigate destination.route)
+        { onPress = Just destination.onPress
         , label =
             Element.column
                 [ Element.centerX

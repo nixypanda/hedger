@@ -13,17 +13,19 @@ module View.Analytics exposing
     , warningList
     )
 
-import Api.Analytics
+import Data.AccountType exposing (AccountType)
+import Data.ActivityCalendar as ActivityCalendar
+import Data.Analytics
     exposing
         ( ActivityBucket
+        , ActivityDirection(..)
         , ActivityResponse
         , BreakdownItem
         , CategoryBreakdown
+        , Kpi
         , PerformancePoint
+        , TimelinePoint
         )
-import Data.AccountType exposing (AccountType)
-import Data.ActivityCalendar as ActivityCalendar
-import Data.Analytics exposing (ActivityDirection(..), Kpi, TimelinePoint)
 import Data.Calendar as Calendar
 import Data.Date as Date
 import Data.Decimal as Decimal exposing (Decimal)

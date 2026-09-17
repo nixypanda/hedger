@@ -1,6 +1,7 @@
 module Api.Bootstrap exposing (Bootstrap, decoder)
 
-import Api.Metadata as Metadata exposing (Metadata)
+import Api.Metadata as Metadata
+import Data.Metadata exposing (Metadata)
 import Json.Decode as Decode exposing (Decoder)
 
 

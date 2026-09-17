@@ -35,7 +35,7 @@ config =
 
 
 type alias Model =
-    Paginated String Page
+    Paginated ApiError String Page
 
 
 suite : Test

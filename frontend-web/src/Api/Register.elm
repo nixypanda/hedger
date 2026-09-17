@@ -1,8 +1,9 @@
 module Api.Register exposing (Entry, Response, Value, decoder)
 
-import Api.Metadata as Metadata exposing (Metadata)
+import Api.Metadata as Metadata
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date exposing (Date)
+import Data.Metadata exposing (Metadata)
 import Data.Quantity as Quantity exposing (Quantity)
 import Json.Decode as Decode exposing (Decoder)
 

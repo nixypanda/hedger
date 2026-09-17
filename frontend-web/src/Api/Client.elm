@@ -17,6 +17,7 @@ import Api.Error as ApiError exposing (ApiError)
 import Api.Investments as Investments
 import Api.Register as Register
 import Api.Transaction as Transaction exposing (Response)
+import Data.Analytics as AnalyticsData
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -61,7 +62,7 @@ getTransactions request toMsg =
 
 getNetWorth :
     Analytics.AnalyticsRequest
-    -> (Result ApiError Analytics.NetWorthResponse -> msg)
+    -> (Result ApiError AnalyticsData.NetWorthResponse -> msg)
     -> Cmd msg
 getNetWorth request toMsg =
     analyticsPost "net-worth" (Analytics.requestEncoder request) Analytics.netWorthDecoder toMsg
@@ -69,7 +70,7 @@ getNetWorth request toMsg =
 
 getCashflow :
     Analytics.AnalyticsRequest
-    -> (Result ApiError Analytics.CashflowResponse -> msg)
+    -> (Result ApiError AnalyticsData.CashflowResponse -> msg)
     -> Cmd msg
 getCashflow request toMsg =
     analyticsPost "cashflow" (Analytics.requestEncoder request) Analytics.cashflowDecoder toMsg
@@ -82,7 +83,7 @@ getInvestments request toMsg =
 
 getActivity :
     Analytics.ActivityRequest
-    -> (Result ApiError Analytics.ActivityResponse -> msg)
+    -> (Result ApiError AnalyticsData.ActivityResponse -> msg)
     -> Cmd msg
 getActivity request toMsg =
     analyticsPost

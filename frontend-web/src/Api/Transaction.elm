@@ -4,10 +4,11 @@ module Api.Transaction exposing
     , transactionDecoder
     )
 
-import Api.Metadata as Metadata exposing (Metadata)
+import Api.Metadata as Metadata
 import Data.AccountType as AccountType
 import Data.Date as Date
 import Data.Decimal as Decimal
+import Data.Metadata exposing (Metadata)
 import Data.Status as Status
 import Data.Transaction exposing (Amount, Cost, Posting, Presentation, Tag, Transaction)
 import Json.Decode as Decode exposing (Decoder)

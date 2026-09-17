@@ -1,14 +1,8 @@
-module Api.Metadata exposing (Metadata, decoder, empty)
+module Api.Metadata exposing (decoder, empty)
 
-import Data.Freshness as Freshness exposing (Freshness)
+import Data.Freshness as Freshness
+import Data.Metadata exposing (Metadata)
 import Json.Decode as Decode exposing (Decoder)
-
-
-type alias Metadata =
-    { revision : Maybe String
-    , freshness : Freshness
-    , warnings : List String
-    }
 
 
 empty : Metadata

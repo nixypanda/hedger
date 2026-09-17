@@ -4,8 +4,10 @@ module Page.Shared.Analysis exposing
     , Effect(..)
     , Model
     , Msg(..)
+    , Report
     , Side(..)
     , SideConfig
+    , Timeline(..)
     , controlsView
     , init
     , queryChanged
@@ -16,9 +18,14 @@ module Page.Shared.Analysis exposing
     , view
     )
 
-import Api.Analytics as Analytics exposing (ActivityRange(..), Report, Timeline(..))
+import Api.Analytics as AnalyticsApi
 import Api.Error exposing (ApiError)
-import Data.Analytics exposing (TimelinePoint)
+import Data.Analytics as Analytics
+    exposing
+        ( ActivityRange(..)
+        , CategoryBreakdown
+        , TimelinePoint
+        )
 import Data.Calendar as Calendar
 import Data.Granularity exposing (Granularity(..))
 import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..), Period(..))
@@ -74,6 +81,20 @@ type ActivityState
 type Mode
     = Exploring (Maybe Selection)
     | ViewingTransaction Selection Transaction
+
+
+type Timeline
+    = TimelineAvailable (List TimelinePoint)
+    | TimelineUnavailable String (List TimelinePoint)
+
+
+type alias Report =
+    { displayCommodity : String
+    , timeline : Timeline
+    , positiveBreakdown : CategoryBreakdown
+    , negativeBreakdown : CategoryBreakdown
+    , warnings : List String
+    }
 
 
 type Selection
@@ -157,8 +178,8 @@ type Msg
 
 
 type Effect
-    = FetchReport Analytics.AnalyticsRequest
-    | FetchActivity Side Analytics.ActivityRequest
+    = FetchReport AnalyticsApi.AnalyticsRequest
+    | FetchActivity Side AnalyticsApi.ActivityRequest
 
 
 update : Context -> Msg -> Model -> ( Model, List Effect )
@@ -431,7 +452,7 @@ reportLoaded context report (Model data) =
     ( Model next, activityEffects context next )
 
 
-reportRequest : String -> Model -> Analytics.AnalyticsRequest
+reportRequest : String -> Model -> AnalyticsApi.AnalyticsRequest
 reportRequest query (Model data) =
     { query = query
     , granularity = data.granularity
@@ -653,7 +674,7 @@ categoryView :
     -> SideConfig
     -> Side
     -> String
-    -> Analytics.CategoryBreakdown
+    -> CategoryBreakdown
     -> SideState
     -> Element Msg
 categoryView theme config side commodity breakdown sideState =

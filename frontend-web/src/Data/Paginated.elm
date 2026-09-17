@@ -31,31 +31,29 @@ read against `currentPage`, so it never needs threading through transitions.
 
 -}
 
-import Api.Error exposing (ApiError)
-
 
 {-| Opaque pagination value parameterised by the applied `criteria` and the
 accumulated window `page`.
 -}
-type Paginated criteria page
-    = Paginated (Internals criteria page)
+type Paginated error criteria page
+    = Paginated (Internals error criteria page)
 
 
-type alias Internals criteria page =
-    { state : State criteria page
+type alias Internals error criteria page =
+    { state : State error criteria page
     , nextToken : Int
     }
 
 
-type State criteria page
+type State error criteria page
     = Dormant
     | Loading criteria Int
-    | LoadFailed criteria ApiError
+    | LoadFailed criteria error
     | Showing criteria page
     | Refreshing criteria page Int
-    | RefreshFailed criteria page ApiError
+    | RefreshFailed criteria page error
     | LoadingMore criteria page Int String
-    | LoadMoreFailed criteria page ApiError Int String
+    | LoadMoreFailed criteria page error Int String
 
 
 {-| An in-flight request handed back to the caller so it can issue the HTTP call
@@ -106,7 +104,7 @@ type Status
     | LoadMoreFailure
 
 
-init : Paginated criteria page
+init : Paginated error criteria page
 init =
     Paginated { state = Dormant, nextToken = 0 }
 
@@ -117,7 +115,10 @@ init =
 
 {-| Start a first-page load that blanks any visible window (a new query/scope).
 -}
-beginFresh : criteria -> Paginated criteria page -> ( Paginated criteria page, Request criteria )
+beginFresh :
+    criteria
+    -> Paginated error criteria page
+    -> ( Paginated error criteria page, Request criteria )
 beginFresh newCriteria (Paginated internals) =
     let
         ( token, request ) =
@@ -131,7 +132,10 @@ beginFresh newCriteria (Paginated internals) =
 {-| Re-fetch the first page while keeping the current window visible if one
 exists (a refresh). Falls back to a blanking load when nothing is shown yet.
 -}
-beginRefresh : criteria -> Paginated criteria page -> ( Paginated criteria page, Request criteria )
+beginRefresh :
+    criteria
+    -> Paginated error criteria page
+    -> ( Paginated error criteria page, Request criteria )
 beginRefresh newCriteria (Paginated internals) =
     let
         ( token, request ) =
@@ -153,8 +157,8 @@ there is no retryable window and cursor to advance from.
 -}
 beginLoadMore :
     Config page
-    -> Paginated criteria page
-    -> Maybe ( Paginated criteria page, Request criteria )
+    -> Paginated error criteria page
+    -> Maybe ( Paginated error criteria page, Request criteria )
 beginLoadMore config (Paginated internals) =
     loadMoreTarget config internals.state
         |> Maybe.map
@@ -173,7 +177,12 @@ beginLoadMore config (Paginated internals) =
             )
 
 
-mint : Internals criteria page -> criteria -> Kind -> Maybe String -> ( Int, Request criteria )
+mint :
+    Internals error criteria page
+    -> criteria
+    -> Kind
+    -> Maybe String
+    -> ( Int, Request criteria )
 mint internals crit kind cursor =
     let
         token =
@@ -184,7 +193,7 @@ mint internals crit kind cursor =
     )
 
 
-loadMoreTarget : Config page -> State criteria page -> Maybe ( criteria, page, String )
+loadMoreTarget : Config page -> State error criteria page -> Maybe ( criteria, page, String )
 loadMoreTarget config state =
     case state of
         Showing crit page ->
@@ -211,9 +220,9 @@ clobber newer work.
 receive :
     Config page
     -> Request criteria
-    -> Result ApiError page
-    -> Paginated criteria page
-    -> Paginated criteria page
+    -> Result error page
+    -> Paginated error criteria page
+    -> Paginated error criteria page
 receive config (Request req) result (Paginated internals) =
     let
         keep =
@@ -292,12 +301,12 @@ requestCursor (Request req) =
 {-| The window currently visible to the user, retained through refreshes,
 load-more, and their failures. `Nothing` before the first page arrives.
 -}
-currentPage : Paginated criteria page -> Maybe page
+currentPage : Paginated error criteria page -> Maybe page
 currentPage (Paginated internals) =
     visiblePage internals.state
 
 
-visiblePage : State criteria page -> Maybe page
+visiblePage : State error criteria page -> Maybe page
 visiblePage state =
     case state of
         Showing _ page ->
@@ -323,7 +332,7 @@ visiblePage state =
 criteria, independent of any draft the caller is editing. `Nothing` only when
 dormant.
 -}
-appliedCriteria : Paginated criteria page -> Maybe criteria
+appliedCriteria : Paginated error criteria page -> Maybe criteria
 appliedCriteria (Paginated internals) =
     case internals.state of
         Dormant ->
@@ -351,7 +360,7 @@ appliedCriteria (Paginated internals) =
             Just crit
 
 
-status : Paginated criteria page -> Status
+status : Paginated error criteria page -> Status
 status (Paginated internals) =
     case internals.state of
         Dormant ->
@@ -382,7 +391,7 @@ status (Paginated internals) =
 {-| The error from whichever failed state is currently active — first load,
 refresh, or load-more. At most one is active at a time.
 -}
-error : Paginated criteria page -> Maybe ApiError
+error : Paginated error criteria page -> Maybe error
 error (Paginated internals) =
     case internals.state of
         LoadFailed _ err ->
@@ -400,7 +409,7 @@ error (Paginated internals) =
 
 {-| The error from the most recent failed load-more, retained for retry.
 -}
-loadMoreError : Paginated criteria page -> Maybe ApiError
+loadMoreError : Paginated error criteria page -> Maybe error
 loadMoreError (Paginated internals) =
     case internals.state of
         LoadMoreFailed _ _ err _ _ ->
@@ -413,6 +422,6 @@ loadMoreError (Paginated internals) =
 {-| Whether a load-more can be started right now (a retryable window with a
 cursor, and nothing already in flight).
 -}
-canLoadMore : Config page -> Paginated criteria page -> Bool
+canLoadMore : Config page -> Paginated error criteria page -> Bool
 canLoadMore config (Paginated internals) =
     loadMoreTarget config internals.state /= Nothing

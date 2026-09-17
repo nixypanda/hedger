@@ -4,7 +4,6 @@ module View.States exposing
     , remoteNotice
     )
 
-import Api.Error as ApiError
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
@@ -45,14 +44,19 @@ registerCompletenessBadge theme completeness =
             Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
 
 
-remoteNotice : Theme -> Freshness -> RemoteData a -> Element msg
-remoteNotice theme freshness remote =
+remoteNotice :
+    (error -> String)
+    -> Theme
+    -> Freshness
+    -> RemoteData error value
+    -> Element msg
+remoteNotice errorMessage theme freshness remote =
     case remote of
         Loading _ ->
             noticeSlot (Ui.statusBadge theme Ui.StatusPrimary "Refreshing")
 
         Failure error _ ->
-            Ui.errorBanner theme (ApiError.message error)
+            Ui.errorBanner theme (errorMessage error)
 
         _ ->
             case freshness of
