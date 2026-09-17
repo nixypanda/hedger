@@ -12,6 +12,7 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
+import Html.Attributes as Attr
 import State.Viewport exposing (Viewport)
 import Ui
 import Ui.DesignTokens as Tokens
@@ -92,6 +93,7 @@ content page =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Element.clipX
+        , Region.mainContent
         , Typography.uiClass "app-content"
         ]
         page
@@ -160,7 +162,12 @@ sidebar config =
         , Element.spacing Tokens.space12
         ]
         [ brand config.theme
-        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+        , Element.column
+            [ Element.width Element.fill
+            , Element.spacing Tokens.space12
+            , Region.navigation
+            , Element.htmlAttribute (Attr.attribute "aria-label" "Primary navigation")
+            ]
             (List.map (navItem config) config.navigation)
         ]
 
@@ -252,6 +259,8 @@ tabBar config =
             , left = Tokens.space0
             }
         , Element.paddingXY Tokens.space0 Tokens.space4
+        , Region.navigation
+        , Element.htmlAttribute (Attr.attribute "aria-label" "Primary navigation")
         ]
         (List.map (tabItem config) config.navigation)
 
