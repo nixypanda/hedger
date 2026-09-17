@@ -8,11 +8,14 @@ module Page.Shared.Analysis exposing
     , Side(..)
     , SideConfig
     , Timeline(..)
+    , activityResponse
     , controlsView
     , init
     , queryChanged
+    , reportFailed
     , reportLoaded
     , reportRequest
+    , requestReport
     , transaction
     , update
     , view
@@ -59,6 +62,8 @@ type alias ModelData =
     , negative : SideState
     , mode : Mode
     , fiscalYearStartMonth : FiscalYearStartMonth
+    , nextRequestToken : Int
+    , activeReportToken : Maybe Int
     }
 
 
@@ -74,7 +79,7 @@ type alias SideState =
 
 type ActivityState
     = ActivityNotRequested
-    | ActivityLoading (Maybe Analytics.ActivityResponse)
+    | ActivityLoading (Maybe Int) (Maybe Analytics.ActivityResponse)
     | ActivityReady Analytics.ActivityResponse
     | ActivityFailed ApiError (Maybe Analytics.ActivityResponse)
 
@@ -144,6 +149,8 @@ init =
         , negative = initialSide
         , mode = Exploring Nothing
         , fiscalYearStartMonth = FiscalYearStartMonth 4
+        , nextRequestToken = 0
+        , activeReportToken = Nothing
         }
 
 
@@ -171,7 +178,7 @@ type Msg
     | LegendToggled Side
     | LegendCategoryHighlighted Side Int
     | DonutSliceClicked Side Int
-    | ActivityLoaded Side (Result ApiError Analytics.ActivityResponse)
+    | ActivityLoaded Side Int (Result ApiError Analytics.ActivityResponse)
     | BucketSelected Side Analytics.ActivityBucket
     | YearBucketSelected Side Analytics.ActivityBucket
     | TransactionSelected Transaction
@@ -179,8 +186,8 @@ type Msg
 
 
 type Effect
-    = FetchReport AnalyticsApi.AnalyticsRequest
-    | FetchActivity Side AnalyticsApi.ActivityRequest
+    = FetchReport Int AnalyticsApi.AnalyticsRequest
+    | FetchActivity Side Int AnalyticsApi.ActivityRequest
 
 
 update : Context -> Msg -> Model -> ( Model, List Effect )
@@ -321,35 +328,45 @@ update context msg (Model data) =
             in
             ( Model (setSide side { sideState | donutHighlight = nextIndex } data), [] )
 
-        ActivityLoaded side result ->
+        ActivityLoaded side token result ->
             let
-                previous =
-                    (sideFor side data).activity
-
-                remote =
-                    case result of
-                        Ok response ->
-                            ActivityReady response
-
-                        Err error ->
-                            ActivityFailed error (activityValue previous)
-
                 sideState =
                     sideFor side data
-
-                fiscalYearStartMonth =
-                    result
-                        |> Result.toMaybe
-                        |> Maybe.andThen (Time.fiscalYearStartMonthFromInt << .fiscalYearStartMonth)
-                        |> Maybe.withDefault data.fiscalYearStartMonth
             in
-            ( Model
-                (setSide side
-                    { sideState | activity = remote }
-                    { data | fiscalYearStartMonth = fiscalYearStartMonth }
-                )
-            , []
-            )
+            case sideState.activity of
+                ActivityLoading (Just activeToken) stale ->
+                    if token /= activeToken then
+                        ( Model data, [] )
+
+                    else
+                        let
+                            remote =
+                                case result of
+                                    Ok response ->
+                                        ActivityReady response
+
+                                    Err error ->
+                                        ActivityFailed error stale
+
+                            fiscalYearStartMonth =
+                                result
+                                    |> Result.toMaybe
+                                    |> Maybe.andThen
+                                        (Time.fiscalYearStartMonthFromInt
+                                            << .fiscalYearStartMonth
+                                        )
+                                    |> Maybe.withDefault data.fiscalYearStartMonth
+                        in
+                        ( Model
+                            (setSide side
+                                { sideState | activity = remote }
+                                { data | fiscalYearStartMonth = fiscalYearStartMonth }
+                            )
+                        , []
+                        )
+
+                _ ->
+                    ( Model data, [] )
 
         BucketSelected side bucket ->
             let
@@ -416,41 +433,55 @@ queryChanged context (Model data) =
     withReport context next
 
 
-reportLoaded : Context -> Report -> Model -> ( Model, List Effect )
-reportLoaded context report (Model data) =
-    let
-        points =
-            timelinePoints report.timeline
+reportLoaded : Int -> Context -> Report -> Model -> Maybe ( Model, List Effect )
+reportLoaded token context report (Model data) =
+    if data.activeReportToken /= Just token then
+        Nothing
 
-        period =
-            syncedPeriod data.period points data.granularity
+    else
+        let
+            points =
+                timelinePoints report.timeline
 
-        pointMonth =
-            Maybe.map2
-                (calendarMonthForPeriod data.fiscalYearStartMonth data.granularity)
-                period
-                (period |> Maybe.andThen (Time.periodToString >> pointFor points))
+            period =
+                syncedPeriod data.period points data.granularity
 
-        requestedMonth =
-            if period == data.period then
-                data.calendarMonth
+            pointMonth =
+                Maybe.map2
+                    (calendarMonthForPeriod data.fiscalYearStartMonth data.granularity)
+                    period
+                    (period |> Maybe.andThen (Time.periodToString >> pointFor points))
 
-            else
-                Nothing
+            requestedMonth =
+                if period == data.period then
+                    data.calendarMonth
 
-        calendarMonth =
-            requestedMonth
-                |> orElse pointMonth
-                |> orElse (Just (Month { year = 1970, month = 1 }))
+                else
+                    Nothing
 
-        next =
-            { data
-                | timeline = points
-                , period = period
-                , calendarMonth = calendarMonth
-            }
-    in
-    ( Model next, activityEffects context next )
+            calendarMonth =
+                requestedMonth
+                    |> orElse pointMonth
+                    |> orElse (Just (Month { year = 1970, month = 1 }))
+
+            next =
+                { data
+                    | timeline = points
+                    , period = period
+                    , calendarMonth = calendarMonth
+                    , activeReportToken = Nothing
+                }
+        in
+        Just (withActivities context next)
+
+
+reportFailed : Int -> Model -> Maybe Model
+reportFailed token (Model data) =
+    if data.activeReportToken == Just token then
+        Just (Model { data | activeReportToken = Nothing })
+
+    else
+        Nothing
 
 
 reportRequest : String -> Model -> AnalyticsApi.AnalyticsRequest
@@ -467,41 +498,82 @@ reportRequest query (Model data) =
 
 withReport : Context -> ModelData -> ( Model, List Effect )
 withReport context data =
-    ( Model data, [ FetchReport (reportRequest context.query (Model data)) ] )
+    let
+        token =
+            data.nextRequestToken + 1
+
+        next =
+            { data | nextRequestToken = token, activeReportToken = Just token }
+    in
+    ( Model next, [ FetchReport token (reportRequest context.query (Model next)) ] )
+
+
+requestReport : Context -> Model -> ( Model, List Effect )
+requestReport context (Model data) =
+    withReport context data
 
 
 withReportAndActivities : Context -> ModelData -> ( Model, List Effect )
 withReportAndActivities context data =
-    ( Model data
-    , FetchReport (reportRequest context.query (Model data)) :: activityEffects context data
-    )
+    let
+        ( Model reportData, reportEffects ) =
+            withReport context data
+
+        ( Model next, activityCommands ) =
+            withActivities context reportData
+    in
+    ( Model next, reportEffects ++ activityCommands )
 
 
-activityEffects : Context -> ModelData -> List Effect
-activityEffects context data =
-    List.filterMap (\side -> activityEffect context side data) [ Positive, Negative ]
+withActivities : Context -> ModelData -> ( Model, List Effect )
+withActivities context data =
+    List.foldl (beginActivityRequest context) ( Model data, [] ) [ Positive, Negative ]
 
 
-activityEffect : Context -> Side -> ModelData -> Maybe Effect
-activityEffect context side data =
+beginActivityRequest : Context -> Side -> ( Model, List Effect ) -> ( Model, List Effect )
+beginActivityRequest context side ( Model data, effects ) =
+    case activityRequest context side data of
+        Nothing ->
+            ( Model data, effects )
+
+        Just request ->
+            let
+                token =
+                    data.nextRequestToken + 1
+
+                sideState =
+                    sideFor side data
+
+                next =
+                    setSide side
+                        { sideState
+                            | activity =
+                                ActivityLoading (Just token) (activityValue sideState.activity)
+                        }
+                        { data | nextRequestToken = token }
+            in
+            ( Model next, effects ++ [ FetchActivity side token request ] )
+
+
+activityRequest : Context -> Side -> ModelData -> Maybe AnalyticsApi.ActivityRequest
+activityRequest context side data =
     data.calendarMonth
         |> Maybe.map
             (\month ->
-                FetchActivity side
-                    { kind = (sideConfigFor side context.config).activityKind
-                    , range = activityRange data.granularity
-                    , period =
-                        if activityRange data.granularity == MonthActivity then
-                            Time.monthToString month
+                { kind = (sideConfigFor side context.config).activityKind
+                , range = activityRange data.granularity
+                , period =
+                    if activityRange data.granularity == MonthActivity then
+                        Time.monthToString month
 
-                        else
-                            Calendar.fiscalPeriodForMonth
-                                (Time.fiscalYearStartMonthValue data.fiscalYearStartMonth)
-                                (Time.monthToString month)
-                    , query = context.query
-                    , displayCommodity = Nothing
-                    , depth = Time.depthValue data.depth
-                    }
+                    else
+                        Calendar.fiscalPeriodForMonth
+                            (Time.fiscalYearStartMonthValue data.fiscalYearStartMonth)
+                            (Time.monthToString month)
+                , query = context.query
+                , displayCommodity = Nothing
+                , depth = Time.depthValue data.depth
+                }
             )
 
 
@@ -793,6 +865,11 @@ transaction (Model data) =
             Just selectedTransaction
 
 
+activityResponse : Side -> Model -> Maybe Analytics.ActivityResponse
+activityResponse side (Model data) =
+    activityValue (sideFor side data).activity
+
+
 beginSideLoading : SideState -> SideState
 beginSideLoading sideState =
     { sideState
@@ -885,7 +962,7 @@ activityValue activity =
         ActivityNotRequested ->
             Nothing
 
-        ActivityLoading stale ->
+        ActivityLoading _ stale ->
             stale
 
         ActivityReady response ->
@@ -897,7 +974,7 @@ activityValue activity =
 
 beginActivityLoading : ActivityState -> ActivityState
 beginActivityLoading activity =
-    ActivityLoading (activityValue activity)
+    ActivityLoading Nothing (activityValue activity)
 
 
 timelinePoints : Timeline -> List TimelinePoint

@@ -41,14 +41,17 @@ type alias ModelData =
 init : ( Model, Cmd Msg )
 init =
     let
+        ( analysis, effects ) =
+            Analysis.requestReport (analysisContext "") Analysis.init
+
         data =
             { response = Loading Nothing
             , draftQuery = ""
             , appliedQuery = ""
-            , analysis = Analysis.init
+            , analysis = analysis
             }
     in
-    ( Model data, fetchReport data.appliedQuery data.analysis )
+    ( Model data, performEffects effects )
 
 
 
@@ -60,7 +63,7 @@ type Msg
     | DraftChanged String
     | ApplyQuery
     | ClearQuery
-    | ResponseLoaded (Result ApiError Analytics.CashflowResponse)
+    | ResponseLoaded Int (Result ApiError Analytics.CashflowResponse)
     | AnalysisMsg Analysis.Msg
 
 
@@ -68,8 +71,18 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg (Model data) =
     case msg of
         Refresh ->
-            ( Model { data | response = RemoteData.beginLoading data.response }
-            , fetchReport data.appliedQuery data.analysis
+            let
+                ( analysis, effects ) =
+                    Analysis.requestReport
+                        (analysisContext data.appliedQuery)
+                        data.analysis
+            in
+            ( Model
+                { data
+                    | response = RemoteData.beginLoading data.response
+                    , analysis = analysis
+                }
+            , performEffects effects
             )
 
         DraftChanged draft ->
@@ -81,25 +94,42 @@ update msg (Model data) =
         ClearQuery ->
             applyQuery "" { data | draftQuery = "" }
 
-        ResponseLoaded result ->
+        ResponseLoaded token result ->
             case result of
                 Err error ->
-                    ( Model
-                        { data | response = Failure error (RemoteData.value data.response) }
-                    , Cmd.none
-                    )
+                    case Analysis.reportFailed token data.analysis of
+                        Nothing ->
+                            ( Model data, Cmd.none )
 
-                Ok response ->
-                    let
-                        context =
-                            analysisContext data.appliedQuery
+                        Just analysis ->
+                            ( Model
+                                { data
+                                    | response =
+                                        Failure error (RemoteData.value data.response)
+                                    , analysis = analysis
+                                }
+                            , Cmd.none
+                            )
 
-                        ( analysis, effects ) =
-                            Analysis.reportLoaded context (analysisReport response) data.analysis
-                    in
-                    ( Model { data | response = Success response, analysis = analysis }
-                    , performEffects effects
-                    )
+                Ok loadedResponse ->
+                    case
+                        Analysis.reportLoaded
+                            token
+                            (analysisContext data.appliedQuery)
+                            (analysisReport loadedResponse)
+                            data.analysis
+                    of
+                        Nothing ->
+                            ( Model data, Cmd.none )
+
+                        Just ( analysis, effects ) ->
+                            ( Model
+                                { data
+                                    | response = Success loadedResponse
+                                    , analysis = analysis
+                                }
+                            , performEffects effects
+                            )
 
         AnalysisMsg analysisMsg ->
             let
@@ -187,11 +217,6 @@ analysisReport response =
     }
 
 
-fetchReport : String -> Analysis.Model -> Cmd Msg
-fetchReport query analysis =
-    Api.getCashflow (Analysis.reportRequest query analysis) ResponseLoaded
-
-
 performEffects : List Analysis.Effect -> Cmd Msg
 performEffects effects =
     effects |> List.map performEffect |> Cmd.batch
@@ -200,20 +225,20 @@ performEffects effects =
 performEffect : Analysis.Effect -> Cmd Msg
 performEffect effect =
     case effect of
-        Analysis.FetchReport request ->
-            Api.getCashflow request ResponseLoaded
+        Analysis.FetchReport token request ->
+            Api.getCashflow request (ResponseLoaded token)
 
-        Analysis.FetchActivity side request ->
-            Api.getActivity request (Analysis.ActivityLoaded side >> AnalysisMsg)
+        Analysis.FetchActivity side token request ->
+            Api.getActivity request (Analysis.ActivityLoaded side token >> AnalysisMsg)
 
 
 isReportEffect : Analysis.Effect -> Bool
 isReportEffect effect =
     case effect of
-        Analysis.FetchReport _ ->
+        Analysis.FetchReport _ _ ->
             True
 
-        Analysis.FetchActivity _ _ ->
+        Analysis.FetchActivity _ _ _ ->
             False
 
 

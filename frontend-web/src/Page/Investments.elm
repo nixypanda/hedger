@@ -44,6 +44,8 @@ type Model
 
 type alias ModelData =
     { response : RemoteData ApiError Investments.Response
+    , nextRequestToken : Int
+    , activeRequestToken : Int
     , granularity : Granularity
     , chartMode : ChartMode
     , accountPrefix : Maybe String
@@ -61,18 +63,20 @@ init =
     let
         data =
             { response = Loading Nothing
+            , nextRequestToken = 1
+            , activeRequestToken = 1
             , granularity = Monthly
             , chartMode = ValueChart
             , accountPrefix = Nothing
             , selectedPeriod = Nothing
             }
     in
-    ( Model data, fetch data )
+    ( Model data, fetch data.activeRequestToken data )
 
 
 type Msg
     = Refresh
-    | ResponseLoaded (Result ApiError Investments.Response)
+    | ResponseLoaded Int (Result ApiError Investments.Response)
     | GranularitySelected Granularity
     | ChartModeSelected ChartMode
     | AccountSelected String
@@ -101,44 +105,70 @@ update msg (Model data) =
         PeriodSelected period ->
             ( Model { data | selectedPeriod = Just period }, Cmd.none )
 
-        ResponseLoaded result ->
-            case result of
-                Ok response ->
-                    ( Model
-                        { data
-                            | response = Success response
-                            , granularity = response.granularity
-                            , accountPrefix = response.accountPrefix
-                            , selectedPeriod =
-                                synchronizedPeriod data.selectedPeriod response.timeline
-                        }
-                    , Cmd.none
-                    )
+        ResponseLoaded token result ->
+            if token /= data.activeRequestToken then
+                ( Model data, Cmd.none )
 
-                Err error ->
-                    ( Model { data | response = Failure error (RemoteData.value data.response) }
-                    , Cmd.none
-                    )
+            else
+                case result of
+                    Ok loadedResponse ->
+                        ( Model
+                            { data
+                                | response = Success loadedResponse
+                                , granularity = loadedResponse.granularity
+                                , accountPrefix = loadedResponse.accountPrefix
+                                , selectedPeriod =
+                                    synchronizedPeriod
+                                        data.selectedPeriod
+                                        loadedResponse.timeline
+                            }
+                        , Cmd.none
+                        )
+
+                    Err error ->
+                        ( Model
+                            { data
+                                | response =
+                                    Failure error (RemoteData.value data.response)
+                            }
+                        , Cmd.none
+                        )
 
 
 reload : ModelData -> ( Model, Cmd Msg )
 reload data =
-    ( Model { data | response = RemoteData.beginLoading data.response }, fetch data )
+    beginRequest (RemoteData.beginLoading data.response) data
 
 
 loadScope : ModelData -> ( Model, Cmd Msg )
 loadScope data =
-    ( Model { data | response = Loading Nothing }, fetch data )
+    beginRequest (Loading Nothing) data
 
 
-fetch : ModelData -> Cmd Msg
-fetch data =
+beginRequest : RemoteData ApiError Investments.Response -> ModelData -> ( Model, Cmd Msg )
+beginRequest nextResponse data =
+    let
+        token =
+            data.nextRequestToken + 1
+
+        next =
+            { data
+                | response = nextResponse
+                , nextRequestToken = token
+                , activeRequestToken = token
+            }
+    in
+    ( Model next, fetch token next )
+
+
+fetch : Int -> ModelData -> Cmd Msg
+fetch token data =
     Api.getInvestments
         { granularity = data.granularity
         , displayCommodity = Nothing
         , accountPrefix = data.accountPrefix
         }
-        ResponseLoaded
+        (ResponseLoaded token)
 
 
 accountPrefix : Model -> Maybe String

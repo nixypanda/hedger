@@ -40,13 +40,16 @@ type alias ModelData =
 init : ( Model, Cmd Msg )
 init =
     let
+        ( analysis, effects ) =
+            Analysis.requestReport analysisContext Analysis.init
+
         data =
             { response = Loading Nothing
-            , analysis = Analysis.init
+            , analysis = analysis
             , selectedPerformance = Nothing
             }
     in
-    ( Model data, fetchReport data.analysis )
+    ( Model data, performEffects effects )
 
 
 
@@ -55,7 +58,7 @@ init =
 
 type Msg
     = Refresh
-    | ResponseLoaded (Result ApiError Analytics.NetWorthResponse)
+    | ResponseLoaded Int (Result ApiError Analytics.NetWorthResponse)
     | AnalysisMsg Analysis.Msg
     | PerformanceSelected String
 
@@ -64,29 +67,54 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg (Model data) =
     case msg of
         Refresh ->
-            ( Model { data | response = RemoteData.beginLoading data.response }
-            , fetchReport data.analysis
+            let
+                ( analysis, effects ) =
+                    Analysis.requestReport analysisContext data.analysis
+            in
+            ( Model
+                { data
+                    | response = RemoteData.beginLoading data.response
+                    , analysis = analysis
+                }
+            , performEffects effects
             )
 
-        ResponseLoaded result ->
+        ResponseLoaded token result ->
             case result of
                 Err error ->
-                    ( Model
-                        { data | response = Failure error (RemoteData.value data.response) }
-                    , Cmd.none
-                    )
+                    case Analysis.reportFailed token data.analysis of
+                        Nothing ->
+                            ( Model data, Cmd.none )
 
-                Ok response ->
-                    let
-                        ( analysis, effects ) =
-                            Analysis.reportLoaded
-                                analysisContext
-                                (analysisReport response)
-                                data.analysis
-                    in
-                    ( Model { data | response = Success response, analysis = analysis }
-                    , performEffects effects
-                    )
+                        Just analysis ->
+                            ( Model
+                                { data
+                                    | response =
+                                        Failure error (RemoteData.value data.response)
+                                    , analysis = analysis
+                                }
+                            , Cmd.none
+                            )
+
+                Ok loadedResponse ->
+                    case
+                        Analysis.reportLoaded
+                            token
+                            analysisContext
+                            (analysisReport loadedResponse)
+                            data.analysis
+                    of
+                        Nothing ->
+                            ( Model data, Cmd.none )
+
+                        Just ( analysis, effects ) ->
+                            ( Model
+                                { data
+                                    | response = Success loadedResponse
+                                    , analysis = analysis
+                                }
+                            , performEffects effects
+                            )
 
         AnalysisMsg analysisMsg ->
             let
@@ -172,11 +200,6 @@ analysisReport response =
     }
 
 
-fetchReport : Analysis.Model -> Cmd Msg
-fetchReport analysis =
-    Api.getNetWorth (Analysis.reportRequest "" analysis) ResponseLoaded
-
-
 performEffects : List Analysis.Effect -> Cmd Msg
 performEffects effects =
     effects |> List.map performEffect |> Cmd.batch
@@ -185,20 +208,20 @@ performEffects effects =
 performEffect : Analysis.Effect -> Cmd Msg
 performEffect effect =
     case effect of
-        Analysis.FetchReport request ->
-            Api.getNetWorth request ResponseLoaded
+        Analysis.FetchReport token request ->
+            Api.getNetWorth request (ResponseLoaded token)
 
-        Analysis.FetchActivity side request ->
-            Api.getActivity request (Analysis.ActivityLoaded side >> AnalysisMsg)
+        Analysis.FetchActivity side token request ->
+            Api.getActivity request (Analysis.ActivityLoaded side token >> AnalysisMsg)
 
 
 isReportEffect : Analysis.Effect -> Bool
 isReportEffect effect =
     case effect of
-        Analysis.FetchReport _ ->
+        Analysis.FetchReport _ _ ->
             True
 
-        Analysis.FetchActivity _ _ ->
+        Analysis.FetchActivity _ _ _ ->
             False
 
 
