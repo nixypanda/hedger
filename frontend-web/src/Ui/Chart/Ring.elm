@@ -48,7 +48,7 @@ view config =
                        , Attr.style "background" (gradient config)
                        , Attr.style "display" "grid"
                        , Attr.style "place-items" "center"
-                       , Attr.style "transition" "transform 0.15s ease"
+                       , Css.htmlClass "ui-chart-motion"
                        , Attr.style "transform"
                             (if config.selected then
                                 "scale(1.05)"
