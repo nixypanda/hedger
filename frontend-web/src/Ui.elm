@@ -241,7 +241,11 @@ periodNavigation :
     -> Element msg
 periodNavigation theme config =
     Element.row [ Element.spacing space4, Element.alignRight ]
-        [ compactPeriodButton theme "Previous period" "‹" config.onPrevious
+        [ iconButton theme
+            { icon = Icon.ChevronLeft
+            , title = "Previous period"
+            , onPress = config.onPrevious
+            }
         , Element.el
             [ Element.width (Element.px (periodLabelWidth config.labelKind))
             , Element.height (Element.px minimumTouchTarget)
@@ -251,27 +255,12 @@ periodNavigation theme config =
                 [ Element.centerX, Element.centerY, body, Font.medium ]
                 (Element.text config.label)
             )
-        , compactPeriodButton theme "Next period" "›" config.onNext
+        , iconButton theme
+            { icon = Icon.ChevronRight
+            , title = "Next period"
+            , onPress = config.onNext
+            }
         ]
-
-
-compactPeriodButton : Theme -> String -> String -> msg -> Element msg
-compactPeriodButton theme title label onPress =
-    Input.button
-        [ Element.width (Element.px minimumTouchTarget)
-        , Element.height (Element.px minimumTouchTarget)
-        , Background.color theme.cardBg
-        , Border.color theme.divider
-        , Border.width 1
-        , Border.rounded radiusControl
-        , Font.color theme.textPrimary
-        , Font.center
-        , Element.centerY
-        , Html.Attributes.title title |> Element.htmlAttribute
-        ]
-        { onPress = Just onPress
-        , label = Element.el [ Element.centerX, Element.centerY, Font.size 20 ] (Element.text label)
-        }
 
 
 type PeriodLabelKind
