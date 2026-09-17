@@ -583,9 +583,14 @@ compositionHeader theme layout data =
                 , Element.row [ Element.width (Element.fillPortion 2) ]
                     [ Element.el [ Element.width Element.fill ] Element.none
                     , Ui.periodNavigation theme
-                        { label =
-                            Element.el [ Font.semiBold ]
-                                (Element.text (selectedPeriodLabel data))
+                        { label = selectedPeriodLabel data
+                        , labelKind =
+                            case data.granularity of
+                                Monthly ->
+                                    Ui.MonthPeriodLabel
+
+                                Yearly ->
+                                    Ui.FiscalYearPeriodLabel
                         , onPrevious = PeriodChanged -1
                         , onNext = PeriodChanged 1
                         }

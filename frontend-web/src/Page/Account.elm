@@ -440,6 +440,7 @@ accountRow theme expanded depth (AccountNode account) =
             if Quantity.hasMultipleCommodities account.subtreeBalances then
                 Input.button
                     [ Element.width Element.fill
+                    , Ui.touchTargetHeight
                     , Element.alignRight
                     , Font.color theme.textPrimary
                     ]
@@ -456,6 +457,7 @@ accountRow theme expanded depth (AccountNode account) =
         accountAction =
             Input.button
                 [ Element.width (Element.fillPortion 3)
+                , Ui.touchTargetHeight
                 , Font.color theme.textPrimary
                 ]
                 { onPress =

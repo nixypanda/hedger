@@ -1,5 +1,6 @@
 module Ui exposing
     ( FinancialTone(..)
+    , PeriodLabelKind(..)
     , StatusTone(..)
     , accentDot
     , backButton
@@ -19,6 +20,8 @@ module Ui exposing
     , hoverBackground
     , iconButton
     , layout
+    , legendButton
+    , legendToggleButton
     , loading
     , pageContainer
     , pageHeader
@@ -32,6 +35,7 @@ module Ui exposing
     , segmentedControl
     , segmentedOption
     , statusBadge
+    , touchTargetHeight
     , truncatedText
     , wideSegmentedControl
     , wrappingStatusBadge
@@ -47,7 +51,11 @@ import Html.Attributes
 import Ui.Css as Css
 import Ui.DesignTokens
     exposing
-        ( radiusCard
+        ( compactControlVisualHeight
+        , minimumTouchTarget
+        , periodFiscalYearLabelWidth
+        , periodMonthLabelWidth
+        , radiusCard
         , radiusControl
         , radiusHairline
         , radiusPill
@@ -56,6 +64,7 @@ import Ui.DesignTokens
         , space16
         , space2
         , space20
+        , space3
         , space4
         , space8
         )
@@ -224,7 +233,8 @@ pageHeader theme config =
 periodNavigation :
     Theme
     ->
-        { label : Element msg
+        { label : String
+        , labelKind : PeriodLabelKind
         , onPrevious : msg
         , onNext : msg
         }
@@ -232,7 +242,15 @@ periodNavigation :
 periodNavigation theme config =
     Element.row [ Element.spacing space4, Element.alignRight ]
         [ compactPeriodButton theme "Previous period" "‹" config.onPrevious
-        , config.label
+        , Element.el
+            [ Element.width (Element.px (periodLabelWidth config.labelKind))
+            , Element.height (Element.px minimumTouchTarget)
+            , Element.centerY
+            ]
+            (Element.el
+                [ Element.centerX, Element.centerY, body, Font.medium ]
+                (Element.text config.label)
+            )
         , compactPeriodButton theme "Next period" "›" config.onNext
         ]
 
@@ -240,8 +258,8 @@ periodNavigation theme config =
 compactPeriodButton : Theme -> String -> String -> msg -> Element msg
 compactPeriodButton theme title label onPress =
     Input.button
-        [ Element.width (Element.px 32)
-        , Element.height (Element.px 32)
+        [ Element.width (Element.px minimumTouchTarget)
+        , Element.height (Element.px minimumTouchTarget)
         , Background.color theme.cardBg
         , Border.color theme.divider
         , Border.width 1
@@ -252,8 +270,23 @@ compactPeriodButton theme title label onPress =
         , Html.Attributes.title title |> Element.htmlAttribute
         ]
         { onPress = Just onPress
-        , label = Element.el [ Element.centerX, Element.centerY, Font.size 16 ] (Element.text label)
+        , label = Element.el [ Element.centerX, Element.centerY, Font.size 20 ] (Element.text label)
         }
+
+
+type PeriodLabelKind
+    = MonthPeriodLabel
+    | FiscalYearPeriodLabel
+
+
+periodLabelWidth : PeriodLabelKind -> Int
+periodLabelWidth labelKind =
+    case labelKind of
+        MonthPeriodLabel ->
+            periodMonthLabelWidth
+
+        FiscalYearPeriodLabel ->
+            periodFiscalYearLabelWidth
 
 
 loading : Theme -> String -> Element msg
@@ -429,25 +462,37 @@ chip :
     -> Element msg
 chip theme config =
     let
+        surface =
+            Element.el
+                (Element.width (Element.shrink |> Element.minimum minimumTouchTarget)
+                    :: chipAttrs theme config.selected
+                )
+                (Element.el [ Element.centerX ] (Element.text config.label))
+
         attrs =
             chipAttrs theme config.selected
     in
     case config.onClick of
         Just msg ->
-            Input.button attrs
+            Input.button
+                [ Element.height (Element.px minimumTouchTarget)
+                , Element.width Element.shrink
+                ]
                 { onPress = Just msg
-                , label = Element.text config.label
+                , label = surface
                 }
 
         Nothing ->
-            Element.el attrs (Element.text config.label)
+            Element.el
+                (Element.width (Element.shrink |> Element.minimum minimumTouchTarget) :: attrs)
+                (Element.el [ Element.centerX ] (Element.text config.label))
 
 
 segmentedControl : Theme -> List (Element msg) -> Element msg
 segmentedControl theme segments =
     Element.row
         [ Element.spacing space2
-        , Element.padding 3
+        , Element.padding space3
         , Border.rounded radiusSmall
         , Background.color theme.chipBg
         , Border.width 1
@@ -464,7 +509,7 @@ wideSegmentedControl theme options =
     Element.row
         [ Element.width Element.fill
         , Element.spacing space2
-        , Element.padding 3
+        , Element.padding space3
         , Border.rounded radiusSmall
         , Background.color theme.chipBg
         , Border.width 1
@@ -474,15 +519,6 @@ wideSegmentedControl theme options =
             (\config ->
                 Input.button
                     [ Element.width (Element.fillPortion 1)
-                    , Element.paddingEach { top = 8, right = 12, bottom = 8, left = 12 }
-                    , Border.rounded radiusControl
-                    , Background.color
-                        (if config.selected then
-                            theme.cardBg
-
-                         else
-                            theme.chipBg
-                        )
                     , Font.color
                         (if config.selected then
                             theme.primary
@@ -492,7 +528,7 @@ wideSegmentedControl theme options =
                         )
                     , Font.medium
                     , Font.center
-                    , caption
+                    , body
                     , uiClass "ui-motion"
                     , Element.htmlAttribute
                         (Html.Attributes.attribute
@@ -505,7 +541,9 @@ wideSegmentedControl theme options =
                             )
                         )
                     ]
-                    { onPress = Just config.onPress, label = Element.text config.label }
+                    { onPress = Just config.onPress
+                    , label = segmentedSurface theme config.selected config.label
+                    }
             )
             options
         )
@@ -517,16 +555,7 @@ segmentedOption :
     -> Element msg
 segmentedOption theme config =
     Input.button
-        [ Element.paddingEach { top = 6, right = 12, bottom = 6, left = 12 }
-        , Border.rounded radiusControl
-        , Background.color
-            (if config.selected then
-                theme.cardBg
-
-             else
-                theme.chipBg
-            )
-        , Font.color
+        [ Font.color
             (if config.selected then
                 theme.primary
 
@@ -534,7 +563,8 @@ segmentedOption theme config =
                 theme.textMedium
             )
         , Font.medium
-        , caption
+        , Font.center
+        , body
         , uiClass "ui-motion"
         , Element.htmlAttribute
             (Html.Attributes.attribute
@@ -548,8 +578,26 @@ segmentedOption theme config =
             )
         ]
         { onPress = Just config.onPress
-        , label = Element.text config.label
+        , label = segmentedSurface theme config.selected config.label
         }
+
+
+segmentedSurface : Theme -> Bool -> String -> Element msg
+segmentedSurface theme selected label =
+    Element.el
+        [ Element.width Element.fill
+        , Element.height (Element.px compactControlVisualHeight)
+        , Element.paddingXY space12 0
+        , Border.rounded radiusControl
+        , Background.color
+            (if selected then
+                theme.cardBg
+
+             else
+                theme.chipBg
+            )
+        ]
+        (Element.el [ Element.centerX, Element.centerY ] (Element.text label))
 
 
 coloredPill :
@@ -760,7 +808,7 @@ buttonBase _ config =
          , uiClass "ui-motion"
          ]
             ++ hoverBackground config.hoverBackground
-            ++ [ Element.htmlAttribute (Html.Attributes.style "min-height" "40px") ]
+            ++ [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget) ]
         )
         { onPress = config.onPress
         , label = Element.el [ Element.centerX ] config.label
@@ -782,8 +830,8 @@ iconButtonBase :
     -> Element msg
 iconButtonBase _ config =
     Input.button
-        ([ Element.width (Element.px 40)
-         , Element.height (Element.px 40)
+        ([ Element.width (Element.px minimumTouchTarget)
+         , Element.height (Element.px minimumTouchTarget)
          , Background.color config.background
          , Font.color config.foreground
          , Font.center
@@ -855,6 +903,68 @@ chipAttrs theme selected =
     , Font.medium
     , uiClass "ui-motion"
     ]
+
+
+legendButton :
+    Theme
+    ->
+        { label : Element msg
+        , accent : Element.Color
+        , selected : Bool
+        , onPress : msg
+        }
+    -> Element msg
+legendButton _ config =
+    Input.button
+        [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget) ]
+        { onPress = Just config.onPress
+        , label = legendSurface config
+        }
+
+
+legendToggleButton : Theme -> { label : Element msg, onPress : msg } -> Element msg
+legendToggleButton theme config =
+    Input.button
+        [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget)
+        , Font.color theme.textMuted
+        ]
+        { onPress = Just config.onPress
+        , label = legendToggleSurface config.label
+        }
+
+
+legendSurface :
+    { config | label : Element msg, accent : Element.Color, selected : Bool }
+    -> Element msg
+legendSurface config =
+    Element.el
+        [ Element.height (Element.px compactControlVisualHeight)
+        , Element.paddingXY space8 0
+        , Border.rounded radiusControl
+        , Border.color
+            (if config.selected then
+                config.accent
+
+             else
+                Element.rgba 0 0 0 0
+            )
+        , Border.width 1
+        ]
+        (Element.el [ Element.centerY ] config.label)
+
+
+legendToggleSurface : Element msg -> Element msg
+legendToggleSurface label =
+    Element.el
+        [ Element.height (Element.px compactControlVisualHeight)
+        , Element.paddingXY space8 0
+        ]
+        (Element.el [ Element.centerY ] label)
+
+
+touchTargetHeight : Attribute msg
+touchTargetHeight =
+    Element.height (Element.shrink |> Element.minimum minimumTouchTarget)
 
 
 hoverBackground : Element.Color -> List (Attribute msg)

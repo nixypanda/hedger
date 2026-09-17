@@ -1,5 +1,9 @@
 module Ui.DesignTokens exposing
-    ( radiusCard
+    ( compactControlVisualHeight
+    , minimumTouchTarget
+    , periodFiscalYearLabelWidth
+    , periodMonthLabelWidth
+    , radiusCard
     , radiusControl
     , radiusHairline
     , radiusPanel
@@ -11,9 +15,32 @@ module Ui.DesignTokens exposing
     , space2
     , space20
     , space24
+    , space3
     , space4
     , space8
     )
+
+
+compactControlVisualHeight : Int
+compactControlVisualHeight =
+    36
+
+
+minimumTouchTarget : Int
+minimumTouchTarget =
+    44
+
+
+periodMonthLabelWidth : Int
+periodMonthLabelWidth =
+    84
+
+
+periodFiscalYearLabelWidth : Int
+periodFiscalYearLabelWidth =
+    112
+
+
 
 -- Spacing scale
 
@@ -21,6 +48,11 @@ module Ui.DesignTokens exposing
 space2 : Int
 space2 =
     2
+
+
+space3 : Int
+space3 =
+    3
 
 
 space4 : Int

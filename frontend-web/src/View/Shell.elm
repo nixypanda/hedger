@@ -194,6 +194,7 @@ navItem config destination =
     in
     Input.button
         [ Element.width Element.fill
+        , Ui.touchTargetHeight
         , Element.paddingXY 16 12
         , Background.color
             (if destination.active then

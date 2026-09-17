@@ -961,6 +961,7 @@ investmentNavigatorPathButton : Theme -> String -> Msg -> Element Msg
 investmentNavigatorPathButton theme label onPress =
     Input.button
         ([ Element.htmlAttribute (Attr.title ("Open " ++ label))
+         , Ui.touchTargetHeight
          , Element.paddingXY 10 8
          , Border.rounded 8
          , Font.color theme.primary

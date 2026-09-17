@@ -573,6 +573,7 @@ categoryRows theme config =
                         then
                             Input.button
                                 [ Element.width Element.fill
+                                , Ui.touchTargetHeight
                                 , Element.htmlAttribute
                                     (Attr.attribute "aria-expanded"
                                         (if config.otherExpanded then
@@ -934,23 +935,10 @@ activityCategoryLegend config =
                                 else
                                     activityCategoryColor theme tone index
                         in
-                        Input.button
-                            [ Element.spacing 5
-                            , Element.paddingXY 4 2
-                            , Border.rounded 4
-                            , Background.color (Element.rgba 0 0 0 0)
-                            , Border.color
-                                (if isHighlighted then
-                                    dotColor
-
-                                 else
-                                    Element.rgba 0 0 0 0
-                                )
-                            , Border.width 1
-                            , Element.htmlAttribute
-                                (Attr.style "cursor" "pointer")
-                            ]
-                            { onPress = Just (onCategoryHighlight index)
+                        Ui.legendButton theme
+                            { accent = dotColor
+                            , selected = isHighlighted
+                            , onPress = onCategoryHighlight index
                             , label =
                                 Element.row [ Element.spacing 5 ]
                                     [ Ui.accentDot dotColor
@@ -963,10 +951,8 @@ activityCategoryLegend config =
                     visibleCategories
                 )
             , if remainingCount > 0 && not isExpanded then
-                Input.button
-                    [ Font.color theme.textMuted
-                    ]
-                    { onPress = Just onToggle
+                Ui.legendToggleButton theme
+                    { onPress = onToggle
                     , label =
                         Typography.mutedCaption
                             theme
@@ -977,10 +963,8 @@ activityCategoryLegend config =
                     }
 
               else if isExpanded && List.length categories > maxVisible then
-                Input.button
-                    [ Font.color theme.textMuted
-                    ]
-                    { onPress = Just onToggle
+                Ui.legendToggleButton theme
+                    { onPress = onToggle
                     , label = Typography.mutedCaption theme "show less"
                     }
 
@@ -1462,7 +1446,11 @@ activityTransactions theme title transactions onSelect =
                 (List.intersperse (Ui.hairline theme)
                     (List.map
                         (\transaction ->
-                            Input.button [ Element.width Element.fill, Element.paddingXY 0 10 ]
+                            Input.button
+                                [ Element.width Element.fill
+                                , Ui.touchTargetHeight
+                                , Element.paddingXY 0 10
+                                ]
                                 { onPress = Just (onSelect transaction)
                                 , label =
                                     Element.row [ Element.width Element.fill, Element.spacing 12 ]
@@ -1735,21 +1723,10 @@ activityDirectionLegend theme specs highlighted onHighlight =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing 10 ]
         (List.indexedMap
             (\index spec ->
-                Input.button
-                    [ Element.spacing 5
-                    , Element.paddingXY 4 2
-                    , Border.rounded 4
-                    , Border.width 1
-                    , Border.color
-                        (if highlighted == Just index then
-                            scaleColor spec.scale 0
-
-                         else
-                            Element.rgba 0 0 0 0
-                        )
-                    , Element.htmlAttribute (Attr.style "cursor" "pointer")
-                    ]
-                    { onPress = Just (onHighlight index)
+                Ui.legendButton theme
+                    { accent = scaleColor spec.scale 0
+                    , selected = highlighted == Just index
+                    , onPress = onHighlight index
                     , label =
                         Element.row [ Element.spacing 5 ]
                             [ Ui.accentDot (scaleColor spec.scale 0)
