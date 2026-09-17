@@ -549,7 +549,7 @@ entryRow theme compact model commodity entry =
                 ]
                 [ Ui.truncatedText entry.description
                 , Element.text entry.account
-                    |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+                    |> Element.el [ Typography.caption, Font.color theme.textMuted ]
                 ]
 
         hasDetails =
@@ -567,7 +567,7 @@ entryRow theme compact model commodity entry =
                 [ if compact then
                     Element.column [ Element.width Element.fill, Element.spacing 8 ]
                         [ Element.text (Date.toString entry.date)
-                            |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+                            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
                         , Element.row
                             [ Element.width Element.fill
                             , Element.spacing 8
@@ -628,7 +628,7 @@ labeledValue theme label valueEl =
         , Typography.minWidthZero
         ]
         [ Element.text label
-            |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
         , Element.el [ Element.width Element.fill, Typography.minWidthZero ] valueEl
         ]
 
@@ -691,7 +691,7 @@ detailPage theme onClose commodity entry =
             [ Ui.card theme
                 [ Typography.sectionTitle theme entry.description
                 , Element.text (Date.toString entry.date ++ " · " ++ entry.account)
-                    |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+                    |> Element.el [ Typography.caption, Font.color theme.textMuted ]
                 , valueDetails theme commodity "Movement" entry.amount
                 , Ui.hairline theme
                 , valueDetails theme commodity "Balance" entry.balance

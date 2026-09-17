@@ -483,7 +483,7 @@ accountRow theme expanded depth (AccountNode account) =
                                     |> Maybe.map AccountType.toString
                                     |> Maybe.withDefault "account"
                                 )
-                                |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+                                |> Element.el [ Typography.caption, Font.color theme.textMuted ]
                             ]
                         ]
                 }
@@ -552,7 +552,7 @@ balanceText theme valuation symbolCount =
             Just count ->
                 Element.el
                     [ Element.alignRight
-                    , Font.size 11
+                    , Typography.caption
                     , Font.color theme.textMuted
                     ]
                     (Element.text (String.fromInt count ++ " symbols"))
@@ -625,7 +625,7 @@ valuePanel theme (AccountNode account) =
                 |> Maybe.map AccountType.toString
                 |> Maybe.withDefault "account"
             )
-            |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
         ]
     , balanceText theme account.valuation Nothing
     , completenessBadge theme account.valuation.completeness
@@ -640,7 +640,7 @@ valuePanel theme (AccountNode account) =
          in
          "Valued as of " ++ TimeExtra.formatDate date
         )
-        |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+        |> Element.el [ Typography.caption, Font.color theme.textMuted ]
     ]
 
 

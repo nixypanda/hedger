@@ -511,7 +511,7 @@ allocationDeltaLabel color current target =
                     else
                         ""
             in
-            Element.el [ Font.color color, Font.size 12, Font.semiBold ]
+            Element.el [ Font.color color, Typography.caption, Font.semiBold ]
                 (Element.text (sign ++ Formatting.roundedString delta 2 ++ " pp"))
 
 

@@ -7,6 +7,7 @@ module Ui.Typography exposing
     , detailLabel
     , detailValue
     , financeNumber
+    , htmlCaption
     , kpiValue
     , listItemTitle
     , minWidthZero
@@ -31,6 +32,7 @@ module Ui.Typography exposing
 import Element exposing (Element)
 import Element.Font as Font
 import Element.Region as Region
+import Html exposing (Attribute)
 import Html.Attributes
 import Ui.Theme exposing (Theme)
 
@@ -42,7 +44,7 @@ body =
 
 caption : Element.Attribute msg
 caption =
-    Font.size 12
+    Font.size 13
 
 
 rowDate : Element.Attribute msg
@@ -62,7 +64,7 @@ rowAmount =
 
 rowMetadata : Element.Attribute msg
 rowMetadata =
-    Font.size 12
+    Font.size 13
 
 
 detailLabel : Element.Attribute msg
@@ -87,7 +89,12 @@ navLabel =
 
 tabLabel : Element.Attribute msg
 tabLabel =
-    Font.size 11
+    Font.size 13
+
+
+htmlCaption : Attribute msg
+htmlCaption =
+    Html.Attributes.style "font-size" "13px"
 
 
 brandLabel : Element.Attribute msg

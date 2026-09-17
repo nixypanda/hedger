@@ -825,7 +825,7 @@ dayCell config =
                         (\bucket ->
                             Element.el
                                 [ Element.centerX
-                                , Font.size 10
+                                , Typography.caption
                                 , Font.semiBold
                                 , Font.color (ringAccent theme tone bucket)
                                 , Typography.financeNumber
@@ -1039,7 +1039,7 @@ activityDayRing theme tone categories highlightedCategory selected day maybeBuck
         , label = Nothing
         , center =
             Html.div
-                [ Attr.style "font-size" "12px"
+                [ Typography.htmlCaption
                 , Attr.style "color" (Css.toCssColor theme.textPrimary)
                 ]
                 [ Html.text (String.fromInt day) ]
@@ -1094,7 +1094,7 @@ activityMonthRing theme commodity tone categories highlightedCategory selected b
                 , Attr.style "gap" "2px"
                 ]
                 (Html.div
-                    [ Attr.style "font-size" "10px"
+                    [ Typography.htmlCaption
                     , Attr.style "font-weight" "600"
                     , Attr.style "color" (Css.toCssColor theme.textMuted)
                     , Attr.style "line-height" "1"
@@ -1695,7 +1695,7 @@ directionValueText commodity ( spec, amount ) =
 ringValueText : Element.Color -> String -> Html msg
 ringValueText color content =
     Html.div
-        [ Attr.style "font-size" "10px"
+        [ Typography.htmlCaption
         , Attr.style "font-weight" "600"
         , Attr.style "color" (Css.toCssColor color)
         , Attr.style "line-height" "1.25"

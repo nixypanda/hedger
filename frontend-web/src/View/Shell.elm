@@ -261,7 +261,7 @@ tabItem config destination =
                 ]
                 [ Icon.view { icon = destination.icon, size = 18, color = foreground }
                 , Element.el
-                    [ Font.size 9
+                    [ Typography.tabLabel
                     , Font.center
                     , Element.width Element.fill
                     ]
