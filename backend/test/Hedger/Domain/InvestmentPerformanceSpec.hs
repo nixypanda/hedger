@@ -1,4 +1,6 @@
-module Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec) where
+module Hedger.Domain.InvestmentPerformanceSpec (
+    investmentsSpec,
+) where
 
 import Data.Decimal (Decimal)
 import Data.Either (isLeft, isRight)
@@ -74,14 +76,20 @@ investmentsSpec =
             "monthly FX prices provide historical cost for an uncosted foreign cash balance"
             foreignCashHistoricalCost
         , testCase
-            "mapping validation rejects overlapping performance ownership but permits no-income assets"
+            "mapping validation rejects overlapping performance ownership \
+            \but permits no-income assets"
             mappingValidation
         , testCase
-            "XIRR cash flows cancel reinvestment and transfers while retaining external income and fees"
+            "XIRR cash flows cancel reinvestment and transfers while retaining \
+            \external income and fees"
             externalCashFlows
-        , testCase "investment summary reports annualised XIRR instead of absolute return" summaryXirr
+        , testCase
+            "investment summary reports annualised XIRR instead of absolute return"
+            summaryXirr
         , testCase "an ambiguous XIRR is surfaced rather than silently swallowed" ambiguousXirr
-        , testCase "asset-class configuration is the investment portfolio allowlist" assetClassAllowlist
+        , testCase
+            "asset-class configuration is the investment portfolio allowlist"
+            assetClassAllowlist
         , testCase "settled accounts have complete empty summaries" settledAccount
         , testCase "monthly periods include months without transactions" contiguousMonthlyPeriods
         , holdingsSeriesRegressionTests
@@ -93,9 +101,10 @@ investmentsSpec =
 retainedFdInterest :: IO ()
 retainedFdInterest = do
     snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
-    mappings <- case mkInvestmentMappings [fdMapping] of
-        Left message -> assertFailure (show message) >> fail "invalid mapping"
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [fdMapping] of
+            Left message -> assertFailure (show message) >> fail "invalid mapping"
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -120,19 +129,16 @@ fdMapping =
     InvestmentMapping
         { assetAccount = "assets:investments:fd:hdfc"
         , performanceAccounts =
-            [ PerformanceAccount
-                { account = "income:investments:fd:interest"
-                , role = Interest
-                }
-            ]
+            [PerformanceAccount{account = "income:investments:fd:interest", role = Interest}]
         }
 
 descendantFdInterest :: IO ()
 descendantFdInterest = do
     snapshotResult <- loadSnapshot "test/fixtures/investment-descendant.journal"
-    mappings <- case mkInvestmentMappings [parentFdMapping] of
-        Left message -> assertFailure (show message) >> fail "invalid mapping"
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [parentFdMapping] of
+            Left message -> assertFailure (show message) >> fail "invalid mapping"
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -156,19 +162,16 @@ parentFdMapping =
     InvestmentMapping
         { assetAccount = "assets:investments:fd"
         , performanceAccounts =
-            [ PerformanceAccount
-                { account = "income:investments:fd:interest"
-                , role = Interest
-                }
-            ]
+            [PerformanceAccount{account = "income:investments:fd:interest", role = Interest}]
         }
 
 partialDisposal :: IO ()
 partialDisposal = do
     snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
-    mappings <- case mkInvestmentMappings [equityMapping] of
-        Left message -> assertFailure (show message) >> fail "invalid mapping"
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [equityMapping] of
+            Left message -> assertFailure (show message) >> fail "invalid mapping"
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -201,9 +204,10 @@ partialDisposal = do
 foreignAcquisitionCost :: IO ()
 foreignAcquisitionCost = do
     snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
-    mappings <- case mkInvestmentMappings [InvestmentMapping "assets:investments:equity" []] of
-        Left message -> assertFailure (show message) >> fail "invalid mapping"
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [InvestmentMapping "assets:investments:equity" []] of
+            Left message -> assertFailure (show message) >> fail "invalid mapping"
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -224,9 +228,10 @@ foreignAcquisitionCost = do
 foreignCashHistoricalCost :: IO ()
 foreignCashHistoricalCost = do
     snapshotResult <- loadSnapshot "test/fixtures/investment-foreign-cash.journal"
-    mappings <- case mkInvestmentMappings [InvestmentMapping "assets:cash:brokerage" []] of
-        Left message -> assertFailure (show message) >> fail "invalid mapping"
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [InvestmentMapping "assets:cash:brokerage" []] of
+            Left message -> assertFailure (show message) >> fail "invalid mapping"
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -238,7 +243,10 @@ foreignCashHistoricalCost = do
                         "INR"
                         (Just "assets:cash:brokerage")
                         (fromGregorian 2025 2 28)
-            assertEqual "market value uses the latest monthly FX price" (Just 8200) summary.marketValue
+            assertEqual
+                "market value uses the latest monthly FX price"
+                (Just 8200)
+                summary.marketValue
             assertEqual "historical cost uses acquisition-date FX" (Just 8000) summary.purchaseCost
             assertEqual "foreign cash gain" (Just 200) summary.gainLoss
             assertEqual "completeness" Complete summary.completeness
@@ -257,14 +265,17 @@ mappingValidation = do
     assertBool
         "an explicit no-income property mapping is valid"
         (isRight (mkInvestmentMappings [emptyProperty]))
-    assertBool "overlapping performance scopes are rejected" (isLeft (mkInvestmentMappings [first, second]))
+    assertBool
+        "overlapping performance scopes are rejected"
+        (isLeft (mkInvestmentMappings [first, second]))
 
 externalCashFlows :: IO ()
 externalCashFlows = do
     snapshotResult <- loadSnapshot "test/fixtures/investment-xirr.journal"
-    mappings <- case mkInvestmentMappings [xirrMapping] of
-        Left message -> assertFailure (show message) >> fail "invalid mapping"
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [xirrMapping] of
+            Left message -> assertFailure (show message) >> fail "invalid mapping"
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -288,9 +299,10 @@ externalCashFlows = do
 summaryXirr :: IO ()
 summaryXirr = do
     snapshotResult <- loadSnapshot "test/fixtures/investment-xirr.journal"
-    mappings <- case mkInvestmentMappings [xirrMapping] of
-        Left message -> assertFailure (show message) >> fail "invalid mapping"
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [xirrMapping] of
+            Left message -> assertFailure (show message) >> fail "invalid mapping"
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -307,9 +319,10 @@ summaryXirr = do
 ambiguousXirr :: IO ()
 ambiguousXirr = do
     snapshotResult <- loadSnapshot "test/fixtures/investment-ambiguous-xirr.journal"
-    mappings <- case mkInvestmentMappings [ambiguousMapping] of
-        Left message -> assertFailure (show message) >> fail "invalid mapping"
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [ambiguousMapping] of
+            Left message -> assertFailure (show message) >> fail "invalid mapping"
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -328,10 +341,7 @@ ambiguousXirr = do
 
 ambiguousMapping :: InvestmentMapping
 ambiguousMapping =
-    InvestmentMapping
-        { assetAccount = "assets:investments:ambiguous"
-        , performanceAccounts = []
-        }
+    InvestmentMapping{assetAccount = "assets:investments:ambiguous", performanceAccounts = []}
 
 assetClassAllowlist :: IO ()
 assetClassAllowlist = do
@@ -341,9 +351,10 @@ assetClassAllowlist = do
             [AssetClassMapping Equity ["assets:investments:equity:xyz"] Nothing] of
             Left message -> assertFailure (show message) >> pure emptyAssetClassMappings
             Right value -> pure value
-    mappings <- case mkInvestmentMappings [equityMapping] of
-        Left message -> assertFailure (show message) >> pure emptyInvestmentMappings
-        Right value -> pure value
+    mappings <-
+        case mkInvestmentMappings [equityMapping] of
+            Left message -> assertFailure (show message) >> pure emptyInvestmentMappings
+            Right value -> pure value
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
         Right snapshot -> do
@@ -355,7 +366,10 @@ assetClassAllowlist = do
                         "INR"
                         Nothing
                         (fromGregorian 2026 3 31)
-            assertEqual "only the configured account contributes market value" (Just 900) summary.marketValue
+            assertEqual
+                "only the configured account contributes market value"
+                (Just 900)
+                summary.marketValue
             assertEqual
                 "only the configured account contributes purchase cost"
                 (Just 600)
@@ -390,9 +404,10 @@ xirrMapping =
         }
 
 assertAnnualRate :: String -> Maybe Decimal -> Decimal -> Decimal -> IO ()
-assertAnnualRate label actual lower upper = case actual of
-    Nothing -> assertFailure (label <> " was unavailable")
-    Just value -> assertBool label (value > lower && value < upper)
+assertAnnualRate label actual lower upper =
+    case actual of
+        Nothing -> assertFailure (label <> " was unavailable")
+        Just value -> assertBool label (value > lower && value < upper)
 
 safeHead :: [value] -> Maybe value
 safeHead [] = Nothing
@@ -406,15 +421,12 @@ contiguousMonthlyPeriods =
         ( (\(key, _, _) -> key)
             <$> reportPeriods
                 Monthly
-                [ transactionOn 2025 1 15
-                , transactionOn 2025 4 2
-                ]
+                [transactionOn 2025 1 15, transactionOn 2025 4 2]
                 (fromGregorian 2025 4 20)
         )
 
 transactionOn :: Integer -> Int -> Int -> Hledger.Transaction
-transactionOn year month day =
-    nulltransaction{Hledger.tdate = fromGregorian year month day}
+transactionOn year month day = nulltransaction{Hledger.tdate = fromGregorian year month day}
 
 equityMapping :: InvestmentMapping
 equityMapping =
@@ -524,7 +536,8 @@ holdingsSeriesRegressionTests =
         , scope <- scopes
         ]
 
-assertHoldingsSeriesMatches :: Text.Text -> AssetClassMappings -> Maybe Text.Text -> Granularity -> IO ()
+assertHoldingsSeriesMatches ::
+    Text.Text -> AssetClassMappings -> Maybe Text.Text -> Granularity -> IO ()
 assertHoldingsSeriesMatches path assetClasses scope granularity = do
     snapshotResult <- loadSnapshot path
     case snapshotResult of
@@ -543,7 +556,8 @@ Shared by 'scopeScanRegressionTests' and 'summariesAtPreparedRegressionTests':
 every fixture is checked at scope = Nothing plus at least one narrower scope,
 across both granularities' 'reportPeriods' cutoff days.
 -}
-scopeScanFixtures :: [(String, Text.Text, AssetClassMappings, InvestmentMappings, [Maybe Text.Text])]
+scopeScanFixtures ::
+    [(String, Text.Text, AssetClassMappings, InvestmentMappings, [Maybe Text.Text])]
 scopeScanFixtures =
     [
         ( "investments.journal"
@@ -667,9 +681,10 @@ nestedMappings =
         ]
 
 mappingsOrEmpty :: [InvestmentMapping] -> InvestmentMappings
-mappingsOrEmpty mappings = case mkInvestmentMappings mappings of
-    Left _ -> emptyInvestmentMappings
-    Right value -> value
+mappingsOrEmpty mappings =
+    case mkInvestmentMappings mappings of
+        Left _ -> emptyInvestmentMappings
+        Right value -> value
 
 fixtureDays :: Snapshot -> AssetClassMappings -> Maybe Text.Text -> Granularity -> [Day]
 fixtureDays snapshot assetClasses scope granularity =
@@ -699,7 +714,12 @@ scopeScanRegressionTests =
         ]
 
 assertScopeScanMatches ::
-    Text.Text -> AssetClassMappings -> InvestmentMappings -> Maybe Text.Text -> Granularity -> IO ()
+    Text.Text ->
+    AssetClassMappings ->
+    InvestmentMappings ->
+    Maybe Text.Text ->
+    Granularity ->
+    IO ()
 assertScopeScanMatches path assetClasses mappings scope granularity = do
     snapshotResult <- loadSnapshot path
     case snapshotResult of
@@ -729,14 +749,7 @@ assertScopeScanMatchesDay context snapshot mappings scope day scan = do
             not (null expectedAccounts)
                 && all (hasAttributablePerformance snapshot mappings day) expectedAccounts
         expectedRetained =
-            retainedPerformanceAtWith
-                context.valueAt
-                snapshot
-                assetClasses
-                mappings
-                "INR"
-                scope
-                day
+            retainedPerformanceAtWith context.valueAt snapshot assetClasses mappings "INR" scope day
         expectedAttributed =
             attributedAtWith context.valueAt snapshot assetClasses mappings "INR" scope day
         expectedCashFlows =
@@ -773,7 +786,12 @@ summariesAtPreparedRegressionTests =
         ]
 
 assertSummariesMatch ::
-    Text.Text -> AssetClassMappings -> InvestmentMappings -> Maybe Text.Text -> Granularity -> IO ()
+    Text.Text ->
+    AssetClassMappings ->
+    InvestmentMappings ->
+    Maybe Text.Text ->
+    Granularity ->
+    IO ()
 assertSummariesMatch path assetClasses mappings scope granularity = do
     snapshotResult <- loadSnapshot path
     case snapshotResult of
@@ -808,7 +826,8 @@ assertScopeSummariesMatch path assetClasses mappings configuredScopes = do
     snapshotResult <- loadSnapshot path
     case snapshotResult of
         Left loadError -> assertFailure (show loadError)
-        Right snapshot -> assertScopeSummariesForSnapshot snapshot assetClasses mappings configuredScopes
+        Right snapshot ->
+            assertScopeSummariesForSnapshot snapshot assetClasses mappings configuredScopes
 
 assertScopeSummariesForSnapshot ::
     Snapshot -> AssetClassMappings -> InvestmentMappings -> [Maybe Text.Text] -> IO ()

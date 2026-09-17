@@ -1,4 +1,6 @@
-module Main (main) where
+module Main (
+    main,
+) where
 
 import Data.Text.IO qualified as Text
 import Hedger.Config (loadConfig)

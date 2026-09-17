@@ -1,4 +1,6 @@
-module Hedger.Domain.XirrSpec (xirrSpec) where
+module Hedger.Domain.XirrSpec (
+    xirrSpec,
+) where
 
 import Data.Decimal (Decimal, realFracToDecimal)
 import Data.Time (Day (ModifiedJulianDay), addDays)
@@ -67,33 +69,43 @@ reportsAmbiguousRoots =
         )
 
 assertRateApprox :: Double -> Either XirrError AnnualRate -> IO ()
-assertRateApprox expected result = case result of
-    Left problem -> assertBool ("unexpected error: " <> show problem) False
-    Right rate ->
-        assertBool
-            ("expected " <> show expected <> ", got " <> show (decimalDouble (annualRate rate)))
-            (abs (decimalDouble (annualRate rate) - expected) < 0.002)
+assertRateApprox expected result =
+    case result of
+        Left problem -> assertBool ("unexpected error: " <> show problem) False
+        Right rate ->
+            assertBool
+                ("expected " <> show expected <> ", got " <> show (decimalDouble (annualRate rate)))
+                (abs (decimalDouble (annualRate rate) - expected) < 0.002)
 
 positiveScalingPreservesXirr :: Property
-positiveScalingPreservesXirr = property $ do
-    flows <- forAll genCashFlows
-    scale <- forAll (Gen.integral (Range.linear 1 100) :: Gen Integer)
-    assertSameRate (xirr flows) (xirr (scaleCashFlows scale flows))
+positiveScalingPreservesXirr =
+    property $ do
+        flows <- forAll genCashFlows
+        scale <- forAll (Gen.integral (Range.linear 1 100) :: Gen Integer)
+        assertSameRate (xirr flows) (xirr (scaleCashFlows scale flows))
 
 shiftingDatesPreservesXirr :: Property
-shiftingDatesPreservesXirr = property $ do
-    flows <- forAll genCashFlows
-    offset <- forAll (Gen.integral (Range.linear 1 10000) :: Gen Integer)
-    assertSameRate (xirr flows) (xirr (shiftCashFlows offset flows))
+shiftingDatesPreservesXirr =
+    property $ do
+        flows <- forAll genCashFlows
+        offset <- forAll (Gen.integral (Range.linear 1 10000) :: Gen Integer)
+        assertSameRate (xirr flows) (xirr (shiftCashFlows offset flows))
 
 assertSameRate :: Either XirrError AnnualRate -> Either XirrError AnnualRate -> PropertyT IO ()
-assertSameRate left right = case (left, right) of
-    (Right first, Right second) ->
-        assert (abs (decimalDouble (annualRate first) - decimalDouble (annualRate second)) < 0.0000001)
-    _ -> do
-        footnote ("first result: " <> show left)
-        footnote ("second result: " <> show right)
-        failure
+assertSameRate left right =
+    case (left, right) of
+        (Right first, Right second) ->
+            assert
+                ( abs
+                    ( decimalDouble (annualRate first)
+                        - decimalDouble (annualRate second)
+                    )
+                    < 0.0000001
+                )
+        _ -> do
+            footnote ("first result: " <> show left)
+            footnote ("second result: " <> show right)
+            failure
 
 genCashFlows :: Gen [CashFlow]
 genCashFlows = do
@@ -103,7 +115,8 @@ genCashFlows = do
     contributionDay <- Gen.integral (Range.linear 1 364)
     terminalDay <- Gen.integral (Range.linear 365 3650)
     multiplier <- Gen.double (Range.linearFrac 0.6 2.0)
-    let terminal = realFracToDecimal 6 (fromIntegral (principal + contribution) * multiplier :: Double)
+    let terminal =
+            realFracToDecimal 6 (fromIntegral (principal + contribution) * multiplier :: Double)
         intermediate =
             [ cashFlow (addDays contributionDay start) (negate (fromInteger contribution))
             | contribution > 0
@@ -114,10 +127,12 @@ genCashFlows = do
         )
 
 scaleCashFlows :: Integer -> [CashFlow] -> [CashFlow]
-scaleCashFlows scale = fmap (\flow -> cashFlow (cashFlowDate flow) (fromInteger scale * cashFlowAmount flow))
+scaleCashFlows scale =
+    fmap (\flow -> cashFlow (cashFlowDate flow) (fromInteger scale * cashFlowAmount flow))
 
 shiftCashFlows :: Integer -> [CashFlow] -> [CashFlow]
-shiftCashFlows offset = fmap (\flow -> cashFlow (addDays offset (cashFlowDate flow)) (cashFlowAmount flow))
+shiftCashFlows offset =
+    fmap (\flow -> cashFlow (addDays offset (cashFlowDate flow)) (cashFlowAmount flow))
 
 decimalDouble :: Decimal -> Double
 decimalDouble = realToFrac

@@ -2,7 +2,9 @@
 several account types must reproduce, column for column, exactly what a report
 filtered to those types alone produced.
 -}
-module Hedger.Domain.PeriodReportSpec (periodReportSpec) where
+module Hedger.Domain.PeriodReportSpec (
+    periodReportSpec,
+) where
 
 import Data.Decimal (Decimal)
 import Data.Foldable (traverse_)

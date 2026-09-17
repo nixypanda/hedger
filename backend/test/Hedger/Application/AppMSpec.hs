@@ -1,4 +1,6 @@
-module Hedger.Application.AppMSpec (appMSpec) where
+module Hedger.Application.AppMSpec (
+    appMSpec,
+) where
 
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad.IO.Class (liftIO)

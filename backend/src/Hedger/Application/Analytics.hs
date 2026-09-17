@@ -69,7 +69,6 @@ import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (ConversionWarning (..))
 
 -- * Requests (unresolved boundary inputs) and UI read-models
-
 data AnalyticsRequest = AnalyticsRequest
     { query :: Maybe Text
     , granularity :: Granularity
@@ -163,7 +162,6 @@ data ActivityReport = ActivityReport
     }
 
 -- * Use cases: resolve inputs, call the domain, project figures into read-models.
-
 netWorth :: AnalyticsRequest -> AppM NetWorthReport
 netWorth request = do
     snapshotContext <- requireSnapshot
@@ -190,11 +188,15 @@ netWorth request = do
             , granularity = request.granularity
             , netWorthKpi = useCurrent (kpiFor selectedKey (.net) points) figures.currentNetWorth
             , assetsKpi = useCurrent (kpiFor selectedKey (.positive) points) figures.currentAssets
-            , liabilitiesKpi = useCurrent (kpiFor selectedKey (.negative) points) figures.currentLiabilities
+            , liabilitiesKpi =
+                useCurrent (kpiFor selectedKey (.negative) points) figures.currentLiabilities
             , timeline = points
-            , assetsBreakdown = categoryBreakdown figures.assetsBreakdownPeriod figures.assetsBreakdownItems
+            , assetsBreakdown =
+                categoryBreakdown figures.assetsBreakdownPeriod figures.assetsBreakdownItems
             , liabilitiesBreakdown =
-                categoryBreakdown figures.liabilitiesBreakdownPeriod figures.liabilitiesBreakdownItems
+                categoryBreakdown
+                    figures.liabilitiesBreakdownPeriod
+                    figures.liabilitiesBreakdownItems
             , performance = figures.performance
             , incompletePeriods = figures.incompletePeriods
             , warnings = conversionWarnings figures.missing
@@ -242,11 +244,12 @@ activity request = do
     fiscalStart <- asks (.config.fiscalYearStartMonth)
     let snapshot = snapshotContext.snapshot
         responseMetadata = metadataFor snapshotContext
-    filtered <- case request.kind of
-        IncomeActivity -> parseTransactions snapshot request.query
-        ExpenseActivity -> parseTransactions snapshot request.query
-        AssetActivity -> pure snapshot.transactions
-        LiabilityActivity -> pure snapshot.transactions
+    filtered <-
+        case request.kind of
+            IncomeActivity -> parseTransactions snapshot request.query
+            ExpenseActivity -> parseTransactions snapshot request.query
+            AssetActivity -> pure snapshot.transactions
+            LiabilityActivity -> pure snapshot.transactions
     activityPeriod <-
         either throwError pure (parseActivityPeriod fiscalStart request.range request.period)
     let figures =
@@ -272,7 +275,6 @@ activity request = do
             }
 
 -- * Input resolution
-
 resolvedCommodity :: Maybe Text -> AppM Text
 resolvedCommodity requested = do
     configured <- asks (.config.defaultDisplayCommodity)
@@ -291,7 +293,6 @@ parseTransactions snapshot requested = do
     pure (filter (HledgerQuery.matchesTransaction parsed) snapshot.transactions)
 
 -- * Read-model shaping (presentation, not calculation)
-
 kpiFor :: Maybe Text -> (TimelinePoint -> Decimal) -> [TimelinePoint] -> Kpi
 kpiFor selectedKey select points =
     let selectedIndex =
@@ -305,7 +306,12 @@ kpiFor selectedKey select points =
         percentage = previous >>= (percentageFrom currentValue . select)
         trendStart = max 0 (selectedIndex - 11)
         trendValues = fmap select (take (selectedIndex - trendStart + 1) (drop trendStart points))
-     in Kpi{value = currentValue, absoluteChange = change, percentageChange = percentage, trend = trendValues}
+     in Kpi
+            { value = currentValue
+            , absoluteChange = change
+            , percentageChange = percentage
+            , trend = trendValues
+            }
 
 useCurrent :: Kpi -> Maybe Decimal -> Kpi
 useCurrent fallback current =
@@ -338,7 +344,12 @@ zeroTimeline =
 categoryBreakdown :: Text -> [BreakdownItem] -> CategoryBreakdown
 categoryBreakdown period items =
     let (grouped, otherItems) = groupOther items
-     in CategoryBreakdown{period, total = sum (fmap (.quantity) grouped), items = grouped, otherItems}
+     in CategoryBreakdown
+            { period
+            , total = sum (fmap (.quantity) grouped)
+            , items = grouped
+            , otherItems
+            }
 
 groupOther :: [BreakdownItem] -> ([BreakdownItem], [BreakdownItem])
 groupOther items =
@@ -346,7 +357,13 @@ groupOther items =
         total = sum (fmap (.quantity) sorted)
         visible item = total > 0 && item.quantity / total >= 0.01
         candidates = filter visible sorted
-        named = take (if length candidates > 10 then 9 else 10) candidates
+        named =
+            take
+                ( if length candidates > 10
+                    then 9
+                    else 10
+                )
+                candidates
         namedAccounts = Set.fromList (fmap (.account) named)
         others = [item | item <- sorted, not (Set.member item.account namedAccounts)]
         other = sum (fmap (.quantity) others)

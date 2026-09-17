@@ -19,8 +19,7 @@ module Hedger.Interface.HTTP.Core.Common (
     parseDay,
     parseCanonicalAccountPath,
     validateDateRange,
-)
-where
+) where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (FromJSON, ToJSON)
@@ -72,14 +71,16 @@ parseLimit :: Maybe Text -> Either AppError Int
 parseLimit Nothing = Right defaultPageLimit
 parseLimit (Just raw) =
     case readMaybe (Text.unpack raw) of
-        Just value | value >= 1 && value <= maximumPageLimit -> Right value
+        Just value
+            | value >= 1 && value <= maximumPageLimit -> Right value
         _ -> Left (InvalidLimit defaultPageLimit maximumPageLimit)
 
 parseDay :: Maybe Text -> Either AppError (Maybe Day)
 parseDay Nothing = Right Nothing
 parseDay (Just raw) =
     case parseTimeM True defaultTimeLocale "%F" (Text.unpack raw) of
-        Just day | Text.pack (show day) == raw -> Right (Just day)
+        Just day
+            | Text.pack (show day) == raw -> Right (Just day)
         _ -> Left InvalidDate
 
 parseCanonicalAccountPath :: Text -> Either AppError Text
@@ -111,34 +112,35 @@ data CommodityQuantity = CommodityQuantity
 
 commodityQuantities :: Hledger.MixedAmount -> [CommodityQuantity]
 commodityQuantities =
-    fmap toCommodityQuantity
-        . HledgerAmount.amountsRaw
-        . HledgerAmount.mixedAmountStripCosts
+    fmap toCommodityQuantity . HledgerAmount.amountsRaw . HledgerAmount.mixedAmountStripCosts
 
 decimalText :: Decimal -> Text
 decimalText = Text.pack . show
 
 parseGranularity :: Text -> Either AppError Granularity
-parseGranularity value = case Text.toLower value of
-    "monthly" -> Right Monthly
-    "yearly" -> Right Yearly
-    _ -> Left (InvalidRequest "Granularity must be monthly or yearly.")
+parseGranularity value =
+    case Text.toLower value of
+        "monthly" -> Right Monthly
+        "yearly" -> Right Yearly
+        _ -> Left (InvalidRequest "Granularity must be monthly or yearly.")
 
 granularityText :: Granularity -> Text
 granularityText Monthly = "monthly"
 granularityText Yearly = "yearly"
 
 valuationCompletenessText :: Account.ValuationCompleteness -> Text
-valuationCompletenessText status = case status of
-    Account.Complete -> "complete"
-    Account.Partial -> "partial"
-    Account.Unavailable -> "unavailable"
+valuationCompletenessText status =
+    case status of
+        Account.Complete -> "complete"
+        Account.Partial -> "partial"
+        Account.Unavailable -> "unavailable"
 
 investmentCompletenessText :: Performance.InvestmentCompleteness -> Text
-investmentCompletenessText status = case status of
-    Performance.Complete -> "complete"
-    Performance.Partial -> "partial"
-    Performance.Unavailable -> "unavailable"
+investmentCompletenessText status =
+    case status of
+        Performance.Complete -> "complete"
+        Performance.Partial -> "partial"
+        Performance.Unavailable -> "unavailable"
 
 projectedCompletenessText :: Text -> Hledger.MixedAmount -> Text
 projectedCompletenessText displayCommodity valuedAmount
@@ -150,10 +152,7 @@ projectedCompletenessText displayCommodity valuedAmount
 
 toCommodityQuantity :: Hledger.Amount -> CommodityQuantity
 toCommodityQuantity amount =
-    CommodityQuantity
-        { commodity = amount.acommodity
-        , quantity = Text.pack (show amount.aquantity)
-        }
+    CommodityQuantity{commodity = amount.acommodity, quantity = Text.pack (show amount.aquantity)}
 
 toResponseMetadata :: SnapshotMetadata -> ResponseMetadata
 toResponseMetadata value =
@@ -164,12 +163,13 @@ toResponseMetadata value =
         }
 
 accountTypeText :: Hledger.AccountType -> Text
-accountTypeText accountType = case accountType of
-    Hledger.Asset -> "asset"
-    Hledger.Liability -> "liability"
-    Hledger.Equity -> "equity"
-    Hledger.Revenue -> "income"
-    Hledger.Expense -> "expense"
-    Hledger.Cash -> "cash"
-    Hledger.Conversion -> "conversion"
-    Hledger.Gain -> "gain"
+accountTypeText accountType =
+    case accountType of
+        Hledger.Asset -> "asset"
+        Hledger.Liability -> "liability"
+        Hledger.Equity -> "equity"
+        Hledger.Revenue -> "income"
+        Hledger.Expense -> "expense"
+        Hledger.Cash -> "cash"
+        Hledger.Conversion -> "conversion"
+        Hledger.Gain -> "gain"

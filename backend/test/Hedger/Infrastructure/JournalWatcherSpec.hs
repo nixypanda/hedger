@@ -1,4 +1,6 @@
-module Hedger.Infrastructure.JournalWatcherSpec (journalWatcherSpec) where
+module Hedger.Infrastructure.JournalWatcherSpec (
+    journalWatcherSpec,
+) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (AsyncException (ThreadKilled), SomeException, bracket, throwIO, try)
@@ -141,8 +143,7 @@ waitForRevisionChange store before = go (200 :: Int)
             else threadDelay 50_000 >> go (remaining - 1)
 
 withJournalDir :: String -> (FilePath -> IO a) -> IO a
-withJournalDir label action =
-    bracket acquire Directory.removeDirectoryRecursive action
+withJournalDir label action = bracket acquire Directory.removeDirectoryRecursive action
   where
     acquire = do
         base <- Directory.getTemporaryDirectory
@@ -163,10 +164,7 @@ openingBalance =
 secondTransaction :: String
 secondTransaction =
     unlines
-        [ "2024-02-01 groceries"
-        , "    expenses:food       20 INR"
-        , "    assets:cash        -20 INR"
-        ]
+        ["2024-02-01 groceries", "    expenses:food       20 INR", "    assets:cash        -20 INR"]
 
 thirdTransaction :: String
 thirdTransaction =

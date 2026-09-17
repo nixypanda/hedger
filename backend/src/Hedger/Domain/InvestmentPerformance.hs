@@ -24,7 +24,6 @@ module Hedger.Domain.InvestmentPerformance (
     childrenOf,
     reportPeriods,
     externalCashFlowsAt,
-)
-where
+) where
 
 import Hedger.Domain.Internal.InvestmentPerformance

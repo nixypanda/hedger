@@ -12,8 +12,7 @@ module Hedger.Domain.Activity (
     ActivityFigures (..),
     computeActivity,
     parseActivityPeriod,
-)
-where
+) where
 
 import Data.Decimal (Decimal)
 import Data.Map.Strict qualified as Map
@@ -56,7 +55,9 @@ data ActivityDirection
     | Decrease
     deriving stock (Eq, Ord, Show, Enum, Bounded)
 
-data ActivityRange = MonthActivity | FiscalYearActivity
+data ActivityRange
+    = MonthActivity
+    | FiscalYearActivity
     deriving stock (Eq, Show)
 
 data Movement = Movement
@@ -127,10 +128,11 @@ toBucketFigures depth activityRange (key, contributions) =
         }
   where
     movements = concatMap (.categories) contributions
-    startDate = case activityRange of
-        MonthActivity -> fromMaybe epoch (readMaybe (Text.unpack key))
-        FiscalYearActivity ->
-            maybe epoch (\(year, month) -> fromGregorian year month 1) (parseYearMonth key)
+    startDate =
+        case activityRange of
+            MonthActivity -> fromMaybe epoch (readMaybe (Text.unpack key))
+            FiscalYearActivity ->
+                maybe epoch (\(year, month) -> fromGregorian year month 1) (parseYearMonth key)
     itemsFrom ms =
         [ BreakdownItem{account, quantity = abs quantity}
         | (account, quantity) <-
@@ -176,35 +178,37 @@ data ActivityContribution = ActivityContribution
     }
 
 directionFor :: Transaction.TransactionClassification -> Maybe ActivityDirection
-directionFor classification = case classification of
-    Transaction.AssetAcquisition -> Just Increase
-    Transaction.Borrowing -> Just Increase
-    Transaction.AssetReallocation -> Just Reallocate
-    Transaction.AssetDisposal -> Just Decrease
-    Transaction.Repayment -> Just Decrease
-    _ -> Nothing
+directionFor classification =
+    case classification of
+        Transaction.AssetAcquisition -> Just Increase
+        Transaction.Borrowing -> Just Increase
+        Transaction.AssetReallocation -> Just Reallocate
+        Transaction.AssetDisposal -> Just Decrease
+        Transaction.Repayment -> Just Decrease
+        _ -> Nothing
 
 activityContribution ::
-    Snapshot ->
-    Text ->
-    ActivityKind ->
-    Hledger.Transaction ->
-    Conversion ActivityContribution
+    Snapshot -> Text -> ActivityKind -> Hledger.Transaction -> Conversion ActivityContribution
 activityContribution snapshot commodity activityKind transaction =
     case activityKind of
-        IncomeActivity ->
-            flowActivity snapshot commodity "income" negate transaction
-        ExpenseActivity ->
-            flowActivity snapshot commodity "expenses" id transaction
-        AssetActivity -> case classification of
-            Transaction.AssetAcquisition -> assetActivity snapshot commodity classification transaction
-            Transaction.AssetDisposal -> assetActivity snapshot commodity classification transaction
-            Transaction.AssetReallocation -> assetActivity snapshot commodity classification transaction
-            _ -> completeNothing
-        LiabilityActivity -> case classification of
-            Transaction.Borrowing -> liabilityActivity snapshot commodity classification transaction
-            Transaction.Repayment -> liabilityActivity snapshot commodity classification transaction
-            _ -> completeNothing
+        IncomeActivity -> flowActivity snapshot commodity "income" negate transaction
+        ExpenseActivity -> flowActivity snapshot commodity "expenses" id transaction
+        AssetActivity ->
+            case classification of
+                Transaction.AssetAcquisition ->
+                    assetActivity snapshot commodity classification transaction
+                Transaction.AssetDisposal ->
+                    assetActivity snapshot commodity classification transaction
+                Transaction.AssetReallocation ->
+                    assetActivity snapshot commodity classification transaction
+                _ -> completeNothing
+        LiabilityActivity ->
+            case classification of
+                Transaction.Borrowing ->
+                    liabilityActivity snapshot commodity classification transaction
+                Transaction.Repayment ->
+                    liabilityActivity snapshot commodity classification transaction
+                _ -> completeNothing
   where
     classification = Transaction.classificationFor transaction
 
@@ -235,7 +239,10 @@ flowActivity snapshot commodity category change transaction =
                             , transaction
                             }
      in Conversion
-            { value = if Set.null movementsResult.missing then contribution else Nothing
+            { value =
+                if Set.null movementsResult.missing
+                    then contribution
+                    else Nothing
             , missing = movementsResult.missing
             }
 
@@ -258,14 +265,16 @@ assetActivity snapshot commodity classification transaction =
         cash posting =
             Account.isCashOnly (Account.accountInfo posting.paccount)
                 || inferredCashName posting.paccount
-        totalWhere predicate = sum [abs amount | (posting, amount) <- postings, predicate posting amount]
+        totalWhere predicate =
+            sum [abs amount | (posting, amount) <- postings, predicate posting amount]
         otherIn = totalWhere (\posting amount -> not (cash posting) && amount > 0)
         otherOut = totalWhere (\posting amount -> not (cash posting) && amount < 0)
-        (acquired, disposed, realloc) = case classification of
-            Transaction.AssetAcquisition -> (otherIn, 0, 0)
-            Transaction.AssetDisposal -> (0, otherOut, 0)
-            Transaction.AssetReallocation -> (0, 0, min otherIn otherOut)
-            _ -> (0, 0, 0)
+        (acquired, disposed, realloc) =
+            case classification of
+                Transaction.AssetAcquisition -> (otherIn, 0, 0)
+                Transaction.AssetDisposal -> (0, otherOut, 0)
+                Transaction.AssetReallocation -> (0, 0, min otherIn otherOut)
+                _ -> (0, 0, 0)
         categoryValues =
             [ Movement transaction.tdate posting.paccount (abs amount)
             | (posting, amount) <- postings
@@ -340,11 +349,7 @@ inferredCashName account =
 
 absoluteMovement :: Movement -> Movement
 absoluteMovement movement =
-    Movement
-        { date = movement.date
-        , account = movement.account
-        , quantity = abs movement.quantity
-        }
+    Movement{date = movement.date, account = movement.account, quantity = abs movement.quantity}
 
 activityBucketKey :: ActivityRange -> Day -> Text
 activityBucketKey MonthActivity = dayKey

@@ -1,4 +1,6 @@
-module Hedger.Interface.HTTP.Endpoints.EventsSpec (httpEventsSpec) where
+module Hedger.Interface.HTTP.Endpoints.EventsSpec (
+    httpEventsSpec,
+) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (bracket)
@@ -16,7 +18,10 @@ import Test.Tasty.HUnit (assertBool, assertFailure, testCase)
 import Hedger.Application.AppM (Env (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore (..), reloadSnapshot)
-import Hedger.Interface.HTTP.Endpoints.Events (HeartbeatInterval (..), eventsApplicationWithHeartbeat)
+import Hedger.Interface.HTTP.Endpoints.Events (
+    HeartbeatInterval (..),
+    eventsApplicationWithHeartbeat,
+ )
 import Hedger.TestHelpers (configuration, loadedStore)
 
 httpEventsSpec :: TestTree
@@ -24,14 +29,19 @@ httpEventsSpec =
     testGroup
         "HTTP events"
         [ testCase "sends a heartbeat while the stream is idle" sendsIdleHeartbeat
-        , testCase "accepts a revision subscriber after an idle client disconnects" reconnectsAfterDisconnect
+        , testCase
+            "accepts a revision subscriber after an idle client disconnects"
+            reconnectsAfterDisconnect
         ]
 
 sendsIdleHeartbeat :: IO ()
-sendsIdleHeartbeat = withEventsServer $ \port ->
-    withClient port $ \client -> do
-        response <- receiveContaining "heartbeat" client
-        assertBool "heartbeat should be an SSE comment" (":heartbeat" `ByteString.isInfixOf` response)
+sendsIdleHeartbeat =
+    withEventsServer $ \port ->
+        withClient port $ \client -> do
+            response <- receiveContaining "heartbeat" client
+            assertBool
+                "heartbeat should be an SSE comment"
+                (":heartbeat" `ByteString.isInfixOf` response)
 
 reconnectsAfterDisconnect :: IO ()
 reconnectsAfterDisconnect = do
@@ -71,7 +81,9 @@ withClient port = bracket (connectClient port) Socket.close
 connectClient :: Int -> IO Socket
 connectClient port = do
     client <- Socket.socket AF_INET Stream Socket.defaultProtocol
-    Socket.connect client (SockAddrInet (fromIntegral port) (Socket.tupleToHostAddress (127, 0, 0, 1)))
+    Socket.connect
+        client
+        (SockAddrInet (fromIntegral port) (Socket.tupleToHostAddress (127, 0, 0, 1)))
     SocketByteString.sendAll client eventRequest
     pure client
 

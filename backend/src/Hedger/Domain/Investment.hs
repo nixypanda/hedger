@@ -18,8 +18,7 @@ module Hedger.Domain.Investment (
     mappingForAccount,
     mappedAssetAccounts,
     accountWithin,
-)
-where
+) where
 
 import Data.Decimal (Decimal)
 import Data.List qualified as List
@@ -45,10 +44,12 @@ data AssetClassMapping = AssetClassMapping
     }
     deriving stock (Eq, Show)
 
-newtype AssetClassMappings = AssetClassMappings [AssetClassMapping]
+newtype AssetClassMappings
+    = AssetClassMappings [AssetClassMapping]
     deriving stock (Eq, Show)
 
-newtype InvestmentMappings = InvestmentMappings [InvestmentMapping]
+newtype InvestmentMappings
+    = InvestmentMappings [InvestmentMapping]
     deriving stock (Eq, Show)
 
 data InvestmentMapping = InvestmentMapping
@@ -87,13 +88,12 @@ mkAssetClassMappings mappings
         Left "Asset class target percentages must be between 0 and 100."
     | not (null targeted) && sum targeted /= 100 =
         Left "Configured asset class target percentages must total 100."
-    | otherwise = case overlappingPrefixes of
-        first : _ -> Left ("Asset class account-prefix scopes overlap: " <> first)
-        [] -> Right (AssetClassMappings mappings)
+    | otherwise =
+        case overlappingPrefixes of
+            first : _ -> Left ("Asset class account-prefix scopes overlap: " <> first)
+            [] -> Right (AssetClassMappings mappings)
   where
-    invalidPrefix prefix =
-        not (fullyQualified prefix)
-            || not ("assets" `accountWithin` prefix)
+    invalidPrefix prefix = not (fullyQualified prefix) || not ("assets" `accountWithin` prefix)
     fullyQualified = (>= 2) . length . HledgerAccountName.accountNameComponents
     prefixes = concatMap (.accountPrefixes) mappings
     targeted = [target | mapping <- mappings, Just target <- [mapping.targetPercentage]]
@@ -120,9 +120,7 @@ assetClassForAccount account (AssetClassMappings mappings) =
 
 isAssetClassAccount :: Text -> AssetClassMappings -> Bool
 isAssetClassAccount account (AssetClassMappings mappings) =
-    any
-        (\prefix -> prefix `accountWithin` account)
-        (concatMap (.accountPrefixes) mappings)
+    any (\prefix -> prefix `accountWithin` account) (concatMap (.accountPrefixes) mappings)
 
 assetClassScopeOverlaps :: Text -> AssetClassMappings -> Bool
 assetClassScopeOverlaps account (AssetClassMappings mappings) =
@@ -136,9 +134,14 @@ mkInvestmentMappings mappings
         Left "Investment mappings require fully qualified asset and performance account names."
     | length assetAccounts /= length (List.nub assetAccounts) =
         Left "Each asset account may have only one investment mapping."
-    | otherwise = case ambiguousPerformanceAccounts of
-        first : _ -> Left ("Performance account scopes overlap and have ambiguous ownership: " <> first)
-        [] -> Right (InvestmentMappings mappings)
+    | otherwise =
+        case ambiguousPerformanceAccounts of
+            first : _ ->
+                Left
+                    ( "Performance account scopes overlap and have ambiguous ownership: "
+                        <> first
+                    )
+            [] -> Right (InvestmentMappings mappings)
   where
     invalidMapping mapping =
         not (fullyQualified mapping.assetAccount)
@@ -173,7 +176,9 @@ mappingsForScope scope (InvestmentMappings mappings) =
 
 mappingForAccount :: Text -> InvestmentMappings -> Maybe InvestmentMapping
 mappingForAccount asset (InvestmentMappings mappings) =
-    maximumByMay compareDepth (filter (\mapping -> mapping.assetAccount `accountWithin` asset) mappings)
+    maximumByMay
+        compareDepth
+        (filter (\mapping -> mapping.assetAccount `accountWithin` asset) mappings)
   where
     compareDepth left right = compare (depth left.assetAccount) (depth right.assetAccount)
     depth = length . HledgerAccountName.accountNameComponents
@@ -188,6 +193,7 @@ maximumByMay :: (value -> value -> Ordering) -> [value] -> Maybe value
 maximumByMay _ [] = Nothing
 maximumByMay compareValues (first : rest) = Just (List.foldl' choose first rest)
   where
-    choose left right = case compareValues left right of
-        GT -> left
-        _ -> right
+    choose left right =
+        case compareValues left right of
+            GT -> left
+            _ -> right

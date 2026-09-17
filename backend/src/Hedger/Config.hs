@@ -2,8 +2,7 @@ module Hedger.Config (
     Config (..),
     loadConfig,
     parseConfig,
-)
-where
+) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (IOException, displayException, try)
@@ -21,7 +20,6 @@ import Options.Applicative qualified as Options
 import Hedger.Domain.Investment qualified as Investment
 
 -- * Resolved configuration
-
 data Config = Config
     { journalPath :: Text
     , listenAddress :: Text
@@ -34,7 +32,6 @@ data Config = Config
     deriving stock (Eq, Show)
 
 -- * Boundary configuration types
-
 data FileConfig = FileConfig
     { version :: Int
     , journal :: Maybe JournalFileConfig
@@ -97,7 +94,6 @@ data CliOptions = CliOptions
     }
 
 -- * Public entry points
-
 loadConfig :: IO (Either Text Config)
 loadConfig = do
     cli <- Options.execParser parserInfo
@@ -105,15 +101,16 @@ loadConfig = do
         Nothing -> pure (resolveConfig emptyFileConfig cli)
         Just configPath -> do
             loaded <- readConfigurationFile (Text.unpack configPath)
-            pure $ case loaded of
-                Left problem ->
-                    Left
-                        ( "Could not read configuration file "
-                            <> configPath
-                            <> ": "
-                            <> Text.pack (displayException problem)
-                        )
-                Right contents -> decodeFileConfig contents >>= (`resolveConfig` cli)
+            pure $
+                case loaded of
+                    Left problem ->
+                        Left
+                            ( "Could not read configuration file "
+                                <> configPath
+                                <> ": "
+                                <> Text.pack (displayException problem)
+                            )
+                    Right contents -> decodeFileConfig contents >>= (`resolveConfig` cli)
 
 parseConfig :: Maybe ByteString -> [Text] -> Either Text Config
 parseConfig document arguments = do
@@ -122,7 +119,6 @@ parseConfig document arguments = do
     resolveConfig fileConfig cli
 
 -- * Configuration file parsing
-
 readConfigurationFile :: FilePath -> IO (Either IOException ByteString)
 readConfigurationFile = try . ByteString.readFile
 
@@ -145,20 +141,17 @@ emptyFileConfig =
         }
 
 -- * Configuration resolution
-
 resolveConfig :: FileConfig -> CliOptions -> Either Text Config
 resolveConfig fileConfig cli = do
     mappings <- investmentMappingsFrom fileConfig.investments
     assetClasses <- assetClassMappingsFrom fileConfig.investments
     validate
         Config
-            { journalPath =
-                (cli.cliJournalPath <|> ((.path) <$> fileConfig.journal)) `orDefault` ""
+            { journalPath = (cli.cliJournalPath <|> ((.path) <$> fileConfig.journal)) `orDefault` ""
             , listenAddress =
                 (cli.cliListenAddress <|> (fileConfig.server >>= (.listenAddress)))
                     `orDefault` "127.0.0.1"
-            , listenPort =
-                (cli.cliListenPort <|> (fileConfig.server >>= (.port))) `orDefault` 8080
+            , listenPort = (cli.cliListenPort <|> (fileConfig.server >>= (.port))) `orDefault` 8080
             , defaultDisplayCommodity =
                 (cli.cliDisplayCommodity <|> (fileConfig.display >>= (.commodity)))
                     `orDefault` "INR"
@@ -187,10 +180,7 @@ investmentMappingFrom configured =
         Investment.InvestmentMapping
             { assetAccount = configured.assetAccount
             , performanceAccounts =
-                [ Investment.PerformanceAccount
-                    { account
-                    , role = Investment.OtherIncome
-                    }
+                [ Investment.PerformanceAccount{account, role = Investment.OtherIncome}
                 | account <- configured.gainAccounts
                 ]
             }
@@ -206,15 +196,16 @@ assetClassMappingFrom configured = do
             }
 
 assetClassFrom :: Text -> Either Text Investment.AssetClass
-assetClassFrom kind = case kind of
-    "equity" -> Right Investment.Equity
-    "debt" -> Right Investment.Debt
-    "cash" -> Right Investment.Cash
-    "gold" -> Right Investment.Gold
-    "hybrid" -> Right Investment.Hybrid
-    "property" -> Right Investment.Property
-    "other" -> Right Investment.Other
-    _ -> Left ("Unsupported asset class kind: " <> kind)
+assetClassFrom kind =
+    case kind of
+        "equity" -> Right Investment.Equity
+        "debt" -> Right Investment.Debt
+        "cash" -> Right Investment.Cash
+        "gold" -> Right Investment.Gold
+        "hybrid" -> Right Investment.Hybrid
+        "property" -> Right Investment.Property
+        "other" -> Right Investment.Other
+        _ -> Left ("Unsupported asset class kind: " <> kind)
 
 validate :: Config -> Either Text Config
 validate config = do
@@ -243,12 +234,12 @@ orDefault :: Maybe value -> value -> value
 orDefault configured fallback = maybe fallback id configured
 
 -- * Command-line parsing
-
 parseArguments :: [Text] -> Either Text CliOptions
 parseArguments arguments =
     case Options.execParserPure Options.defaultPrefs parserInfo (Text.unpack <$> arguments) of
         Options.Success options -> Right options
-        Options.Failure failure -> Left . Text.pack . fst $ Options.renderFailure failure "hedger-server"
+        Options.Failure failure ->
+            Left . Text.pack . fst $ Options.renderFailure failure "hedger-server"
         Options.CompletionInvoked _ ->
             Left "Shell completion is not available through the pure configuration parser."
 

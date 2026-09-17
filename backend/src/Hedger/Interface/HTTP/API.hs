@@ -2,8 +2,7 @@ module Hedger.Interface.HTTP.API (
     API,
     apiProxy,
     application,
-)
-where
+) where
 
 import Data.Text (Text)
 import Servant

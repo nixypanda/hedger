@@ -1,4 +1,7 @@
-module Hedger.Interface.HTTP.Endpoints.Investments (InvestmentsAPI, investmentsServer) where
+module Hedger.Interface.HTTP.Endpoints.Investments (
+    InvestmentsAPI,
+    investmentsServer,
+) where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
@@ -23,7 +26,6 @@ import Hedger.Interface.HTTP.Core.Common (
  )
 
 -- DTO declaration
-
 data InvestmentsRequestDto = InvestmentsRequestDto
     { granularity :: Text
     , displayCommodity :: Maybe Text
@@ -111,9 +113,13 @@ data InvestmentsResponse = InvestmentsResponse
     deriving anyclass (ToJSON)
 
 -- API and server
-
 type InvestmentsAPI =
-    "investments" :> "query" :> ReqBody '[JSON] InvestmentsRequestDto :> Post '[JSON] InvestmentsResponse
+    "investments"
+        :> "query"
+        :> ReqBody '[JSON] InvestmentsRequestDto
+        :> Post
+            '[JSON]
+            InvestmentsResponse
 
 investmentsServer :: Env -> Maybe Text -> Server InvestmentsAPI
 investmentsServer env requestId request =
@@ -122,7 +128,6 @@ investmentsServer env requestId request =
         Right parsed -> runAction env requestId (toResponse <$> Investments.investments parsed)
 
 -- Mapper: domain <-> DTO
-
 toRequest :: InvestmentsRequestDto -> Either AppError Investments.InvestmentsRequest
 toRequest request = do
     granularity <- parseGranularity request.granularity
@@ -201,14 +206,15 @@ toAssetClassAllocation value =
         }
 
 assetClassText :: Investment.AssetClass -> Text
-assetClassText assetClass = case assetClass of
-    Investment.Equity -> "equity"
-    Investment.Debt -> "debt"
-    Investment.Cash -> "cash"
-    Investment.Gold -> "gold"
-    Investment.Hybrid -> "hybrid"
-    Investment.Property -> "property"
-    Investment.Other -> "other"
+assetClassText assetClass =
+    case assetClass of
+        Investment.Equity -> "equity"
+        Investment.Debt -> "debt"
+        Investment.Cash -> "cash"
+        Investment.Gold -> "gold"
+        Investment.Hybrid -> "hybrid"
+        Investment.Property -> "property"
+        Investment.Other -> "other"
 
 toWarning :: Performance.InvestmentWarning -> InvestmentWarningDto
 toWarning (Performance.InvestmentWarning kind account) =
@@ -216,20 +222,26 @@ toWarning (Performance.InvestmentWarning kind account) =
      in InvestmentWarningDto{kind = kindText, account = account, message = message}
 
 renderWarning :: Performance.WarningKind -> (Text, Text)
-renderWarning kind = case kind of
-    Performance.MissingPrice commodity symbol ->
-        ("missing-price", "No " <> commodity <> " price for " <> symbol <> ".")
-    Performance.MissingCost symbol ->
-        ("missing-cost", "No complete acquisition cost for " <> symbol <> ".")
-    Performance.MissingPerformanceMapping ->
-        ( "missing-performance-mapping"
-        , "Income and realised gains are unavailable because an investment account mapping is missing."
-        )
-    Performance.ForeignCost commodity symbol ->
-        ( "foreign-cost"
-        , "Acquisition cost in " <> symbol <> " cannot be reported as historical " <> commodity <> " cost."
-        )
-    Performance.UnresolvedReturn ->
-        ( "unresolved-return"
-        , "The internal rate of return could not be resolved (no unique or convergent rate)."
-        )
+renderWarning kind =
+    case kind of
+        Performance.MissingPrice commodity symbol ->
+            ("missing-price", "No " <> commodity <> " price for " <> symbol <> ".")
+        Performance.MissingCost symbol ->
+            ("missing-cost", "No complete acquisition cost for " <> symbol <> ".")
+        Performance.MissingPerformanceMapping ->
+            ( "missing-performance-mapping"
+            , "Income and realised gains are unavailable because an investment account"
+                <> " mapping is missing."
+            )
+        Performance.ForeignCost commodity symbol ->
+            ( "foreign-cost"
+            , "Acquisition cost in "
+                <> symbol
+                <> " cannot be reported as historical "
+                <> commodity
+                <> " cost."
+            )
+        Performance.UnresolvedReturn ->
+            ( "unresolved-return"
+            , "The internal rate of return could not be resolved (no unique or convergent rate)."
+            )

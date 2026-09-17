@@ -1,4 +1,7 @@
-module Hedger.Interface.HTTP.Endpoints.Analytics (AnalyticsAPI, analyticsServer) where
+module Hedger.Interface.HTTP.Endpoints.Analytics (
+    AnalyticsAPI,
+    analyticsServer,
+) where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Set qualified as Set
@@ -25,7 +28,6 @@ import Hedger.Interface.HTTP.Core.Common (
 import Hedger.Interface.HTTP.Endpoints.Transactions (TransactionDto, toTransactionDto)
 
 -- DTO declaration
-
 data AnalyticsRequestDto = AnalyticsRequestDto
     { query :: Maybe Text
     , granularity :: Text
@@ -164,17 +166,23 @@ data ActivityResponse = ActivityResponse
     deriving anyclass (ToJSON)
 
 -- API and server
-
 type AnalyticsAPI =
     "net-worth" :> "query" :> ReqBody '[JSON] AnalyticsRequestDto :> Post '[JSON] NetWorthResponse
-        :<|> "cashflow" :> "query" :> ReqBody '[JSON] AnalyticsRequestDto :> Post '[JSON] CashflowResponse
-        :<|> "activity" :> "query" :> ReqBody '[JSON] ActivityRequestDto :> Post '[JSON] ActivityResponse
+        :<|> "cashflow"
+            :> "query"
+            :> ReqBody
+                '[JSON]
+                AnalyticsRequestDto
+            :> Post '[JSON] CashflowResponse
+        :<|> "activity"
+            :> "query"
+            :> ReqBody
+                '[JSON]
+                ActivityRequestDto
+            :> Post '[JSON] ActivityResponse
 
 analyticsServer :: Env -> Maybe Text -> Server AnalyticsAPI
-analyticsServer env requestId =
-    handleNetWorth
-        :<|> handleCashflow
-        :<|> handleActivity
+analyticsServer env requestId = handleNetWorth :<|> handleCashflow :<|> handleActivity
   where
     handleNetWorth request =
         case toAnalyticsRequest request of
@@ -190,7 +198,6 @@ analyticsServer env requestId =
             Right parsed -> runAction env requestId (toActivity <$> Analytics.activity parsed)
 
 -- Mapper: domain <-> DTO
-
 toAnalyticsRequest :: AnalyticsRequestDto -> Either AppError Analytics.AnalyticsRequest
 toAnalyticsRequest request = do
     granularity <- parseGranularity request.granularity
@@ -223,18 +230,20 @@ toActivityRequest request = do
             }
 
 parseActivityKind :: Text -> Either AppError Analytics.ActivityKind
-parseActivityKind value = case Text.toLower value of
-    "income" -> Right Analytics.IncomeActivity
-    "expense" -> Right Analytics.ExpenseActivity
-    "asset" -> Right Analytics.AssetActivity
-    "liability" -> Right Analytics.LiabilityActivity
-    _ -> Left (InvalidRequest "Activity kind must be income, expense, asset, or liability.")
+parseActivityKind value =
+    case Text.toLower value of
+        "income" -> Right Analytics.IncomeActivity
+        "expense" -> Right Analytics.ExpenseActivity
+        "asset" -> Right Analytics.AssetActivity
+        "liability" -> Right Analytics.LiabilityActivity
+        _ -> Left (InvalidRequest "Activity kind must be income, expense, asset, or liability.")
 
 parseActivityRange :: Text -> Either AppError Analytics.ActivityRange
-parseActivityRange value = case Text.toLower value of
-    "month" -> Right Analytics.MonthActivity
-    "year" -> Right Analytics.FiscalYearActivity
-    _ -> Left (InvalidRequest "Activity range must be month or year.")
+parseActivityRange value =
+    case Text.toLower value of
+        "month" -> Right Analytics.MonthActivity
+        "year" -> Right Analytics.FiscalYearActivity
+        _ -> Left (InvalidRequest "Activity range must be month or year.")
 
 parseDepth :: Maybe Int -> Either AppError Int
 parseDepth Nothing = Right 2
@@ -304,7 +313,10 @@ toTimeline value =
         , positive = decimalText value.positive
         , negative = decimalText value.negative
         , net = decimalText value.net
-        , completeness = if Set.null value.missing then "complete" else "partial"
+        , completeness =
+            if Set.null value.missing
+                then "complete"
+                else "partial"
         , missingCommodities = Set.toAscList value.missing
         }
 
@@ -349,7 +361,8 @@ toActivityBucket classify value =
         , transactions = fmap (toTransactionDto classify) value.transactions
         }
 
-toDirectionBreakdown :: AccountTypeClassifier -> Analytics.DirectionBreakdown -> DirectionBreakdownDto
+toDirectionBreakdown ::
+    AccountTypeClassifier -> Analytics.DirectionBreakdown -> DirectionBreakdownDto
 toDirectionBreakdown classify value =
     DirectionBreakdownDto
         { direction = directionText value.direction
@@ -357,23 +370,27 @@ toDirectionBreakdown classify value =
         }
 
 directionText :: Analytics.ActivityDirection -> Text
-directionText direction = case direction of
-    Analytics.Increase -> "increase"
-    Analytics.Reallocate -> "reallocate"
-    Analytics.Decrease -> "decrease"
+directionText direction =
+    case direction of
+        Analytics.Increase -> "increase"
+        Analytics.Reallocate -> "reallocate"
+        Analytics.Decrease -> "decrease"
 
 activityKindText :: Analytics.ActivityKind -> Text
-activityKindText kind = case kind of
-    Analytics.IncomeActivity -> "income"
-    Analytics.ExpenseActivity -> "expense"
-    Analytics.AssetActivity -> "asset"
-    Analytics.LiabilityActivity -> "liability"
+activityKindText kind =
+    case kind of
+        Analytics.IncomeActivity -> "income"
+        Analytics.ExpenseActivity -> "expense"
+        Analytics.AssetActivity -> "asset"
+        Analytics.LiabilityActivity -> "liability"
 
 activityRangeText :: Analytics.ActivityRange -> Text
-activityRangeText range = case range of
-    Analytics.MonthActivity -> "month"
-    Analytics.FiscalYearActivity -> "year"
+activityRangeText range =
+    case range of
+        Analytics.MonthActivity -> "month"
+        Analytics.FiscalYearActivity -> "year"
 
 renderWarning :: Analytics.ConversionWarning -> Text
 renderWarning (Analytics.MissingConversion missing) =
-    "Missing dated conversion to the display commodity for: " <> Text.intercalate ", " (Set.toAscList missing)
+    "Missing dated conversion to the display commodity for: "
+        <> Text.intercalate ", " (Set.toAscList missing)

@@ -1,4 +1,6 @@
-module Hedger.Application.EventsSpec (eventsSpec) where
+module Hedger.Application.EventsSpec (
+    eventsSpec,
+) where
 
 import Data.Maybe (isJust)
 import System.Timeout (timeout)
@@ -8,11 +10,7 @@ import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 import Hedger.Application.AppM (Env (..))
 import Hedger.Application.Events (awaitNextRevision, subscribeToRevisions)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.SnapshotStore (
-    SnapshotStore (..),
-    newSnapshotStore,
-    reloadSnapshot,
- )
+import Hedger.Infrastructure.SnapshotStore (SnapshotStore (..), newSnapshotStore, reloadSnapshot)
 import Hedger.TestHelpers (configuration)
 
 eventsSpec :: TestTree
@@ -32,9 +30,10 @@ emitsNextRevision = do
                 , journalPath = "test/fixtures/investments.journal"
                 }
     reloadResult <- reloadSnapshot altStore
-    expectedRevision <- case reloadResult of
-        Left _ -> fail "replacement snapshot load failed"
-        Right snapshot -> pure snapshot.revision
+    expectedRevision <-
+        case reloadResult of
+            Left _ -> fail "replacement snapshot load failed"
+            Right snapshot -> pure snapshot.revision
     revision <- timeout 1000000 (awaitNextRevision subscription)
     assertBool "subscription should not remain blocked" (isJust revision)
     assertEqual "" (Just expectedRevision) revision

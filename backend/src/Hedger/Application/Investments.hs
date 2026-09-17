@@ -6,8 +6,7 @@ module Hedger.Application.Investments (
     AssetClassAllocation (..),
     InvestmentsReport (..),
     investments,
-)
-where
+) where
 
 import Control.Applicative ((<|>))
 import Control.Monad.Except (throwError)
@@ -121,24 +120,21 @@ investments request = do
         periodDays = List.nub [end | (_, _, end) <- periods]
         periodSummaries =
             Map.fromList
-                (zip periodDays (summariesAtPrepared performance scope request.granularity periodDays))
-        -- The selected scope is dropped when the timeline already covers the latest date,
-        -- so `current` reuses that result instead of recomputing it on the singular path.
+                ( zip
+                    periodDays
+                    (summariesAtPrepared performance scope request.granularity periodDays)
+                )
         summaryScopes =
             List.nub
                 ( [scope | Map.notMember latest periodSummaries]
                     <> [Just child | child <- childAccounts]
-                    <> [ allocationScope
-                       | scope == Nothing
-                       , allocationScope <- allocationScopes
-                       ]
+                    <> [allocationScope | scope == Nothing, allocationScope <- allocationScopes]
                 )
-        summaries =
-            Map.fromList
-                (summariesAtScopesPrepared performance latest summaryScopes)
+        summaries = Map.fromList (summariesAtScopesPrepared performance latest summaryScopes)
         summaryFor selectedScope = Map.lookup selectedScope summaries
-        periodSummaryAt day =
-            Map.lookup day periodSummaries
+        periodSummaryAt day = Map.lookup day periodSummaries
+    -- The selected scope is dropped when the timeline already covers the latest date,
+    -- so `current` reuses that result instead of recomputing it on the singular path.
     current <-
         maybe
             (throwError InternalError)
@@ -174,8 +170,7 @@ investments request = do
                     { account = child
                     , label = accountLabel child
                     , summary = childSummary
-                    , hasChildren =
-                        not (null (childrenOf (Just child) investmentAccounts))
+                    , hasChildren = not (null (childrenOf (Just child) investmentAccounts))
                     , assetClass = Investment.assetClassForAccount child config.assetClassMappings
                     , allocationPercentage =
                         allocationPercentage currentSummary.marketValue childSummary.marketValue
@@ -199,8 +194,7 @@ assetClassAllocations ::
     Maybe Decimal ->
     Investment.AssetClassMappings ->
     [AssetClassAllocation]
-assetClassAllocations summaryFor total mappings =
-    fmap allocationFor configuredClasses
+assetClassAllocations summaryFor total mappings = fmap allocationFor configuredClasses
   where
     configured = Investment.assetClassMappingsList mappings
     configuredClasses = List.nub (fmap (.assetClass) configured)
@@ -250,4 +244,6 @@ allocationPercentage :: Maybe Decimal -> Maybe Decimal -> Maybe Decimal
 allocationPercentage parentValue childValue = do
     total <- parentValue
     value <- childValue
-    if abs total < 0.000001 then Nothing else Just (value / total * 100)
+    if abs total < 0.000001
+        then Nothing
+        else Just (value / total * 100)

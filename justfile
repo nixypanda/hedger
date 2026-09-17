@@ -52,7 +52,7 @@ check-backend-format:
     fourmolu --mode check backend/app backend/benchmark backend/src backend/test
 
 check-backend-line-length:
-    if rg '.{111,}' -g '*.hs' backend/app backend/benchmark backend/src backend/test; then exit 1; else test "$?" -eq 1; fi
+    if rg '.{101,}' -g '*.hs' backend/app backend/benchmark backend/src backend/test; then exit 1; else test "$?" -eq 1; fi
 
 check-journal:
     hledger -f {{fixture}} check
@@ -115,7 +115,7 @@ check-frontend-format:
     elm-format frontend-web/src frontend-web/tests --validate
 
 check-frontend-line-length:
-    if rg '.{111,}' -g '*.elm' frontend-web/src -g '!**/Main.elm' frontend-web/tests -g '!**/TransactionsTest.elm'; then exit 1; else test "$?" -eq 1; fi
+    if rg '.{101,}' -g '*.elm' frontend-web/src -g '!**/Main.elm' frontend-web/tests -g '!**/TransactionsTest.elm'; then exit 1; else test "$?" -eq 1; fi
 
 # Run the frontend development server.
 [working-directory("frontend-web")]

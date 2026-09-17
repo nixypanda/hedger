@@ -64,11 +64,7 @@ genPosting :: Gen Hledger.Posting
 genPosting = do
     account <- genText (Range.linear 1 30)
     amount <- Gen.integral (Range.linear (-1000000) 1000000)
-    pure
-        nullposting
-            { Hledger.paccount = account
-            , Hledger.pamount = mixed [num (fromInteger amount)]
-            }
+    pure nullposting{Hledger.paccount = account, Hledger.pamount = mixed [num (fromInteger amount)]}
 
 genTransactions :: Range.Range Int -> Gen [Hledger.Transaction]
 genTransactions range = Gen.list range genTransaction
@@ -108,7 +104,6 @@ genMixedAmount :: Gen Hledger.MixedAmount
 genMixedAmount = mixed <$> Gen.list (Range.linear 0 6) genAmount
 
 -- Calendar
-
 genYear :: Gen Integer
 genYear = Gen.integral (Range.linear 1 9999)
 
@@ -125,10 +120,12 @@ genDay = fromGregorian <$> genYear <*> genMonth <*> genDayOfMonth
 formatYearMonth :: Integer -> Int -> Text
 formatYearMonth year month = Text.pack (show year <> "-" <> pad2 month)
   where
-    pad2 value = if value < 10 then "0" <> show value else show value
+    pad2 value =
+        if value < 10
+            then "0" <> show value
+            else show value
 
 -- Accounts
-
 genAccountComponent :: Gen Text
 genAccountComponent = Text.pack <$> Gen.list (Range.linear 1 8) Gen.alphaNum
 
@@ -139,7 +136,6 @@ genQualifiedAccountName topSegment = do
     pure (Text.intercalate ":" (topSegment : subs))
 
 -- Investment mappings
-
 genPerformanceRole :: Gen PerformanceRole
 genPerformanceRole = Gen.element [Interest, Dividend, RealisedGain, Fee, OtherIncome]
 
@@ -162,7 +158,8 @@ genInvestmentMapping = do
         pure PerformanceAccount{account, role}
 
 {- | A set of investment mappings whose asset accounts are pairwise non-nested and whose
-performance-account scopes are pairwise non-overlapping, so 'Hedger.Domain.Investment.mkInvestmentMappings'
+performance-account scopes are pairwise non-overlapping, so
+'Hedger.Domain.Investment.mkInvestmentMappings'
 accepts it.
 -}
 genDisjointMappingSet :: Gen [InvestmentMapping]
@@ -174,7 +171,9 @@ genDisjointMappingSet = do
     let performanceChunks = chunksByCounts counts performanceAccounts
     pure
         ( zipWith
-            (\leaf chunk -> InvestmentMapping{assetAccount = "assets:" <> leaf, performanceAccounts = chunk})
+            ( \leaf chunk ->
+                InvestmentMapping{assetAccount = "assets:" <> leaf, performanceAccounts = chunk}
+            )
             assetLeaves
             performanceChunks
         )
@@ -186,7 +185,8 @@ genDistinctPerformanceAccounts total = do
     roles <- Gen.list (Range.singleton total) genPerformanceRole
     pure (zipWith3 toPerformanceAccount segments leaves roles)
   where
-    toPerformanceAccount segment leaf role = PerformanceAccount{account = segment <> ":" <> leaf, role}
+    toPerformanceAccount segment leaf role =
+        PerformanceAccount{account = segment <> ":" <> leaf, role}
 
 chunksByCounts :: [Int] -> [value] -> [[value]]
 chunksByCounts [] _ = []

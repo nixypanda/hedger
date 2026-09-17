@@ -6,8 +6,7 @@ module Hedger.Domain.Internal.Cashflow (
     incomeExpensePeriodicReport,
     incomeGainPeriodicReport,
     expensePeriodicReport,
-)
-where
+) where
 
 import Data.Text (Text)
 

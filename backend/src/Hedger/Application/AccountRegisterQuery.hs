@@ -3,8 +3,7 @@ module Hedger.Application.AccountRegisterQuery (
     RegisterEntry (..),
     RegisterPage (..),
     registerPage,
-)
-where
+) where
 
 import Data.Text (Text)
 import Data.Time (Day, addDays, fromGregorian)
@@ -100,10 +99,7 @@ dateQuery :: Maybe Day -> Maybe Day -> HledgerQuery.Query
 dateQuery Nothing Nothing = HledgerQuery.Any
 dateQuery start end =
     HledgerQuery.Date
-        ( Hledger.DateSpan
-            (Hledger.Exact <$> start)
-            (Hledger.Exact . addDays 1 <$> end)
-        )
+        (Hledger.DateSpan (Hledger.Exact <$> start) (Hledger.Exact . addDays 1 <$> end))
 
 pairReports ::
     HledgerQuery.Query ->

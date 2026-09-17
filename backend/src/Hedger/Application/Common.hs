@@ -3,8 +3,7 @@ module Hedger.Application.Common (
     metadataFor,
     AccountTypeClassifier,
     accountTypeClassifier,
-)
-where
+) where
 
 import Data.Text (Text)
 

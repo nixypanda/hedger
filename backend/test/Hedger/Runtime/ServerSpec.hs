@@ -1,4 +1,6 @@
-module Hedger.Runtime.ServerSpec (serverSpec) where
+module Hedger.Runtime.ServerSpec (
+    serverSpec,
+) where
 
 import Data.ByteString.Lazy qualified as LazyByteString
 import Network.HTTP.Types qualified as HTTP
@@ -20,8 +22,12 @@ serverSpec =
 injectsRequestId :: IO ()
 injectsRequestId = do
     let echoApp waiRequest respond =
-            respond (Wai.responseLBS HTTP.status200 [] (LazyByteString.fromStrict waiRequest.rawQueryString))
-        requestValue = setPath defaultRequest "/v1/example?query=acct%3Asecret&limit=1"
+            respond
+                ( Wai.responseLBS HTTP.status200 [] $
+                    LazyByteString.fromStrict waiRequest.rawQueryString
+                )
+        requestValue =
+            setPath defaultRequest "/v1/example?query=acct%3Asecret&limit=1"
     response <- runSession (request requestValue) (requestContextMiddleware echoApp)
     assertEqual
         "response should carry a generated request ID"
@@ -31,7 +37,10 @@ injectsRequestId = do
 preservesSuppliedRequestId :: IO ()
 preservesSuppliedRequestId = do
     let echoApp waiRequest respond =
-            respond (Wai.responseLBS HTTP.status200 [] (LazyByteString.fromStrict waiRequest.rawQueryString))
+            respond
+                ( Wai.responseLBS HTTP.status200 [] $
+                    LazyByteString.fromStrict waiRequest.rawQueryString
+                )
         requestValue =
             (setPath defaultRequest "/v1/example")
                 { Wai.requestHeaders = [(requestId, "my-custom-id")]

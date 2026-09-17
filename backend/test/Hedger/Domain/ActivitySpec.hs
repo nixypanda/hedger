@@ -1,4 +1,6 @@
-module Hedger.Domain.ActivitySpec (activitySpec) where
+module Hedger.Domain.ActivitySpec (
+    activitySpec,
+) where
 
 import Data.Decimal (Decimal)
 import Data.Either (isLeft)
@@ -37,7 +39,9 @@ activitySpec =
         "activity"
         [ testGroup
             "parseActivityPeriod MonthActivity"
-            [ testProperty "a canonical YYYY-MM is the corresponding calendar month" monthActivityValid
+            [ testProperty
+                "a canonical YYYY-MM is the corresponding calendar month"
+                monthActivityValid
             , testProperty "a malformed YYYY-MM is rejected" monthActivityMalformed
             ]
         , testGroup
@@ -53,7 +57,9 @@ activitySpec =
             ]
         , testGroup
             "computeActivity flow breakdown"
-            [ testCase "expense activity includes purchases funded by liabilities" liabilityFundedExpense
+            [ testCase
+                "expense activity includes purchases funded by liabilities"
+                liabilityFundedExpense
             , testCase "income activity includes gains from asset disposals" disposalGainIncome
             ]
         ]
@@ -72,9 +78,7 @@ liabilityDirections :: Assertion
 liabilityDirections =
     assertEqual
         "liability directions"
-        [ (Increase, [("liabilities:card", 200)])
-        , (Decrease, [("liabilities:card", 200)])
-        ]
+        [(Increase, [("liabilities:card", 200)]), (Decrease, [("liabilities:card", 200)])]
         (directionBreakdown LiabilityActivity liabilityTransactions)
 
 liabilityFundedExpense :: Assertion
@@ -102,8 +106,7 @@ posting account amount =
         }
 
 transactionOn :: [Hledger.Posting] -> Hledger.Transaction
-transactionOn postings =
-    nulltransaction{Hledger.tdate = activityDay, Hledger.tpostings = postings}
+transactionOn postings = nulltransaction{Hledger.tdate = activityDay, Hledger.tpostings = postings}
 
 assetTransactions :: [Hledger.Transaction]
 assetTransactions =
@@ -134,7 +137,12 @@ disposalGainTransactions =
 activityBreakdown :: ActivityKind -> [Hledger.Transaction] -> [(Decimal, [(Text, Decimal)])]
 activityBreakdown kind transactions =
     case activityFigures kind transactions of
-        bucket : _ -> [(bucket.total, [(item.account, item.quantity) | item <- bucket.categoryItems])]
+        bucket : _ ->
+            [
+                ( bucket.total
+                , [(item.account, item.quantity) | item <- bucket.categoryItems]
+                )
+            ]
         [] -> []
 
 directionBreakdown ::
@@ -160,30 +168,29 @@ activityFigures kind transactions =
             ).buckets
 
 summariseDirection :: (ActivityDirection, [BreakdownItem]) -> (ActivityDirection, [(Text, Decimal)])
-summariseDirection (direction, items) =
-    (direction, [(item.account, item.quantity) | item <- items])
+summariseDirection (direction, items) = (direction, [(item.account, item.quantity) | item <- items])
 
 genFiscalStart :: Gen Int
 genFiscalStart = Gen.integral (Range.linear 1 12)
 
 monthActivityValid :: Property
-monthActivityValid = property $ do
-    year <- forAll genYear
-    month <- forAll genMonth
-    fiscalStart <- forAll genFiscalStart
-    let raw = formatYearMonth year month
-        expectedStart = fromGregorian year month 1
-    case parseActivityPeriod fiscalStart MonthActivity raw of
-        Left err -> footnote (show err) >> failure
-        Right period -> do
-            period.start === expectedStart
-            assert (period.start <= period.end)
-            period.key === monthKey period.start
-            addDays 1 period.end === addGregorianMonthsClip 1 expectedStart
+monthActivityValid =
+    property $ do
+        year <- forAll genYear
+        month <- forAll genMonth
+        fiscalStart <- forAll genFiscalStart
+        let raw = formatYearMonth year month
+            expectedStart = fromGregorian year month 1
+        case parseActivityPeriod fiscalStart MonthActivity raw of
+            Left err -> footnote (show err) >> failure
+            Right period -> do
+                period.start === expectedStart
+                assert (period.start <= period.end)
+                period.key === monthKey period.start
+                addDays 1 period.end === addGregorianMonthsClip 1 expectedStart
 
 genMalformedYearMonth :: Gen Text
-genMalformedYearMonth =
-    Gen.choice [genUnpaddedMonth, genOutOfRangeMonth, genWrongComponentCount]
+genMalformedYearMonth = Gen.choice [genUnpaddedMonth, genOutOfRangeMonth, genWrongComponentCount]
   where
     genUnpaddedMonth = do
         year <- genYear
@@ -205,32 +212,36 @@ genMalformedYearMonth =
             ]
 
 monthActivityMalformed :: Property
-monthActivityMalformed = property $ do
-    fiscalStart <- forAll genFiscalStart
-    raw <- forAll genMalformedYearMonth
-    assert (isLeft (parseActivityPeriod fiscalStart MonthActivity raw))
+monthActivityMalformed =
+    property $ do
+        fiscalStart <- forAll genFiscalStart
+        raw <- forAll genMalformedYearMonth
+        assert (isLeft (parseActivityPeriod fiscalStart MonthActivity raw))
 
 fiscalYearValid :: Property
-fiscalYearValid = property $ do
-    fiscalStart <- forAll genFiscalStart
-    year <- forAll genYear
-    let raw = formatYearMonth year fiscalStart
-    case parseActivityPeriod fiscalStart FiscalYearActivity raw of
-        Left err -> footnote (show err) >> failure
-        Right period -> do
-            assert (period.start <= period.end)
-            addGregorianMonthsClip 12 period.start === addDays 1 period.end
+fiscalYearValid =
+    property $ do
+        fiscalStart <- forAll genFiscalStart
+        year <- forAll genYear
+        let raw = formatYearMonth year fiscalStart
+        case parseActivityPeriod fiscalStart FiscalYearActivity raw of
+            Left err -> footnote (show err) >> failure
+            Right period -> do
+                assert (period.start <= period.end)
+                addGregorianMonthsClip 12 period.start === addDays 1 period.end
 
 fiscalYearMismatch :: Property
-fiscalYearMismatch = property $ do
-    fiscalStart <- forAll genFiscalStart
-    month <- forAll (Gen.filter (/= fiscalStart) genMonth)
-    year <- forAll genYear
-    let raw = formatYearMonth year month
-    assert (isLeft (parseActivityPeriod fiscalStart FiscalYearActivity raw))
+fiscalYearMismatch =
+    property $ do
+        fiscalStart <- forAll genFiscalStart
+        month <- forAll (Gen.filter (/= fiscalStart) genMonth)
+        year <- forAll genYear
+        let raw = formatYearMonth year month
+        assert (isLeft (parseActivityPeriod fiscalStart FiscalYearActivity raw))
 
 fiscalYearMalformed :: Property
-fiscalYearMalformed = property $ do
-    fiscalStart <- forAll genFiscalStart
-    raw <- forAll genMalformedYearMonth
-    assert (isLeft (parseActivityPeriod fiscalStart FiscalYearActivity raw))
+fiscalYearMalformed =
+    property $ do
+        fiscalStart <- forAll genFiscalStart
+        raw <- forAll genMalformedYearMonth
+        assert (isLeft (parseActivityPeriod fiscalStart FiscalYearActivity raw))

@@ -15,8 +15,7 @@ module Hedger.Domain.Internal.PeriodReport (
     reportMissing,
     selectedPeriod,
     breakdownItemsFor,
-)
-where
+) where
 
 import Data.Decimal (Decimal)
 import Data.List qualified as List
@@ -129,10 +128,11 @@ periodicBalanceReport
         HledgerMultiBalance.multiBalanceReport reportSpec filteredJournal
       where
         (reportPeriod, reportInterval) = reportWindow granularity filteredJournal windowSpec
-        valuation = case accumulation of
-            HledgerReportOptions.PerPeriod -> HledgerValuation.AtThen (Just commodity)
-            HledgerReportOptions.Cumulative -> HledgerValuation.AtEnd (Just commodity)
-            HledgerReportOptions.Historical -> HledgerValuation.AtEnd (Just commodity)
+        valuation =
+            case accumulation of
+                HledgerReportOptions.PerPeriod -> HledgerValuation.AtThen (Just commodity)
+                HledgerReportOptions.Cumulative -> HledgerValuation.AtEnd (Just commodity)
+                HledgerReportOptions.Historical -> HledgerValuation.AtEnd (Just commodity)
         baseReportOptions =
             HledgerReportOptions.defreportopts
                 { HledgerReportOptions.interval_ = reportInterval
@@ -159,7 +159,9 @@ periodicBalanceReport
                     : case snapshot.latestJournalDate of
                         Just latest ->
                             [ HledgerQuery.Date
-                                (HledgerPeriod.periodAsDateSpan (Hledger.PeriodTo (addDays 1 latest)))
+                                ( HledgerPeriod.periodAsDateSpan
+                                    (Hledger.PeriodTo (addDays 1 latest))
+                                )
                             ]
                         Nothing -> []
                 )
@@ -183,7 +185,10 @@ periodicBalanceReport
             -- the price oracle must also exclude directives beyond the cutoff.
             case snapshot.latestJournalDate of
                 Nothing -> snapshot.journal.jpricedirectives
-                Just latest -> filter ((<= latest) . Hledger.pddate) snapshot.journal.jpricedirectives
+                Just latest ->
+                    filter
+                        ((<= latest) . Hledger.pddate)
+                        snapshot.journal.jpricedirectives
 
 reportWindow ::
     Granularity ->
@@ -197,22 +202,20 @@ reportWindow granularity journal reportSpec =
             let final = fromMaybe first (lastMaybe rest)
              in (Hledger.PeriodBetween first.start (addDays 1 final.end), interval)
   where
-    interval = case granularity of
-        Monthly -> Hledger.Months 1
-        Yearly -> Hledger.Years 1
+    interval =
+        case granularity of
+            Monthly -> Hledger.Months 1
+            Yearly -> Hledger.Years 1
     periods = periodsFromReport granularity journal reportSpec
-    selectedPeriods = case granularity of
-        Monthly -> takeLast 24 periods
-        Yearly -> periods
+    selectedPeriods =
+        case granularity of
+            Monthly -> takeLast 24 periods
+            Yearly -> periods
 
 reportPeriodsFrom :: Granularity -> HledgerMultiBalance.MultiBalanceReport -> [ReportPeriod]
 reportPeriodsFrom granularity report = concatMap (periodsFromDateSpan granularity) report.prDates
 
-periodsWithData ::
-    Granularity ->
-    [Hledger.Transaction] ->
-    [ReportPeriod] ->
-    [ReportPeriod]
+periodsWithData :: Granularity -> [Hledger.Transaction] -> [ReportPeriod] -> [ReportPeriod]
 periodsWithData granularity transactions periods =
     case granularity of
         Monthly ->
@@ -240,12 +243,7 @@ selectedPeriod requested periods =
 top-N / \"Other\" grouping is a presentation concern applied downstream.
 -}
 breakdownItemsFor ::
-    Text ->
-    Int ->
-    Maybe ReportPeriod ->
-    [ReportPeriod] ->
-    ReportSide ->
-    (Text, [BreakdownItem])
+    Text -> Int -> Maybe ReportPeriod -> [ReportPeriod] -> ReportSide -> (Text, [BreakdownItem])
 breakdownItemsFor commodity depth selected periods side =
     case selected of
         Nothing -> ("", [])
@@ -270,6 +268,11 @@ breakdownItemsFor commodity depth selected periods side =
                     [ BreakdownItem{account, quantity}
                     | (account, quantity) <-
                         Map.toList
-                            (Map.fromListWith (+) [(atDepth depth item.account, item.quantity) | item <- raw])
+                            ( Map.fromListWith
+                                (+)
+                                [ (atDepth depth item.account, item.quantity)
+                                | item <- raw
+                                ]
+                            )
                     ]
              in (period.key, depthGrouped)

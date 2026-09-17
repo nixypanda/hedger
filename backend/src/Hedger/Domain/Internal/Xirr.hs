@@ -12,8 +12,7 @@ module Hedger.Domain.Internal.Xirr (
     cashFlowAmount,
     cashFlowDate,
     xirr,
-)
-where
+) where
 
 import Data.Decimal (Decimal, decimalMantissa, decimalPlaces, realFracToDecimal)
 import Data.List qualified as List
@@ -21,10 +20,12 @@ import Data.Map.Strict qualified as Map
 import Data.Time (Day, diffDays)
 import Numeric.RootFinding qualified as RootFinding
 
-newtype CashFlow = CashFlow (Day, Decimal)
+newtype CashFlow
+    = CashFlow (Day, Decimal)
     deriving stock (Eq, Show)
 
-newtype AnnualRate = AnnualRate Decimal
+newtype AnnualRate
+    = AnnualRate Decimal
     deriving stock (Eq, Show)
 
 data XirrError
@@ -71,11 +72,7 @@ xirr cashFlows = do
 type NumericalCashFlow = (Day, Double)
 
 normalise :: [CashFlow] -> [CashFlow]
-normalise cashFlows =
-    [ cashFlow day amount
-    | (day, amount) <- Map.toAscList grouped
-    , amount /= 0
-    ]
+normalise cashFlows = [cashFlow day amount | (day, amount) <- Map.toAscList grouped, amount /= 0]
   where
     grouped = Map.fromListWith (+) [(cashFlowDate flow, cashFlowAmount flow) | flow <- cashFlows]
 
@@ -91,7 +88,9 @@ decimalToDouble :: Decimal -> Maybe Double
 decimalToDouble decimal =
     let places = fromIntegral (decimalPlaces decimal) :: Int
         amount = (fromInteger (decimalMantissa decimal) :: Double) / ((10 :: Double) ^ places)
-     in if finite amount then Just amount else Nothing
+     in if finite amount
+            then Just amount
+            else Nothing
 
 validateCashFlows :: [NumericalCashFlow] -> Either XirrError ()
 validateCashFlows flows
@@ -102,13 +101,15 @@ validateCashFlows flows
 rootCandidates :: NpvTerms -> [Double]
 rootCandidates terms = concatMap solve (brackets terms)
   where
-    solve (left, right) = case (snd left, snd right) of
-        (0, _) -> [fst left]
-        (_, 0) -> [fst right]
-        _ -> case RootFinding.ridders riddersParameters (fst left, fst right) (npv terms) of
-            RootFinding.Root root
-                | finite root -> [root]
-            _ -> []
+    solve (left, right) =
+        case (snd left, snd right) of
+            (0, _) -> [fst left]
+            (_, 0) -> [fst right]
+            _ ->
+                case RootFinding.ridders riddersParameters (fst left, fst right) (npv terms) of
+                    RootFinding.Root root
+                        | finite root -> [root]
+                    _ -> []
 
 brackets :: NpvTerms -> [((Double, Double), (Double, Double))]
 brackets terms =
@@ -121,7 +122,8 @@ brackets terms =
 
 searchPoints :: [Double]
 searchPoints =
-    [ minimumLogRate + (maximumLogRate - minimumLogRate) * fromIntegral index / fromIntegral searchIntervals
+    [ minimumLogRate
+        + (maximumLogRate - minimumLogRate) * fromIntegral index / fromIntegral searchIntervals
     | index <- [0 .. searchIntervals]
     ]
 
