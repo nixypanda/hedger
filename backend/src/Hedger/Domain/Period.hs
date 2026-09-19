@@ -21,8 +21,7 @@ module Hedger.Domain.Period (
     minimumMaybe,
     lastMaybe,
     atIndex,
-)
-where
+) where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -34,7 +33,9 @@ import Hledger.Data.Types qualified as Hledger
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
 -- | The reporting cadence shared by the analytics and investment timelines.
-data Granularity = Monthly | Yearly
+data Granularity
+    = Monthly
+    | Yearly
     deriving stock (Eq, Show)
 
 -- | An inclusive reporting window identified by a stable textual key.
@@ -72,17 +73,15 @@ periodsFromDateSpan granularity dateSpan =
         (fmap (uncurry (reportPeriod granularity)) . HledgerDayPartition.dayPartitionToList)
         (HledgerDayPartition.splitSpan True (intervalFor granularity) dateSpan)
 
-periodsFromReport :: Granularity -> Hledger.Journal -> HledgerReportOptions.ReportSpec -> [ReportPeriod]
+periodsFromReport ::
+    Granularity -> Hledger.Journal -> HledgerReportOptions.ReportSpec -> [ReportPeriod]
 periodsFromReport granularity journal reportSpec =
     maybe
         []
         (fmap (uncurry (reportPeriod granularity)) . HledgerDayPartition.dayPartitionToList)
         partition
   where
-    options =
-        reportSpec._rsReportOpts
-            { HledgerReportOptions.interval_ = intervalFor granularity
-            }
+    options = reportSpec._rsReportOpts{HledgerReportOptions.interval_ = intervalFor granularity}
     (_, partition) =
         HledgerReportOptions.reportSpan
             journal
@@ -93,14 +92,11 @@ periodContaining interval keyFor day =
     case HledgerDayPartition.splitSpan True interval enclosingSpan of
         Just partition ->
             let (start, end) = HledgerDayPartition.dayPartitionFind day partition
-             in ReportPeriod
-                    { key = keyFor (maybe day id start)
-                    , start = maybe day id start
-                    , end
-                    }
+             in ReportPeriod{key = keyFor (maybe day id start), start = maybe day id start, end}
         Nothing -> ReportPeriod{key = keyFor day, start = day, end = day}
   where
-    enclosingSpan = Hledger.DateSpan (Just (Hledger.Exact day)) (Just (Hledger.Exact (addDays 1 day)))
+    enclosingSpan =
+        Hledger.DateSpan (Just (Hledger.Exact day)) (Just (Hledger.Exact (addDays 1 day)))
 
 intervalFor :: Granularity -> Hledger.Interval
 intervalFor Monthly = Hledger.Months 1
@@ -109,9 +105,12 @@ intervalFor Yearly = Hledger.Years 1
 reportPeriod :: Granularity -> Day -> Day -> ReportPeriod
 reportPeriod granularity start end =
     ReportPeriod
-        { key = case granularity of
-            Monthly -> monthKey start
-            Yearly -> let (year, _, _) = toGregorian start in Text.pack (show year)
+        { key =
+            case granularity of
+                Monthly -> monthKey start
+                Yearly ->
+                    let (year, _, _) = toGregorian start
+                     in Text.pack (show year)
         , start
         , end
         }
@@ -131,7 +130,10 @@ parseYearMonth raw =
     readText = readMaybe . Text.unpack
 
 pad2 :: Int -> String
-pad2 value = if value < 10 then "0" <> show value else show value
+pad2 value =
+    if value < 10
+        then "0" <> show value
+        else show value
 
 takeLast :: Int -> [value] -> [value]
 takeLast count values = drop (max 0 (length values - count)) values
@@ -151,6 +153,7 @@ lastMaybe values = Just (last values)
 atIndex :: Int -> [value] -> Maybe value
 atIndex index values
     | index < 0 = Nothing
-    | otherwise = case drop index values of
-        value : _ -> Just value
-        [] -> Nothing
+    | otherwise =
+        case drop index values of
+            value : _ -> Just value
+            [] -> Nothing

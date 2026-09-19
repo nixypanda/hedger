@@ -3,8 +3,7 @@ module Hedger.Application.Internal.Cursor (
     decodeTransactionCursor,
     encodeRegisterCursor,
     decodeRegisterCursor,
-)
-where
+) where
 
 import Crypto.Hash.MD5 qualified as MD5
 import Data.ByteString qualified as ByteString
@@ -19,7 +18,6 @@ import Text.Read (readMaybe)
 import Hedger.Domain.Error (AppError (..))
 
 -- Transaction
-
 encodeTransactionCursor :: Text -> Text -> Day -> Int -> Text
 encodeTransactionCursor revision query referenceDate offset =
     payload <> "." <> fingerprint ("cursor-check-v1:" <> payload)
@@ -40,15 +38,16 @@ decodeTransactionCursor revision query referenceDate cursor =
     case Text.splitOn "." cursor of
         [version, offsetText, cursorReference, queryHash, revisionHash, orderingHash, checksum]
             | version /= "v1" -> invalid "The cursor version is not supported."
-            | checksum
-                /= fingerprint ("cursor-check-v1:" <> payload) ->
+            | checksum /= fingerprint ("cursor-check-v1:" <> payload) ->
                 invalid "The cursor is malformed."
             | cursorReference /= Text.pack (show referenceDate) ->
                 invalid "The cursor relative-date reference does not match this snapshot."
-            | queryHash /= fingerprint query -> invalid "The cursor was created for a different query."
+            | queryHash /= fingerprint query ->
+                invalid "The cursor was created for a different query."
             | revisionHash /= fingerprint revision ->
                 invalid "The cursor was created for a different journal revision."
-            | orderingHash /= fingerprint ordering -> invalid "The cursor ordering is not supported."
+            | orderingHash /= fingerprint ordering ->
+                invalid "The cursor ordering is not supported."
             | otherwise ->
                 maybe
                     (invalid "The cursor position is malformed.")
@@ -58,13 +57,7 @@ decodeTransactionCursor revision query referenceDate cursor =
             payload =
                 Text.intercalate
                     "."
-                    [ version
-                    , offsetText
-                    , cursorReference
-                    , queryHash
-                    , revisionHash
-                    , orderingHash
-                    ]
+                    [version, offsetText, cursorReference, queryHash, revisionHash, orderingHash]
         _ -> invalid "The cursor is malformed."
   where
     validateOffset offset
@@ -76,7 +69,6 @@ ordering :: Text
 ordering = "transaction-date-and-source-position-desc-v1"
 
 -- Register
-
 encodeRegisterCursor :: Text -> Text -> Text -> Maybe Day -> Maybe Day -> Int -> Text
 encodeRegisterCursor revision account commodity start end offset =
     payload <> "." <> fingerprint ("register-cursor-check-v1:" <> payload)
@@ -94,7 +86,8 @@ encodeRegisterCursor revision account commodity start end offset =
             , fingerprint registerOrdering
             ]
 
-decodeRegisterCursor :: Text -> Text -> Text -> Maybe Day -> Maybe Day -> Text -> Either AppError Int
+decodeRegisterCursor ::
+    Text -> Text -> Text -> Maybe Day -> Maybe Day -> Text -> Either AppError Int
 decodeRegisterCursor revision account commodity start end cursor =
     case Text.splitOn "." cursor of
         [ version
@@ -153,7 +146,6 @@ registerOrdering :: Text
 registerOrdering = "account-register-date-and-source-position-asc-v1"
 
 -- Fingerprinting
-
 fingerprint :: Text -> Text
 fingerprint = hexEncode . MD5.hash . TextEncoding.encodeUtf8
 

@@ -40,7 +40,6 @@ import Hedger.Interface.HTTP.Core.Common (
  )
 
 -- DTO declaration
-
 data AccountValuationDto = AccountValuationDto
     { asOf :: Day
     , commodity :: Text
@@ -100,18 +99,32 @@ data AccountRegisterResponse = AccountRegisterResponse
     deriving anyclass (ToJSON, FromJSON)
 
 -- API and server
-
 type AccountsAPI =
     "accounts" :> "tree" :> QueryParam "commodity" Text :> Get '[JSON] AccountsTreeResponse
         :<|> ( "accounts"
-                :> Capture "account" Text
+                :> Capture
+                    "account"
+                    Text
                 :> "register"
-                :> QueryParam "commodity" Text
-                :> QueryParam "from" Text
-                :> QueryParam "to" Text
-                :> QueryParam "limit" Text
-                :> QueryParam "cursor" Text
-                :> Get '[JSON] AccountRegisterResponse
+                :> QueryParam
+                    "commodity"
+                    Text
+                :> QueryParam
+                    "from"
+                    Text
+                :> QueryParam
+                    "to"
+                    Text
+                :> QueryParam
+                    "limit"
+                    Text
+                :> QueryParam
+                    "cursor"
+                    Text
+                :> Get
+                    '[ JSON
+                     ]
+                    AccountRegisterResponse
              )
 
 accountsServer :: Env -> Maybe Text -> Server AccountsAPI
@@ -121,7 +134,10 @@ accountsServer env requestId =
                 case mkRegisterPageRequest account commodity from to limit cursor of
                     Left err -> throwError (servantError requestId err)
                     Right request ->
-                        runAction env requestId (toAccountRegisterResponse <$> accountRegister request)
+                        runAction
+                            env
+                            requestId
+                            (toAccountRegisterResponse <$> accountRegister request)
              )
 
 mkRegisterPageRequest ::
@@ -138,10 +154,17 @@ mkRegisterPageRequest account commodity from to limit cursor = do
     end <- parseDay to
     _ <- validateDateRange start end
     limitValue <- parseLimit limit
-    pure $ RegisterPageRequest{account = accountPath, commodity, start, end, limit = limitValue, cursor}
+    pure $
+        RegisterPageRequest
+            { account = accountPath
+            , commodity
+            , start
+            , end
+            , limit = limitValue
+            , cursor
+            }
 
 -- Mapper: domain <-> DTO
-
 toAccountsTree :: AccountsTree -> AccountsTreeResponse
 toAccountsTree value =
     AccountsTreeResponse
@@ -155,8 +178,7 @@ toAccountNode displayCommodity valuationDate account =
     AccountNodeDto
         { path = account.path
         , name = account.name
-        , accountType =
-            accountTypeText <$> account.accountType
+        , accountType = accountTypeText <$> account.accountType
         , hasChildren = account.hasChildren
         , directBalances = commodityQuantities account.directBalances
         , subtreeBalances = commodityQuantities account.subtreeBalances
@@ -187,17 +209,23 @@ toRegisterEntries :: Text -> [RegisterEntry] -> [RegisterEntryDto]
 toRegisterEntries displayCommodity = fmap (toRegisterEntry displayCommodity)
 
 toRegisterEntry :: Text -> RegisterEntry -> RegisterEntryDto
-toRegisterEntry displayCommodity RegisterEntry{rawItem = raw, displayItem = valued, matchedAccounts} =
-    RegisterEntryDto
-        { date = valuedTransaction.tdate
-        , description = valuedTransaction.tdescription
-        , account = Text.intercalate ", " matchedAccounts
-        , amount = valueDto displayCommodity rawAmount valuedAmount
-        , balance = valueDto displayCommodity rawBalance valuedBalance
-        }
-  where
-    (_, valuedTransaction, _, _, rawAmount, rawBalance) = raw
-    (_, _, _, _, valuedAmount, valuedBalance) = valued
+toRegisterEntry
+    displayCommodity
+    RegisterEntry
+        { rawItem = raw
+        , displayItem = valued
+        , matchedAccounts
+        } =
+        RegisterEntryDto
+            { date = valuedTransaction.tdate
+            , description = valuedTransaction.tdescription
+            , account = Text.intercalate ", " matchedAccounts
+            , amount = valueDto displayCommodity rawAmount valuedAmount
+            , balance = valueDto displayCommodity rawBalance valuedBalance
+            }
+      where
+        (_, valuedTransaction, _, _, rawAmount, rawBalance) = raw
+        (_, _, _, _, valuedAmount, valuedBalance) = valued
 
 valueDto :: Text -> Hledger.MixedAmount -> Hledger.MixedAmount -> RegisterValueDto
 valueDto displayCommodity rawAmount valuedAmount =

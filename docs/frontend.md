@@ -257,21 +257,21 @@ Minimal settings. No API calls.
 
 ### RemoteData
 
-The frontend uses a `RemoteData` type that preserves stale content during
-refresh:
+The frontend uses a `RemoteData` type parameterized by its error and value
+types. Loading and failure states retain the previous value when one exists:
 
 ```elm
-type RemoteData data
-    = Loading
-    | Success data
-    | Refreshing data    -- has stale data, fetching fresh
-    | Stale data         -- data exists but is from a previous revision
-    | Empty              -- successful fetch, no data
-    | Failed String      -- error message
+type RemoteData error value
+    = NotAsked
+    | Loading (Maybe value)
+    | Success value
+    | Failure error (Maybe value)
 ```
 
-Pages show stale content while refreshing instead of replacing it with a
-spinner. This keeps the UI responsive during background updates.
+Pages can show retained content while loading or after a failed refresh instead
+of replacing it with a spinner. Empty-result and freshness semantics belong to
+the page response and its metadata rather than separate `RemoteData`
+constructors.
 
 ### Response Metadata
 
@@ -317,18 +317,25 @@ Shared primitives live in `Ui.elm`. Pages compose them.
 
 - `elm-ui` layout primitives, not CSS utility classes.
 - System sans-serif typography.
-- Light theme page background `#f4f6f8`.
-- White cards with rounded corners and padding.
-- Muted gray text for captions and secondary content.
+- Light theme: page `#f6f7ff`, card `#ffffff`, primary text `#1e183d`, muted
+  text `#6b6487`, and primary accent `#5b2ec4`.
+- Dark theme: page `#0f172a`, card `#1e293b`, primary text `#f1f5f9`, muted
+  text `#94a3b8`, and primary accent `#60a5fa`.
+- Cards use theme-owned surfaces, borders, radii, and shadows.
 
 ### Typography Tokens (`Ui.Typography`)
 
 ```text
-page     28px desktop / 24px phone
-section  22px desktop / 18px phone
-subhead  17px desktop / 15px phone
-body     14px
-caption  12px
+page title       24px
+section title    18px
+subsection       15px
+body/detail      14px
+caption/metadata 13px
+chart label      15px
+navigation       16px
+brand            20px
+detail hero      22px
+KPI value        28px
 ```
 
 ### Controls

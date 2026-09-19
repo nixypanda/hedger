@@ -3,8 +3,7 @@ module Hedger.Application.System (
     bootstrap,
     liveness,
     readiness,
-)
-where
+) where
 
 import Control.Monad.Reader (asks)
 import Data.Text (Text)

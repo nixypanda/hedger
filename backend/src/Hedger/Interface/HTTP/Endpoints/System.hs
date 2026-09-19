@@ -13,7 +13,6 @@ import Hedger.Application.System (BootstrapInfo (..), bootstrap, liveness, readi
 import Hedger.Interface.HTTP.Core.Common (ResponseMetadata (..), runAction, toResponseMetadata)
 
 -- DTO declaration
-
 data Health = Health
     { status :: Text
     }
@@ -30,11 +29,13 @@ data Bootstrap = Bootstrap
     deriving anyclass (ToJSON, FromJSON)
 
 -- API and server
-
 type SystemAPI =
     "health" :> "live" :> Get '[JSON] Health
         :<|> "health" :> "ready" :> Get '[JSON] Health
-        :<|> "bootstrap" :> Get '[JSON] Bootstrap
+        :<|> "bootstrap"
+            :> Get
+                '[JSON]
+                Bootstrap
 
 systemServer :: Env -> Maybe Text -> Server SystemAPI
 systemServer env requestId =
@@ -43,7 +44,6 @@ systemServer env requestId =
         :<|> runAction env requestId (toBootstrap <$> bootstrap)
 
 -- Mapper: domain <-> DTO
-
 toBootstrap :: BootstrapInfo -> Bootstrap
 toBootstrap value =
     Bootstrap

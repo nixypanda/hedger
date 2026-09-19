@@ -1,7 +1,6 @@
 module Hedger.Interface.HTTP.Core.Middleware (
     requestContextMiddleware,
-)
-where
+) where
 
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as ByteString
@@ -19,11 +18,13 @@ requestContextMiddleware :: Wai.Middleware
 requestContextMiddleware app request respond = do
     requestId <- chooseRequestId (lookup "X-Request-ID" request.requestHeaders)
     let requestWithId =
-            request{Wai.requestHeaders = ("X-Request-ID", Text.encodeUtf8 requestId) : request.requestHeaders}
+            request
+                { Wai.requestHeaders =
+                    ("X-Request-ID", Text.encodeUtf8 requestId) : request.requestHeaders
+                }
     app requestWithId $ \response ->
-        respond
-            . Wai.mapResponseHeaders (("X-Request-ID", Text.encodeUtf8 requestId) :)
-            $ normalizeServantError requestId response
+        respond . Wai.mapResponseHeaders (("X-Request-ID", Text.encodeUtf8 requestId) :) $
+            normalizeServantError requestId response
 
 normalizeServantError :: Text -> Wai.Response -> Wai.Response
 normalizeServantError requestId response
@@ -49,13 +50,18 @@ normalizeServantError requestId response
         Wai.responseLBS
             HTTP.status405
             [(HTTP.hContentType, "application/json; charset=utf-8")]
-            (Aeson.encode (routeEnvelope "method_not_allowed" "Requested method is not supported for route."))
+            ( Aeson.encode
+                (routeEnvelope "method_not_allowed" "Requested method is not supported for route.")
+            )
     routeEnvelope :: Text -> Text -> Aeson.Value
     routeEnvelope code message =
         Aeson.object
             [ "error"
                 Aeson..= Aeson.object
-                    ["code" Aeson..= code, "message" Aeson..= message, "requestId" Aeson..= requestId]
+                    [ "code" Aeson..= code
+                    , "message" Aeson..= message
+                    , "requestId" Aeson..= requestId
+                    ]
             ]
 
 isJson :: Wai.Response -> Bool
@@ -66,7 +72,8 @@ isJson response =
         (lookup HTTP.hContentType (Wai.responseHeaders response))
 
 chooseRequestId :: Maybe ByteString.ByteString -> IO Text
-chooseRequestId supplied = maybe generateRequestId pure (fmap Text.decodeUtf8 (supplied >>= validRequestId))
+chooseRequestId supplied =
+    maybe generateRequestId pure (fmap Text.decodeUtf8 (supplied >>= validRequestId))
 
 validRequestId :: ByteString.ByteString -> Maybe ByteString.ByteString
 validRequestId raw

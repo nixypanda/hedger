@@ -10,8 +10,7 @@ module Hedger.Domain.Account (
     mkValuationContext,
     valueAt,
     valueBalances,
-)
-where
+) where
 
 import Data.Text (Text)
 import Data.Time (Day)
@@ -27,8 +26,7 @@ import Hedger.Domain.Internal.Account
 -- | Collapse an account path to the first @depth@ components (clamped to 1..4).
 atDepth :: Int -> Text -> Text
 atDepth depth =
-    HledgerAccountName.clipAccountName
-        (Hledger.DepthSpec (Just (max 1 (min 4 depth))) [])
+    HledgerAccountName.clipAccountName (Hledger.DepthSpec (Just (max 1 (min 4 depth))) [])
 
 data ValuationCompleteness
     = Complete

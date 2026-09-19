@@ -1,17 +1,17 @@
 module Page.Cashflow exposing (Model, Msg(..), init, update, view)
 
-import Api.Analytics as Analytics
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Background as Background
-import Html.Attributes
 import Page.Shared.Analysis as Analysis
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
@@ -31,7 +31,7 @@ type Model
 
 
 type alias ModelData =
-    { response : RemoteData Analytics.CashflowResponse
+    { response : RemoteData ApiError Analytics.CashflowResponse
     , draftQuery : String
     , appliedQuery : String
     , analysis : Analysis.Model
@@ -41,14 +41,17 @@ type alias ModelData =
 init : ( Model, Cmd Msg )
 init =
     let
+        ( analysis, effects ) =
+            Analysis.requestReport (analysisContext "") Analysis.init
+
         data =
             { response = Loading Nothing
             , draftQuery = ""
             , appliedQuery = ""
-            , analysis = Analysis.init
+            , analysis = analysis
             }
     in
-    ( Model data, fetchReport data.appliedQuery data.analysis )
+    ( Model data, performEffects effects )
 
 
 
@@ -60,7 +63,7 @@ type Msg
     | DraftChanged String
     | ApplyQuery
     | ClearQuery
-    | ResponseLoaded (Result ApiError Analytics.CashflowResponse)
+    | ResponseLoaded Int (Result ApiError Analytics.CashflowResponse)
     | AnalysisMsg Analysis.Msg
 
 
@@ -68,8 +71,18 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg (Model data) =
     case msg of
         Refresh ->
-            ( Model { data | response = RemoteData.beginLoading data.response }
-            , fetchReport data.appliedQuery data.analysis
+            let
+                ( analysis, effects ) =
+                    Analysis.requestReport
+                        (analysisContext data.appliedQuery)
+                        data.analysis
+            in
+            ( Model
+                { data
+                    | response = RemoteData.beginLoading data.response
+                    , analysis = analysis
+                }
+            , performEffects effects
             )
 
         DraftChanged draft ->
@@ -81,22 +94,42 @@ update msg (Model data) =
         ClearQuery ->
             applyQuery "" { data | draftQuery = "" }
 
-        ResponseLoaded result ->
+        ResponseLoaded token result ->
             case result of
                 Err error ->
-                    ( Model { data | response = Failure error (RemoteData.value data.response) }, Cmd.none )
+                    case Analysis.reportFailed token data.analysis of
+                        Nothing ->
+                            ( Model data, Cmd.none )
 
-                Ok response ->
-                    let
-                        context =
-                            analysisContext data.appliedQuery
+                        Just analysis ->
+                            ( Model
+                                { data
+                                    | response =
+                                        Failure error (RemoteData.value data.response)
+                                    , analysis = analysis
+                                }
+                            , Cmd.none
+                            )
 
-                        ( analysis, effects ) =
-                            Analysis.reportLoaded context (analysisReport response) data.analysis
-                    in
-                    ( Model { data | response = Success response, analysis = analysis }
-                    , performEffects effects
-                    )
+                Ok loadedResponse ->
+                    case
+                        Analysis.reportLoaded
+                            token
+                            (analysisContext data.appliedQuery)
+                            (analysisReport loadedResponse)
+                            data.analysis
+                    of
+                        Nothing ->
+                            ( Model data, Cmd.none )
+
+                        Just ( analysis, effects ) ->
+                            ( Model
+                                { data
+                                    | response = Success loadedResponse
+                                    , analysis = analysis
+                                }
+                            , performEffects effects
+                            )
 
         AnalysisMsg analysisMsg ->
             let
@@ -165,15 +198,15 @@ analysisConfig =
     }
 
 
-analysisReport : Analytics.CashflowResponse -> Analytics.Report
+analysisReport : Analytics.CashflowResponse -> Analysis.Report
 analysisReport response =
     { displayCommodity = response.displayCommodity
     , timeline =
         if response.timelineAvailable then
-            Analytics.TimelineAvailable response.timeline
+            Analysis.TimelineAvailable response.timeline
 
         else
-            Analytics.TimelineUnavailable
+            Analysis.TimelineUnavailable
                 ("Cashflow is unavailable because at least one participating amount "
                     ++ "cannot be converted to the display commodity."
                 )
@@ -184,11 +217,6 @@ analysisReport response =
     }
 
 
-fetchReport : String -> Analysis.Model -> Cmd Msg
-fetchReport query analysis =
-    Api.getCashflow (Analysis.reportRequest query analysis) ResponseLoaded
-
-
 performEffects : List Analysis.Effect -> Cmd Msg
 performEffects effects =
     effects |> List.map performEffect |> Cmd.batch
@@ -197,20 +225,20 @@ performEffects effects =
 performEffect : Analysis.Effect -> Cmd Msg
 performEffect effect =
     case effect of
-        Analysis.FetchReport request ->
-            Api.getCashflow request ResponseLoaded
+        Analysis.FetchReport token request ->
+            Api.getCashflow request (ResponseLoaded token)
 
-        Analysis.FetchActivity side request ->
-            Api.getActivity request (Analysis.ActivityLoaded side >> AnalysisMsg)
+        Analysis.FetchActivity side token request ->
+            Api.getActivity request (Analysis.ActivityLoaded side token >> AnalysisMsg)
 
 
 isReportEffect : Analysis.Effect -> Bool
 isReportEffect effect =
     case effect of
-        Analysis.FetchReport _ ->
+        Analysis.FetchReport _ _ ->
             True
 
-        Analysis.FetchActivity _ _ ->
+        Analysis.FetchActivity _ _ _ ->
             False
 
 
@@ -258,7 +286,7 @@ dashboard theme viewport data =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll analytics-page")
+        , Typography.uiClass "page-scroll analytics-page"
         ]
         [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
@@ -291,7 +319,13 @@ queryPanel theme viewport data =
         , helpText =
             "Filter this entire dashboard with an hledger query. Category, timeline, "
                 ++ "and activity results always use the same applied filter."
-        , examples = [ "acct:expenses", "desc:grocery", "date:2026-01-01..2026-07-31", "cur:INR", "status:*" ]
+        , examples =
+            [ "acct:expenses"
+            , "desc:grocery"
+            , "date:2026-01-01..2026-07-31"
+            , "cur:INR"
+            , "status:*"
+            ]
         , baseId = "cashflow-query"
         }
 
@@ -310,7 +344,7 @@ dashboardContent theme viewport data =
                     [ cashflowSkeleton theme viewport ]
 
         Just response ->
-            [ States.remoteNotice theme response.metadata.freshness data.response
+            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , Typography.mutedBody theme
                 (String.fromInt response.filteredCount
                     ++ " of "
@@ -318,11 +352,17 @@ dashboardContent theme viewport data =
                     ++ " transactions"
                 )
             , Element.map AnalysisMsg
-                (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
+                (Analysis.view
+                    theme
+                    viewport
+                    analysisConfig
+                    (analysisReport response)
+                    data.analysis
+                )
             ]
 
 
-queryError : RemoteData value -> Maybe ApiError
+queryError : RemoteData ApiError value -> Maybe ApiError
 queryError remote =
     case remote of
         Failure error _ ->
@@ -345,32 +385,32 @@ cashflowSkeleton theme viewport =
         isCompact =
             Responsive.isCompact layout
     in
-    Element.column [ Element.width Element.fill, Element.spacing 16 ]
-        [ Element.column [ Element.width Element.fill, Element.spacing 8 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
+        [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             [ Skeleton.inputBar theme
             , Skeleton.chipRow theme
             ]
         , Typography.mutedBody theme "Loading transactions…"
         , Skeleton.chartCard theme
         , if isCompact then
-            Element.column [ Element.width Element.fill, Element.spacing 16 ]
+            Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                 [ Skeleton.chartCard theme
                 , Skeleton.chartCard theme
                 ]
 
           else
-            Element.row [ Element.width Element.fill, Element.spacing 16 ]
+            Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                 [ Skeleton.chartCard theme
                 , Skeleton.chartCard theme
                 ]
         , if isCompact then
-            Element.column [ Element.width Element.fill, Element.spacing 16 ]
+            Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                 [ Skeleton.chartCard theme
                 , Skeleton.chartCard theme
                 ]
 
           else
-            Element.row [ Element.width Element.fill, Element.spacing 16 ]
+            Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                 [ Skeleton.chartCard theme
                 , Skeleton.chartCard theme
                 ]

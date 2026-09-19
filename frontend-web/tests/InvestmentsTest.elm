@@ -26,7 +26,10 @@ suite =
                             , xirr = response.summary.xirr |> Maybe.map Decimal.toString
                             , periods = List.length response.timeline
                             , child = response.children |> List.head |> Maybe.map .account
-                            , childAssetClass = response.children |> List.head |> Maybe.map .assetClass
+                            , childAssetClass =
+                                response.children
+                                    |> List.head
+                                    |> Maybe.map .assetClass
                             , childAllocation =
                                 response.children
                                     |> List.head
@@ -102,7 +105,34 @@ suite =
                 Expect.equal
                     { mode = Page.ReturnsChart, period = Just "2026-03" }
                     { mode = Page.chartMode returns, period = Page.selectedPeriod returns }
+        , test "a stale response cannot overwrite a newer selection" staleResponseTest
         ]
+
+
+staleResponseTest : () -> Expect.Expectation
+staleResponseTest _ =
+    case Decode.decodeString Investments.decoder fixture of
+        Err error ->
+            Expect.fail (Decode.errorToString error)
+
+        Ok monthlyResponse ->
+            let
+                ( initial, _ ) =
+                    Page.init
+
+                ( yearly, _ ) =
+                    Page.update (Page.GranularitySelected Yearly) initial
+
+                yearlyResponse =
+                    { monthlyResponse | granularity = Yearly }
+
+                ( loaded, _ ) =
+                    Page.update (Page.ResponseLoaded 2 (Ok yearlyResponse)) yearly
+
+                ( afterStale, _ ) =
+                    Page.update (Page.ResponseLoaded 1 (Ok monthlyResponse)) loaded
+            in
+            Expect.equal Yearly (Page.granularity afterStale)
 
 
 percentageFormatting : () -> Expect.Expectation

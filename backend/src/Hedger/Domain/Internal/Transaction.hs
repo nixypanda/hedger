@@ -11,8 +11,7 @@ module Hedger.Domain.Internal.Transaction (
     classificationFor,
     dominantMovement,
     isOpening,
-)
-where
+) where
 
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
@@ -46,34 +45,25 @@ newestFirst :: [Hledger.Transaction] -> [Hledger.Transaction]
 newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex))
 
 -- * Domain queries
-
 classificationThreshold :: Double
 classificationThreshold = 0.8
 
 classificationFor :: Hledger.Transaction -> TransactionClassification
 classificationFor tx
-    | isOpening tx =
-        OpeningBalance
-    | dominantPct < classificationThreshold =
-        Unclassified
-    | any isLiabilities creditAccounts && any isLiabilities debitAccounts =
-        TransactionTransfer
-    | any isLiabilities creditAccounts =
-        Borrowing
-    | dominantGroup == "liabilities" && any isLiabilities debitAccounts =
-        Repayment
+    | isOpening tx = OpeningBalance
+    | dominantPct < classificationThreshold = Unclassified
+    | any isLiabilities creditAccounts && any isLiabilities debitAccounts = TransactionTransfer
+    | any isLiabilities creditAccounts = Borrowing
+    | dominantGroup == "liabilities" && any isLiabilities debitAccounts = Repayment
     | dominantGroup == "assets" && any isCashOnly creditAccounts && any isAssetOnly debitAccounts =
         AssetAcquisition
     | dominantGroup == "assets" && any isAssetOnly creditAccounts && any isCashOnly debitAccounts =
         AssetDisposal
     | dominantGroup == "assets" && any isAssetOnly creditAccounts && any isAssetOnly debitAccounts =
         AssetReallocation
-    | dominantGroup == "assets" && any isRevenue creditAccounts =
-        TransactionIncome
-    | dominantGroup == "expenses" =
-        TransactionExpense
-    | otherwise =
-        TransactionTransfer
+    | dominantGroup == "assets" && any isRevenue creditAccounts = TransactionIncome
+    | dominantGroup == "expenses" = TransactionExpense
+    | otherwise = TransactionTransfer
   where
     creditAccounts = postingAccountInfos (creditsFor tx.tpostings)
     debitAccounts = postingAccountInfos (debitsFor tx.tpostings)
@@ -89,28 +79,21 @@ isOpening tx =
     creditPs = creditsFor tx.tpostings
     debitPs = debitsFor tx.tpostings
     accounts = postingAccountInfos creditPs <> postingAccountInfos debitPs
-
     hasOpeningSource posting =
         any
             (`Text.isInfixOf` Text.toLower posting.paccount)
-            [ "opening"
-            , "open"
-            , "balance"
-            , "balances"
-            , "conversion"
-            , "migration"
-            , "initial"
-            ]
+            ["opening", "open", "balance", "balances", "conversion", "migration", "initial"]
 
 dominantMovement :: Hledger.Transaction -> (Text.Text, Double)
-dominantMovement tx =
-    (dominantGroup, dominantPct)
+dominantMovement tx = (dominantGroup, dominantPct)
   where
     debitPs = debitsFor tx.tpostings
     groupAmounts =
         Map.fromListWith
             (+)
-            [ (accountLabel (accountInfo p.paccount), abs (fromRational (toRational amount.aquantity)))
+            [ ( accountLabel (accountInfo p.paccount)
+              , abs (fromRational (toRational amount.aquantity))
+              )
             | p <- debitPs
             , amount <- Hledger.amountsRaw p.pamount
             , amount.aquantity > 0
@@ -136,16 +119,12 @@ dominantMovement tx =
             else case Map.lookup dominantGroup groupAmounts of
                 Just amount -> amount / totalDebit
                 Nothing -> 0.0
--- * Core API
 
+-- * Core API
 presentationFor :: Hledger.Transaction -> TransactionPresentation
-presentationFor tx =
-    TransactionPresentation
-        { classification = classificationFor tx
-        }
+presentationFor tx = TransactionPresentation{classification = classificationFor tx}
 
 -- * Internal (shared between domain functions)
-
 postingAccountInfos :: [Hledger.Posting] -> [AccountInfo]
 postingAccountInfos = fmap (accountInfo . (.paccount))
 

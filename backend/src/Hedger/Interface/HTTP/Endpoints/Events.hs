@@ -3,8 +3,7 @@ module Hedger.Interface.HTTP.Endpoints.Events (
     HeartbeatInterval (..),
     eventsApplicationWithHeartbeat,
     eventsServer,
-)
-where
+) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (race)
@@ -19,12 +18,14 @@ import Hedger.Application.Events (RevisionSubscription, awaitNextRevision, subsc
 
 type EventsAPI = "events" :> Raw
 
-newtype HeartbeatInterval = HeartbeatInterval Int
+newtype HeartbeatInterval
+    = HeartbeatInterval Int
 
 -- The request-id header is shared by the whole v1 group but does not apply to a
 -- raw streaming response, so it is ignored here.
 eventsServer :: Env -> Maybe Text -> Server EventsAPI
-eventsServer environment _requestId = Tagged (eventsApplicationWithHeartbeat heartbeatInterval environment)
+eventsServer environment _requestId =
+    Tagged (eventsApplicationWithHeartbeat heartbeatInterval environment)
 
 eventsApplicationWithHeartbeat :: HeartbeatInterval -> Env -> Application
 eventsApplicationWithHeartbeat interval environment request sendResponse = do
@@ -34,9 +35,10 @@ eventsApplicationWithHeartbeat interval environment request sendResponse = do
 nextServerEvent :: HeartbeatInterval -> RevisionSubscription -> IO ServerEvent
 nextServerEvent (HeartbeatInterval interval) subscription = do
     result <- race (awaitNextRevision subscription) (threadDelay interval)
-    pure $ case result of
-        Left revision -> ServerEvent (Just (byteString "revision")) Nothing [textData revision]
-        Right () -> CommentEvent (byteString "heartbeat")
+    pure $
+        case result of
+            Left revision -> ServerEvent (Just (byteString "revision")) Nothing [textData revision]
+            Right () -> CommentEvent (byteString "heartbeat")
 
 heartbeatInterval :: HeartbeatInterval
 heartbeatInterval = HeartbeatInterval 15000000

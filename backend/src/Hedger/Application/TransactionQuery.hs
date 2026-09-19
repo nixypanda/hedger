@@ -3,8 +3,7 @@ module Hedger.Application.TransactionQuery (
     TransactionPage (..),
     transactionPage,
     parseHledgerQuery,
-)
-where
+) where
 
 import Data.Char (isDigit)
 import Data.Function (on)
@@ -85,12 +84,17 @@ parseHledgerQuery referenceDate queryText =
         then Left (QueryTooLong maximumQueryLength)
         else case queryText of
             "" -> Right Hledger.Any
-            _ -> case Hledger.parseQuery referenceDate queryText of
-                Left parserError ->
-                    Left (InvalidQuery (safeParserReason parserError) (parserPosition parserError))
-                Right (_, options@(_ : _)) ->
-                    Left (UnsupportedQueryOption (safeOptionNames options))
-                Right (query, []) -> Right query
+            _ ->
+                case Hledger.parseQuery referenceDate queryText of
+                    Left parserError ->
+                        Left
+                            ( InvalidQuery
+                                (safeParserReason parserError)
+                                (parserPosition parserError)
+                            )
+                    Right (_, options@(_ : _)) ->
+                        Left (UnsupportedQueryOption (safeOptionNames options))
+                    Right (query, []) -> Right query
 
 safeOptionNames :: [Hledger.QueryOpt] -> Text
 safeOptionNames = Text.intercalate ", " . fmap optionName
@@ -116,9 +120,10 @@ parserPosition raw = do
     suffix <- Text.stripPrefix "failed to parse query:" (Text.pack raw)
     let location = Text.takeWhile (/= '\n') suffix
         pieces = Text.splitOn ":" location
-    column <- case pieces of
-        _line : columnText : _ -> Just columnText
-        _ -> Nothing
+    column <-
+        case pieces of
+            _line : columnText : _ -> Just columnText
+            _ -> Nothing
     if Text.all isDigit column && not (Text.null column)
         then readMaybe (Text.unpack column)
         else Nothing

@@ -2,8 +2,7 @@ module Hedger.Runtime.Internal.Server (
     makeApplication,
     productionMiddleware,
     runServer,
-)
-where
+) where
 
 import Control.Monad (void)
 import Data.String (fromString)
@@ -24,17 +23,12 @@ import System.Posix.Signals (Handler (Catch), installHandler, sigHUP, sigTERM)
 import Hedger.Application.AppM (Env (..))
 import Hedger.Config (Config (..))
 import Hedger.Infrastructure.JournalWatcher (withJournalWatcher)
-import Hedger.Infrastructure.SnapshotStore (
-    SnapshotStore,
-    newSnapshotStore,
-    reloadSnapshot,
- )
+import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 import Hedger.Interface.HTTP.API (application)
 import Hedger.Interface.HTTP.Core.Middleware (requestContextMiddleware)
 
 makeApplication :: Config -> SnapshotStore -> Application
-makeApplication configuration store =
-    productionMiddleware (coreApplication configuration store)
+makeApplication configuration store = productionMiddleware (coreApplication configuration store)
 
 productionMiddleware :: Middleware
 productionMiddleware = requestContextMiddleware
@@ -51,15 +45,15 @@ runServer configuration = do
     let settings =
             setInstallShutdownHandler installShutdownHandler
                 . setBeforeMainLoop
-                    (Text.putStrLn ("\nStarted server on port " <> Text.pack (show configuration.listenPort)))
+                    ( Text.putStrLn
+                        ("\nStarted server on port " <> Text.pack (show configuration.listenPort))
+                    )
                 . setGracefulShutdownTimeout (Just 10)
                 . setHost (fromString (Text.unpack configuration.listenAddress))
                 . setPort configuration.listenPort
                 $ defaultSettings
     withJournalWatcher store $
-        runSettings
-            settings
-            (productionMiddleware (coreApplication configuration store))
+        runSettings settings (productionMiddleware (coreApplication configuration store))
 
 installShutdownHandler :: IO () -> IO ()
 installShutdownHandler closeSocket = void (installHandler sigTERM (Catch closeSocket) Nothing)

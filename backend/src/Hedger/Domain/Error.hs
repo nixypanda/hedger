@@ -1,7 +1,6 @@
 module Hedger.Domain.Error (
     AppError (..),
-)
-where
+) where
 
 import Data.Text (Text)
 

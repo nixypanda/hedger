@@ -13,7 +13,8 @@ mkSnapshot txns =
     Snapshot
         { journal = nulljournal
         , transactions = txns
-        , accountTree = HledgerAccount.accountFromPostings (const Nothing) (concatMap Hledger.tpostings txns)
+        , accountTree =
+            HledgerAccount.accountFromPostings (const Nothing) (concatMap Hledger.tpostings txns)
         , latestJournalDate = maximumMaybe (Hledger.tdate <$> txns)
         , revision = "md5:synthetic"
         }

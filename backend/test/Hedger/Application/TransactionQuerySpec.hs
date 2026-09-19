@@ -1,4 +1,6 @@
-module Hedger.Application.TransactionQuerySpec (transactionQuerySpec) where
+module Hedger.Application.TransactionQuerySpec (
+    transactionQuerySpec,
+) where
 
 import Data.Text qualified as Text
 import Data.Time (fromGregorian)
@@ -52,11 +54,7 @@ matchesPayeeAndNote = do
             (length . (.transactions))
             ( transactionPage
                 snapshot
-                TransactionPageRequest
-                    { query = Just "payee:Corner"
-                    , limit = 50
-                    , cursor = Nothing
-                    }
+                TransactionPageRequest{query = Just "payee:Corner", limit = 50, cursor = Nothing}
             )
         )
     assertEqual
@@ -66,11 +64,7 @@ matchesPayeeAndNote = do
             (length . (.transactions))
             ( transactionPage
                 snapshot
-                TransactionPageRequest
-                    { query = Just "note:Weekly"
-                    , limit = 50
-                    , cursor = Nothing
-                    }
+                TransactionPageRequest{query = Just "note:Weekly", limit = 50, cursor = Nothing}
             )
         )
 
@@ -78,86 +72,84 @@ bindsCursorsCorrectly :: IO ()
 bindsCursorsCorrectly = do
     case transactionPage
         syntheticSnapshot
-        TransactionPageRequest
-            { query = Just "date:thisyear"
-            , limit = 1
-            , cursor = Nothing
-            } of
+        TransactionPageRequest{query = Just "date:thisyear", limit = 1, cursor = Nothing} of
         Left pageError -> assertFailure (show pageError)
-        Right first -> case first.nextCursor of
-            Nothing -> assertFailure "The relative-date query should have another page."
-            Just cursor -> do
-                assertEqual
-                    ""
-                    (Right 1)
-                    ( fmap
-                        (length . (.transactions))
-                        ( transactionPage
-                            syntheticSnapshot
-                            TransactionPageRequest
-                                { query = Just "date:thisyear"
-                                , limit = 1
-                                , cursor = Just cursor
-                                }
+        Right first ->
+            case first.nextCursor of
+                Nothing -> assertFailure "The relative-date query should have another page."
+                Just cursor -> do
+                    assertEqual
+                        ""
+                        (Right 1)
+                        ( fmap
+                            (length . (.transactions))
+                            ( transactionPage
+                                syntheticSnapshot
+                                TransactionPageRequest
+                                    { query = Just "date:thisyear"
+                                    , limit = 1
+                                    , cursor = Just cursor
+                                    }
+                            )
                         )
-                    )
-                assertBool
-                    "should reject cursor for different query"
-                    ( isInvalidCursor
-                        ( transactionPage
-                            syntheticSnapshot
-                            TransactionPageRequest
-                                { query = Just "desc:Salary"
-                                , limit = 1
-                                , cursor = Just cursor
-                                }
+                    assertBool
+                        "should reject cursor for different query"
+                        ( isInvalidCursor
+                            ( transactionPage
+                                syntheticSnapshot
+                                TransactionPageRequest
+                                    { query = Just "desc:Salary"
+                                    , limit = 1
+                                    , cursor = Just cursor
+                                    }
+                            )
                         )
-                    )
-                assertBool
-                    "should reject cursor for different revision"
-                    ( isInvalidCursor
-                        ( transactionPage
-                            syntheticSnapshot{revision = "md5:different"}
-                            TransactionPageRequest
-                                { query = Just "date:thisyear"
-                                , limit = 1
-                                , cursor = Just cursor
-                                }
+                    assertBool
+                        "should reject cursor for different revision"
+                        ( isInvalidCursor
+                            ( transactionPage
+                                syntheticSnapshot{revision = "md5:different"}
+                                TransactionPageRequest
+                                    { query = Just "date:thisyear"
+                                    , limit = 1
+                                    , cursor = Just cursor
+                                    }
+                            )
                         )
-                    )
-                assertBool
-                    "should reject cursor for different date"
-                    ( isInvalidCursor
-                        ( transactionPage
-                            syntheticSnapshot{latestJournalDate = Just (fromGregorian 2025 4 2)}
-                            TransactionPageRequest
-                                { query = Just "date:thisyear"
-                                , limit = 1
-                                , cursor = Just cursor
-                                }
+                    assertBool
+                        "should reject cursor for different date"
+                        ( isInvalidCursor
+                            ( transactionPage
+                                syntheticSnapshot{latestJournalDate = Just (fromGregorian 2025 4 2)}
+                                TransactionPageRequest
+                                    { query = Just "date:thisyear"
+                                    , limit = 1
+                                    , cursor = Just cursor
+                                    }
+                            )
                         )
-                    )
-                assertBool
-                    "should reject tampered cursor"
-                    ( isInvalidCursor
-                        ( transactionPage
-                            syntheticSnapshot
-                            TransactionPageRequest
-                                { query = Just "date:thisyear"
-                                , limit = 1
-                                , cursor = Just (cursor <> "tampered")
-                                }
+                    assertBool
+                        "should reject tampered cursor"
+                        ( isInvalidCursor
+                            ( transactionPage
+                                syntheticSnapshot
+                                TransactionPageRequest
+                                    { query = Just "date:thisyear"
+                                    , limit = 1
+                                    , cursor = Just (cursor <> "tampered")
+                                    }
+                            )
                         )
-                    )
 
 paginationProperty :: Hedgehog.Property
-paginationProperty = property $ do
-    transactions <- forAll (genTransactions (Range.linear 1 20))
-    let snapshot = mkSnapshot transactions
-    limit <- forAll (Gen.int (Range.linear 1 (min 13 (length transactions))))
-    let expected = fmap (.tdescription) (newestFirst snapshot.transactions)
-        actual = fmap (fmap (.tdescription)) (collectPages snapshot limit Nothing)
-    actual === Right expected
+paginationProperty =
+    property $ do
+        transactions <- forAll (genTransactions (Range.linear 1 20))
+        let snapshot = mkSnapshot transactions
+        limit <- forAll (Gen.int (Range.linear 1 (min 13 (length transactions))))
+        let expected = fmap (.tdescription) (newestFirst snapshot.transactions)
+            actual = fmap (fmap (.tdescription)) (collectPages snapshot limit Nothing)
+        actual === Right expected
 
 collectPages :: Snapshot -> Int -> Maybe Text.Text -> Either AppError [Hledger.Transaction]
 collectPages snapshot limit cursor = do

@@ -1,4 +1,6 @@
-module Hedger.ConfigSpec (configSpec) where
+module Hedger.ConfigSpec (
+    configSpec,
+) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as ByteString
@@ -31,7 +33,9 @@ configSpec =
         , testCase "rejects duplicate asset class prefixes" rejectsDuplicateAssetClassPrefix
         , testCase "rejects overlapping asset class prefixes" rejectsOverlappingAssetClassPrefix
         , testCase "rejects out-of-range asset class targets" rejectsOutOfRangeAssetClassTarget
-        , testCase "rejects asset class targets that do not total 100" rejectsInvalidAssetClassTargetTotal
+        , testCase
+            "rejects asset class targets that do not total 100"
+            rejectsInvalidAssetClassTargetTotal
         , testCase "validates bounded port" validatesPort
         , testCase "validates fiscal month" validatesFiscalMonth
         ]
@@ -74,9 +78,12 @@ cliOverridesYaml = do
 loadsGainMappings :: IO ()
 loadsGainMappings = do
     config <- requireConfig (parseConfig (Just exampleConfig) [])
-    mapping <- case Investment.mappingForAccount "assets:equity:india" config.investmentMappings of
-        Nothing -> assertFailure "expected an inherited equity gain mapping" >> fail "missing mapping"
-        Just value -> pure value
+    mapping <-
+        case Investment.mappingForAccount "assets:equity:india" config.investmentMappings of
+            Nothing ->
+                assertFailure "expected an inherited equity gain mapping"
+                    >> fail "missing mapping"
+            Just value -> pure value
     assertEqual
         "gain accounts"
         ["income:dividend:india", "income:dividend:us"]
@@ -126,10 +133,14 @@ rejectsMalformedSections =
 
 allowsEmptyGainAccounts :: IO ()
 allowsEmptyGainAccounts = do
-    config <- requireConfig (parseConfig (Just emptyGainAccountsConfig) ["--journal", "fixture.journal"])
-    mapping <- case Investment.mappingForAccount "assets:equity:excluded" config.investmentMappings of
-        Nothing -> assertFailure "expected an empty child gain mapping" >> fail "missing mapping"
-        Just value -> pure value
+    config <-
+        requireConfig (parseConfig (Just emptyGainAccountsConfig) ["--journal", "fixture.journal"])
+    mapping <-
+        case Investment.mappingForAccount "assets:equity:excluded" config.investmentMappings of
+            Nothing ->
+                assertFailure "expected an empty child gain mapping"
+                    >> fail "missing mapping"
+            Just value -> pure value
     assertEqual "gain accounts" [] mapping.performanceAccounts
 
 rejectsUnsupportedAssetClassKind :: IO ()
@@ -195,9 +206,10 @@ validatesFiscalMonth =
         (parseConfig Nothing ["--journal", "fixture.journal", "--fiscal-year-start", "13"])
 
 requireConfig :: Either Text Config -> IO Config
-requireConfig result = case result of
-    Left message -> assertFailure (show message) >> fail "invalid configuration"
-    Right config -> pure config
+requireConfig result =
+    case result of
+        Left message -> assertFailure (show message) >> fail "invalid configuration"
+        Right config -> pure config
 
 exampleConfig :: ByteString
 exampleConfig =
@@ -224,11 +236,7 @@ exampleConfig =
         ]
 
 malformedSectionConfig :: ByteString
-malformedSectionConfig =
-    ByteString.unlines
-        [ "version: 1"
-        , "server: \"not an object\""
-        ]
+malformedSectionConfig = ByteString.unlines ["version: 1", "server: \"not an object\""]
 
 emptyGainAccountsConfig :: ByteString
 emptyGainAccountsConfig =
@@ -241,12 +249,7 @@ emptyGainAccountsConfig =
         ]
 
 configWithoutInvestments :: ByteString
-configWithoutInvestments =
-    ByteString.unlines
-        [ "version: 1"
-        , "journal:"
-        , "  path: fixture.journal"
-        ]
+configWithoutInvestments = ByteString.unlines ["version: 1", "journal:", "  path: fixture.journal"]
 
 assetClassConfig :: ByteString
 assetClassConfig =
@@ -320,12 +323,10 @@ overlappingAssetClassPrefixConfig =
         ]
 
 outOfRangeAssetClassTargetConfig :: ByteString
-outOfRangeAssetClassTargetConfig =
-    assetClassConfigWithTarget "targetPercent: 101"
+outOfRangeAssetClassTargetConfig = assetClassConfigWithTarget "targetPercent: 101"
 
 invalidAssetClassTargetTotalConfig :: ByteString
-invalidAssetClassTargetTotalConfig =
-    assetClassConfigWithTarget "targetPercent: 75"
+invalidAssetClassTargetTotalConfig = assetClassConfigWithTarget "targetPercent: 75"
 
 assetClassConfigWithTarget :: ByteString -> ByteString
 assetClassConfigWithTarget setting =

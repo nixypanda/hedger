@@ -13,17 +13,19 @@ module View.Analytics exposing
     , warningList
     )
 
-import Api.Analytics
+import Data.AccountType exposing (AccountType)
+import Data.ActivityCalendar as ActivityCalendar
+import Data.Analytics
     exposing
         ( ActivityBucket
+        , ActivityDirection(..)
         , ActivityResponse
         , BreakdownItem
         , CategoryBreakdown
+        , Kpi
         , PerformancePoint
+        , TimelinePoint
         )
-import Data.AccountType exposing (AccountType)
-import Data.ActivityCalendar as ActivityCalendar
-import Data.Analytics exposing (ActivityDirection(..), Kpi, TimelinePoint)
 import Data.Calendar as Calendar
 import Data.Date as Date
 import Data.Decimal as Decimal exposing (Decimal)
@@ -34,18 +36,19 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Html
+import Html exposing (Html)
 import Html.Attributes as Attr
 import List
 import Ui
 import Ui.Calendar.Month as MonthCalendar
+import Ui.Chart as Chart
 import Ui.Chart.Cartesian as Cartesian
 import Ui.Chart.Donut as Donut
 import Ui.Chart.Ring as Ring
 import Ui.Chart.Sparkline as Sparkline
-import Ui.Css as Css
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
-import Ui.Theme exposing (Theme)
+import Ui.Theme as Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
 import View.Formatting as Formatting
@@ -83,19 +86,24 @@ kpiCard :
     -> Element msg
 kpiCard theme config =
     Ui.cardWith
-        [ Element.width (Element.fillPortion 1)
-        , Element.height (Element.px 184)
+        [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+        , Element.height (Element.px Tokens.analyticsChartHeight)
         ]
         theme
-        [ Element.row [ Element.width Element.fill, Element.spacing 12 ]
+        [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
             [ Element.el
-                [ Element.width (Element.px 42)
-                , Element.height (Element.px 42)
+                [ Element.width (Element.px Tokens.analyticsRingSize)
+                , Element.height (Element.px Tokens.analyticsRingSize)
                 , Background.color theme.primarySoft
-                , Border.rounded 10
+                , Border.rounded Tokens.radiusMedium
                 ]
                 (Element.el [ Element.centerX, Element.centerY ]
-                    (Icon.view { icon = config.icon, size = 22, color = config.color })
+                    (Icon.view
+                        { icon = config.icon
+                        , size = Tokens.iconSizeDetail
+                        , color = config.color
+                        }
+                    )
                 )
             , kpiTrendSparkline config.color (List.map decimalFloat config.kpi.trend)
             ]
@@ -220,7 +228,7 @@ positiveNegativeTimelineChart theme config =
                     ]
                 }
     in
-    Element.column [ Element.width Element.fill, Element.spacing 12 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ chart
         , selectedPoint
             |> Maybe.map
@@ -305,7 +313,7 @@ netWorthPerformanceChart theme config =
                     ]
                 }
     in
-    Element.column [ Element.width Element.fill, Element.spacing 12 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ chart
         , selectedPoint
             |> Maybe.map
@@ -356,14 +364,14 @@ selectedPeriodDetails :
 selectedPeriodDetails theme period metrics =
     Element.column
         [ Element.width Element.fill
-        , Element.spacing 8
-        , Element.padding 12
+        , Element.spacing Tokens.space8
+        , Element.padding Tokens.space12
         , Background.color theme.primarySoft
         ]
         [ Element.el [ Font.semiBold ] (Element.text period)
         , Element.wrappedRow
             [ Element.width Element.fill
-            , Element.spacing 18
+            , Element.spacing Tokens.space18
             ]
             (List.map (selectedPeriodMetric theme) metrics)
         ]
@@ -375,8 +383,8 @@ selectedPeriodMetric :
     -> Element msg
 selectedPeriodMetric theme metric =
     Element.column
-        [ Element.spacing 4
-        , Element.width (Element.fillPortion 1)
+        [ Element.spacing Tokens.space4
+        , Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         ]
         [ Typography.mutedCaption theme metric.label
         , Element.el
@@ -402,7 +410,7 @@ categoryCard :
         }
     -> Element msg
 categoryCard theme config =
-    Ui.cardWith [ Element.width (Element.fillPortion 1), Element.alignTop ]
+    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle), Element.alignTop ]
         theme
         [ Typography.subsectionTitle theme config.title
         , if List.isEmpty config.breakdown.items then
@@ -411,15 +419,23 @@ categoryCard theme config =
           else
             Element.wrappedRow
                 [ Element.width Element.fill
-                , Element.spacing 24
-                , Element.paddingEach { top = 12, right = 0, bottom = 0, left = 0 }
+                , Element.spacing Tokens.space24
+                , Element.paddingEach
+                    { top = Tokens.space12
+                    , right = Tokens.space0
+                    , bottom = Tokens.space0
+                    , left = Tokens.space0
+                    }
                 ]
                 [ categoryBreakdownDonut theme
                     config.palette
                     config.highlightedCategory
                     config.onSliceClick
                     config.breakdown.items
-                , Element.column [ Element.width (Element.fillPortion 1), Element.spacing 12 ]
+                , Element.column
+                    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+                    , Element.spacing Tokens.space12
+                    ]
                     (categoryRows theme config)
                 ]
         ]
@@ -504,22 +520,22 @@ categoryRow theme commodity palette total index isHighlighted item =
     in
     Element.row
         [ Element.width Element.fill
-        , Element.spacing 8
-        , Element.paddingXY 4 2
-        , Border.rounded 4
-        , Background.color (Element.rgba 0 0 0 0)
+        , Element.spacing Tokens.space8
+        , Element.paddingXY Tokens.space4 Tokens.space2
+        , Border.rounded Tokens.radiusTight
+        , Background.color theme.transparent
         , Border.color
             (if isHighlighted then
                 itemColor
 
              else
-                Element.rgba 0 0 0 0
+                theme.transparent
             )
-        , Border.width 1
+        , Border.width Tokens.borderHairline
         ]
         [ Icon.view
             { icon = AccountPresentation.iconForAccount item.accountType item.account
-            , size = 16
+            , size = Tokens.iconSizeSmallGlyph
             , color = itemColor
             }
         , Element.el
@@ -564,9 +580,14 @@ categoryRows theme config =
                                 config.highlightedCategory
                                     == Just index
                         in
-                        if item.account == "Other" && not (List.isEmpty config.breakdown.otherItems) then
+                        if
+                            item.account
+                                == "Other"
+                                && not (List.isEmpty config.breakdown.otherItems)
+                        then
                             Input.button
                                 [ Element.width Element.fill
+                                , Ui.touchTargetHeight
                                 , Element.htmlAttribute
                                     (Attr.attribute "aria-expanded"
                                         (if config.otherExpanded then
@@ -590,7 +611,7 @@ categoryRows theme config =
                                 , label =
                                     Element.row
                                         [ Element.width Element.fill
-                                        , Element.spacing 6
+                                        , Element.spacing Tokens.space6
                                         ]
                                         [ Element.el
                                             [ Element.width Element.fill ]
@@ -639,10 +660,10 @@ categoryRows theme config =
                             Element.el
                                 [ Element.width Element.fill
                                 , Element.paddingEach
-                                    { top = 0
-                                    , right = 0
-                                    , bottom = 0
-                                    , left = 24
+                                    { top = Tokens.space0
+                                    , right = Tokens.space0
+                                    , bottom = Tokens.space0
+                                    , left = Tokens.space24
                                     }
                                 ]
                                 (categoryRow theme
@@ -686,7 +707,11 @@ activityMonth theme config =
                     dayKey config.period day
             in
             config.response
-                |> Maybe.andThen (\response -> List.filter (.key >> (==) key) response.buckets |> List.head)
+                |> Maybe.andThen
+                    (\response ->
+                        List.filter (.key >> (==) key) response.buckets
+                            |> List.head
+                    )
 
         categories =
             config.response
@@ -701,19 +726,23 @@ activityMonth theme config =
                 , cellHeight = 72
                 , viewDay =
                     \day attributes ->
-                        dayCell attributes
-                            theme
-                            config.tone
-                            config.commodity
-                            categories
-                            config.highlightedCategory
-                            (Maybe.map .key config.selectedBucket == Just (dayKey config.period day))
-                            day
-                            (bucketFor day)
-                            config.onSelect
+                        dayCell
+                            { attributes = attributes
+                            , theme = theme
+                            , tone = config.tone
+                            , commodity = config.commodity
+                            , categories = categories
+                            , highlightedCategory = config.highlightedCategory
+                            , selected =
+                                Maybe.map .key config.selectedBucket
+                                    == Just (dayKey config.period day)
+                            , day = day
+                            , maybeBucket = bucketFor day
+                            , onSelect = config.onSelect
+                            }
                 }
     in
-    Ui.cardWith [ Element.width (Element.fillPortion 1), Element.alignTop ]
+    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle), Element.alignTop ]
         theme
         [ Typography.subsectionTitle theme config.title
         , activityLegend theme
@@ -726,7 +755,10 @@ activityMonth theme config =
         , calendar
         , case config.selectedBucket of
             Nothing ->
-                Element.el [ Element.width Element.fill, Element.paddingXY 0 12 ]
+                Element.el
+                    [ Element.width Element.fill
+                    , Element.paddingXY Tokens.space0 Tokens.space12
+                    ]
                     (Typography.mutedCaption theme "Select a day to see details")
 
             Just bucket ->
@@ -742,35 +774,76 @@ dayKey period day =
     period ++ "-" ++ String.padLeft 2 '0' (String.fromInt day)
 
 
-dayCell :
-    List (Element.Attribute msg)
-    -> Theme
-    -> ActivityTone
-    -> String
-    -> List BreakdownItem
-    -> Maybe Int
-    -> Bool
-    -> Int
-    -> Maybe ActivityBucket
-    -> (ActivityBucket -> msg)
-    -> Element msg
-dayCell attributes theme tone commodity categories highlightedCategory selected day maybeBucket onSelect =
+type alias DayCellConfig msg =
+    { attributes : List (Element.Attribute msg)
+    , theme : Theme
+    , tone : ActivityTone
+    , commodity : String
+    , categories : List BreakdownItem
+    , highlightedCategory : Maybe Int
+    , selected : Bool
+    , day : Int
+    , maybeBucket : Maybe ActivityBucket
+    , onSelect : ActivityBucket -> msg
+    }
+
+
+dayCell : DayCellConfig msg -> Element msg
+dayCell config =
     let
+        attributes =
+            config.attributes
+
+        theme =
+            config.theme
+
+        tone =
+            config.tone
+
+        commodity =
+            config.commodity
+
+        categories =
+            config.categories
+
+        highlightedCategory =
+            config.highlightedCategory
+
+        selected =
+            config.selected
+
+        day =
+            config.day
+
+        maybeBucket =
+            config.maybeBucket
+
+        onSelect =
+            config.onSelect
+
         label =
             Element.column
                 [ Element.width Element.fill
                 , Element.height Element.fill
-                , Element.spacing 8
-                , Element.paddingXY 2 4
+                , Element.spacing Tokens.space8
+                , Element.paddingXY Tokens.space2 Tokens.space4
                 ]
                 [ Element.el [ Element.centerX ]
-                    (activityDayRing theme tone categories highlightedCategory selected day maybeBucket)
+                    (activityDayRing
+                        theme
+                        tone
+                        categories
+                        highlightedCategory
+                        selected
+                        day
+                        maybeBucket
+                    )
                 , maybeBucket
                     |> Maybe.map
                         (\bucket ->
                             Element.el
                                 [ Element.centerX
-                                , Font.size 10
+                                , Typography.caption
                                 , Font.semiBold
                                 , Font.color (ringAccent theme tone bucket)
                                 , Typography.financeNumber
@@ -788,7 +861,7 @@ dayCell attributes theme tone commodity categories highlightedCategory selected 
 
         Just bucket ->
             Input.button
-                (Border.rounded 8 :: attributes)
+                (Border.rounded Tokens.radiusSmall :: attributes)
                 { onPress = Just (onSelect bucket), label = label }
 
 
@@ -808,16 +881,41 @@ activityCategories response =
         |> List.sortBy .account
 
 
-activityCategoryLegend :
-    Theme
-    -> ActivityTone
-    -> List BreakdownItem
-    -> LegendState
-    -> msg
-    -> Maybe Int
-    -> (Int -> msg)
-    -> Element msg
-activityCategoryLegend theme tone categories legendState onToggle highlightedCategory onCategoryHighlight =
+type alias ActivityCategoryLegendConfig msg =
+    { theme : Theme
+    , tone : ActivityTone
+    , categories : List BreakdownItem
+    , legendState : LegendState
+    , onToggle : msg
+    , highlightedCategory : Maybe Int
+    , onCategoryHighlight : Int -> msg
+    }
+
+
+activityCategoryLegend : ActivityCategoryLegendConfig msg -> Element msg
+activityCategoryLegend config =
+    let
+        theme =
+            config.theme
+
+        tone =
+            config.tone
+
+        categories =
+            config.categories
+
+        legendState =
+            config.legendState
+
+        onToggle =
+            config.onToggle
+
+        highlightedCategory =
+            config.highlightedCategory
+
+        onCategoryHighlight =
+            config.onCategoryHighlight
+    in
     if List.isEmpty categories then
         Element.none
 
@@ -839,8 +937,8 @@ activityCategoryLegend theme tone categories legendState onToggle highlightedCat
             remainingCount =
                 max 0 (List.length categories - maxVisible)
         in
-        Element.column [ Element.width Element.fill, Element.spacing 10 ]
-            [ Element.wrappedRow [ Element.width Element.fill, Element.spacing 10 ]
+        Element.column [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+            [ Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
                 (List.indexedMap
                     (\index category ->
                         let
@@ -854,25 +952,12 @@ activityCategoryLegend theme tone categories legendState onToggle highlightedCat
                                 else
                                     activityCategoryColor theme tone index
                         in
-                        Input.button
-                            [ Element.spacing 5
-                            , Element.paddingXY 4 2
-                            , Border.rounded 4
-                            , Background.color (Element.rgba 0 0 0 0)
-                            , Border.color
-                                (if isHighlighted then
-                                    dotColor
-
-                                 else
-                                    Element.rgba 0 0 0 0
-                                )
-                            , Border.width 1
-                            , Element.htmlAttribute
-                                (Attr.style "cursor" "pointer")
-                            ]
-                            { onPress = Just (onCategoryHighlight index)
+                        Ui.legendButton theme
+                            { accent = dotColor
+                            , selected = isHighlighted
+                            , onPress = onCategoryHighlight index
                             , label =
-                                Element.row [ Element.spacing 5 ]
+                                Element.row [ Element.spacing Tokens.space5 ]
                                     [ Ui.accentDot dotColor
                                     , Typography.mutedCaption
                                         theme
@@ -883,10 +968,8 @@ activityCategoryLegend theme tone categories legendState onToggle highlightedCat
                     visibleCategories
                 )
             , if remainingCount > 0 && not isExpanded then
-                Input.button
-                    [ Font.color theme.textMuted
-                    ]
-                    { onPress = Just onToggle
+                Ui.legendToggleButton theme
+                    { onPress = onToggle
                     , label =
                         Typography.mutedCaption
                             theme
@@ -897,10 +980,8 @@ activityCategoryLegend theme tone categories legendState onToggle highlightedCat
                     }
 
               else if isExpanded && List.length categories > maxVisible then
-                Input.button
-                    [ Font.color theme.textMuted
-                    ]
-                    { onPress = Just onToggle
+                Ui.legendToggleButton theme
+                    { onPress = onToggle
                     , label = Typography.mutedCaption theme "show less"
                     }
 
@@ -932,7 +1013,7 @@ activityDayRing theme tone categories highlightedCategory selected day maybeBuck
         emptyColor =
             case maybeBucket of
                 Nothing ->
-                    Element.rgba 0 0 0 0
+                    theme.transparent
 
                 Just bucket ->
                     if isEmptyActivityBucket bucket then
@@ -958,11 +1039,7 @@ activityDayRing theme tone categories highlightedCategory selected day maybeBuck
         , onPress = Nothing
         , label = Nothing
         , center =
-            Html.div
-                [ Attr.style "font-size" "12px"
-                , Attr.style "color" (Css.toCssColor theme.textPrimary)
-                ]
-                [ Html.text (String.fromInt day) ]
+            Chart.ringDayLabel theme (String.fromInt day)
         }
 
 
@@ -1006,22 +1083,9 @@ activityMonthRing theme commodity tone categories highlightedCategory selected b
         , onPress = Just (onSelect bucket)
         , label = Just (periodName bucket.key ++ " " ++ money commodity bucket.total)
         , center =
-            Html.div
-                [ Attr.style "display" "flex"
-                , Attr.style "flex-direction" "column"
-                , Attr.style "align-items" "center"
-                , Attr.style "justify-content" "center"
-                , Attr.style "gap" "2px"
-                ]
-                (Html.div
-                    [ Attr.style "font-size" "10px"
-                    , Attr.style "font-weight" "600"
-                    , Attr.style "color" (Css.toCssColor theme.textMuted)
-                    , Attr.style "line-height" "1"
-                    ]
-                    [ Html.text monthLabel ]
-                    :: monthRingCenter theme tone commodity isEmpty bucket
-                )
+            Chart.ringMonthCenter theme
+                monthLabel
+                (monthRingCenter theme tone commodity isEmpty bucket)
         }
 
 
@@ -1115,7 +1179,7 @@ activityCategoryColor theme tone index =
 
 activityTransactionList : Theme -> String -> List Transaction -> (Transaction -> msg) -> Element msg
 activityTransactionList theme title transactions onSelect =
-    Element.column [ Element.width Element.fill, Element.spacing 8 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         [ Typography.subsectionTitle theme title
         , if List.isEmpty transactions then
             Typography.mutedCaption theme "No transactions for this period"
@@ -1123,22 +1187,23 @@ activityTransactionList theme title transactions onSelect =
           else
             Element.column
                 [ Element.width Element.fill
-                , Element.spacing 4
+                , Element.spacing Tokens.space4
                 ]
                 (List.map
                     (\transaction ->
-                        Input.button (Ui.rowSurfaceAttrs theme False ++ [ Element.width Element.fill ])
+                        Input.button
+                            (Ui.rowSurfaceAttrs theme False ++ [ Element.width Element.fill ])
                             { onPress = Just (onSelect transaction)
                             , label =
                                 Element.row
                                     [ Element.width Element.fill
-                                    , Element.spacing 14
-                                    , Element.paddingXY 4 10
+                                    , Element.spacing Tokens.space14
+                                    , Element.paddingXY Tokens.space4 Tokens.space10
                                     ]
                                     [ Element.paragraph
                                         [ Element.width Element.fill
                                         , Typography.minWidthZero
-                                        , Font.size 15
+                                        , Typography.chartLabel
                                         ]
                                         [ Element.text transaction.description ]
                                     , Element.text "›"
@@ -1167,7 +1232,7 @@ activityYear :
         }
     -> Element msg
 activityYear theme config =
-    Ui.cardWith [ Element.width (Element.fillPortion 1), Element.alignTop ]
+    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle), Element.alignTop ]
         theme
         [ Typography.subsectionTitle theme config.title
         , case config.response of
@@ -1190,7 +1255,7 @@ activityYear theme config =
                             |> List.map Just
                             |> padToMultiple config.columns Nothing
                 in
-                Element.column [ Element.width Element.fill, Element.spacing 12 ]
+                Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
                     [ activityLegend theme
                         config.tone
                         categories
@@ -1198,33 +1263,48 @@ activityYear theme config =
                         config.onLegendToggle
                         config.highlightedCategory
                         config.onCategoryHighlight
-                    , Element.column [ Element.width Element.fill, Element.spacing 16 ]
+                    , Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                         (chunks config.columns slots
                             |> List.map
                                 (\row ->
-                                    Element.row [ Element.width Element.fill, Element.spacing 16 ]
+                                    Element.row
+                                        [ Element.width Element.fill
+                                        , Element.spacing Tokens.space16
+                                        ]
                                         (List.map
                                             (\maybeBucket ->
                                                 case maybeBucket of
                                                     Just bucket ->
                                                         Element.el
-                                                            [ Element.width (Element.fillPortion 1)
-                                                            , Element.paddingXY 0 8
+                                                            [ Element.width
+                                                                (Element.fillPortion
+                                                                    Tokens.layoutPortionSingle
+                                                                )
+                                                            , Element.paddingXY
+                                                                Tokens.space0
+                                                                Tokens.space8
                                                             ]
                                                             (activityMonthRing theme
                                                                 config.commodity
                                                                 config.tone
                                                                 categories
                                                                 config.highlightedCategory
-                                                                (Maybe.map .key selected == Just bucket.key)
+                                                                (Maybe.map .key selected
+                                                                    == Just bucket.key
+                                                                )
                                                                 bucket
                                                                 config.onSelect
                                                             )
 
                                                     Nothing ->
                                                         Element.el
-                                                            [ Element.width (Element.fillPortion 1)
-                                                            , Element.paddingXY 0 8
+                                                            [ Element.width
+                                                                (Element.fillPortion
+                                                                    Tokens.layoutPortionSingle
+                                                                )
+                                                            , Element.paddingXY
+                                                                Tokens.space0
+                                                                Tokens.space8
                                                             ]
                                                             Element.none
                                             )
@@ -1234,7 +1314,10 @@ activityYear theme config =
                         )
                     , case selected of
                         Nothing ->
-                            Element.el [ Element.width Element.fill, Element.paddingXY 0 12 ]
+                            Element.el
+                                [ Element.width Element.fill
+                                , Element.paddingXY Tokens.space0 Tokens.space12
+                                ]
                                 (Typography.mutedCaption theme "Select a month to see details")
 
                         Just bucket ->
@@ -1275,8 +1358,8 @@ activityDirectionYearLegend theme commodity specs bucket =
                     categoriesForDirection spec.direction bucket
                         |> List.sortBy (.quantity >> decimalFloat >> abs >> negate)
             in
-            Element.column [ Element.width Element.fill, Element.spacing 4 ]
-                (Element.row [ Element.width Element.fill, Element.spacing 8 ]
+            Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
+                (Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                     [ Ui.accentDot base
                     , Element.el [ Element.width Element.fill, Font.semiBold ]
                         (Element.text spec.label)
@@ -1289,8 +1372,13 @@ activityDirectionYearLegend theme commodity specs bucket =
         accountRow item =
             Element.row
                 [ Element.width Element.fill
-                , Element.spacing 8
-                , Element.paddingEach { top = 0, bottom = 0, left = 18, right = 0 }
+                , Element.spacing Tokens.space8
+                , Element.paddingEach
+                    { top = Tokens.space0
+                    , bottom = Tokens.space0
+                    , left = Tokens.space18
+                    , right = Tokens.space0
+                    }
                 ]
                 [ Element.el [ Element.width Element.fill, Typography.minWidthZero ]
                     (Typography.mutedCaption theme (categoryLabel item.account))
@@ -1298,8 +1386,10 @@ activityDirectionYearLegend theme commodity specs bucket =
                     (Element.text (money commodity item.quantity))
                 ]
     in
-    Element.column [ Element.width Element.fill, Element.spacing 12 ]
-        (Element.el [ Element.paddingXY 0 8 ] (Typography.mutedBody theme (periodName bucket.key))
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+        (Element.el
+            [ Element.paddingXY Tokens.space0 Tokens.space8 ]
+            (Typography.mutedBody theme (periodName bucket.key))
             :: List.map section (presentDirections specs bucket)
         )
 
@@ -1319,13 +1409,17 @@ activityCategoryYearLegend theme commodity tone bucket =
         totalColor =
             ringAccent theme tone bucket
     in
-    Element.column [ Element.width Element.fill, Element.spacing 8 ]
-        [ Element.row [ Element.width Element.fill, Element.spacing 8, Element.paddingXY 0 8 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+        [ Element.row
+            [ Element.width Element.fill
+            , Element.spacing Tokens.space8
+            , Element.paddingXY Tokens.space0 Tokens.space8
+            ]
             [ Typography.mutedBody theme (periodName bucket.key ++ " · ")
             , Element.el [ Font.color totalColor, Font.semiBold, Typography.financeNumber ]
                 (Element.text (money commodity bucket.total))
             ]
-        , Element.column [ Element.width Element.fill, Element.spacing 4 ]
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
             (List.indexedMap
                 (\index item ->
                     let
@@ -1336,10 +1430,13 @@ activityCategoryYearLegend theme commodity tone bucket =
                             else
                                 (decimalFloat item.quantity / total) * 100
                     in
-                    Element.row [ Element.width Element.fill, Element.spacing 8 ]
+                    Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                         [ Icon.view
-                            { icon = AccountPresentation.iconForAccount item.accountType item.account
-                            , size = 16
+                            { icon =
+                                AccountPresentation.iconForAccount
+                                    item.accountType
+                                    item.account
+                            , size = Tokens.iconSizeSmallGlyph
                             , color =
                                 if item.account == "Other" then
                                     otherColor theme
@@ -1376,10 +1473,17 @@ activityTransactions theme title transactions onSelect =
                 (List.intersperse (Ui.hairline theme)
                     (List.map
                         (\transaction ->
-                            Input.button [ Element.width Element.fill, Element.paddingXY 0 10 ]
+                            Input.button
+                                [ Element.width Element.fill
+                                , Ui.touchTargetHeight
+                                , Element.paddingXY Tokens.space0 Tokens.space10
+                                ]
                                 { onPress = Just (onSelect transaction)
                                 , label =
-                                    Element.row [ Element.width Element.fill, Element.spacing 12 ]
+                                    Element.row
+                                        [ Element.width Element.fill
+                                        , Element.spacing Tokens.space12
+                                        ]
                                         [ Element.el [ Font.color theme.textMuted ]
                                             (Element.text (Date.toString transaction.primaryDate))
                                         , Element.el [ Element.width Element.fill ]
@@ -1400,7 +1504,7 @@ warningList theme warnings =
         Element.none
 
     else
-        Element.column [ Element.width Element.fill, Element.spacing 8 ]
+        Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             (List.map (Ui.errorBanner theme) warnings)
 
 
@@ -1488,13 +1592,13 @@ scaleColor : List Element.Color -> Int -> Element.Color
 scaleColor scale index =
     case scale of
         [] ->
-            Element.rgba 0 0 0 0
+            Theme.transparentColor
 
         _ ->
             scale
                 |> List.drop (modBy (List.length scale) index)
                 |> List.head
-                |> Maybe.withDefault (Element.rgba 0 0 0 0)
+                |> Maybe.withDefault Theme.transparentColor
 
 
 directionSegments : List DirectionSpec -> Maybe Int -> ActivityBucket -> List Ring.Segment
@@ -1578,19 +1682,19 @@ presentDirections specs bucket =
             )
 
 
-monthRingCenter : Theme -> ActivityTone -> String -> Bool -> ActivityBucket -> List (Html.Html msg)
+monthRingCenter : Theme -> ActivityTone -> String -> Bool -> ActivityBucket -> List (Html msg)
 monthRingCenter theme tone commodity isEmpty bucket =
     case directionSpecsFor theme tone of
         Just specs ->
             case presentDirections specs bucket of
                 [] ->
-                    [ ringValueText theme.textMuted (money commodity bucket.total) ]
+                    [ Chart.ringValueText theme.textMuted (money commodity bucket.total) ]
 
                 present ->
                     List.map (directionValueText commodity) present
 
         Nothing ->
-            [ ringValueText
+            [ Chart.ringValueText
                 (if isEmpty then
                     theme.textMuted
 
@@ -1601,21 +1705,9 @@ monthRingCenter theme tone commodity isEmpty bucket =
             ]
 
 
-directionValueText : String -> ( DirectionSpec, Decimal ) -> Html.Html msg
+directionValueText : String -> ( DirectionSpec, Decimal ) -> Html msg
 directionValueText commodity ( spec, amount ) =
-    ringValueText (scaleColor spec.scale 0) (money commodity amount)
-
-
-ringValueText : Element.Color -> String -> Html.Html msg
-ringValueText color content =
-    Html.div
-        [ Attr.style "font-size" "10px"
-        , Attr.style "font-weight" "600"
-        , Attr.style "color" (Css.toCssColor color)
-        , Attr.style "line-height" "1.25"
-        , Attr.style "white-space" "nowrap"
-        ]
-        [ Html.text content ]
+    Chart.ringValueText (scaleColor spec.scale 0) (money commodity amount)
 
 
 activityLegend :
@@ -1633,31 +1725,28 @@ activityLegend theme tone categories legendState onToggle highlighted onHighligh
             activityDirectionLegend theme specs highlighted onHighlight
 
         Nothing ->
-            activityCategoryLegend theme tone categories legendState onToggle highlighted onHighlight
+            activityCategoryLegend
+                { theme = theme
+                , tone = tone
+                , categories = categories
+                , legendState = legendState
+                , onToggle = onToggle
+                , highlightedCategory = highlighted
+                , onCategoryHighlight = onHighlight
+                }
 
 
 activityDirectionLegend : Theme -> List DirectionSpec -> Maybe Int -> (Int -> msg) -> Element msg
 activityDirectionLegend theme specs highlighted onHighlight =
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing 10 ]
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
         (List.indexedMap
             (\index spec ->
-                Input.button
-                    [ Element.spacing 5
-                    , Element.paddingXY 4 2
-                    , Border.rounded 4
-                    , Border.width 1
-                    , Border.color
-                        (if highlighted == Just index then
-                            scaleColor spec.scale 0
-
-                         else
-                            Element.rgba 0 0 0 0
-                        )
-                    , Element.htmlAttribute (Attr.style "cursor" "pointer")
-                    ]
-                    { onPress = Just (onHighlight index)
+                Ui.legendButton theme
+                    { accent = scaleColor spec.scale 0
+                    , selected = highlighted == Just index
+                    , onPress = onHighlight index
                     , label =
-                        Element.row [ Element.spacing 5 ]
+                        Element.row [ Element.spacing Tokens.space5 ]
                             [ Ui.accentDot (scaleColor spec.scale 0)
                             , Typography.mutedCaption theme spec.label
                             ]
@@ -1669,7 +1758,9 @@ activityDirectionLegend theme specs highlighted onHighlight =
 
 money : String -> Decimal -> String
 money commodity amount =
-    Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity) (decimalFloat amount)
+    Formatting.formatAmountDisplay
+        (Formatting.commodityDisplaySymbol commodity)
+        (decimalFloat amount)
 
 
 moneyFloat : String -> Float -> String
@@ -1732,11 +1823,6 @@ categoryLabel account =
 
             [] ->
                 account
-
-
-float : Float -> String
-float =
-    String.fromFloat
 
 
 chunks : Int -> List value -> List (List value)

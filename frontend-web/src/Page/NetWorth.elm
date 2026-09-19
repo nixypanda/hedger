@@ -1,17 +1,17 @@
 module Page.NetWorth exposing (Model, Msg(..), init, update, view)
 
-import Api.Analytics as Analytics
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Background as Background
 import Element.Font as Font
-import Html.Attributes
 import Page.Shared.Analysis as Analysis
 import RemoteData exposing (RemoteData(..))
 import State.Viewport exposing (Viewport)
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
@@ -31,7 +31,7 @@ type Model
 
 
 type alias ModelData =
-    { response : RemoteData Analytics.NetWorthResponse
+    { response : RemoteData ApiError Analytics.NetWorthResponse
     , analysis : Analysis.Model
     , selectedPerformance : Maybe String
     }
@@ -40,13 +40,16 @@ type alias ModelData =
 init : ( Model, Cmd Msg )
 init =
     let
+        ( analysis, effects ) =
+            Analysis.requestReport analysisContext Analysis.init
+
         data =
             { response = Loading Nothing
-            , analysis = Analysis.init
+            , analysis = analysis
             , selectedPerformance = Nothing
             }
     in
-    ( Model data, fetchReport data.analysis )
+    ( Model data, performEffects effects )
 
 
 
@@ -55,7 +58,7 @@ init =
 
 type Msg
     = Refresh
-    | ResponseLoaded (Result ApiError Analytics.NetWorthResponse)
+    | ResponseLoaded Int (Result ApiError Analytics.NetWorthResponse)
     | AnalysisMsg Analysis.Msg
     | PerformanceSelected String
 
@@ -64,23 +67,54 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg (Model data) =
     case msg of
         Refresh ->
-            ( Model { data | response = RemoteData.beginLoading data.response }
-            , fetchReport data.analysis
+            let
+                ( analysis, effects ) =
+                    Analysis.requestReport analysisContext data.analysis
+            in
+            ( Model
+                { data
+                    | response = RemoteData.beginLoading data.response
+                    , analysis = analysis
+                }
+            , performEffects effects
             )
 
-        ResponseLoaded result ->
+        ResponseLoaded token result ->
             case result of
                 Err error ->
-                    ( Model { data | response = Failure error (RemoteData.value data.response) }, Cmd.none )
+                    case Analysis.reportFailed token data.analysis of
+                        Nothing ->
+                            ( Model data, Cmd.none )
 
-                Ok response ->
-                    let
-                        ( analysis, effects ) =
-                            Analysis.reportLoaded analysisContext (analysisReport response) data.analysis
-                    in
-                    ( Model { data | response = Success response, analysis = analysis }
-                    , performEffects effects
-                    )
+                        Just analysis ->
+                            ( Model
+                                { data
+                                    | response =
+                                        Failure error (RemoteData.value data.response)
+                                    , analysis = analysis
+                                }
+                            , Cmd.none
+                            )
+
+                Ok loadedResponse ->
+                    case
+                        Analysis.reportLoaded
+                            token
+                            analysisContext
+                            (analysisReport loadedResponse)
+                            data.analysis
+                    of
+                        Nothing ->
+                            ( Model data, Cmd.none )
+
+                        Just ( analysis, effects ) ->
+                            ( Model
+                                { data
+                                    | response = Success loadedResponse
+                                    , analysis = analysis
+                                }
+                            , performEffects effects
+                            )
 
         AnalysisMsg analysisMsg ->
             let
@@ -156,19 +190,14 @@ analysisConfig =
     }
 
 
-analysisReport : Analytics.NetWorthResponse -> Analytics.Report
+analysisReport : Analytics.NetWorthResponse -> Analysis.Report
 analysisReport response =
     { displayCommodity = response.displayCommodity
-    , timeline = Analytics.TimelineAvailable response.timeline
+    , timeline = Analysis.TimelineAvailable response.timeline
     , positiveBreakdown = response.assetsBreakdown
     , negativeBreakdown = response.liabilitiesBreakdown
     , warnings = response.warnings
     }
-
-
-fetchReport : Analysis.Model -> Cmd Msg
-fetchReport analysis =
-    Api.getNetWorth (Analysis.reportRequest "" analysis) ResponseLoaded
 
 
 performEffects : List Analysis.Effect -> Cmd Msg
@@ -179,20 +208,20 @@ performEffects effects =
 performEffect : Analysis.Effect -> Cmd Msg
 performEffect effect =
     case effect of
-        Analysis.FetchReport request ->
-            Api.getNetWorth request ResponseLoaded
+        Analysis.FetchReport token request ->
+            Api.getNetWorth request (ResponseLoaded token)
 
-        Analysis.FetchActivity side request ->
-            Api.getActivity request (Analysis.ActivityLoaded side >> AnalysisMsg)
+        Analysis.FetchActivity side token request ->
+            Api.getActivity request (Analysis.ActivityLoaded side token >> AnalysisMsg)
 
 
 isReportEffect : Analysis.Effect -> Bool
 isReportEffect effect =
     case effect of
-        Analysis.FetchReport _ ->
+        Analysis.FetchReport _ _ ->
             True
 
-        Analysis.FetchActivity _ _ ->
+        Analysis.FetchActivity _ _ _ ->
             False
 
 
@@ -240,7 +269,7 @@ dashboard theme viewport data =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll analytics-page")
+        , Typography.uiClass "page-scroll analytics-page"
         ]
         [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
@@ -283,7 +312,7 @@ dashboardContent theme viewport data =
                     [ netWorthSkeleton theme viewport ]
 
         Just response ->
-            [ States.remoteNotice theme response.metadata.freshness data.response
+            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , responsiveGrid layout
                 [ AnalyticsView.kpiCard theme
                     { title = "Net worth"
@@ -337,17 +366,23 @@ dashboardContent theme viewport data =
                     ]
                 ]
             , Element.map AnalysisMsg
-                (Analysis.view theme viewport analysisConfig (analysisReport response) data.analysis)
+                (Analysis.view
+                    theme
+                    viewport
+                    analysisConfig
+                    (analysisReport response)
+                    data.analysis
+                )
             ]
 
 
 responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
 responsiveGrid layout items =
     if Responsive.isCompact layout then
-        Element.column [ Element.width Element.fill, Element.spacing 16 ] items
+        Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
     else
-        Element.row [ Element.width Element.fill, Element.spacing 16 ] items
+        Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
 
 netWorthSkeleton : Theme -> Viewport -> Element Msg
@@ -356,7 +391,7 @@ netWorthSkeleton theme viewport =
         layout =
             Responsive.contentLayout viewport
     in
-    Element.column [ Element.width Element.fill, Element.spacing 16 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ responsiveGrid layout
             [ Skeleton.kpiCard theme
             , Skeleton.kpiCard theme
@@ -364,7 +399,7 @@ netWorthSkeleton theme viewport =
             ]
         , Typography.sectionTitle theme "Performance"
         , Skeleton.chartCard theme
-        , Element.column [ Element.width Element.fill, Element.spacing 16 ]
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
             [ Skeleton.chartCard theme
             , responsiveGrid layout
                 [ Skeleton.chartCard theme
@@ -376,10 +411,10 @@ netWorthSkeleton theme viewport =
 
 chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
 chartLegend theme items =
-    Element.wrappedRow [ Element.spacing 14 ]
+    Element.wrappedRow [ Element.spacing Tokens.space14 ]
         (List.map
             (\( color, label ) ->
-                Element.row [ Element.spacing 5 ]
+                Element.row [ Element.spacing Tokens.space5 ]
                     [ Ui.accentDot color
                     , Element.el [ Font.color theme.textMuted ] (Element.text label)
                     ]

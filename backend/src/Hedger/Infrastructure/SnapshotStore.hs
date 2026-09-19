@@ -10,12 +10,25 @@ module Hedger.Infrastructure.SnapshotStore (
     readLastReloadError,
     readSnapshotStore,
     reloadSnapshot,
-)
-where
+) where
 
 import Control.Applicative ((<|>))
-import Control.Concurrent.STM (TVar, atomically, check, modifyTVar', newTVarIO, readTVar, readTVarIO)
-import Control.Exception (SomeAsyncException, SomeException, displayException, fromException, tryJust)
+import Control.Concurrent.STM (
+    TVar,
+    atomically,
+    check,
+    modifyTVar',
+    newTVarIO,
+    readTVar,
+    readTVarIO,
+ )
+import Control.Exception (
+    SomeAsyncException,
+    SomeException,
+    displayException,
+    fromException,
+    tryJust,
+ )
 import Crypto.Hash.MD5 qualified as MD5
 import Data.ByteString qualified as ByteString
 import Data.Text (Text)
@@ -32,8 +45,8 @@ import Hledger.Read qualified as Hledger
 import Hedger.Domain.Snapshot (Snapshot (..))
 
 -- Store model
-
-newtype SnapshotLoadError = JournalReadFailed Text
+newtype SnapshotLoadError
+    = JournalReadFailed Text
     deriving stock (Eq, Show)
 
 data SnapshotStoreRead
@@ -51,27 +64,28 @@ data SnapshotStore = SnapshotStore
     }
 
 -- Store operations
-
 newSnapshotStore :: Text -> IO SnapshotStore
 newSnapshotStore path = SnapshotStore <$> newTVarIO SnapshotNotLoaded <*> pure path
 
 readCurrentSnapshot :: SnapshotStore -> IO (Maybe Snapshot)
 readCurrentSnapshot SnapshotStore{..} = do
     state <- readTVarIO storeState
-    pure $ case state of
-        SnapshotNotLoaded -> Nothing
-        SnapshotLoadFailed _ -> Nothing
-        SnapshotFresh snapshot -> Just snapshot
-        SnapshotStale snapshot _ -> Just snapshot
+    pure $
+        case state of
+            SnapshotNotLoaded -> Nothing
+            SnapshotLoadFailed _ -> Nothing
+            SnapshotFresh snapshot -> Just snapshot
+            SnapshotStale snapshot _ -> Just snapshot
 
 readLastReloadError :: SnapshotStore -> IO (Maybe SnapshotLoadError)
 readLastReloadError SnapshotStore{..} = do
     state <- readTVarIO storeState
-    pure $ case state of
-        SnapshotNotLoaded -> Nothing
-        SnapshotLoadFailed loadError -> Just loadError
-        SnapshotFresh _ -> Nothing
-        SnapshotStale _ loadError -> Just loadError
+    pure $
+        case state of
+            SnapshotNotLoaded -> Nothing
+            SnapshotLoadFailed loadError -> Just loadError
+            SnapshotFresh _ -> Nothing
+            SnapshotStale _ loadError -> Just loadError
 
 readSnapshotStore :: SnapshotStore -> IO SnapshotStoreRead
 readSnapshotStore SnapshotStore{..} = readTVarIO storeState
@@ -96,16 +110,16 @@ awaitRevisionChange SnapshotStore{..} seen =
         pure revision
 
 -- State projections and transitions
-
 storeReloadResult :: Either SnapshotLoadError Snapshot -> SnapshotStoreRead -> SnapshotStoreRead
 storeReloadResult result state =
     case result of
         Right snapshot -> SnapshotFresh snapshot
-        Left loadError -> case state of
-            SnapshotNotLoaded -> SnapshotLoadFailed loadError
-            SnapshotLoadFailed _ -> SnapshotLoadFailed loadError
-            SnapshotFresh snapshot -> SnapshotStale snapshot loadError
-            SnapshotStale snapshot _ -> SnapshotStale snapshot loadError
+        Left loadError ->
+            case state of
+                SnapshotNotLoaded -> SnapshotLoadFailed loadError
+                SnapshotLoadFailed _ -> SnapshotLoadFailed loadError
+                SnapshotFresh snapshot -> SnapshotStale snapshot loadError
+                SnapshotStale snapshot _ -> SnapshotStale snapshot loadError
 
 storeRevision :: SnapshotStoreRead -> Text
 storeRevision state =
@@ -116,12 +130,12 @@ storeRevision state =
         SnapshotStale snapshot _ -> snapshot.revision
 
 -- Snapshot loading
-
 loadSnapshot :: Text -> IO (Either SnapshotLoadError Snapshot)
 loadSnapshot configuredPath = do
     readResult <- readJournal configuredPath
     pure $ do
-        journalResult <- either (Left . JournalReadFailed . Text.pack . displayException) Right readResult
+        journalResult <-
+            either (Left . JournalReadFailed . Text.pack . displayException) Right readResult
         loadedJournal <- either (Left . JournalReadFailed . Text.pack) Right journalResult
         let records = loadedJournal.jtxns
             postings = concatMap Hledger.tpostings records
@@ -137,9 +151,10 @@ loadSnapshot configuredPath = do
     postingDate posting = posting.pdate <|> (Hledger.tdate <$> posting.ptransaction)
 
 readJournal :: Text -> IO (Either SomeException (Either String Hledger.Journal))
-readJournal configuredPath = tryJust synchronousException $ do
-    absolutePath <- Directory.makeAbsolute (Text.unpack configuredPath)
-    Hledger.runExceptT (Hledger.readJournalFile Hledger.definputopts absolutePath)
+readJournal configuredPath =
+    tryJust synchronousException $ do
+        absolutePath <- Directory.makeAbsolute (Text.unpack configuredPath)
+        Hledger.runExceptT (Hledger.readJournalFile Hledger.definputopts absolutePath)
 
 synchronousException :: SomeException -> Maybe SomeException
 synchronousException exception =
@@ -152,14 +167,16 @@ maximumMaybe [] = Nothing
 maximumMaybe values = Just (maximum values)
 
 -- Revision hashing
-
 journalRevision :: Hledger.Journal -> Text
-journalRevision journal =
-    "md5:" <> hexEncode (MD5.hash revisionInput)
+journalRevision journal = "md5:" <> hexEncode (MD5.hash revisionInput)
   where
     revisionInput =
         TextEncoding.encodeUtf8
-            (Text.concat ("read-options:definputopts-v1\n" : (lengthDelimited . snd <$> journal.jfiles)))
+            ( Text.concat
+                ( "read-options:definputopts-v1\n"
+                    : (lengthDelimited . snd <$> journal.jfiles)
+                )
+            )
 
 lengthDelimited :: Text -> Text
 lengthDelimited value = Text.pack (show (Text.length value)) <> ":" <> value

@@ -4,8 +4,7 @@ module Hedger.Interface.HTTP.Core.Errors (
     ValidationDetails (..),
     appErrorStatus,
     toEnvelope,
-)
-where
+) where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
@@ -71,11 +70,11 @@ toEnvelope requestIdentifier appError =
     errorCode InvalidDateRange = "invalid_date_range"
     errorCode (QueryTooLong _) = "query_too_long"
     errorCode InternalError = "internal_error"
-
     errorMessage JournalUnavailable = "No usable journal snapshot is available."
     errorMessage (InvalidRequest detail) = detail
     errorMessage (InvalidQuery _ _) = "The transaction query is invalid."
-    errorMessage (UnsupportedQueryOption _) = "The transaction query uses unsupported report options."
+    errorMessage (UnsupportedQueryOption _) =
+        "The transaction query uses unsupported report options."
     errorMessage (InvalidCursor detail) = detail
     errorMessage (InvalidLimit lowerBound upperBound) =
         "The limit must be between " <> showText lowerBound <> " and " <> showText upperBound <> "."
@@ -84,10 +83,13 @@ toEnvelope requestIdentifier appError =
     errorMessage (QueryTooLong upperBound) =
         "The query must not exceed " <> showText upperBound <> " characters."
     errorMessage InternalError = "An unexpected server error occurred."
-
-    errorDetails (InvalidQuery reason position) = Just ValidationDetails{reason = reason, position = position}
+    errorDetails (InvalidQuery reason position) =
+        Just ValidationDetails{reason = reason, position = position}
     errorDetails (UnsupportedQueryOption options) =
-        Just ValidationDetails{reason = "Unsupported report option(s): " <> options, position = Nothing}
+        Just
+            ValidationDetails
+                { reason = "Unsupported report option(s): " <> options
+                , position = Nothing
+                }
     errorDetails _ = Nothing
-
     showText = Text.pack . show

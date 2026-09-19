@@ -1,8 +1,7 @@
 module Hedger.Application.Transactions (
     TransactionList (..),
     transactionList,
-)
-where
+) where
 
 import Control.Monad.Except (throwError)
 import Data.Text (Text)

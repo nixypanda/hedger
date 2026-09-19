@@ -7,7 +7,6 @@ module Hedger.Domain.Xirr (
     cashFlowAmount,
     cashFlowDate,
     xirr,
-)
-where
+) where
 
 import Hedger.Domain.Internal.Xirr

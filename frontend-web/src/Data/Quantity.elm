@@ -1,4 +1,11 @@
-module Data.Quantity exposing (Quantity, commodity, commodityCount, decoder, hasMultipleCommodities, quantity)
+module Data.Quantity exposing
+    ( Quantity
+    , commodity
+    , commodityCount
+    , decoder
+    , hasMultipleCommodities
+    , quantity
+    )
 
 import Data.Decimal as Decimal exposing (Decimal)
 import Json.Decode as Decode

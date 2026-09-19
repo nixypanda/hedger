@@ -1,4 +1,6 @@
-module Hedger.Domain.NetWorthSpec (netWorthSpec) where
+module Hedger.Domain.NetWorthSpec (
+    netWorthSpec,
+) where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -64,7 +66,8 @@ referenceJournals =
 currentAgreesWithReference :: Text -> Granularity -> Text -> IO ()
 currentAgreesWithReference path granularity commodity = do
     snapshot <- loadFixture path
-    let figures = computeNetWorth snapshot snapshot.transactions granularity commodity Nothing Nothing 2 2
+    let figures =
+            computeNetWorth snapshot snapshot.transactions granularity commodity Nothing Nothing 2 2
         referenceAssets = currentAssetCashBalance snapshot snapshot.transactions commodity
         referenceLiabilities = currentLiabilityBalance snapshot snapshot.transactions commodity
     assertEqual "current assets" referenceAssets.value figures.currentAssets

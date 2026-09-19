@@ -10,17 +10,18 @@ module Api.Client exposing
     , transactionsUrl
     )
 
-import Api.Account as Account exposing (Response)
+import Api.Account as Account
 import Api.Analytics as Analytics
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
 import Api.Investments as Investments
 import Api.Register as Register
 import Api.Transaction as Transaction exposing (Response)
+import Data.Analytics as AnalyticsData
 import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
-import Url.Builder as UrlBuilder
+import Url.Builder as Builder
 
 
 getBootstrap : (Result ApiError Bootstrap -> msg) -> Cmd msg
@@ -41,14 +42,17 @@ getAccounts commodity toMsg =
 
 accountsUrl : Maybe String -> String
 accountsUrl commodity =
-    UrlBuilder.absolute [ "api", "v1", "accounts", "tree" ]
+    Builder.absolute [ "api", "v1", "accounts", "tree" ]
         (commodity
-            |> Maybe.map (UrlBuilder.string "commodity" >> List.singleton)
+            |> Maybe.map (Builder.string "commodity" >> List.singleton)
             |> Maybe.withDefault []
         )
 
 
-getTransactions : { query : String, cursor : Maybe String } -> (Result ApiError Response -> msg) -> Cmd msg
+getTransactions :
+    { query : String, cursor : Maybe String }
+    -> (Result ApiError Response -> msg)
+    -> Cmd msg
 getTransactions request toMsg =
     Http.get
         { url = transactionsUrl request
@@ -56,12 +60,18 @@ getTransactions request toMsg =
         }
 
 
-getNetWorth : Analytics.AnalyticsRequest -> (Result ApiError Analytics.NetWorthResponse -> msg) -> Cmd msg
+getNetWorth :
+    Analytics.AnalyticsRequest
+    -> (Result ApiError AnalyticsData.NetWorthResponse -> msg)
+    -> Cmd msg
 getNetWorth request toMsg =
     analyticsPost "net-worth" (Analytics.requestEncoder request) Analytics.netWorthDecoder toMsg
 
 
-getCashflow : Analytics.AnalyticsRequest -> (Result ApiError Analytics.CashflowResponse -> msg) -> Cmd msg
+getCashflow :
+    Analytics.AnalyticsRequest
+    -> (Result ApiError AnalyticsData.CashflowResponse -> msg)
+    -> Cmd msg
 getCashflow request toMsg =
     analyticsPost "cashflow" (Analytics.requestEncoder request) Analytics.cashflowDecoder toMsg
 
@@ -71,15 +81,27 @@ getInvestments request toMsg =
     analyticsPost "investments" (Investments.requestEncoder request) Investments.decoder toMsg
 
 
-getActivity : Analytics.ActivityRequest -> (Result ApiError Analytics.ActivityResponse -> msg) -> Cmd msg
+getActivity :
+    Analytics.ActivityRequest
+    -> (Result ApiError AnalyticsData.ActivityResponse -> msg)
+    -> Cmd msg
 getActivity request toMsg =
-    analyticsPost "activity" (Analytics.activityRequestEncoder request) Analytics.activityDecoder toMsg
+    analyticsPost
+        "activity"
+        (Analytics.activityRequestEncoder request)
+        Analytics.activityDecoder
+        toMsg
 
 
-analyticsPost : String -> Encode.Value -> Decode.Decoder value -> (Result ApiError value -> msg) -> Cmd msg
+analyticsPost :
+    String
+    -> Encode.Value
+    -> Decode.Decoder value
+    -> (Result ApiError value -> msg)
+    -> Cmd msg
 analyticsPost screen body decoder toMsg =
     Http.post
-        { url = UrlBuilder.absolute [ "api", "v1", screen, "query" ] []
+        { url = Builder.absolute [ "api", "v1", screen, "query" ] []
         , body = Http.jsonBody body
         , expect = expectApiJson toMsg decoder
         }
@@ -110,9 +132,9 @@ accountRegisterUrl :
     }
     -> String
 accountRegisterUrl request =
-    UrlBuilder.absolute [ "api", "v1", "accounts", request.account, "register" ]
+    Builder.absolute [ "api", "v1", "accounts", request.account, "register" ]
         (List.concat
-            [ [ UrlBuilder.int "limit" 50 ]
+            [ [ Builder.int "limit" 50 ]
             , optionalQuery "commodity" request.commodity
             , optionalQuery "from" request.from
             , optionalQuery "to" request.to
@@ -121,25 +143,25 @@ accountRegisterUrl request =
         )
 
 
-optionalQuery : String -> Maybe String -> List UrlBuilder.QueryParameter
+optionalQuery : String -> Maybe String -> List Builder.QueryParameter
 optionalQuery name value =
     value
-        |> Maybe.map (UrlBuilder.string name >> List.singleton)
+        |> Maybe.map (Builder.string name >> List.singleton)
         |> Maybe.withDefault []
 
 
 transactionsUrl : { query : String, cursor : Maybe String } -> String
 transactionsUrl request =
-    UrlBuilder.absolute [ "api", "v1", "transactions" ]
+    Builder.absolute [ "api", "v1", "transactions" ]
         (List.concat
             [ if String.isEmpty request.query then
                 []
 
               else
-                [ UrlBuilder.string "query" request.query ]
-            , [ UrlBuilder.int "limit" 50 ]
+                [ Builder.string "query" request.query ]
+            , [ Builder.int "limit" 50 ]
             , request.cursor
-                |> Maybe.map (UrlBuilder.string "cursor" >> List.singleton)
+                |> Maybe.map (Builder.string "cursor" >> List.singleton)
                 |> Maybe.withDefault []
             ]
         )
@@ -159,7 +181,10 @@ expectApiJson toMsg valueDecoder =
         (responseToResult valueDecoder)
 
 
-responseToResult : Decode.Decoder value -> Http.Response String -> Result Http.Error (Result ApiError value)
+responseToResult :
+    Decode.Decoder value
+    -> Http.Response String
+    -> Result Http.Error (Result ApiError value)
 responseToResult valueDecoder response =
     case response of
         Http.GoodStatus_ _ body ->

@@ -61,7 +61,10 @@ loadedStore = do
 
 getJson :: ByteString.ByteString -> Wai.Application -> IO (Maybe Value, SResponse)
 getJson path app = do
-    response <- runSession (request (setPath defaultRequest{Wai.requestMethod = methodGet} path)) app
+    response <-
+        runSession
+            (request (setPath defaultRequest{Wai.requestMethod = methodGet} path))
+            app
     pure (decode response.simpleBody, response)
 
 postJson ::

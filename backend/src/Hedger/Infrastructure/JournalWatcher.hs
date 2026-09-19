@@ -27,8 +27,7 @@ module Hedger.Infrastructure.JournalWatcher (
     guardReloaderStep,
     watchTargets,
     withJournalWatcher,
-)
-where
+) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, writeTVar)
@@ -52,13 +51,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import System.Directory qualified as Directory
-import System.FSNotify (
-    Event,
-    WatchManager,
-    eventPath,
-    watchDir,
-    withManager,
- )
+import System.FSNotify (Event, WatchManager, eventPath, watchDir, withManager)
 import System.FilePath (takeDirectory)
 
 import Hedger.Domain.Snapshot (Snapshot (..))
@@ -91,8 +84,7 @@ withJournalWatcher store action =
         wakeReloader <- newTVarIO False
         let requestReload = atomically (writeTVar wakeReloader True)
         reconcileWatches manager store ws requestReload
-        reloader <-
-            forkIO (runReloader store manager ws requestReload wakeReloader)
+        reloader <- forkIO (runReloader store manager ws requestReload wakeReloader)
         action `finally` killThread reloader
 
 {- | Runs 'reloadCycle' forever, guarding each iteration with 'guardReloaderStep'
@@ -101,8 +93,7 @@ an atomic-rename storm) is logged and the loop keeps going instead of the
 reloader thread dying silently.
 -}
 runReloader :: SnapshotStore -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
-runReloader store manager ws requestReload wakeReloader =
-    forever (guardReloaderStep step)
+runReloader store manager ws requestReload wakeReloader = forever (guardReloaderStep step)
   where
     step = reloadCycle store manager ws requestReload wakeReloader
 
@@ -133,7 +124,9 @@ guardReloaderStep action = do
             | isAsynchronous exception -> throwIO exception
             | otherwise ->
                 Text.putStrLn
-                    ("Journal watcher reconcile failed; retrying: " <> Text.pack (displayException exception))
+                    ( "Journal watcher reconcile failed; retrying: "
+                        <> Text.pack (displayException exception)
+                    )
 
 isAsynchronous :: SomeException -> Bool
 isAsynchronous exception =
@@ -142,11 +135,14 @@ isAsynchronous exception =
         Nothing -> False
 
 reloadMessage :: Either SnapshotLoadError Snapshot -> Text
-reloadMessage result = case result of
-    Right snapshot ->
-        "Reloaded journal after a file change (revision " <> snapshot.revision <> ")."
-    Left (JournalReadFailed problem) ->
-        "Journal reload after a file change failed; keeping the previous snapshot: " <> problem
+reloadMessage result =
+    case result of
+        Right snapshot ->
+            "Reloaded journal after a file change (revision "
+                <> snapshot.revision
+                <> ")."
+        Left (JournalReadFailed problem) ->
+            "Journal reload after a file change failed; keeping the previous snapshot: " <> problem
 
 reconcileWatches :: WatchManager -> SnapshotStore -> WatchState -> IO () -> IO ()
 reconcileWatches manager store ws requestReload = do

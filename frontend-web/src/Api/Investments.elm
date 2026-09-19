@@ -13,11 +13,12 @@ module Api.Investments exposing
     )
 
 import Api.Json exposing (maybeString, required)
-import Api.Metadata as Metadata exposing (Metadata)
+import Api.Metadata as Metadata
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date exposing (Date)
 import Data.Decimal as Decimal exposing (Decimal)
 import Data.Granularity as Granularity exposing (Granularity)
+import Data.Metadata exposing (Metadata)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 

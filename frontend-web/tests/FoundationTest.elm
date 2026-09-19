@@ -4,6 +4,7 @@ import Api.Error as ApiError
 import Data.Decimal as Decimal
 import Data.Revision as Revision
 import Expect
+import Http
 import Json.Decode as Decode
 import Preferences exposing (ThemeMode(..))
 import RemoteData exposing (RemoteData(..))
@@ -86,6 +87,8 @@ suite =
                     """
                     |> Result.map .code
                     |> Expect.equal (Ok "journal_unavailable")
+        , test "transport errors suggest a recovery action" <|
+            transportErrorsSuggestRecovery
         , test "responsive layouts use available width efficiently" <|
             responsiveLayoutsUseWidth
         , test "viewport height does not change structural layout" <|
@@ -93,6 +96,26 @@ suite =
         , test "full navigation does not shrink usable content" <|
             navigationTransitionPreservesContentWidth
         ]
+
+
+transportErrorsSuggestRecovery : () -> Expect.Expectation
+transportErrorsSuggestRecovery _ =
+    [ Http.BadUrl "broken"
+    , Http.Timeout
+    , Http.NetworkError
+    , Http.BadStatus 503
+    , Http.BadBody "missing field"
+    ]
+        |> List.map (ApiError.fromHttpError >> .message)
+        |> Expect.equal
+            [ "The API URL is invalid. Check the frontend API configuration."
+            , "The API request timed out. Try again."
+            , "The API could not be reached. Check that Hedger is running, then try again."
+            , "The API returned status 503. Try again. If the problem continues, "
+                ++ "check the Hedger server logs."
+            , "The API returned an invalid response. Refresh the page and try again. "
+                ++ "Details: missing field"
+            ]
 
 
 responsiveLayoutsUseWidth : () -> Expect.Expectation

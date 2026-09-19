@@ -11,8 +11,7 @@ module Hedger.Domain.Valuation (
     completeDecimal,
     missingCommodities,
     ConversionWarning (..),
-)
-where
+) where
 
 import Data.Decimal (Decimal)
 import Data.Maybe (mapMaybe)
@@ -38,10 +37,7 @@ data Conversion value = Conversion
 
 instance Functor Conversion where
     fmap change conversion =
-        Conversion
-            { value = fmap change conversion.value
-            , missing = conversion.missing
-            }
+        Conversion{value = fmap change conversion.value, missing = conversion.missing}
 
 -- | Value a mixed amount into the display commodity as at a given date.
 valueMixedAt :: Snapshot -> Text -> Day -> Hledger.MixedAmount -> Hledger.MixedAmount
@@ -61,10 +57,7 @@ conversionFromMixed commodity amount =
                 , abs item.aquantity >= negligibleQuantity
                 , item.acommodity /= commodity
                 ]
-     in Conversion
-            { value = Just (commodityQuantity commodity amount)
-            , missing
-            }
+     in Conversion{value = Just (commodityQuantity commodity amount), missing}
 
 -- | Value an amount at a date and require a complete conversion for a result.
 convertMixedAt :: Snapshot -> Text -> Day -> Hledger.MixedAmount -> Conversion Decimal
@@ -79,7 +72,10 @@ convertMixedAt snapshot commodity day amount =
                 , item.acommodity /= commodity
                 ]
      in Conversion
-            { value = if Set.null missing then Just (commodityQuantity commodity valued) else Nothing
+            { value =
+                if Set.null missing
+                    then Just (commodityQuantity commodity valued)
+                    else Nothing
             , missing
             }
 
@@ -91,10 +87,7 @@ requireComplete conversion
 foldMapConversion :: [Conversion value] -> Conversion [value]
 foldMapConversion conversions =
     let missing = Set.unions (fmap (.missing) conversions)
-     in Conversion
-            { value = Just (mapMaybe (.value) conversions)
-            , missing
-            }
+     in Conversion{value = Just (mapMaybe (.value) conversions), missing}
 
 complete :: value -> Conversion value
 complete value = Conversion{value = Just value, missing = Set.empty}
@@ -110,12 +103,15 @@ completeDecimal commodity amount
     | Set.null missing = Just displayQuantity
     | otherwise = Nothing
   where
-    projected = filter ((>= negligibleQuantity) . abs . (.aquantity)) (HledgerAmount.amountsRaw amount)
+    projected =
+        filter ((>= negligibleQuantity) . abs . (.aquantity)) (HledgerAmount.amountsRaw amount)
     missing = Set.fromList [item.acommodity | item <- projected, item.acommodity /= commodity]
     displayQuantity =
         sum
             [ item.aquantity
-            | item <- HledgerAmount.amountsRaw (HledgerAmount.filterMixedAmountByCommodity commodity amount)
+            | item <-
+                HledgerAmount.amountsRaw
+                    (HledgerAmount.filterMixedAmountByCommodity commodity amount)
             , abs item.aquantity >= negligibleQuantity
             ]
 
@@ -133,7 +129,8 @@ negligibleQuantity = 0.000001
 {- | A structured data-quality condition: the display-commodity conversion was
 incomplete for these commodities. Rendering to prose is a boundary concern.
 -}
-newtype ConversionWarning = MissingConversion (Set Text)
+newtype ConversionWarning
+    = MissingConversion (Set Text)
     deriving stock (Eq, Show)
 
 -- | The non-negligible commodities in an amount other than the display commodity.

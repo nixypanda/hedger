@@ -37,7 +37,6 @@ import Hedger.Interface.HTTP.Core.Common (
  )
 
 -- DTO declaration
-
 data TagDto = TagDto
     { name :: Text
     , value :: Text
@@ -101,24 +100,25 @@ data TransactionsResponse = TransactionsResponse
     deriving anyclass (ToJSON, FromJSON)
 
 -- API and server
-
 type TransactionsAPI =
     "transactions"
         :> QueryParam "query" Text
         :> QueryParam "limit" Text
         :> QueryParam "cursor" Text
-        :> Get '[JSON] TransactionsResponse
+        :> Get
+            '[JSON]
+            TransactionsResponse
 
 transactionsServer :: Env -> Maybe Text -> Server TransactionsAPI
 transactionsServer env requestId query limit cursor =
     case parseLimit limit of
         Left err -> throwError (servantError requestId err)
-        Right limitValue -> runAction env requestId $ do
-            let request = TransactionPageRequest{query, limit = limitValue, cursor}
-            toTransactionsResponse <$> transactionList request
+        Right limitValue ->
+            runAction env requestId $ do
+                let request = TransactionPageRequest{query, limit = limitValue, cursor}
+                toTransactionsResponse <$> transactionList request
 
 -- Mapper: domain <-> DTO
-
 toTransactionsResponse :: TransactionList -> TransactionsResponse
 toTransactionsResponse value =
     TransactionsResponse
@@ -194,9 +194,7 @@ nonEmpty value
 
 presentationDto :: Domain.TransactionPresentation -> TransactionPresentationDto
 presentationDto presentation =
-    TransactionPresentationDto
-        { classification = classificationText presentation.classification
-        }
+    TransactionPresentationDto{classification = classificationText presentation.classification}
 
 classificationText :: Domain.TransactionClassification -> Text
 classificationText classification =

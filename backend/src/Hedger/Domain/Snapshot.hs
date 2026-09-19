@@ -1,7 +1,6 @@
 module Hedger.Domain.Snapshot (
     Snapshot (..),
-)
-where
+) where
 
 import Data.Text (Text)
 import Data.Time (Day)

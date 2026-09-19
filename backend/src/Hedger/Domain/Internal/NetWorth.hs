@@ -9,8 +9,7 @@ module Hedger.Domain.Internal.NetWorth (
     gainPeriodicReport,
     currentAssetCashBalance,
     currentLiabilityBalance,
-)
-where
+) where
 
 import Data.Decimal (Decimal)
 import Data.Text (Text)
@@ -111,7 +110,8 @@ currentLiabilityBalance :: Snapshot -> [Hledger.Transaction] -> Text -> Conversi
 currentLiabilityBalance snapshot transactions commodity =
     fmap abs (currentBalance snapshot transactions commodity [Hledger.Liability])
 
-currentBalance :: Snapshot -> [Hledger.Transaction] -> Text -> [Hledger.AccountType] -> Conversion Decimal
+currentBalance ::
+    Snapshot -> [Hledger.Transaction] -> Text -> [Hledger.AccountType] -> Conversion Decimal
 currentBalance snapshot transactions commodity accountTypes =
     case snapshot.latestJournalDate of
         Nothing -> complete 0
@@ -119,7 +119,8 @@ currentBalance snapshot transactions commodity accountTypes =
             let options =
                     HledgerReportOptions.defreportopts
                         { HledgerReportOptions.period_ = Hledger.PeriodTo (addDays 1 day)
-                        , HledgerReportOptions.value_ = Just (HledgerValuation.AtDate day (Just commodity))
+                        , HledgerReportOptions.value_ =
+                            Just (HledgerValuation.AtDate day (Just commodity))
                         , HledgerReportOptions.balanceaccum_ = HledgerReportOptions.Historical
                         , HledgerReportOptions.accountlistmode_ = HledgerReportOptions.ALFlat
                         }
@@ -131,7 +132,9 @@ currentBalance snapshot transactions commodity accountTypes =
                             HledgerQuery.And
                                 [ HledgerQuery.Type accountTypes
                                 , HledgerQuery.Date
-                                    (HledgerPeriod.periodAsDateSpan (Hledger.PeriodTo (addDays 1 day)))
+                                    ( HledgerPeriod.periodAsDateSpan
+                                        (Hledger.PeriodTo (addDays 1 day))
+                                    )
                                 ]
                         }
                 filteredJournal = snapshot.journal{Hledger.jtxns = transactions}

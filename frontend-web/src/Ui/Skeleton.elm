@@ -18,7 +18,6 @@ import Ui.DesignTokens
         ( radiusCard
         , radiusSmall
         , space12
-        , space16
         , space20
         , space4
         , space8
@@ -195,11 +194,17 @@ chipRow theme =
 datePair : Theme -> Element msg
 datePair theme =
     Element.row [ Element.width Element.fill, Element.spacing space12 ]
-        [ Element.column [ Element.width (Element.fill |> Element.maximum 220), Element.spacing space4 ]
+        [ Element.column
+            [ Element.width (Element.fill |> Element.maximum 220)
+            , Element.spacing space4
+            ]
             [ barNarrow theme
             , inputBar theme
             ]
-        , Element.column [ Element.width (Element.fill |> Element.maximum 220), Element.spacing space4 ]
+        , Element.column
+            [ Element.width (Element.fill |> Element.maximum 220)
+            , Element.spacing space4
+            ]
             [ barNarrow theme
             , inputBar theme
             ]

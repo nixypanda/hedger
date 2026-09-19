@@ -4,8 +4,7 @@ module Hedger.Application.Accounts (
     AccountRegister (..),
     accountsTree,
     accountRegister,
-)
-where
+) where
 
 import Control.Monad.Except (throwError)
 import Control.Monad.Reader (asks)
@@ -59,11 +58,13 @@ accountsTree requestedCommodity = do
         responseMetadata = metadataFor snapshotContext
         displayCommodity = fromMaybe configuredCommodity (nonEmpty requestedCommodity)
         valuationDate = fromMaybe (fromGregorian 1970 1 1) snapshot.latestJournalDate
-        valuationContext = Account.mkValuationContext snapshot.journal displayCommodity valuationDate
+        valuationContext =
+            Account.mkValuationContext snapshot.journal displayCommodity valuationDate
     pure
         AccountsTree
             { metadata = responseMetadata
-            , accounts = toAccountTreeNode snapshot.journal valuationContext <$> snapshot.accountTree.asubs
+            , accounts =
+                toAccountTreeNode snapshot.journal valuationContext <$> snapshot.accountTree.asubs
             , displayCommodity
             , valuationDate
             }
@@ -92,9 +93,10 @@ totalBalanceData :: Hledger.PeriodData Hledger.BalanceData -> Hledger.BalanceDat
 totalBalanceData periodData = foldMap id (periodData.pdpre : Map.elems periodData.pdperiods)
 
 accountLeafName :: Text -> Text
-accountLeafName name = case Text.splitOn ":" name of
-    [] -> name
-    components -> last components
+accountLeafName name =
+    case Text.splitOn ":" name of
+        [] -> name
+        components -> last components
 
 accountRegister :: RegisterPageRequest -> AppM AccountRegister
 accountRegister request = do
@@ -117,4 +119,6 @@ accountRegister request = do
 nonEmpty :: Maybe Text -> Maybe Text
 nonEmpty value = do
     text <- value
-    if Text.null text then Nothing else Just text
+    if Text.null text
+        then Nothing
+        else Just text

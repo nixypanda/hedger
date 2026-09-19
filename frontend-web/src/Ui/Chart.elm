@@ -7,14 +7,17 @@ module Ui.Chart exposing
     , layout
     , marker
     , plotAttributes
+    , ringDayLabel
+    , ringMonthCenter
+    , ringValueText
     , roundedBar
     , xAxisLabel
     )
 
-import Element exposing (Element)
-import Html
+import Element exposing (Color, Element)
+import Html exposing (Html)
 import Html.Attributes as Attr
-import Svg
+import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
 import Ui.Css as Css
@@ -75,13 +78,54 @@ layout availableWidth count height targetSlotWidth =
     }
 
 
+ringDayLabel : Theme -> String -> Html msg
+ringDayLabel theme label =
+    Html.div
+        [ Typography.htmlCaption
+        , Attr.style "color" (Css.toCssColor theme.textPrimary)
+        ]
+        [ Html.text label ]
+
+
+ringMonthCenter : Theme -> String -> List (Html msg) -> Html msg
+ringMonthCenter theme label values =
+    Html.div
+        [ Attr.style "display" "flex"
+        , Attr.style "flex-direction" "column"
+        , Attr.style "align-items" "center"
+        , Attr.style "justify-content" "center"
+        , Attr.style "gap" "2px"
+        ]
+        (Html.div
+            [ Typography.htmlCaption
+            , Attr.style "font-weight" "600"
+            , Attr.style "color" (Css.toCssColor theme.textMuted)
+            , Attr.style "line-height" "1"
+            ]
+            [ Html.text label ]
+            :: values
+        )
+
+
+ringValueText : Color -> String -> Html msg
+ringValueText color content =
+    Html.div
+        [ Typography.htmlCaption
+        , Attr.style "font-weight" "600"
+        , Attr.style "color" (Css.toCssColor color)
+        , Attr.style "line-height" "1.25"
+        , Attr.style "white-space" "nowrap"
+        ]
+        [ Html.text content ]
+
+
 fixedAxis :
     Theme
     -> (Float -> String)
     -> Layout
     -> List Float
     -> (Float -> Float)
-    -> Svg.Svg msg
+    -> Svg msg
     -> Element msg
 fixedAxis theme formatTick chartLayout ticks y plot =
     let
@@ -137,7 +181,12 @@ fixedAxis theme formatTick chartLayout ticks y plot =
 
 plotAttributes : Layout -> String -> List (Svg.Attribute msg)
 plotAttributes chartLayout label =
-    [ SvgA.viewBox ("0 0 " ++ float chartLayout.plotWidth ++ " " ++ String.fromInt chartLayout.height)
+    [ SvgA.viewBox
+        ("0 0 "
+            ++ float chartLayout.plotWidth
+            ++ " "
+            ++ String.fromInt chartLayout.height
+        )
     , SvgA.width (float chartLayout.plotWidth)
     , SvgA.height (String.fromInt chartLayout.height)
     , SvgA.preserveAspectRatio "none"
@@ -148,7 +197,7 @@ plotAttributes chartLayout label =
     ]
 
 
-gridLines : Theme -> Layout -> (Float -> Float) -> List Float -> List (Svg.Svg msg)
+gridLines : Theme -> Layout -> (Float -> Float) -> List Float -> List (Svg msg)
 gridLines theme chartLayout y ticks =
     List.map
         (\tick ->
@@ -171,7 +220,7 @@ gridLines theme chartLayout y ticks =
         ticks
 
 
-activeBand : Theme -> Layout -> Bool -> Float -> Svg.Svg msg
+activeBand : Theme -> Layout -> Bool -> Float -> Svg msg
 activeBand theme chartLayout selected center =
     if selected then
         Svg.rect
@@ -188,7 +237,7 @@ activeBand theme chartLayout selected center =
         Svg.g [] []
 
 
-roundedBar : Element.Color -> Float -> Float -> Float -> Float -> Float -> Svg.Svg msg
+roundedBar : Color -> Float -> Float -> Float -> Float -> Float -> Svg msg
 roundedBar color barWidth center zeroY valueY value =
     let
         top =
@@ -215,7 +264,7 @@ roundedBar color barWidth center zeroY valueY value =
         []
 
 
-xAxisLabel : Theme -> Layout -> Float -> String -> Svg.Svg msg
+xAxisLabel : Theme -> Layout -> Float -> String -> Svg msg
 xAxisLabel theme chartLayout center label =
     Svg.text_
         [ SvgA.x (float center)
@@ -227,7 +276,7 @@ xAxisLabel theme chartLayout center label =
         [ Svg.text label ]
 
 
-hitTarget : Layout -> Float -> String -> String -> msg -> Svg.Svg msg
+hitTarget : Layout -> Float -> String -> String -> msg -> Svg msg
 hitTarget chartLayout center period label onSelect =
     Svg.rect
         [ SvgA.x (float (center - chartLayout.slotWidth / 2))
@@ -245,7 +294,7 @@ hitTarget chartLayout center period label onSelect =
         []
 
 
-marker : Theme -> Element.Color -> Float -> Float -> Svg.Svg msg
+marker : Theme -> Color -> Float -> Float -> Svg msg
 marker theme color x y =
     Svg.circle
         [ SvgA.cx (float x)

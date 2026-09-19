@@ -11,7 +11,7 @@ module View.Formatting exposing
     )
 
 import Char
-import Data.Decimal as Decimal
+import Data.Decimal as Decimal exposing (Decimal)
 import Data.Quantity as Quantity exposing (Quantity)
 
 
@@ -71,17 +71,17 @@ formatBalance balance =
             commodityDisplaySymbol (Quantity.commodity balance) ++ " " ++ quantityStr
 
 
-formatPercentage : Decimal.Decimal -> String
+formatPercentage : Decimal -> String
 formatPercentage percentage =
     formatPercentageWithMultiplier 1 percentage
 
 
-formatRatePercentage : Decimal.Decimal -> String
+formatRatePercentage : Decimal -> String
 formatRatePercentage rate =
     formatPercentageWithMultiplier 100 rate
 
 
-formatPercentageWithMultiplier : Float -> Decimal.Decimal -> String
+formatPercentageWithMultiplier : Float -> Decimal -> String
 formatPercentageWithMultiplier multiplier percentage =
     percentage
         |> Decimal.toString
@@ -142,12 +142,12 @@ compactValue commodity amount =
         ( fixedRoundedString amount 2, "" )
 
 
-formatFullAmount : String -> Decimal.Decimal -> String
+formatFullAmount : String -> Decimal -> String
 formatFullAmount commodity amount =
     formatFullValue amount ++ " " ++ commodity
 
 
-formatFullValue : Decimal.Decimal -> String
+formatFullValue : Decimal -> String
 formatFullValue amount =
     let
         decimalPlaces =

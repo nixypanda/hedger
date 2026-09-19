@@ -10,7 +10,6 @@ module Hedger.Domain.Transaction (
     -- * Domain queries
     classificationFor,
     isOpening,
-)
-where
+) where
 
 import Hedger.Domain.Internal.Transaction

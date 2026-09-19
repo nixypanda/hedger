@@ -130,7 +130,10 @@ init context maybeExistingModel =
             )
 
         ( AccountValue accountName, _ ) ->
-            ( AccountsPage (AccountPage.beginLoading (AccountPage.initWithValueSelected accountName))
+            ( AccountsPage
+                (AccountPage.beginLoading
+                    (AccountPage.initWithValueSelected accountName)
+                )
             , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
             , NoOutMsg
             )
@@ -284,7 +287,8 @@ view context model =
             Element.map GotCashflowMsg (CashflowPage.view context.theme context.viewport subModel)
 
         ( _, InvestmentsPage subModel ) ->
-            Element.map GotInvestmentsMsg (InvestmentsPage.view context.theme context.viewport subModel)
+            Element.map GotInvestmentsMsg
+                (InvestmentsPage.view context.theme context.viewport subModel)
 
         ( _, SettingsPage subModel ) ->
             Element.map GotSettingsMsg

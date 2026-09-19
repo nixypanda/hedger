@@ -4,10 +4,11 @@ module Api.Transaction exposing
     , transactionDecoder
     )
 
-import Api.Metadata as Metadata exposing (Metadata)
+import Api.Metadata as Metadata
 import Data.AccountType as AccountType
 import Data.Date as Date
 import Data.Decimal as Decimal
+import Data.Metadata exposing (Metadata)
 import Data.Status as Status
 import Data.Transaction exposing (Amount, Cost, Posting, Presentation, Tag, Transaction)
 import Json.Decode as Decode exposing (Decoder)
@@ -33,16 +34,24 @@ transactionDecoder =
     Decode.map2
         (\partial presentation -> partial presentation)
         (Decode.map8
-            (\primaryDate secondaryDate status code description comment tags postings presentation ->
-                Transaction primaryDate
-                    secondaryDate
-                    status
-                    code
-                    description
-                    comment
-                    tags
-                    postings
-                    presentation
+            (\primaryDate ->
+                \secondaryDate ->
+                    \status ->
+                        \code ->
+                            \description ->
+                                \comment ->
+                                    \tags ->
+                                        \postings ->
+                                            \presentation ->
+                                                Transaction primaryDate
+                                                    secondaryDate
+                                                    status
+                                                    code
+                                                    description
+                                                    comment
+                                                    tags
+                                                    postings
+                                                    presentation
             )
             (Decode.field "primaryDate" Date.decoder)
             (Decode.field "secondaryDate" (Decode.nullable Date.decoder))

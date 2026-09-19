@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "check": "elm-format src tests --validate && elm make src/Main.elm --output=/dev/null && elm-test",
+    "check": "npm run check:ui-boundary && elm-format src tests --validate && elm make src/Main.elm --output=/dev/null && elm-test",
+    "check:ui-boundary": "node scripts/check-ui-boundary.mjs",
     "dev": "vite",
     "format": "elm-format src tests --yes",
     "preview": "vite preview",

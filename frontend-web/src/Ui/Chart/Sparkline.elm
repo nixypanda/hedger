@@ -55,7 +55,11 @@ view config =
             (Element.html
                 (Svg.svg
                     [ SvgA.viewBox
-                        ("0 0 " ++ String.fromInt config.width ++ " " ++ String.fromInt config.height)
+                        ("0 0 "
+                            ++ String.fromInt config.width
+                            ++ " "
+                            ++ String.fromInt config.height
+                        )
                     , SvgA.width "100%"
                     , SvgA.height (String.fromInt config.height)
                     , Attr.attribute "role" "img"

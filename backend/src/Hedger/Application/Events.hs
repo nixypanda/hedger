@@ -2,8 +2,7 @@ module Hedger.Application.Events (
     RevisionSubscription,
     subscribeToRevisions,
     awaitNextRevision,
-)
-where
+) where
 
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Text (Text)
@@ -11,7 +10,8 @@ import Data.Text (Text)
 import Hedger.Application.AppM (Env (..))
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, awaitRevisionChange, currentRevision)
 
-data RevisionSubscription = RevisionSubscription SnapshotStore (IORef Text)
+data RevisionSubscription
+    = RevisionSubscription SnapshotStore (IORef Text)
 
 subscribeToRevisions :: Env -> IO RevisionSubscription
 subscribeToRevisions environment = do

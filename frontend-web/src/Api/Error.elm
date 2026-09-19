@@ -39,19 +39,28 @@ fromHttpError : Http.Error -> ApiError
 fromHttpError error =
     case error of
         Http.BadUrl _ ->
-            local "bad_url" "The API URL is invalid."
+            local "bad_url" "The API URL is invalid. Check the frontend API configuration."
 
         Http.Timeout ->
-            local "timeout" "The API request timed out."
+            local "timeout" "The API request timed out. Try again."
 
         Http.NetworkError ->
-            local "network_error" "The API could not be reached."
+            local
+                "network_error"
+                "The API could not be reached. Check that Hedger is running, then try again."
 
         Http.BadStatus status ->
-            local "bad_status" ("The API returned status " ++ String.fromInt status ++ ".")
+            local "bad_status"
+                ("The API returned status "
+                    ++ String.fromInt status
+                    ++ ". Try again. If the problem continues, check the Hedger server logs."
+                )
 
         Http.BadBody detail ->
-            local "invalid_response" detail
+            local "invalid_response"
+                ("The API returned an invalid response. Refresh the page and try again. Details: "
+                    ++ detail
+                )
 
 
 message : ApiError -> String

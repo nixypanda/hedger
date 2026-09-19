@@ -4,6 +4,7 @@ import Api.Error as ApiError exposing (ApiError)
 import Element exposing (Element)
 import Html.Attributes
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 
@@ -41,7 +42,7 @@ view config =
                 }
 
         buttons =
-            Element.row [ Element.spacing 8 ]
+            Element.row [ Element.spacing Tokens.space8 ]
                 [ Ui.dangerButton config.theme { label = "Clear", onPress = config.onClear }
                 , Ui.primaryButton config.theme { label = "Apply", onPress = config.onApply }
                 ]
@@ -50,7 +51,7 @@ view config =
             if config.compact then
                 Element.column
                     [ Element.width Element.fill
-                    , Element.spacing 8
+                    , Element.spacing Tokens.space8
                     ]
                     [ searchInput
                     , Element.el [ Element.alignRight ] buttons
@@ -59,7 +60,7 @@ view config =
             else
                 Element.row
                     [ Element.width Element.fill
-                    , Element.spacing 8
+                    , Element.spacing Tokens.space8
                     , Element.centerY
                     ]
                     [ searchInput, buttons ]
@@ -80,7 +81,7 @@ view config =
                 Element.none
         , Element.el [ Element.htmlAttribute (Html.Attributes.id (config.baseId ++ "-help")) ]
             (Typography.mutedParagraph config.theme config.helpText)
-        , Element.wrappedRow [ Element.width Element.fill, Element.spacing 8 ]
+        , Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             (Typography.mutedCaption config.theme "Examples:"
                 :: List.map
                     (\example ->

@@ -69,7 +69,7 @@ view config =
                         ++ String.fromFloat (offset * sin midAngle)
                     )
                 , SvgA.cursor "pointer"
-                , SvgA.style "transition: transform 150ms ease"
+                , SvgA.class "ui-chart-motion"
                 , SvgE.onClick (config.onSelect index)
                 , Attr.tabindex 0
                 , Attr.attribute "role" "button"
@@ -116,7 +116,12 @@ view config =
                 ]
                 [ Svg.g
                     [ SvgA.transform
-                        ("translate(" ++ String.fromFloat center ++ "," ++ String.fromFloat center ++ ")")
+                        ("translate("
+                            ++ String.fromFloat center
+                            ++ ","
+                            ++ String.fromFloat center
+                            ++ ")"
+                        )
                     ]
                     (List.map
                         (\( index, item, arc ) -> renderSlice index item arc)

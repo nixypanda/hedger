@@ -1,4 +1,6 @@
-module Hedger.Domain.TransactionSpec (transactionSpec) where
+module Hedger.Domain.TransactionSpec (
+    transactionSpec,
+) where
 
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
@@ -30,7 +32,9 @@ transactionSpec :: TestTree
 transactionSpec =
     testGroup
         "transaction projection"
-        [ testCase "orders newest dates first and reverses journal order within a date" ordersNewestFirst
+        [ testCase
+            "orders newest dates first and reverses journal order within a date"
+            ordersNewestFirst
         , testProperty "result is sorted in descending order by (date, index)" sortedProperty
         , testGroup
             "classificationFor"
@@ -84,7 +88,9 @@ transactionSpec =
                 "properties"
                 [ testProperty "pct is always between 0 and 1" dominantPctInRange
                 , testProperty "no debit postings yields (\"\", 0.0)" dominantEmptyDebits
-                , testProperty "the returned group's sum is the largest among all groups" dominantIsMaximal
+                , testProperty
+                    "the returned group's sum is the largest among all groups"
+                    dominantIsMaximal
                 , testProperty
                     "splicing in extra credit postings never changes the result"
                     dominantSpliceCreditsInvariant
@@ -96,13 +102,18 @@ transactionSpec =
         ]
 
 -- Test transactions
-
 expenseTransaction :: Hledger.Transaction
 expenseTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:checking", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "expenses:food", Hledger.pamount = mixed [num 100]}
+            [ nullposting
+                { Hledger.paccount = "assets:checking"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "expenses:food"
+                , Hledger.pamount = mixed [num 100]
+                }
             ]
         }
 
@@ -119,8 +130,14 @@ transferTransaction :: Hledger.Transaction
 transferTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:checking", Hledger.pamount = mixed [num (-200)]}
-            , nullposting{Hledger.paccount = "assets:savings", Hledger.pamount = mixed [num 200]}
+            [ nullposting
+                { Hledger.paccount = "assets:checking"
+                , Hledger.pamount = mixed [num (-200)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:savings"
+                , Hledger.pamount = mixed [num 200]
+                }
             ]
         }
 
@@ -128,20 +145,34 @@ openingTransaction :: Hledger.Transaction
 openingTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "equity:opening", Hledger.pamount = mixed [num (-1000)]}
-            , nullposting{Hledger.paccount = "assets:checking", Hledger.pamount = mixed [num 500]}
-            , nullposting{Hledger.paccount = "assets:savings", Hledger.pamount = mixed [num 500]}
+            [ nullposting
+                { Hledger.paccount = "equity:opening"
+                , Hledger.pamount = mixed [num (-1000)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:checking"
+                , Hledger.pamount = mixed [num 500]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:savings"
+                , Hledger.pamount = mixed [num 500]
+                }
             ]
         }
 
 -- New classification type test transactions
-
 assetAcquisitionTransaction :: Hledger.Transaction
 assetAcquisitionTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "assets:investments:stock", Hledger.pamount = mixed [num 100]}
+            [ nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:investments:stock"
+                , Hledger.pamount = mixed [num 100]
+                }
             ]
         }
 
@@ -149,8 +180,14 @@ assetDisposalTransaction :: Hledger.Transaction
 assetDisposalTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:investments:stock", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num 100]}
+            [ nullposting
+                { Hledger.paccount = "assets:investments:stock"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num 100]
+                }
             ]
         }
 
@@ -173,8 +210,14 @@ borrowingTransaction :: Hledger.Transaction
 borrowingTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "liability:loan:personal", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num 100]}
+            [ nullposting
+                { Hledger.paccount = "liability:loan:personal"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num 100]
+                }
             ]
         }
 
@@ -182,8 +225,14 @@ repaymentTransaction :: Hledger.Transaction
 repaymentTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "liabilities:loan:personal", Hledger.pamount = mixed [num 100]}
+            [ nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "liabilities:loan:personal"
+                , Hledger.pamount = mixed [num 100]
+                }
             ]
         }
 
@@ -191,14 +240,22 @@ unclassifiedTransaction :: Hledger.Transaction
 unclassifiedTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num (-1000)]}
-            , nullposting{Hledger.paccount = "assets:investments:stock", Hledger.pamount = mixed [num 600]}
-            , nullposting{Hledger.paccount = "expense:financial:brokerage", Hledger.pamount = mixed [num 400]}
+            [ nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num (-1000)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:investments:stock"
+                , Hledger.pamount = mixed [num 600]
+                }
+            , nullposting
+                { Hledger.paccount = "expense:financial:brokerage"
+                , Hledger.pamount = mixed [num 400]
+                }
             ]
         }
 
 -- Complex multi-account test transactions
-
 sipTransaction :: Hledger.Transaction
 sipTransaction =
     nulltransaction
@@ -261,9 +318,18 @@ emiPaymentTransaction :: Hledger.Transaction
 emiPaymentTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num (-15000)]}
-            , nullposting{Hledger.paccount = "liabilities:loan:personal", Hledger.pamount = mixed [num 12000]}
-            , nullposting{Hledger.paccount = "expense:financial:interest", Hledger.pamount = mixed [num 3000]}
+            [ nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num (-15000)]
+                }
+            , nullposting
+                { Hledger.paccount = "liabilities:loan:personal"
+                , Hledger.pamount = mixed [num 12000]
+                }
+            , nullposting
+                { Hledger.paccount = "expense:financial:interest"
+                , Hledger.pamount = mixed [num 3000]
+                }
             ]
         }
 
@@ -271,9 +337,18 @@ assetSaleProfitTransaction :: Hledger.Transaction
 assetSaleProfitTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:investments:stock", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num 110]}
-            , nullposting{Hledger.paccount = "income:capital:gains", Hledger.pamount = mixed [num 10]}
+            [ nullposting
+                { Hledger.paccount = "assets:investments:stock"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num 110]
+                }
+            , nullposting
+                { Hledger.paccount = "income:capital:gains"
+                , Hledger.pamount = mixed [num 10]
+                }
             ]
         }
 
@@ -281,9 +356,18 @@ assetSaleLossTransaction :: Hledger.Transaction
 assetSaleLossTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:investments:stock", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num 90]}
-            , nullposting{Hledger.paccount = "expenses:capital:loss", Hledger.pamount = mixed [num 10]}
+            [ nullposting
+                { Hledger.paccount = "assets:investments:stock"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num 90]
+                }
+            , nullposting
+                { Hledger.paccount = "expenses:capital:loss"
+                , Hledger.pamount = mixed [num 10]
+                }
             ]
         }
 
@@ -333,8 +417,14 @@ liabilityConsolidationTransaction :: Hledger.Transaction
 liabilityConsolidationTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "liabilities:loan:old", Hledger.pamount = mixed [num (-50000)]}
-            , nullposting{Hledger.paccount = "liabilities:loan:new", Hledger.pamount = mixed [num 50000]}
+            [ nullposting
+                { Hledger.paccount = "liabilities:loan:old"
+                , Hledger.pamount = mixed [num (-50000)]
+                }
+            , nullposting
+                { Hledger.paccount = "liabilities:loan:new"
+                , Hledger.pamount = mixed [num 50000]
+                }
             ]
         }
 
@@ -342,9 +432,18 @@ salaryWithTaxTransaction :: Hledger.Transaction
 salaryWithTaxTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "income:salary", Hledger.pamount = mixed [num (-30000)]}
-            , nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num 24000]}
-            , nullposting{Hledger.paccount = "liabilities:tax:tds", Hledger.pamount = mixed [num 6000]}
+            [ nullposting
+                { Hledger.paccount = "income:salary"
+                , Hledger.pamount = mixed [num (-30000)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num 24000]
+                }
+            , nullposting
+                { Hledger.paccount = "liabilities:tax:tds"
+                , Hledger.pamount = mixed [num 6000]
+                }
             ]
         }
 
@@ -352,9 +451,18 @@ ambiguousTransaction :: Hledger.Transaction
 ambiguousTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num (-1000)]}
-            , nullposting{Hledger.paccount = "assets:investments:stock", Hledger.pamount = mixed [num 600]}
-            , nullposting{Hledger.paccount = "expense:financial:brokerage", Hledger.pamount = mixed [num 400]}
+            [ nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num (-1000)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:investments:stock"
+                , Hledger.pamount = mixed [num 600]
+                }
+            , nullposting
+                { Hledger.paccount = "expense:financial:brokerage"
+                , Hledger.pamount = mixed [num 400]
+                }
             ]
         }
 
@@ -362,9 +470,18 @@ borrowingExpenseDominantTransaction :: Hledger.Transaction
 borrowingExpenseDominantTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "liabilities:loan", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "expense:financial:processing", Hledger.pamount = mixed [num 60]}
-            , nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num 40]}
+            [ nullposting
+                { Hledger.paccount = "liabilities:loan"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "expense:financial:processing"
+                , Hledger.pamount = mixed [num 60]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num 40]
+                }
             ]
         }
 
@@ -372,9 +489,18 @@ repaymentInterestDominantTransaction :: Hledger.Transaction
 repaymentInterestDominantTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num (-1000)]}
-            , nullposting{Hledger.paccount = "liabilities:loan", Hledger.pamount = mixed [num 600]}
-            , nullposting{Hledger.paccount = "expense:financial:interest", Hledger.pamount = mixed [num 400]}
+            [ nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num (-1000)]
+                }
+            , nullposting
+                { Hledger.paccount = "liabilities:loan"
+                , Hledger.pamount = mixed [num 600]
+                }
+            , nullposting
+                { Hledger.paccount = "expense:financial:interest"
+                , Hledger.pamount = mixed [num 400]
+                }
             ]
         }
 
@@ -382,32 +508,37 @@ tieTransaction :: Hledger.Transaction
 tieTransaction =
     nulltransaction
         { Hledger.tpostings =
-            [ nullposting{Hledger.paccount = "assets:cash:bank", Hledger.pamount = mixed [num (-100)]}
-            , nullposting{Hledger.paccount = "assets:investments:stock", Hledger.pamount = mixed [num 50]}
-            , nullposting{Hledger.paccount = "expenses:food", Hledger.pamount = mixed [num 50]}
+            [ nullposting
+                { Hledger.paccount = "assets:cash:bank"
+                , Hledger.pamount = mixed [num (-100)]
+                }
+            , nullposting
+                { Hledger.paccount = "assets:investments:stock"
+                , Hledger.pamount = mixed [num 50]
+                }
+            , nullposting
+                { Hledger.paccount = "expenses:food"
+                , Hledger.pamount = mixed [num 50]
+                }
             ]
         }
 
 -- classificationFor tests
-
 classificationExpense :: Assertion
 classificationExpense =
     assertEqual "expense" TransactionExpense (classificationFor expenseTransaction)
 
 classificationIncome :: Assertion
-classificationIncome =
-    assertEqual "income" TransactionIncome (classificationFor incomeTransaction)
+classificationIncome = assertEqual "income" TransactionIncome (classificationFor incomeTransaction)
 
 classificationTransfer :: Assertion
 classificationTransfer =
     assertEqual "transfer" TransactionTransfer (classificationFor transferTransaction)
 
 classificationOpening :: Assertion
-classificationOpening =
-    assertEqual "opening" OpeningBalance (classificationFor openingTransaction)
+classificationOpening = assertEqual "opening" OpeningBalance (classificationFor openingTransaction)
 
 -- New classification type tests
-
 classificationAssetAcquisition :: Assertion
 classificationAssetAcquisition =
     assertEqual "asset acquisition" AssetAcquisition (classificationFor assetAcquisitionTransaction)
@@ -418,25 +549,24 @@ classificationAssetDisposal =
 
 classificationAssetReallocation :: Assertion
 classificationAssetReallocation =
-    assertEqual "asset reallocation" AssetReallocation (classificationFor assetReallocationTransaction)
+    assertEqual
+        "asset reallocation"
+        AssetReallocation
+        (classificationFor assetReallocationTransaction)
 
 classificationBorrowing :: Assertion
-classificationBorrowing =
-    assertEqual "borrowing" Borrowing (classificationFor borrowingTransaction)
+classificationBorrowing = assertEqual "borrowing" Borrowing (classificationFor borrowingTransaction)
 
 classificationRepayment :: Assertion
-classificationRepayment =
-    assertEqual "repayment" Repayment (classificationFor repaymentTransaction)
+classificationRepayment = assertEqual "repayment" Repayment (classificationFor repaymentTransaction)
 
 classificationUnclassified :: Assertion
 classificationUnclassified =
     assertEqual "unclassified" Unclassified (classificationFor unclassifiedTransaction)
 
 -- Complex multi-account scenario tests
-
 classificationSIP :: Assertion
-classificationSIP =
-    assertEqual "sip" AssetAcquisition (classificationFor sipTransaction)
+classificationSIP = assertEqual "sip" AssetAcquisition (classificationFor sipTransaction)
 
 classificationLoanDisbursement :: Assertion
 classificationLoanDisbursement =
@@ -481,10 +611,7 @@ classificationSalaryWithTax =
 
 classificationAmbiguousMultiAccount :: Assertion
 classificationAmbiguousMultiAccount =
-    assertEqual
-        "ambiguous multi account"
-        Unclassified
-        (classificationFor ambiguousTransaction)
+    assertEqual "ambiguous multi account" Unclassified (classificationFor ambiguousTransaction)
 
 classificationBorrowingExpenseDominant :: Assertion
 classificationBorrowingExpenseDominant =
@@ -501,18 +628,14 @@ classificationRepaymentInterestDominant =
         (classificationFor repaymentInterestDominantTransaction)
 
 -- isOpening tests
-
 openingDetected :: Assertion
-openingDetected =
-    assertEqual "equity with opening keyword" True (isOpening openingTransaction)
+openingDetected = assertEqual "equity with opening keyword" True (isOpening openingTransaction)
 
 openingNoEquity :: Assertion
-openingNoEquity =
-    assertEqual "no equity" False (isOpening transferTransaction)
+openingNoEquity = assertEqual "no equity" False (isOpening transferTransaction)
 
 openingIncomeDisqualifies :: Assertion
-openingIncomeDisqualifies =
-    assertEqual "income disqualifies" False (isOpening incomeTransaction)
+openingIncomeDisqualifies = assertEqual "income disqualifies" False (isOpening incomeTransaction)
 
 openingEmptyDebits :: Assertion
 openingEmptyDebits = do
@@ -528,7 +651,6 @@ openingEmptyDebits = do
     assertEqual "empty debits" False (isOpening txn)
 
 -- dominantMovement tests
-
 dominantSingleDebit :: Assertion
 dominantSingleDebit =
     assertEqual "single expense debit" ("expenses", 1.0) (dominantMovement expenseTransaction)
@@ -539,7 +661,10 @@ dominantMultipleDebitsSameGroup =
 
 dominantTwoGroupsClearWinner :: Assertion
 dominantTwoGroupsClearWinner =
-    assertEqual "assets 600 vs expenses 400" ("assets", 0.6) (dominantMovement unclassifiedTransaction)
+    assertEqual
+        "assets 600 vs expenses 400"
+        ("assets", 0.6)
+        (dominantMovement unclassifiedTransaction)
 
 dominantTwoGroupsTie :: Assertion
 dominantTwoGroupsTie =
@@ -568,21 +693,35 @@ dominantCreditIgnored = do
     let txFromIncome =
             nulltransaction
                 { Hledger.tpostings =
-                    [ nullposting{Hledger.paccount = "income:salary", Hledger.pamount = mixed [num (-100)]}
-                    , nullposting{Hledger.paccount = "expenses:food", Hledger.pamount = mixed [num 100]}
+                    [ nullposting
+                        { Hledger.paccount = "income:salary"
+                        , Hledger.pamount = mixed [num (-100)]
+                        }
+                    , nullposting
+                        { Hledger.paccount = "expenses:food"
+                        , Hledger.pamount = mixed [num 100]
+                        }
                     ]
                 }
         txFromAsset =
             nulltransaction
                 { Hledger.tpostings =
-                    [ nullposting{Hledger.paccount = "assets:checking", Hledger.pamount = mixed [num (-100)]}
-                    , nullposting{Hledger.paccount = "expenses:food", Hledger.pamount = mixed [num 100]}
+                    [ nullposting
+                        { Hledger.paccount = "assets:checking"
+                        , Hledger.pamount = mixed [num (-100)]
+                        }
+                    , nullposting
+                        { Hledger.paccount = "expenses:food"
+                        , Hledger.pamount = mixed [num 100]
+                        }
                     ]
                 }
-    assertEqual "different credits same debits" (dominantMovement txFromIncome) (dominantMovement txFromAsset)
+    assertEqual
+        "different credits same debits"
+        (dominantMovement txFromIncome)
+        (dominantMovement txFromAsset)
 
 -- Sorting tests
-
 syntheticTransactions :: [Hledger.Transaction]
 syntheticTransactions =
     [ nulltransaction
@@ -629,14 +768,14 @@ ordersNewestFirst = do
     assertEqual "" (reverse sourceIndexes) orderedIndexes
 
 sortedProperty :: Hedgehog.Property
-sortedProperty = property $ do
-    transactions <- forAll (genTransactions (Range.linear 0 80))
-    let result = newestFirst transactions
-        keys = (\t -> (t.tdate, t.tindex)) <$> result
-    assert (isDescending keys)
+sortedProperty =
+    property $ do
+        transactions <- forAll (genTransactions (Range.linear 0 80))
+        let result = newestFirst transactions
+            keys = (\t -> (t.tdate, t.tindex)) <$> result
+        assert (isDescending keys)
 
 -- Internal helpers
-
 isDescending :: (Ord a) => [a] -> Bool
 isDescending [] = True
 isDescending [_] = True
@@ -655,7 +794,11 @@ genGroupPosting :: Gen Hledger.Posting
 genGroupPosting = do
     account <- genGroupAccountName
     quantity <- Gen.integral (Range.linearFrom 0 (-1000000) 1000000)
-    pure nullposting{Hledger.paccount = account, Hledger.pamount = mixed [num (fromInteger quantity)]}
+    pure
+        nullposting
+            { Hledger.paccount = account
+            , Hledger.pamount = mixed [num (fromInteger quantity)]
+            }
 
 genGroupTransaction :: Gen Hledger.Transaction
 genGroupTransaction = do
@@ -663,59 +806,73 @@ genGroupTransaction = do
     month <- Gen.integral (Range.linear 1 12)
     dayOfMonth <- Gen.integral (Range.linear 1 28)
     postings <- Gen.list (Range.linear 1 8) genGroupPosting
-    pure nulltransaction{Hledger.tdate = fromGregorian year month dayOfMonth, Hledger.tpostings = postings}
+    pure
+        nulltransaction
+            { Hledger.tdate = fromGregorian year month dayOfMonth
+            , Hledger.tpostings = postings
+            }
 
 -- | A posting with a negative (credit) amount and an arbitrary, unclassified account.
 genArbitraryCreditPosting :: Gen Hledger.Posting
 genArbitraryCreditPosting = do
     account <- Text.pack <$> Gen.list (Range.linear 1 30) Gen.alphaNum
     quantity <- Gen.integral (Range.linear (-1000000) (-1))
-    pure nullposting{Hledger.paccount = account, Hledger.pamount = mixed [num (fromInteger quantity)]}
+    pure
+        nullposting
+            { Hledger.paccount = account
+            , Hledger.pamount = mixed [num (fromInteger quantity)]
+            }
 
 isCredit :: Hledger.Posting -> Bool
 isCredit p = any ((< 0) . (.aquantity)) (amountsRaw p.pamount)
 
 dominantPctInRange :: Property
-dominantPctInRange = property $ do
-    tx <- forAll genGroupTransaction
-    let (_, pct) = dominantMovement tx
-    assert (0 <= pct && pct <= 1)
+dominantPctInRange =
+    property $ do
+        tx <- forAll genGroupTransaction
+        let (_, pct) = dominantMovement tx
+        assert (0 <= pct && pct <= 1)
 
 dominantEmptyDebits :: Property
-dominantEmptyDebits = property $ do
-    postings <- forAll (Gen.list (Range.linear 0 5) genArbitraryCreditPosting)
-    let tx = nulltransaction{Hledger.tpostings = postings}
-    dominantMovement tx === ("", 0.0)
+dominantEmptyDebits =
+    property $ do
+        postings <- forAll (Gen.list (Range.linear 0 5) genArbitraryCreditPosting)
+        let tx = nulltransaction{Hledger.tpostings = postings}
+        dominantMovement tx === ("", 0.0)
 
 dominantIsMaximal :: Property
-dominantIsMaximal = property $ do
-    tx <- forAll genGroupTransaction
-    let (dominantGroup, _) = dominantMovement tx
-        groupSums =
-            Map.fromListWith
-                (+)
-                [ (accountLabel (accountInfo p.paccount), abs amount.aquantity)
-                | p <- tx.tpostings
-                , amount <- amountsRaw p.pamount
-                , amount.aquantity > 0
-                ]
-        dominantSum = Map.findWithDefault 0 dominantGroup groupSums
-    assert (all (<= dominantSum) (Map.elems groupSums))
+dominantIsMaximal =
+    property $ do
+        tx <- forAll genGroupTransaction
+        let (dominantGroup, _) = dominantMovement tx
+            groupSums =
+                Map.fromListWith
+                    (+)
+                    [ (accountLabel (accountInfo p.paccount), abs amount.aquantity)
+                    | p <- tx.tpostings
+                    , amount <- amountsRaw p.pamount
+                    , amount.aquantity > 0
+                    ]
+            dominantSum = Map.findWithDefault 0 dominantGroup groupSums
+        assert (all (<= dominantSum) (Map.elems groupSums))
 
 spliceAt :: Int -> [value] -> [value] -> [value]
 spliceAt position extra values =
-    let (before, after) = splitAt position values in before <> extra <> after
+    let (before, after) = splitAt position values
+     in before <> extra <> after
 
 dominantSpliceCreditsInvariant :: Property
-dominantSpliceCreditsInvariant = property $ do
-    tx <- forAll genGroupTransaction
-    extras <- forAll (Gen.list (Range.linear 0 5) genArbitraryCreditPosting)
-    position <- forAll (Gen.integral (Range.linear 0 (length tx.tpostings)))
-    let spliced = tx{Hledger.tpostings = spliceAt position extras tx.tpostings}
-    dominantMovement spliced === dominantMovement tx
+dominantSpliceCreditsInvariant =
+    property $ do
+        tx <- forAll genGroupTransaction
+        extras <- forAll (Gen.list (Range.linear 0 5) genArbitraryCreditPosting)
+        position <- forAll (Gen.integral (Range.linear 0 (length tx.tpostings)))
+        let spliced = tx{Hledger.tpostings = spliceAt position extras tx.tpostings}
+        dominantMovement spliced === dominantMovement tx
 
 dominantDropCreditsInvariant :: Property
-dominantDropCreditsInvariant = property $ do
-    tx <- forAll genGroupTransaction
-    let onlyNonCredits = tx{Hledger.tpostings = filter (not . isCredit) tx.tpostings}
-    dominantMovement onlyNonCredits === dominantMovement tx
+dominantDropCreditsInvariant =
+    property $ do
+        tx <- forAll genGroupTransaction
+        let onlyNonCredits = tx{Hledger.tpostings = filter (not . isCredit) tx.tpostings}
+        dominantMovement onlyNonCredits === dominantMovement tx

@@ -1,4 +1,6 @@
-module Hedger.Infrastructure.Internal.CursorSpec (cursorSpec) where
+module Hedger.Infrastructure.Internal.CursorSpec (
+    cursorSpec,
+) where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -36,80 +38,83 @@ cursorSpec =
         ]
 
 -- * Transaction cursor
-
 roundtrip :: Property
-roundtrip = property $ do
-    offset <- forAll genCursorPosition
-    revision <- forAll genText
-    query <- forAll genText
-    referenceDate <- forAll genReferenceDate
-    let cursor = encodeTransactionCursor revision query referenceDate offset
-    decodeTransactionCursor revision query referenceDate cursor === Right offset
+roundtrip =
+    property $ do
+        offset <- forAll genCursorPosition
+        revision <- forAll genText
+        query <- forAll genText
+        referenceDate <- forAll genReferenceDate
+        let cursor = encodeTransactionCursor revision query referenceDate offset
+        decodeTransactionCursor revision query referenceDate cursor === Right offset
 
 rejectsTamperedChecksum :: Property
-rejectsTamperedChecksum = property $ do
-    offset <- forAll genCursorPosition
-    revision <- forAll genText
-    query <- forAll genText
-    referenceDate <- forAll genReferenceDate
-    let cursor = encodeTransactionCursor revision query referenceDate offset
+rejectsTamperedChecksum =
+    property $ do
+        offset <- forAll genCursorPosition
+        revision <- forAll genText
+        query <- forAll genText
+        referenceDate <- forAll genReferenceDate
+        let cursor = encodeTransactionCursor revision query referenceDate offset
+            tampered = cursor <> "x"
         -- Append extra text so the checksum is always wrong
-        tampered = cursor <> "x"
-    case decodeTransactionCursor revision query referenceDate tampered of
-        Left (InvalidCursor _) -> return ()
-        other -> fail $ "expected InvalidCursor, got: " <> show other
+        case decodeTransactionCursor revision query referenceDate tampered of
+            Left (InvalidCursor _) -> return ()
+            other -> fail $ "expected InvalidCursor, got: " <> show other
 
 rejectsMalformedCursors :: Property
-rejectsMalformedCursors = property $ do
-    revision <- forAll genText
-    query <- forAll genText
-    referenceDate <- forAll genReferenceDate
-    malformed <- forAll genMalformedCursor
-    case decodeTransactionCursor revision query referenceDate malformed of
-        Left (InvalidCursor _) -> return ()
-        other -> fail $ "expected InvalidCursor, got: " <> show other
+rejectsMalformedCursors =
+    property $ do
+        revision <- forAll genText
+        query <- forAll genText
+        referenceDate <- forAll genReferenceDate
+        malformed <- forAll genMalformedCursor
+        case decodeTransactionCursor revision query referenceDate malformed of
+            Left (InvalidCursor _) -> return ()
+            other -> fail $ "expected InvalidCursor, got: " <> show other
 
 -- * Register cursor
-
 registerRoundtrip :: Property
-registerRoundtrip = property $ do
-    offset <- forAll genCursorPosition
-    revision <- forAll genText
-    account <- forAll genText
-    commodity <- forAll genText
-    start <- forAll genOptionalDay
-    end <- forAll genOptionalDay
-    let cursor = encodeRegisterCursor revision account commodity start end offset
-    decodeRegisterCursor revision account commodity start end cursor === Right offset
+registerRoundtrip =
+    property $ do
+        offset <- forAll genCursorPosition
+        revision <- forAll genText
+        account <- forAll genText
+        commodity <- forAll genText
+        start <- forAll genOptionalDay
+        end <- forAll genOptionalDay
+        let cursor = encodeRegisterCursor revision account commodity start end offset
+        decodeRegisterCursor revision account commodity start end cursor === Right offset
 
 registerRejectsTamperedChecksum :: Property
-registerRejectsTamperedChecksum = property $ do
-    offset <- forAll genCursorPosition
-    revision <- forAll genText
-    account <- forAll genText
-    commodity <- forAll genText
-    start <- forAll genOptionalDay
-    end <- forAll genOptionalDay
-    let cursor = encodeRegisterCursor revision account commodity start end offset
-        tampered = cursor <> "x"
-    case decodeRegisterCursor revision account commodity start end tampered of
-        Left (InvalidCursor _) -> return ()
-        other -> fail $ "expected InvalidCursor, got: " <> show other
+registerRejectsTamperedChecksum =
+    property $ do
+        offset <- forAll genCursorPosition
+        revision <- forAll genText
+        account <- forAll genText
+        commodity <- forAll genText
+        start <- forAll genOptionalDay
+        end <- forAll genOptionalDay
+        let cursor = encodeRegisterCursor revision account commodity start end offset
+            tampered = cursor <> "x"
+        case decodeRegisterCursor revision account commodity start end tampered of
+            Left (InvalidCursor _) -> return ()
+            other -> fail $ "expected InvalidCursor, got: " <> show other
 
 registerRejectsMalformedCursors :: Property
-registerRejectsMalformedCursors = property $ do
-    revision <- forAll genText
-    account <- forAll genText
-    commodity <- forAll genText
-    start <- forAll genOptionalDay
-    end <- forAll genOptionalDay
-    malformed <- forAll genMalformedRegisterCursor
-    case decodeRegisterCursor revision account commodity start end malformed of
-        Left (InvalidCursor _) -> return ()
-        other -> fail $ "expected InvalidCursor, got: " <> show other
+registerRejectsMalformedCursors =
+    property $ do
+        revision <- forAll genText
+        account <- forAll genText
+        commodity <- forAll genText
+        start <- forAll genOptionalDay
+        end <- forAll genOptionalDay
+        malformed <- forAll genMalformedRegisterCursor
+        case decodeRegisterCursor revision account commodity start end malformed of
+            Left (InvalidCursor _) -> return ()
+            other -> fail $ "expected InvalidCursor, got: " <> show other
 
 -- * Generators
-
 genCursorPosition :: Gen Int
 genCursorPosition = Gen.int (Range.linear 0 10000)
 
@@ -121,10 +126,7 @@ genReferenceDate = ModifiedJulianDay <$> Gen.integral (Range.linear 40000 80000)
 
 genOptionalDay :: Gen (Maybe Day)
 genOptionalDay =
-    Gen.choice
-        [ pure Nothing
-        , Just . ModifiedJulianDay <$> Gen.integral (Range.linear 40000 80000)
-        ]
+    Gen.choice [pure Nothing, Just . ModifiedJulianDay <$> Gen.integral (Range.linear 40000 80000)]
 
 genMalformedCursor :: Gen Text
 genMalformedCursor =

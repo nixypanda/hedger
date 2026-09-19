@@ -1,4 +1,6 @@
-module Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec) where
+module Hedger.Infrastructure.SnapshotStoreSpec (
+    snapshotStoreSpec,
+) where
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
@@ -40,14 +42,18 @@ snapshotStoreSpec =
                 assertEqual "" True =<< snapshotAvailable "test/fixtures/shared.journal"
                 assertEqual "" False =<< snapshotAvailable "test/fixtures/does-not-exist.journal"
             ]
-        , testCase "parses the shared journal with every transaction and posting" parsesSharedJournal
+        , testCase
+            "parses the shared journal with every transaction and posting"
+            parsesSharedJournal
         , testCase "rejects malformed journals instead of treating readable files as ready" $ do
             result <- loadSnapshot "test/fixtures/malformed.journal"
             assertBool "malformed journal should fail" (isLeft result)
         , testCase "starts in the explicit not-loaded state" startsNotLoaded
         , testCase "models an initial load failure explicitly" modelsInitialLoadFailure
         , testCase "models a successful load as fresh" modelsSuccessfulLoadAsFresh
-        , testCase "keeps the last good immutable snapshot when a reload fails" keepsSnapshotOnFailedReload
+        , testCase
+            "keeps the last good immutable snapshot when a reload fails"
+            keepsSnapshotOnFailedReload
         , testCase "reads the snapshot and reload error as one store view" readsCoherentStoreView
         , testCase
             "keeps the published revision matching the returned snapshot under concurrent reloads"
@@ -121,8 +127,7 @@ with the new path and copying its TVar.
 -}
 reloadWith :: SnapshotStore -> FilePath -> IO (Either SnapshotLoadError Snapshot)
 reloadWith store path =
-    reloadSnapshot
-        SnapshotStore{storeState = store.storeState, journalPath = Text.pack path}
+    reloadSnapshot SnapshotStore{storeState = store.storeState, journalPath = Text.pack path}
 
 -- Stress-tests the invariant that the revision published via `currentRevision`
 -- always agrees with the revision of the snapshot `readCurrentSnapshot` returns.
@@ -138,7 +143,12 @@ concurrentReloadsKeepRevisionInSyncWithSnapshot =
             done <- newEmptyMVar
             forM_ [1 .. tasksPerRound] $ \index ->
                 forkIO $ do
-                    _ <- reloadSnapshot (if even (index :: Int) then storeA else storeB)
+                    _ <-
+                        reloadSnapshot
+                            ( if even (index :: Int)
+                                then storeA
+                                else storeB
+                            )
                     putMVar done ()
             replicateM_ tasksPerRound (takeMVar done)
         snapshotAfter <- readCurrentSnapshot storeA

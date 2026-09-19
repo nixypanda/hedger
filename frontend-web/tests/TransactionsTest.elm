@@ -2,11 +2,11 @@ module TransactionsTest exposing (suite)
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
-import Api.Metadata exposing (Metadata)
 import Api.Transaction as Transaction exposing (Response)
 import Data.AccountType as AccountType
 import Data.Date as Date
 import Data.Freshness exposing (Freshness(..))
+import Data.Metadata exposing (Metadata)
 import Data.Status as Status
 import Data.Transaction exposing (Transaction)
 import Expect
@@ -515,7 +515,16 @@ sampleTransaction number =
             { transaction | description = "Transaction " ++ String.fromInt number }
 
         Nothing ->
-            Debug.todo "sampleResponse must contain a transaction"
+            { primaryDate = Date.Date { year = 2024, month = 4, day = 2 }
+            , secondaryDate = Nothing
+            , status = Status.Unmarked
+            , code = Nothing
+            , description = "Transaction " ++ String.fromInt number
+            , comment = Nothing
+            , tags = []
+            , postings = []
+            , presentation = { classification = "expense" }
+            }
 
 
 metadata : String -> Metadata

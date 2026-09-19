@@ -1,10 +1,18 @@
 module Ui.Css exposing
-    ( themeCssVariables
+    ( htmlClass
+    , themeCssVariables
     , toCssColor
     )
 
 import Element
+import Html exposing (Attribute)
+import Html.Attributes
 import Ui.Theme exposing (Theme)
+
+
+htmlClass : String -> Attribute msg
+htmlClass =
+    Html.Attributes.class
 
 
 toCssColor : Element.Color -> String

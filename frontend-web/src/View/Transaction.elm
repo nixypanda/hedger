@@ -1,4 +1,9 @@
-module View.Transaction exposing (amountsText, classificationLabel, classificationTone, transactionDetail)
+module View.Transaction exposing
+    ( amountsText
+    , classificationLabel
+    , classificationTone
+    , transactionDetail
+    )
 
 import Data.Date as Date
 import Data.Status as Status
@@ -6,6 +11,7 @@ import Data.Transaction exposing (Amount, Posting, Tag, Transaction)
 import Element exposing (Element)
 import Element.Font as Font
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -80,11 +86,14 @@ classificationLabel transaction =
 
 transactionDetail : Theme -> Transaction -> Element msg
 transactionDetail theme transaction =
-    Element.column [ Element.width Element.fill, Element.spacing 16 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Ui.card theme
             (List.concat
                 [ [ detailRow theme "Date" (Date.toString transaction.primaryDate) ]
-                , maybeDetailRow theme "Secondary date" (Maybe.map Date.toString transaction.secondaryDate)
+                , maybeDetailRow
+                    theme
+                    "Secondary date"
+                    (Maybe.map Date.toString transaction.secondaryDate)
                 , [ detailRow theme "Status" (Status.toString transaction.status) ]
                 , maybeDetailRow theme "Code" transaction.code
                 , [ detailRow theme "Description" transaction.description ]
@@ -114,12 +123,12 @@ detailRow : Theme -> String -> String -> Element msg
 detailRow theme label value =
     Element.row
         [ Element.width Element.fill
-        , Element.spacing 16
+        , Element.spacing Tokens.space16
         , Element.alignTop
         , Typography.minWidthZero
         ]
         [ Element.el
-            [ Element.width (Element.px 112)
+            [ Element.width (Element.px Tokens.postingAccountWidth)
             , Typography.detailLabel
             , Font.semiBold
             , Font.color theme.textMedium
@@ -147,23 +156,23 @@ postingDetailRow : Theme -> Posting -> Element msg
 postingDetailRow theme posting =
     Element.row
         [ Element.width Element.fill
-        , Element.spacing 12
-        , Element.paddingXY 0 10
+        , Element.spacing Tokens.space12
+        , Element.paddingXY Tokens.space0 Tokens.space10
         , Element.alignTop
         , Typography.minWidthZero
         ]
         [ Element.row
             [ Element.width Element.fill
-            , Element.spacing 8
+            , Element.spacing Tokens.space8
             , Element.alignTop
             , Typography.minWidthZero
             ]
             [ Icon.view
                 { icon = AccountPresentation.iconForAccount posting.accountType posting.account
-                , size = 16
+                , size = Tokens.iconSizeSmallGlyph
                 , color = theme.textMedium
                 }
-            , Element.column [ Element.width Element.fill, Element.spacing 4 ]
+            , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
                 ([ Typography.naturalWrapText
                     [ Typography.detailValue, Font.color theme.textMedium ]
                     ":"
@@ -181,7 +190,7 @@ postingDetailRow theme posting =
             ]
         , Element.column
             [ Element.width Element.shrink
-            , Element.spacing 4
+            , Element.spacing Tokens.space4
             , Element.alignRight
             , Element.alignTop
             , Font.alignRight
@@ -192,9 +201,9 @@ postingDetailRow theme posting =
 
 postingAmountLine : Theme -> Amount -> Element msg
 postingAmountLine theme amount =
-    Element.column [ Element.alignRight, Element.spacing 2 ]
+    Element.column [ Element.alignRight, Element.spacing Tokens.space2 ]
         [ Element.paragraph
-            [ Element.width (Element.fill |> Element.maximum 180)
+            [ Element.width (Element.fill |> Element.maximum Tokens.narrowContentWidth)
             , Element.alignRight
             , Typography.rowAmount
             , Typography.financeNumber
@@ -224,7 +233,9 @@ postingAmountLine theme amount =
 
 maybeCaption : Theme -> Maybe String -> List (Element msg)
 maybeCaption theme value =
-    value |> Maybe.map (\current -> [ Typography.mutedCaption theme current ]) |> Maybe.withDefault []
+    value
+        |> Maybe.map (\current -> [ Typography.mutedCaption theme current ])
+        |> Maybe.withDefault []
 
 
 tagsText : List Tag -> String

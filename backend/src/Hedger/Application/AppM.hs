@@ -4,16 +4,9 @@ module Hedger.Application.AppM (
     SnapshotContext (..),
     runAppM,
     requireSnapshot,
-)
-where
+) where
 
-import Control.Exception (
-    SomeAsyncException,
-    evaluate,
-    fromException,
-    throwIO,
-    try,
- )
+import Control.Exception (SomeAsyncException, evaluate, fromException, throwIO, try)
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
@@ -49,9 +42,10 @@ runAppM environment action = do
             | isAsynchronous e -> throwIO e
             | otherwise -> pure (Left InternalError)
   where
-    isAsynchronous e = case fromException e :: Maybe SomeAsyncException of
-        Just _ -> True
-        Nothing -> False
+    isAsynchronous e =
+        case fromException e :: Maybe SomeAsyncException of
+            Just _ -> True
+            Nothing -> False
 
 requireSnapshot :: AppM SnapshotContext
 requireSnapshot = do

@@ -1,21 +1,19 @@
 module RemoteData exposing (RemoteData(..), beginLoading, map, value)
 
-import Api.Error exposing (ApiError)
 
-
-type RemoteData a
+type RemoteData error value
     = NotAsked
-    | Loading (Maybe a)
-    | Success a
-    | Failure ApiError (Maybe a)
+    | Loading (Maybe value)
+    | Success value
+    | Failure error (Maybe value)
 
 
-beginLoading : RemoteData a -> RemoteData a
+beginLoading : RemoteData error value -> RemoteData error value
 beginLoading remote =
     Loading (value remote)
 
 
-value : RemoteData a -> Maybe a
+value : RemoteData error value -> Maybe value
 value remote =
     case remote of
         NotAsked ->
@@ -31,7 +29,7 @@ value remote =
             stale
 
 
-map : (a -> b) -> RemoteData a -> RemoteData b
+map : (a -> b) -> RemoteData error a -> RemoteData error b
 map transform remote =
     case remote of
         NotAsked ->

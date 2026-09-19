@@ -29,13 +29,13 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Html.Attributes
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import Set exposing (Set)
 import State.Viewport exposing (Viewport)
 import String
 import Ui
+import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
@@ -153,7 +153,10 @@ update props msg (Model model) =
                 ( selectValue path (Model model), Cmd.none, NoOutMsg )
 
             else
-                ( Model model, Cmd.none, Navigate (AccountValue (Account.accountPathToString path)) )
+                ( Model model
+                , Cmd.none
+                , Navigate (AccountValue (Account.accountPathToString path))
+                )
 
         CloseAccountValue ->
             ( clearValue (Model model), Cmd.none, NoOutMsg )
@@ -270,8 +273,8 @@ view theme viewport (Model model) =
         page =
             Element.column
                 [ Element.width Element.fill
-                , Element.spacing 16
-                , Element.htmlAttribute (Html.Attributes.class "page-scroll")
+                , Element.spacing Tokens.space16
+                , Typography.uiClass "page-scroll"
                 ]
                 [ Ui.pageHeaderBand theme <|
                     Ui.pageHeader theme
@@ -308,16 +311,16 @@ wideLayout theme page account =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Element.clip
-        , Element.htmlAttribute (Html.Attributes.class "accounts-wide-layout")
+        , Typography.uiClass "accounts-wide-layout"
         ]
         [ Element.el
-            [ Element.width (Element.fillPortion 2)
+            [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
             , Element.height Element.fill
             , Element.scrollbarY
             ]
             page
         , Element.el
-            [ Element.width (Element.fillPortion 3)
+            [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
             , Element.height Element.fill
             , Element.clipY
             ]
@@ -394,7 +397,7 @@ accountTree theme expanded accounts =
         Ui.emptyState theme "No accounts were found in the journal."
 
     else
-        Element.column [ Element.width Element.fill, Element.spacing 8 ]
+        Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             (List.map (accountRow theme expanded 0) accounts)
 
 
@@ -412,8 +415,8 @@ accountRow theme expanded depth (AccountNode account) =
         toggleButton =
             if not (List.isEmpty account.children) then
                 Input.button
-                    [ Element.width (Element.px 44)
-                    , Element.height (Element.px 44)
+                    [ Element.width (Element.px Tokens.minimumTouchTarget)
+                    , Element.height (Element.px Tokens.minimumTouchTarget)
                     , Element.centerY
                     ]
                     { onPress = Just (ToggleAccount account.path)
@@ -425,18 +428,19 @@ accountRow theme expanded depth (AccountNode account) =
 
                                 else
                                     Icon.ChevronRight
-                            , size = 16
+                            , size = Tokens.iconSizeSmallGlyph
                             , color = theme.textMuted
                             }
                     }
 
             else
-                Element.el [ Element.width (Element.px 44) ] Element.none
+                Element.el [ Element.width (Element.px Tokens.minimumTouchTarget) ] Element.none
 
         valueAction =
             if Quantity.hasMultipleCommodities account.subtreeBalances then
                 Input.button
                     [ Element.width Element.fill
+                    , Ui.touchTargetHeight
                     , Element.alignRight
                     , Font.color theme.textPrimary
                     ]
@@ -452,7 +456,8 @@ accountRow theme expanded depth (AccountNode account) =
 
         accountAction =
             Input.button
-                [ Element.width (Element.fillPortion 3)
+                [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
+                , Ui.touchTargetHeight
                 , Font.color theme.textPrimary
                 ]
                 { onPress =
@@ -464,23 +469,26 @@ accountRow theme expanded depth (AccountNode account) =
                             OpenAccount account.path
                         )
                 , label =
-                    Element.row [ Element.width Element.fill, Element.spacing 8 ]
+                    Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                         [ Icon.view
                             { icon =
                                 AccountPresentation.iconForAccount
                                     account.accountType
                                     (Account.accountPathToString account.path)
-                            , size = 18
+                            , size = Tokens.iconSizeCaption
                             , color = theme.primary
                             }
-                        , Element.column [ Element.width Element.fill, Element.spacing 2 ]
+                        , Element.column
+                            [ Element.width Element.fill
+                            , Element.spacing Tokens.space2
+                            ]
                             [ Element.text account.name
                             , Element.text
                                 (account.accountType
                                     |> Maybe.map AccountType.toString
                                     |> Maybe.withDefault "account"
                                 )
-                                |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+                                |> Element.el [ Typography.caption, Font.color theme.textMuted ]
                             ]
                         ]
                 }
@@ -488,24 +496,26 @@ accountRow theme expanded depth (AccountNode account) =
         row =
             Element.row
                 [ Element.width Element.fill
-                , Element.paddingXY 12 10
+                , Element.paddingXY Tokens.space12 Tokens.space10
                 , Background.color theme.cardBg
                 , Border.color theme.divider
-                , Border.width 1
-                , Border.rounded 8
-                , Element.spacing 4
+                , Border.width Tokens.borderHairline
+                , Border.rounded Tokens.radiusSmall
+                , Element.spacing Tokens.space4
                 ]
-                [ Element.el [ Element.width (Element.px (depth * 20)) ] Element.none
+                [ Element.el
+                    [ Element.width (Element.px (depth * Tokens.treeIndentWidth)) ]
+                    Element.none
                 , toggleButton
                 , accountAction
                 , Element.el
-                    [ Element.width (Element.fillPortion 1)
+                    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
                     , Element.alignRight
                     ]
                     valueAction
                 ]
     in
-    Element.column [ Element.width Element.fill, Element.spacing 6 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space6 ]
         (row
             :: (if isExpanded then
                     List.map (accountRow theme expanded (depth + 1)) account.children
@@ -526,7 +536,7 @@ balanceText theme valuation symbolCount =
     in
     Element.column
         [ Element.width Element.fill
-        , Element.spacing 2
+        , Element.spacing Tokens.space2
         , Element.alignRight
         , Typography.minWidthZero
         ]
@@ -549,7 +559,7 @@ balanceText theme valuation symbolCount =
             Just count ->
                 Element.el
                     [ Element.alignRight
-                    , Font.size 11
+                    , Typography.caption
                     , Font.color theme.textMuted
                     ]
                     (Element.text (String.fromInt count ++ " symbols"))
@@ -577,7 +587,7 @@ valueView theme path (Model model) =
                 , Element.height Element.fill
                 , Background.color theme.pageBg
                 , Element.scrollbarY
-                , Element.htmlAttribute (Html.Attributes.class "page-scroll account-detail-page")
+                , Typography.uiClass "page-scroll account-detail-page"
                 ]
                 [ Ui.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
@@ -592,7 +602,7 @@ accountDetailPage theme onBack account =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Element.htmlAttribute (Html.Attributes.class "page-scroll account-detail-page")
+        , Typography.uiClass "page-scroll account-detail-page"
         ]
         [ Ui.pageHeaderBand theme <|
             accountDetailHeader theme onBack
@@ -602,7 +612,7 @@ accountDetailPage theme onBack account =
 
 accountDetailHeader : Theme -> Maybe Msg -> Element Msg
 accountDetailHeader theme onBack =
-    Element.row [ Element.width Element.fill, Element.spacing 8 ]
+    Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         [ case onBack of
             Just message ->
                 Ui.backButton theme { onPress = message }
@@ -615,20 +625,20 @@ accountDetailHeader theme onBack =
 
 valuePanel : Theme -> AccountNode -> List (Element Msg)
 valuePanel theme (AccountNode account) =
-    [ Element.column [ Element.width Element.fill, Element.spacing 4 ]
+    [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
         [ Typography.sectionTitle theme account.name
         , Element.text
             (account.accountType
                 |> Maybe.map AccountType.toString
                 |> Maybe.withDefault "account"
             )
-            |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
         ]
     , balanceText theme account.valuation Nothing
     , completenessBadge theme account.valuation.completeness
     , Ui.hairline theme
     , Typography.subsectionTitle theme "Balances included"
-    , Element.column [ Element.width Element.fill, Element.spacing 8 ]
+    , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (List.map (detailBalance theme) account.subtreeBalances)
     , Element.text
         (let
@@ -637,7 +647,7 @@ valuePanel theme (AccountNode account) =
          in
          "Valued as of " ++ TimeExtra.formatDate date
         )
-        |> Element.el [ Font.size 12, Font.color theme.textMuted ]
+        |> Element.el [ Typography.caption, Font.color theme.textMuted ]
     ]
 
 
@@ -653,13 +663,15 @@ detailForPath theme path response =
                 , Element.height Element.fill
                 , Background.color theme.pageBg
                 , Element.scrollbarY
-                , Element.htmlAttribute (Html.Attributes.class "page-scroll account-detail-page")
+                , Typography.uiClass "page-scroll account-detail-page"
                 ]
                 [ Ui.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
                 , Ui.pageContainer
                     [ Ui.card theme
-                        [ Ui.errorBanner theme "That account is no longer present in the current snapshot." ]
+                        [ Ui.errorBanner theme
+                            "That account is no longer present in the current snapshot."
+                        ]
                     ]
                 ]
 
@@ -691,18 +703,17 @@ detailBalance : Theme -> Quantity -> Element msg
 detailBalance theme balance =
     Element.row
         [ Element.width Element.fill
-        , Element.paddingXY 10 8
+        , Element.paddingXY Tokens.space10 Tokens.space8
         , Background.color theme.inputFill
-        , Border.rounded 6
-        , Element.spacing 8
+        , Border.rounded Tokens.radiusControl
+        , Element.spacing Tokens.space8
         ]
         [ Element.text (Quantity.commodity balance)
             |> Element.el
                 [ Element.width Element.fill
                 , Typography.minWidthZero
                 , Element.clip
-                , Element.htmlAttribute (Html.Attributes.style "white-space" "nowrap")
-                , Element.htmlAttribute (Html.Attributes.style "text-overflow" "ellipsis")
+                , Typography.uiClass "ui-text-ellipsis"
                 , Font.color theme.textMedium
                 ]
         , Element.text (Formatting.formatBalance balance)
