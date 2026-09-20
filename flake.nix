@@ -20,7 +20,12 @@
         let
           pkgs = import nixpkgs { inherit system; };
         in
-        pkgs.haskellPackages.callCabal2nix "hedger-backend" ./backend { };
+        # Ship only the statically linked server binary. Dropping the library and
+        # Haddock outputs removes the recorded GHC/toolchain and documentation
+        # references that otherwise bloat the deployed closure by gigabytes.
+        pkgs.haskell.lib.justStaticExecutables (
+          pkgs.haskellPackages.callCabal2nix "hedger-backend" ./backend { }
+        );
       frontendFor =
         system:
         let
