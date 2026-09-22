@@ -1,9 +1,7 @@
 {
   description = "Hedger development workspace";
 
-  # 26.05 is the last supported nixpkgs line for Intel macOS and also keeps
-  # Linux CI on the same pinned package set.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs =
     { self, nixpkgs }:
