@@ -6,6 +6,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     WarningKind (..),
     SummaryResult (..),
     InvestmentPerformanceContext (..),
+    Attribution (..),
 
     -- * Performance calculation
     prepareInvestmentPerformance,
@@ -116,6 +117,16 @@ data InvestmentCompleteness
     | Unavailable
     deriving stock (Eq, Show)
 
+{- | The three attribution quantities carried per scope: income, realised gain
+and fees, each already valued in the display commodity.
+-}
+data Attribution = Attribution
+    { income :: Decimal
+    , realisedGain :: Decimal
+    , fees :: Decimal
+    }
+    deriving stock (Eq, Show)
+
 data InvestmentSummary = InvestmentSummary
     { marketValue :: Maybe Decimal
     , purchaseCost :: Maybe Decimal
@@ -180,15 +191,16 @@ data InvestmentPerformanceContext = InvestmentPerformanceContext
     }
 
 {- | The scope-derived, non-holdings inputs to one day's 'InvestmentSummary':
-account discovery, mapping completeness, and the three quantities that each
-require a full prefix scan of the journal. 'scopeScansAt' computes all four in
-one chronological sweep instead of one scan per quantity per day.
+account discovery, mapping completeness, and the performance quantities
+(retained income, attribution, and cash flows) that each require a full prefix
+scan of the journal. 'scopeScansAt' computes all of them in one chronological
+sweep instead of one scan per quantity per day.
 -}
 data ScopeScan = ScopeScan
     { accounts :: [Text]
     , mappingComplete :: Bool
     , retained :: Maybe Decimal
-    , attributed :: Maybe (Decimal, Decimal, Decimal)
+    , attributed :: Maybe Attribution
     , cashFlows :: Maybe [Xirr.CashFlow]
     }
     deriving stock (Eq, Show)
@@ -342,9 +354,9 @@ summaryFromHoldings context scope day holdings costHoldings scopeScan =
             if mappingComplete
                 then scopeScan.attributed
                 else Nothing
-        income = attributed >>= (Just . (\(value, _, _) -> value))
-        realised = attributed >>= (Just . (\(_, value, _) -> value))
-        fees = attributed >>= (Just . (\(_, _, value) -> value))
+        income = (.income) <$> attributed
+        realised = (.realisedGain) <$> attributed
+        fees = (.fees) <$> attributed
         total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
         xirrResult =
             if mappingComplete
@@ -398,7 +410,7 @@ data Accumulator = Accumulator
     { seenAccounts :: !(Set.Set Text)
     , explicitCostAccounts :: !(Set.Set Text)
     , retainedTotal :: !(Maybe Decimal)
-    , attributedTotal :: !(Maybe (Decimal, Decimal, Decimal))
+    , attributedTotal :: !(Maybe Attribution)
     , -- Newest first: 'step' conses, and 'snapshotAt' reverses once per emitted day.
       cashFlowsTotal :: !(Maybe [Xirr.CashFlow])
     }
@@ -409,7 +421,7 @@ initialAccumulator =
         { seenAccounts = Set.empty
         , explicitCostAccounts = Set.empty
         , retainedTotal = Just 0
-        , attributedTotal = Just (0, 0, 0)
+        , attributedTotal = Just (Attribution 0 0 0)
         , cashFlowsTotal = Just []
         }
 
@@ -456,7 +468,7 @@ stepAccumulator context plan acc transaction =
                     List.foldl' addExplicitCost acc.explicitCostAccounts transaction.tpostings
                 , retainedTotal = List.foldl' addSticky acc.retainedTotal retainedContributions
                 , attributedTotal =
-                    List.foldl' combineTriple acc.attributedTotal attributedContributions
+                    List.foldl' combineAttribution acc.attributedTotal attributedContributions
                 , cashFlowsTotal = addCashFlow acc.cashFlowsTotal transaction
                 }
   where
@@ -527,9 +539,24 @@ stepAccumulator context plan acc transaction =
                 quantity <- completeDecimal commodity (valueAt transaction.tdate posting.pamount)
                 pure $
                     case performance.role of
-                        Investment.RealisedGain -> (0, negate quantity, 0)
-                        Investment.Fee -> (0, 0, negate quantity)
-                        _ -> (negate quantity, 0, 0)
+                        Investment.RealisedGain ->
+                            Attribution
+                                { income = 0
+                                , realisedGain = negate quantity
+                                , fees = 0
+                                }
+                        Investment.Fee ->
+                            Attribution
+                                { income = 0
+                                , realisedGain = 0
+                                , fees = negate quantity
+                                }
+                        _ ->
+                            Attribution
+                                { income = negate quantity
+                                , realisedGain = 0
+                                , fees = 0
+                                }
             | mapping <- plan.selectedMappings
             , transactionMatchesScope scope mapping transaction
             , posting <- transaction.tpostings
@@ -540,10 +567,6 @@ stepAccumulator context plan acc transaction =
     addSticky Nothing _ = Nothing
     addSticky _ Nothing = Nothing
     addSticky (Just total) (Just value) = Just (total + value)
-    combineTriple Nothing _ = Nothing
-    combineTriple _ Nothing = Nothing
-    combineTriple (Just (incomeA, gainA, feeA)) (Just (incomeB, gainB, feeB)) =
-        Just (incomeA + incomeB, gainA + gainB, feeA + feeB)
     addAccount accounts posting
         | isInvestmentAccount context.assetClasses scope posting.paccount =
             Set.insert posting.paccount accounts
@@ -807,6 +830,18 @@ investmentQuery assetClasses scope =
             (\name -> [HledgerQuery.Acct (HledgerAccountName.accountNameToAccountRegex name)])
             scope
 
+-- | Add two attributions component-wise, propagating a missing side.
+combineAttribution :: Maybe Attribution -> Maybe Attribution -> Maybe Attribution
+combineAttribution Nothing _ = Nothing
+combineAttribution _ Nothing = Nothing
+combineAttribution (Just first) (Just second) =
+    Just
+        Attribution
+            { income = first.income + second.income
+            , realisedGain = first.realisedGain + second.realisedGain
+            , fees = first.fees + second.fees
+            }
+
 attributedAt ::
     Snapshot ->
     Investment.AssetClassMappings ->
@@ -814,7 +849,7 @@ attributedAt ::
     Text ->
     Maybe Text ->
     Day ->
-    Maybe (Decimal, Decimal, Decimal)
+    Maybe Attribution
 attributedAt snapshot assetClasses mappings commodity scope day =
     attributedAtWith
         (valueMixedAt snapshot commodity)
@@ -833,9 +868,9 @@ attributedAtWith ::
     Text ->
     Maybe Text ->
     Day ->
-    Maybe (Decimal, Decimal, Decimal)
+    Maybe Attribution
 attributedAtWith valueAt snapshot assetClasses mappings commodity scope day =
-    foldl combine (Just (0, 0, 0)) contributions
+    foldl combineAttribution (Just (Attribution 0 0 0)) contributions
   where
     selectedMappings =
         filter
@@ -849,9 +884,24 @@ attributedAtWith valueAt snapshot assetClasses mappings commodity scope day =
             quantity <- completeDecimal commodity (valueAt transaction.tdate posting.pamount)
             pure $
                 case performance.role of
-                    Investment.RealisedGain -> (0, negate quantity, 0)
-                    Investment.Fee -> (0, 0, negate quantity)
-                    _ -> (negate quantity, 0, 0)
+                    Investment.RealisedGain ->
+                        Attribution
+                            { income = 0
+                            , realisedGain = negate quantity
+                            , fees = 0
+                            }
+                    Investment.Fee ->
+                        Attribution
+                            { income = 0
+                            , realisedGain = 0
+                            , fees = negate quantity
+                            }
+                    _ ->
+                        Attribution
+                            { income = negate quantity
+                            , realisedGain = 0
+                            , fees = 0
+                            }
         | transaction <- snapshot.transactions
         , transaction.tdate <= day
         , transactionTouchesPortfolio transaction
@@ -861,10 +911,6 @@ attributedAtWith valueAt snapshot assetClasses mappings commodity scope day =
         , performance <- mapping.performanceAccounts
         , performanceAccountText performance `accountWithin` posting.paccount
         ]
-    combine Nothing _ = Nothing
-    combine _ Nothing = Nothing
-    combine (Just (incomeA, gainA, feeA)) (Just (incomeB, gainB, feeB)) =
-        Just (incomeA + incomeB, gainA + gainB, feeA + feeB)
     transactionTouchesPortfolio =
         any (isInvestmentAccount assetClasses scope . (.paccount)) . (.tpostings)
 

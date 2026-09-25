@@ -162,7 +162,7 @@ fixtureBenchmarks (name, path) =
                     , bench "retained" $
                         nf (decimalWeight . retainedComponent context snapshot) input.latest
                     , bench "attributed" $
-                        nf (tripleWeight . attributedComponent context snapshot) input.latest
+                        nf (attributionWeight . attributedComponent context snapshot) input.latest
                     , bench "cash-flows" $
                         nf (cashFlowsWeight . cashFlowsComponent context snapshot) input.latest
                     , bench "xirr-solve" $ nf xirrWeight input.investmentCashFlows
@@ -427,7 +427,7 @@ attributedComponent ::
     Performance.InvestmentPerformanceContext ->
     Snapshot ->
     Day ->
-    Maybe (Decimal, Decimal, Decimal)
+    Maybe Performance.Attribution
 attributedComponent context snapshot =
     Performance.attributedAtWith
         context.valueAt
@@ -451,8 +451,8 @@ cashFlowsComponent context snapshot =
 decimalWeight :: Maybe Decimal -> Int
 decimalWeight = length . show
 
-tripleWeight :: Maybe (Decimal, Decimal, Decimal) -> Int
-tripleWeight = length . show
+attributionWeight :: Maybe Performance.Attribution -> Int
+attributionWeight = length . show
 
 cashFlowsWeight :: Maybe [Xirr.CashFlow] -> Int
 cashFlowsWeight = length . show
@@ -468,7 +468,7 @@ scopeScanWeight scan =
     sum (Text.length <$> scan.accounts)
         + fromEnum scan.mappingComplete
         + decimalWeight scan.retained
-        + tripleWeight scan.attributed
+        + attributionWeight scan.attributed
         + cashFlowsWeight scan.cashFlows
 
 timelineHoldingsMarket :: Performance.InvestmentPerformanceContext -> [Day] -> [Hledger.MixedAmount]

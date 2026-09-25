@@ -20,6 +20,7 @@ import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Domain.Internal.InvestmentPerformance (
+    Attribution (..),
     InvestmentPerformanceContext (..),
     ScopeScan (..),
     attributedAtWith,
@@ -752,18 +753,18 @@ loadScenarioSnapshot path = do
         Right snapshot -> pure snapshot
 
 {- | Total profit is unrealised gain plus attributed income, realised gain, and
-fees. The attribution triple is withheld when the mapping is incomplete, so a
-missing triple leaves this guard unsatisfied.
+fees. The attribution record is withheld when the mapping is incomplete, so a
+missing record leaves this guard unsatisfied.
 -}
 assertTotalProfitDecomposition ::
-    InvestmentSummary -> Maybe (Decimal, Decimal, Decimal) -> PropertyT IO ()
+    InvestmentSummary -> Maybe Attribution -> PropertyT IO ()
 assertTotalProfitDecomposition summary attribution =
     case (summary.totalProfit, summary.gainLoss, summary.attributedIncome, summary.realisedGain) of
         (Just total, Just gain, Just income, Just realised) ->
             total === gain + income + realised + fees
         _ -> pure ()
   where
-    fees = maybe 0 (\(_, _, value) -> value) attribution
+    fees = maybe 0 (.fees) attribution
 
 {- | Market value is purchase cost plus unrealised gain plus retained income.
 
