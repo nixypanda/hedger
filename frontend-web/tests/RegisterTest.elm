@@ -4,11 +4,16 @@ import Api.Register as Register
 import Data.Completeness as Completeness
 import Data.Freshness as Freshness
 import Expect
+import Fuzz
 import Json.Decode as Decode
 import Page.AccountRegister as Page
-import Test exposing (Test, describe, test)
+import Test exposing (Test, describe, fuzz, test)
 
 
+{-| A register page may only be replaced or appended by the request that is
+currently in flight. Completions for earlier requests are stale and must leave
+the visible register untouched.
+-}
 suite : Test
 suite =
     describe "Account register"
@@ -35,30 +40,94 @@ suite =
                             , nextCursor = Just "page-2"
                             }
                         )
-        , test "only the active page request can replace or append entries" <|
-            \_ ->
-                let
-                    ( loading, first ) =
-                        Page.beginLoading "Assets:Cash" Page.init
-
-                    loaded =
-                        Page.receive first (Ok sampleResponse) loading
-
-                    ( refreshing, current ) =
-                        Page.beginLoading "Assets:Cash" loaded
-                in
-                Page.receive first (Ok sampleResponse) refreshing
-                    |> Page.receive current (Ok { sampleResponse | entries = [] })
-                    |> Page.visibleResponse
-                    |> (\response ->
-                            case response of
-                                Just visible ->
-                                    Expect.equal [] visible.entries
-
-                                Nothing ->
-                                    Expect.fail "Expected the active response to win."
-                       )
+        , fuzz accountFuzzer
+            "only the active request can replace the register"
+            activeRequestWins
         ]
+
+
+accountFuzzer : Fuzz.Fuzzer (List String)
+accountFuzzer =
+    Fuzz.list
+        (Fuzz.oneOfValues
+            [ "Assets:Cash"
+            , "Assets:Bank"
+            , "Expenses:Travel"
+            ]
+        )
+
+
+activeRequestWins : List String -> Expect.Expectation
+activeRequestWins accounts =
+    let
+        trace =
+            List.foldl issueAccount initialTrace ("Assets:Cash" :: accounts)
+
+        issued =
+            trace.issued
+
+        lastIndex =
+            List.length issued - 1
+
+        emptyResponse =
+            { sampleResponse | entries = [] }
+
+        afterStale =
+            List.range 0 (lastIndex - 1)
+                |> List.foldl
+                    (\index model -> applyResponse issued index sampleResponse model)
+                    trace.model
+
+        activeResponse =
+            applyResponse issued lastIndex sampleResponse afterStale
+
+        replacedResponse =
+            applyResponse issued lastIndex emptyResponse afterStale
+    in
+    Expect.all
+        [ \_ -> Expect.equal (Page.visibleResponse trace.model) (Page.visibleResponse afterStale)
+        , \_ -> Expect.equal (Just sampleResponse) (Page.visibleResponse activeResponse)
+        , \_ -> Expect.equal (Just emptyResponse) (Page.visibleResponse replacedResponse)
+        ]
+        ()
+
+
+applyResponse : List Page.Request -> Int -> Register.Response -> Page.Model -> Page.Model
+applyResponse issued index response model =
+    Page.receive (requestAt index issued) (Ok response) model
+
+
+type alias Trace =
+    { model : Page.Model
+    , issued : List Page.Request
+    }
+
+
+initialTrace : Trace
+initialTrace =
+    { model = Page.init, issued = [] }
+
+
+issueAccount : String -> Trace -> Trace
+issueAccount account trace =
+    let
+        ( nextModel, request ) =
+            Page.beginLoading account trace.model
+    in
+    { model = nextModel, issued = trace.issued ++ [ request ] }
+
+
+requestAt : Int -> List Page.Request -> Page.Request
+requestAt index issued =
+    issued
+        |> List.drop index
+        |> List.head
+        |> Maybe.withDefault fallbackRequest
+
+
+fallbackRequest : Page.Request
+fallbackRequest =
+    Page.beginLoading "Assets:Cash" Page.init |> Tuple.second
 
 
 sampleResponse : Register.Response

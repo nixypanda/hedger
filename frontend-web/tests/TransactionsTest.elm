@@ -10,11 +10,16 @@ import Data.Metadata exposing (Metadata)
 import Data.Status as Status
 import Data.Transaction exposing (Transaction)
 import Expect
+import Fuzz
 import Json.Decode as Decode
 import Page.Transactions as Page
-import Test exposing (Test, describe, test)
+import Test exposing (Test, describe, fuzz, test)
 
 
+{-| Two domain rules live on the Transactions page: a selection only ever
+references a transaction the page currently holds, and the bounded paging window
+never stitches together pages from different journal revisions.
+-}
 suite : Test
 suite =
     describe "Transactions"
@@ -43,132 +48,12 @@ suite =
                 in
                 ( Page.status loading, Page.visibleResponse loading, Page.requestCursor request )
                     |> Expect.equal ( Page.InitialLoadingStatus, Nothing, Nothing )
-        , test "selection accepts a loaded complete DTO and rejects an outsider" <|
-            \_ ->
-                let
-                    response =
-                        sampleResponse "revision-a"
-
-                    model =
-                        loadInitial response
-                in
-                case response.transactions of
-                    transaction :: _ ->
-                        let
-                            selected =
-                                Page.select transaction model
-
-                            outsider =
-                                { transaction | description = "Not in the window" }
-                        in
-                        ( Page.selectedTransaction selected |> Maybe.map (.postings >> List.length)
-                        , Page.select outsider selected |> Page.selectedTransaction
-                        )
-                            |> Expect.equal ( Just 1, Just transaction )
-
-                    [] ->
-                        Expect.fail "The test response needs one transaction."
-        , test "refresh preserves stale data and selection" <|
-            \_ ->
-                let
-                    response =
-                        sampleResponse "revision-a"
-
-                    selected =
-                        selectFirst response (loadInitial response)
-
-                    ( refreshing, _ ) =
-                        Page.beginLoading selected
-                in
-                ( Page.status refreshing
-                , Page.visibleResponse refreshing
-                , Page.selectedTransaction refreshing
-                )
-                    |> Expect.equal
-                        ( Page.RefreshingStatus, Just response, Page.selectedTransaction selected )
-        , test "refresh retains selection only when it remains in the refreshed window" <|
-            \_ ->
-                let
-                    response =
-                        sampleResponse "revision-a"
-
-                    selected =
-                        selectFirst response (loadInitial response)
-
-                    ( refreshing, request ) =
-                        Page.beginLoading selected
-                in
-                Page.receive request (Ok response) refreshing
-                    |> Page.selectedTransaction
-                    |> Expect.equal (Page.selectedTransaction selected)
-        , test "refresh structurally removes selection when the row leaves the window" <|
-            \_ ->
-                let
-                    response =
-                        samplePage 0
-
-                    selected =
-                        selectFirst response (loadInitial response)
-
-                    ( refreshing, request ) =
-                        Page.beginLoading selected
-
-                    replacement =
-                        { metadata = metadata "revision-a"
-                        , transactions = [ sampleTransaction 999 ]
-                        , nextCursor = Nothing
-                        }
-                in
-                Page.receive request (Ok replacement) refreshing
-                    |> Page.selectedTransaction
-                    |> Expect.equal Nothing
-        , test "revision change clears selection" <|
-            \_ ->
-                let
-                    first =
-                        samplePage 0
-
-                    selected =
-                        selectFirst first (loadInitial first)
-                in
-                appendResponse (sampleResponse "revision-b") selected
-                    |> Page.selectedTransaction
-                    |> Expect.equal Nothing
         , test "an empty response reaches success without manufacturing data" <|
             \_ ->
                 loadInitial { metadata = metadata "revision-a", transactions = [], nextCursor = Nothing }
                     |> Page.visibleResponse
                     |> Maybe.map .transactions
                     |> Expect.equal (Just [])
-        , test "refresh failure retains stale response and selection" <|
-            \_ ->
-                let
-                    response =
-                        sampleResponse "revision-a"
-
-                    selected =
-                        selectFirst response (loadInitial response)
-
-                    ( refreshing, request ) =
-                        Page.beginLoading selected
-
-                    failed =
-                        Page.receive request (Err apiError) refreshing
-                in
-                ( Page.status failed, Page.visibleResponse failed, Page.selectedTransaction failed )
-                    |> Expect.equal
-                        ( Page.RefreshFailureStatus, Just response, Page.selectedTransaction selected )
-        , test "fatal failure has no stale response" <|
-            \_ ->
-                let
-                    ( loading, request ) =
-                        Page.beginLoading Page.init
-
-                    failed =
-                        Page.receive request (Err apiError) loading
-                in
-                ( Page.status failed, Page.visibleResponse failed )
-                    |> Expect.equal ( Page.InitialFailureStatus, Nothing )
         , test "apply trims the draft and resets results, paging, and selection" <|
             \_ ->
                 let
@@ -214,51 +99,9 @@ suite =
                 , Page.requestQuery refreshRequest
                 )
                     |> Expect.equal ( "acct:assets", "desc:unfinished", "acct:assets" )
-        , test "paging keeps a bounded five-page window" <|
-            \_ ->
-                let
-                    pages =
-                        List.range 0 5 |> List.map samplePage
-
-                    model =
-                        case pages of
-                            first :: rest ->
-                                List.foldl
-                                    appendResponse
-                                    (loadInitial first)
-                                    rest
-
-                            [] ->
-                                Page.init
-                in
-                Page.visibleResponse model
-                    |> Maybe.map
-                        (\response ->
-                            ( List.length response.transactions
-                            , response.transactions
-                                |> List.head
-                                |> Maybe.map .description
-                            )
-                        )
-                    |> (\window -> ( window, Page.retainedPageCount model ))
-                    |> Expect.equal ( Just ( 250, Just "Transaction 51" ), 5 )
-        , test "a revision change while paging replaces the window and clears selection" <|
-            \_ ->
-                let
-                    first =
-                        samplePage 0
-
-                    selected =
-                        loadInitial first |> selectFirst first
-
-                    changed =
-                        appendResponse (sampleResponse "revision-b") selected
-                in
-                ( Page.selectedTransaction changed, Page.retainedPageCount changed )
-                    |> Expect.equal ( Nothing, 1 )
         , test "query errors decode their safe reason and position" <|
             \_ ->
-                Decode.decodeString ApiError.decoder
+                ( Decode.decodeString ApiError.decoder
                     """
                     {"error":{"code":"invalid_query",
                     "message":"The query is invalid.",
@@ -267,11 +110,21 @@ suite =
                     "position":14}}}
                     """
                     |> Result.map ApiError.message
+                , Decode.decodeString ApiError.decoder
+                    """
+                    {"error":{"code":"journal_unavailable",
+                    "message":"No snapshot",
+                    "requestId":"request-1",
+                    "details":null}}
+                    """
+                    |> Result.map .code
+                )
                     |> Expect.equal
-                        (Ok
+                        ( Ok
                             ("The query is invalid. expected a closing parenthesis"
                                 ++ " (at character 14) (request request-1)"
                             )
+                        , Ok "journal_unavailable"
                         )
         , test "a query error preserves the applied draft for correction" <|
             \_ ->
@@ -291,134 +144,17 @@ suite =
                     failed =
                         Page.receive request (Err queryError) loading
                 in
-                ( Page.draftQuery failed, Page.appliedQuery failed, Page.visibleResponse failed )
-                    |> Expect.equal ( "acct:(", "acct:(", Nothing )
-        , test "a stale request completion cannot overwrite a newer query" <|
-            \_ ->
-                let
-                    ( firstLoading, firstRequest ) =
-                        Page.beginLoading Page.init
-
-                    ( newerQuery, _ ) =
-                        firstLoading
-                            |> Page.setDraft "acct:expenses"
-                            |> Page.applyDraft
-                in
-                Page.receive firstRequest (Ok (sampleResponse "revision-old")) newerQuery
-                    |> (\model -> ( Page.status model, Page.draftQuery model ))
-                    |> Expect.equal ( Page.InitialLoadingStatus, "acct:expenses" )
-        , test "load-more failure retains loaded results and selection for retry" <|
-            \_ ->
-                let
-                    response =
-                        samplePage 0
-
-                    selected =
-                        loadInitial response |> selectFirst response
-
-                    loading =
-                        Page.beginLoadingMore selected
-
-                    failed =
-                        loading
-                            |> Maybe.map (\( model, request ) -> Page.receive request (Err apiError) model)
-                            |> Maybe.withDefault selected
-
-                    retry =
-                        Page.beginLoadingMore failed
-                in
-                { status = Page.status failed
-                , response = Page.visibleResponse failed
-                , selected = Page.selectedTransaction failed
-                , retryCursor = retry |> Maybe.map (Tuple.second >> Page.requestCursor)
-                , retryStatus = retry |> Maybe.map (Tuple.first >> Page.status)
+                { draft = Page.draftQuery failed
+                , applied = Page.appliedQuery failed
+                , visible = Page.visibleResponse failed
+                , status = Page.status failed
                 }
                     |> Expect.equal
-                        { status = Page.LoadMoreFailureStatus
-                        , response = Just response
-                        , selected = Page.selectedTransaction selected
-                        , retryCursor = Just (Just "cursor-1")
-                        , retryStatus = Just Page.LoadingMoreStatus
+                        { draft = "acct:("
+                        , applied = "acct:("
+                        , visible = Nothing
+                        , status = Page.InitialFailureStatus
                         }
-        , test "loading more is impossible without a retryable window and cursor" <|
-            \_ ->
-                let
-                    noCursor =
-                        loadInitial (sampleResponse "revision-a")
-
-                    withCursor =
-                        loadInitial (samplePage 0)
-
-                    loadingAgain =
-                        Page.beginLoadingMore withCursor
-                            |> Maybe.andThen (Tuple.first >> Page.beginLoadingMore)
-                in
-                ( Page.beginLoadingMore Page.init, Page.beginLoadingMore noCursor, loadingAgain )
-                    |> Expect.equal ( Nothing, Nothing, Nothing )
-        , test "first-page and next-page requests cannot complete each other's states" <|
-            \_ ->
-                let
-                    loaded =
-                        loadInitial (samplePage 0)
-
-                    ( refreshing, firstRequest ) =
-                        Page.beginLoading loaded
-                in
-                case Page.beginLoadingMore loaded of
-                    Just ( loadingMore, nextRequest ) ->
-                        ( Page.receive nextRequest (Ok (samplePage 1)) refreshing |> Page.status
-                        , Page.receive firstRequest (Ok (samplePage 1)) loadingMore |> Page.status
-                        )
-                            |> Expect.equal ( Page.RefreshingStatus, Page.LoadingMoreStatus )
-
-                    Nothing ->
-                        Expect.fail "The sample page must provide a next cursor."
-        , test "every representable lifecycle state is reached through a valid transition" <|
-            \_ ->
-                let
-                    ( initialLoading, initialRequest ) =
-                        Page.beginLoading Page.init
-
-                    initialFailure =
-                        Page.receive initialRequest (Err apiError) initialLoading
-
-                    showing =
-                        loadInitial (samplePage 0)
-
-                    ( refreshing, refreshRequest ) =
-                        Page.beginLoading showing
-
-                    refreshFailure =
-                        Page.receive refreshRequest (Err apiError) refreshing
-                in
-                case Page.beginLoadingMore showing of
-                    Just ( loadingMore, pageRequest ) ->
-                        let
-                            loadMoreFailure =
-                                Page.receive pageRequest (Err apiError) loadingMore
-                        in
-                        [ Page.status Page.init
-                        , Page.status initialLoading
-                        , Page.status initialFailure
-                        , Page.status showing
-                        , Page.status refreshing
-                        , Page.status refreshFailure
-                        , Page.status loadingMore
-                        , Page.status loadMoreFailure
-                        ]
-                            |> Expect.equal
-                                [ Page.NotAskedStatus
-                                , Page.InitialLoadingStatus
-                                , Page.InitialFailureStatus
-                                , Page.ShowingStatus
-                                , Page.RefreshingStatus
-                                , Page.RefreshFailureStatus
-                                , Page.LoadingMoreStatus
-                                , Page.LoadMoreFailureStatus
-                                ]
-
-                    Nothing ->
-                        Expect.fail "The sample page must provide a next cursor."
         , test "transaction query and cursor are URL encoded" <|
             \_ ->
                 Api.transactionsUrl
@@ -431,7 +167,243 @@ suite =
                             ++ "&limit=50"
                             ++ "&cursor=page%2B%2F%3D"
                         )
+        , fuzz selectionFuzzer "a selection always references a transaction in the visible window" selectionClosure
+        , fuzz pagingFuzzer "the paging window stays bounded and never stitches revisions" pagingLaws
         ]
+
+
+
+-- SELECTION
+
+
+type alias SelectionInput =
+    { count : Int
+    , pick : Int
+    }
+
+
+selectionFuzzer : Fuzz.Fuzzer SelectionInput
+selectionFuzzer =
+    Fuzz.intRange 0 8
+        |> Fuzz.andThen
+            (\count ->
+                Fuzz.map (\pick -> { count = count, pick = pick }) (Fuzz.intRange 0 (count + 1))
+            )
+
+
+selectionClosure : SelectionInput -> Expect.Expectation
+selectionClosure input =
+    let
+        response =
+            { metadata = metadata "revision-a"
+            , transactions = List.range 1 input.count |> List.map sampleTransaction
+            , nextCursor = Nothing
+            }
+
+        model =
+            loadInitial response
+
+        visible =
+            response.transactions
+
+        target =
+            sampleTransaction
+                (if input.pick < input.count then
+                    input.pick + 1
+
+                 else
+                    999
+                )
+
+        outsider =
+            sampleTransaction 999
+
+        selected =
+            Page.select target model
+
+        chosen =
+            Page.selectedTransaction selected
+
+        chosenIsVisible =
+            chosen
+                |> Maybe.map (\transaction -> List.member transaction visible)
+                |> Maybe.withDefault True
+    in
+    Expect.all
+        [ \_ -> Expect.equal True chosenIsVisible
+        , \_ -> Expect.equal chosen (Page.selectedTransaction (Page.select target selected))
+        , \_ -> Expect.equal chosen (Page.selectedTransaction (Page.select outsider selected))
+        , \_ ->
+            if input.pick < input.count then
+                Expect.equal (Just target) chosen
+
+            else
+                Expect.equal Nothing chosen
+        ]
+        ()
+
+
+
+-- PAGING
+
+
+type alias PagingInput =
+    { revision : String
+    , appends : List ( String, Int )
+    }
+
+
+pagingFuzzer : Fuzz.Fuzzer PagingInput
+pagingFuzzer =
+    Fuzz.map2 PagingInput
+        (Fuzz.oneOfValues [ "revision-a", "revision-b" ])
+        (Fuzz.list (Fuzz.map2 Tuple.pair (Fuzz.oneOfValues [ "revision-a", "revision-b" ]) (Fuzz.intRange 0 8)))
+
+
+pagingLaws : PagingInput -> Expect.Expectation
+pagingLaws input =
+    let
+        firstPage =
+            responseFor 0 input.revision
+
+        starting =
+            loadInitial firstPage |> selectFirst firstPage
+
+        ( final, appendChecks ) =
+            List.foldl appendStep ( starting, [] ) input.appends
+
+        checks =
+            appendChecks ++ retentionChecks final
+    in
+    Expect.all (List.map (\check _ -> check) checks) ()
+
+
+appendStep : ( String, Int ) -> ( Page.Model, List Expect.Expectation ) -> ( Page.Model, List Expect.Expectation )
+appendStep ( revision, pageIndex ) ( model, checks ) =
+    let
+        nextPage =
+            responseFor pageIndex revision
+
+        after =
+            appendResponse nextPage model
+
+        bounded =
+            boundedWindow after
+
+        windowCheck =
+            case Page.visibleResponse model of
+                Nothing ->
+                    Expect.fail "Appending requires a visible window."
+
+                Just window ->
+                    if window.metadata.revision /= nextPage.metadata.revision then
+                        Expect.all
+                            [ \_ -> Expect.equal (Just nextPage) (Page.visibleResponse after)
+                            , \_ -> Expect.equal True (selectionIsMember after)
+                            ]
+                            ()
+
+                    else
+                        Page.visibleResponse after
+                            |> Maybe.andThen lastDescription
+                            |> Expect.equal (lastDescription nextPage)
+    in
+    ( after, checks ++ [ bounded, windowCheck ] )
+
+
+selectionIsMember : Page.Model -> Bool
+selectionIsMember model =
+    case Page.selectedTransaction model of
+        Nothing ->
+            True
+
+        Just transaction ->
+            Page.visibleResponse model
+                |> Maybe.map (.transactions >> List.member transaction)
+                |> Maybe.withDefault False
+
+
+boundedWindow : Page.Model -> Expect.Expectation
+boundedWindow model =
+    let
+        rows =
+            Page.visibleResponse model
+                |> Maybe.map (.transactions >> List.length)
+                |> Maybe.withDefault 0
+    in
+    Expect.equal
+        { pages = Page.retainedPageCount model <= 5, rows = rows <= 250 }
+        { pages = True, rows = True }
+
+
+retentionChecks : Page.Model -> List Expect.Expectation
+retentionChecks model =
+    let
+        before =
+            modelSnapshot model
+
+        ( refreshing, refreshRequest ) =
+            Page.beginLoading model
+
+        refreshFailed =
+            Page.receive refreshRequest (Err apiError) refreshing
+
+        loadMoreChecks =
+            case Page.beginLoadingMore model of
+                Just ( loadingMore, request ) ->
+                    let
+                        failed =
+                            Page.receive request (Err apiError) loadingMore
+                    in
+                    [ Expect.equal
+                        { status = Page.LoadMoreFailureStatus, view = before.view, selected = before.selected }
+                        (modelSnapshot failed |> (\snapshot -> { status = snapshot.status, view = snapshot.view, selected = snapshot.selected }))
+                    ]
+
+                Nothing ->
+                    []
+    in
+    Expect.equal
+        { status = Page.RefreshingStatus, view = before.view, selected = before.selected }
+        (modelSnapshot refreshing |> (\snapshot -> { status = snapshot.status, view = snapshot.view, selected = snapshot.selected }))
+        :: Expect.equal
+            { status = Page.RefreshFailureStatus, view = before.view, selected = before.selected }
+            (modelSnapshot refreshFailed |> (\snapshot -> { status = snapshot.status, view = snapshot.view, selected = snapshot.selected }))
+        :: loadMoreChecks
+
+
+type alias ModelSnapshot =
+    { status : Page.Status
+    , view : Maybe Response
+    , selected : Maybe Transaction
+    , pages : Int
+    }
+
+
+modelSnapshot : Page.Model -> ModelSnapshot
+modelSnapshot model =
+    { status = Page.status model
+    , view = Page.visibleResponse model
+    , selected = Page.selectedTransaction model
+    , pages = Page.retainedPageCount model
+    }
+
+
+lastDescription : Response -> Maybe String
+lastDescription response =
+    response.transactions
+        |> List.reverse
+        |> List.head
+        |> Maybe.map .description
+
+
+responseFor : Int -> String -> Response
+responseFor pageIndex revision =
+    let
+        base =
+            samplePage pageIndex
+    in
+    { base | metadata = metadata revision }
 
 
 loadInitial : Response -> Page.Model

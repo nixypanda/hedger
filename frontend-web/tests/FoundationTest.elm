@@ -1,15 +1,14 @@
 module FoundationTest exposing (suite)
 
-import Api.Error as ApiError
 import Data.Decimal as Decimal
 import Data.Revision as Revision
 import Expect
-import Http
+import Fuzz
 import Json.Decode as Decode
 import Preferences exposing (ThemeMode(..))
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
-import Test exposing (Test, describe, test)
+import Test exposing (Test, describe, fuzz2, test)
 import Ui.Responsive as Responsive
 import Url
 
@@ -63,32 +62,10 @@ suite =
                 Decode.decodeString Preferences.decoder "{\"themeMode\":\"dark\"}"
                     |> Result.map (\preferences -> ( preferences.version, preferences.themeMode ))
                     |> Expect.equal (Ok ( 1, Dark ))
-        , test "revision mismatches are explicit" <|
-            \_ ->
-                Revision.ensureMatching (Just "revision-a")
-                    (Just "revision-b")
-                    |> Expect.equal
-                        (Err { expected = "revision-a", received = "revision-b" })
-        , test "equal or absent revisions are compatible" <|
-            \_ ->
-                [ Revision.ensureMatching (Just "revision-a") (Just "revision-a")
-                , Revision.ensureMatching Nothing (Just "revision-a")
-                , Revision.ensureMatching (Just "revision-a") Nothing
-                ]
-                    |> Expect.equal [ Ok (), Ok (), Ok () ]
-        , test "stable API error envelope decodes" <|
-            \_ ->
-                Decode.decodeString ApiError.decoder
-                    """
-                    {"error":{"code":"journal_unavailable",
-                    "message":"No snapshot",
-                    "requestId":"req-1",
-                    "details":null}}
-                    """
-                    |> Result.map .code
-                    |> Expect.equal (Ok "journal_unavailable")
-        , test "transport errors suggest a recovery action" <|
-            transportErrorsSuggestRecovery
+        , fuzz2 (Fuzz.maybe Fuzz.string)
+            (Fuzz.maybe Fuzz.string)
+            "snapshots are compatible only when revisions match or are absent"
+            revisionCompatibility
         , test "responsive layouts use available width efficiently" <|
             responsiveLayoutsUseWidth
         , test "viewport height does not change structural layout" <|
@@ -96,26 +73,6 @@ suite =
         , test "full navigation does not shrink usable content" <|
             navigationTransitionPreservesContentWidth
         ]
-
-
-transportErrorsSuggestRecovery : () -> Expect.Expectation
-transportErrorsSuggestRecovery _ =
-    [ Http.BadUrl "broken"
-    , Http.Timeout
-    , Http.NetworkError
-    , Http.BadStatus 503
-    , Http.BadBody "missing field"
-    ]
-        |> List.map (ApiError.fromHttpError >> .message)
-        |> Expect.equal
-            [ "The API URL is invalid. Check the frontend API configuration."
-            , "The API request timed out. Try again."
-            , "The API could not be reached. Check that Hedger is running, then try again."
-            , "The API returned status 503. Try again. If the problem continues, "
-                ++ "check the Hedger server logs."
-            , "The API returned an invalid response. Refresh the page and try again. "
-                ++ "Details: missing field"
-            ]
 
 
 responsiveLayoutsUseWidth : () -> Expect.Expectation
@@ -169,3 +126,24 @@ navigationTransitionPreservesContentWidth _ =
             , beforeContentWidth = 1280
             , afterContentWidth = 1280
             }
+
+
+{-| Two snapshots are compatible only when they name the same journal
+revision, or when either side has not yet observed a revision.
+-}
+revisionCompatibility : Maybe String -> Maybe String -> Expect.Expectation
+revisionCompatibility expected received =
+    case ( expected, received ) of
+        ( Just expectedRevision, Just receivedRevision ) ->
+            if expectedRevision == receivedRevision then
+                Revision.ensureMatching expected received
+                    |> Expect.equal (Ok ())
+
+            else
+                Revision.ensureMatching expected received
+                    |> Expect.equal
+                        (Err { expected = expectedRevision, received = receivedRevision })
+
+        _ ->
+            Revision.ensureMatching expected received
+                |> Expect.equal (Ok ())

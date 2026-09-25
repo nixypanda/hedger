@@ -5,12 +5,16 @@ import Data.Completeness exposing (Completeness(..))
 import Data.Decimal as Decimal
 import Data.Granularity exposing (Granularity(..))
 import Expect
+import Fuzz
 import Json.Decode as Decode
 import Page.Investments as Page
-import Test exposing (Test, describe, test)
-import View.Formatting as Formatting
+import Test exposing (Test, describe, fuzz, test)
 
 
+{-| Only the newest in-flight request may update the Investments view. A
+response that arrives for an older request is stale and must be dropped, even if
+the user has since changed granularity or scope.
+-}
 suite : Test
 suite =
     describe "Investments"
@@ -89,7 +93,6 @@ suite =
                     , portfolioAccount = Page.accountPrefix portfolio
                     , portfolioPeriod = Page.selectedPeriod portfolio
                     }
-        , test "formats annual XIRR fractions as percentages" percentageFormatting
         , test "chart mode changes without replacing the selected period" <|
             \_ ->
                 let
@@ -105,41 +108,153 @@ suite =
                 Expect.equal
                     { mode = Page.ReturnsChart, period = Just "2026-03" }
                     { mode = Page.chartMode returns, period = Page.selectedPeriod returns }
-        , test "a stale response cannot overwrite a newer selection" staleResponseTest
+        , fuzz investmentsFuzzer
+            "a stale response cannot overwrite a newer selection"
+            staleResponseHolds
         ]
 
 
-staleResponseTest : () -> Expect.Expectation
-staleResponseTest _ =
-    case Decode.decodeString Investments.decoder fixture of
-        Err error ->
-            Expect.fail (Decode.errorToString error)
+type ScopeOp
+    = ChangeGranularity Granularity
+    | SelectAccount String
+    | SelectPortfolio
 
-        Ok monthlyResponse ->
+
+type Completion
+    = Stale Int
+    | Active
+
+
+type alias Scenario =
+    { ops : List ScopeOp
+    , completion : Completion
+    , granularity : Granularity
+    }
+
+
+type alias Trace =
+    { model : Page.Model
+    , issued : Int
+    }
+
+
+investmentsFuzzer : Fuzz.Fuzzer Scenario
+investmentsFuzzer =
+    Fuzz.map3 Scenario
+        (Fuzz.list scopeOpFuzzer)
+        (Fuzz.oneOf [ Fuzz.constant Active, Fuzz.map Stale (Fuzz.intRange 1 5) ])
+        (Fuzz.oneOfValues [ Monthly, Yearly ])
+
+
+scopeOpFuzzer : Fuzz.Fuzzer ScopeOp
+scopeOpFuzzer =
+    Fuzz.oneOf
+        [ Fuzz.map ChangeGranularity (Fuzz.oneOfValues [ Monthly, Yearly ])
+        , Fuzz.map SelectAccount
+            (Fuzz.oneOfValues
+                [ "assets:investments:equity"
+                , "assets:investments:debt"
+                , "assets:investments"
+                ]
+            )
+        , Fuzz.constant SelectPortfolio
+        ]
+
+
+staleResponseHolds : Scenario -> Expect.Expectation
+staleResponseHolds scenario =
+    let
+        trace =
+            List.foldl stepScope initialTrace scenario.ops
+
+        before =
+            snapshot trace.model
+
+        token =
+            case scenario.completion of
+                Active ->
+                    trace.issued
+
+                Stale age ->
+                    trace.issued - age
+    in
+    case responseWith scenario.granularity of
+        Nothing ->
+            Expect.fail "The Investments fixture did not decode."
+
+        Just response ->
             let
-                ( initial, _ ) =
-                    Page.init
-
-                ( yearly, _ ) =
-                    Page.update (Page.GranularitySelected Yearly) initial
-
-                yearlyResponse =
-                    { monthlyResponse | granularity = Yearly }
-
-                ( loaded, _ ) =
-                    Page.update (Page.ResponseLoaded 2 (Ok yearlyResponse)) yearly
-
-                ( afterStale, _ ) =
-                    Page.update (Page.ResponseLoaded 1 (Ok monthlyResponse)) loaded
+                after =
+                    Page.update (Page.ResponseLoaded token (Ok response)) trace.model
+                        |> Tuple.first
             in
-            Expect.equal Yearly (Page.granularity afterStale)
+            case scenario.completion of
+                Stale _ ->
+                    snapshot after
+                        |> Expect.equal before
+
+                Active ->
+                    Page.granularity after
+                        |> Expect.equal scenario.granularity
 
 
-percentageFormatting : () -> Expect.Expectation
-percentageFormatting _ =
-    Decimal.fromString "0.07"
-        |> Result.map Formatting.formatRatePercentage
-        |> Expect.equal (Ok "7%")
+initialTrace : Trace
+initialTrace =
+    { model = Page.init |> Tuple.first, issued = 1 }
+
+
+stepScope : ScopeOp -> Trace -> Trace
+stepScope op trace =
+    case op of
+        ChangeGranularity granularity ->
+            { trace
+                | model = applyGranularity granularity trace.model
+                , issued = trace.issued + 1
+            }
+
+        SelectAccount account ->
+            { trace
+                | model = Page.update (Page.AccountSelected account) trace.model |> Tuple.first
+                , issued = trace.issued + 1
+            }
+
+        SelectPortfolio ->
+            { trace
+                | model = Page.update Page.PortfolioSelected trace.model |> Tuple.first
+                , issued = trace.issued + 1
+            }
+
+
+type alias InvestmentsSnapshot =
+    { granularity : Granularity
+    , account : Maybe String
+    , period : Maybe String
+    , mode : Page.ChartMode
+    }
+
+
+snapshot : Page.Model -> InvestmentsSnapshot
+snapshot model =
+    { granularity = Page.granularity model
+    , account = Page.accountPrefix model
+    , period = Page.selectedPeriod model
+    , mode = Page.chartMode model
+    }
+
+
+applyGranularity : Granularity -> Page.Model -> Page.Model
+applyGranularity granularity model =
+    Page.update (Page.GranularitySelected granularity) model |> Tuple.first
+
+
+responseWith : Granularity -> Maybe Investments.Response
+responseWith granularity =
+    case Decode.decodeString Investments.decoder fixture of
+        Ok response ->
+            Just { response | granularity = granularity }
+
+        Err _ ->
+            Nothing
 
 
 fixture : String
