@@ -26,6 +26,7 @@ import Api.Error as ApiError exposing (ApiError)
 import Api.Register exposing (Entry, Response, Value)
 import Data.Completeness exposing (Completeness(..))
 import Data.Date as Date
+import Data.Decimal as Decimal
 import Data.Paginated as Paginated exposing (Paginated)
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Element)
@@ -551,21 +552,25 @@ entryRow : Theme -> Bool -> Model -> String -> Entry -> Element Msg
 entryRow theme compact model commodity entry =
     let
         amount =
-            valueDisplay theme commodity True entry.amount
+            valueDisplay
+                theme
+                commodity
+                True
+                (movementColor theme commodity entry.amount)
+                entry.amount
 
         balance =
-            valueDisplay theme commodity False entry.balance
+            valueDisplay theme commodity False theme.textPrimary entry.balance
 
         description =
-            Element.column
-                [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
-                , Element.spacing Tokens.space3
-                , Typography.minWidthZero
-                ]
-                [ Ui.truncatedText entry.description
-                , Element.text entry.account
-                    |> Element.el [ Typography.caption, Font.color theme.textMuted ]
-                ]
+            Ui.truncatedText entry.description
+
+        account =
+            Ui.truncatedText entry.account
+
+        date =
+            Element.text (Date.toString entry.date)
+                |> Element.el [ Font.color theme.textMuted ]
 
         hasDetails =
             needsDetail entry.amount || needsDetail entry.balance
@@ -585,16 +590,25 @@ entryRow theme compact model commodity entry =
             Element.column (Ui.rowSurfaceAttrs theme False ++ [ Element.spacing Tokens.space8 ])
                 [ if compact then
                     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                        [ Element.text (Date.toString entry.date)
-                            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+                        [ Element.el [ Typography.caption ] date
                         , Element.row
                             [ Element.width Element.fill
                             , Element.spacing Tokens.space8
                             , Typography.minWidthZero
                             ]
-                            [ description
+                            [ Element.el
+                                [ Element.width Element.fill
+                                , Typography.minWidthZero
+                                ]
+                                description
                             , chevron
                             ]
+                        , Element.el
+                            [ Typography.caption
+                            , Font.color theme.textMuted
+                            , Typography.minWidthZero
+                            ]
+                            account
                         , Element.column
                             [ Element.width Element.fill
                             , Element.spacing Tokens.space4
@@ -611,12 +625,22 @@ entryRow theme compact model commodity entry =
                         , Element.spacing Tokens.space12
                         , Typography.minWidthZero
                         ]
-                        [ Element.text (Date.toString entry.date)
-                            |> Element.el
-                                [ Element.width (Element.px Tokens.registerDateWidth)
-                                , Font.color theme.textMuted
-                                ]
-                        , description
+                        [ Element.el
+                            [ Element.width (Element.px Tokens.registerDateWidth)
+                            ]
+                            date
+                        , Element.el
+                            [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
+                            , Typography.minWidthZero
+                            ]
+                            description
+                        , Element.el
+                            [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+                            , Typography.caption
+                            , Font.color theme.textMuted
+                            , Typography.minWidthZero
+                            ]
+                            account
                         , Element.el
                             [ Element.width (Element.px Tokens.registerAmountWidth)
                             , Typography.minWidthZero
@@ -652,16 +676,19 @@ labeledValue theme label valueEl =
         ]
 
 
-valueDisplay : Theme -> String -> Bool -> Value -> Element msg
-valueDisplay theme commodity isMovement value =
+valueDisplay : Theme -> String -> Bool -> Element.Color -> Value -> Element msg
+valueDisplay theme commodity isMovement color value =
     Element.row
         [ Element.width Element.fill
         , Element.spacing Tokens.space4
         , Typography.minWidthZero
         ]
-        [ Ui.truncatedText (displayValue commodity value)
+        [ Ui.truncatedText (fullDisplayValue commodity value)
             |> Element.el
-                ([ Element.width Element.fill, Font.alignRight ]
+                ([ Element.width Element.fill
+                 , Font.alignRight
+                 , Font.color color
+                 ]
                     ++ (if isMovement then
                             [ Font.semiBold ]
 
@@ -675,6 +702,28 @@ valueDisplay theme commodity isMovement value =
           else
             Element.none
         ]
+
+
+movementColor : Theme -> String -> Value -> Element.Color
+movementColor theme commodity value =
+    case displayQuantity commodity value of
+        Just amount ->
+            if amount < 0 then
+                theme.negative
+
+            else
+                theme.textPrimary
+
+        Nothing ->
+            theme.textPrimary
+
+
+displayQuantity : String -> Value -> Maybe Float
+displayQuantity commodity value =
+    value.display
+        |> List.filter (\amount -> amount.commodity == commodity)
+        |> List.head
+        |> Maybe.andThen (.quantity >> Decimal.toString >> String.toFloat)
 
 
 needsDetail : Value -> Bool
@@ -693,6 +742,15 @@ displayValue commodity value =
         |> List.filter (\amount -> amount.commodity == commodity)
         |> List.head
         |> Maybe.map Formatting.formatBalance
+        |> Maybe.withDefault "—"
+
+
+fullDisplayValue : String -> Value -> String
+fullDisplayValue commodity value =
+    value.display
+        |> List.filter (\amount -> amount.commodity == commodity)
+        |> List.head
+        |> Maybe.map Formatting.formatFullBalance
         |> Maybe.withDefault "—"
 
 

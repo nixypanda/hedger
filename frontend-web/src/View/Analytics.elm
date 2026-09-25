@@ -410,7 +410,11 @@ categoryCard :
         }
     -> Element msg
 categoryCard theme config =
-    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle), Element.alignTop ]
+    Ui.cardWith
+        [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+        , Element.alignTop
+        , Element.height Element.fill
+        ]
         theme
         [ Typography.subsectionTitle theme config.title
         , if List.isEmpty config.breakdown.items then
@@ -435,6 +439,7 @@ categoryCard theme config =
                 , Element.column
                     [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
                     , Element.spacing Tokens.space12
+                    , Element.alignTop
                     ]
                     (categoryRows theme config)
                 ]
@@ -472,22 +477,24 @@ categoryBreakdownDonut theme palette highlightedCategory onSliceClick items =
             else
                 paletteColor theme palette index
     in
-    Donut.view
-        { size = 240
-        , outerRadius = 108
-        , innerRadius = 64
-        , padAngle = 0.035
-        , cornerRadius = 3
-        , selectedOffset = 18
-        , label = "Category breakdown"
-        , items = items
-        , value = .quantity >> decimalFloat
-        , color = sliceColor
-        , itemLabel = .account >> categoryLabel >> (\label -> label ++ " slice")
-        , selected = highlightedCategory
-        , onSelect = onSliceClick
-        , backgroundColor = theme.cardBg
-        }
+    Element.el [ Element.alignTop ]
+        (Donut.view
+            { size = 240
+            , outerRadius = 108
+            , innerRadius = 64
+            , padAngle = 0.035
+            , cornerRadius = 3
+            , selectedOffset = 18
+            , label = "Category breakdown"
+            , items = items
+            , value = .quantity >> decimalFloat
+            , color = sliceColor
+            , itemLabel = .account >> categoryLabel >> (\label -> label ++ " slice")
+            , selected = highlightedCategory
+            , onSelect = onSliceClick
+            , backgroundColor = theme.cardBg
+            }
+        )
 
 
 categoryRow :
@@ -623,13 +630,16 @@ categoryRows theme config =
                                                 isHighlighted
                                                 item
                                             )
-                                        , Element.text
-                                            (if config.otherExpanded then
-                                                "⌃"
+                                        , Icon.view
+                                            { icon =
+                                                if config.otherExpanded then
+                                                    Icon.ChevronUp
 
-                                             else
-                                                "⌄"
-                                            )
+                                                else
+                                                    Icon.ChevronDown
+                                            , size = Tokens.iconSizeSmallGlyph
+                                            , color = theme.textMuted
+                                            }
                                         ]
                                 }
 
@@ -697,6 +707,7 @@ activityMonth :
         , onLegendToggle : msg
         , highlightedCategory : Maybe Int
         , onCategoryHighlight : Int -> msg
+        , maxVisible : Int
         }
     -> Element msg
 activityMonth theme config =
@@ -742,17 +753,22 @@ activityMonth theme config =
                             }
                 }
     in
-    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle), Element.alignTop ]
+    Ui.cardWith
+        [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+        , Element.alignTop
+        , Element.height Element.fill
+        ]
         theme
         [ Typography.subsectionTitle theme config.title
+        , calendar
         , activityLegend theme
+            config.maxVisible
             config.tone
             categories
             config.legendState
             config.onLegendToggle
             config.highlightedCategory
             config.onCategoryHighlight
-        , calendar
         , case config.selectedBucket of
             Nothing ->
                 Element.el
@@ -869,22 +885,40 @@ activityCategories : ActivityResponse -> List BreakdownItem
 activityCategories response =
     response.buckets
         |> List.concatMap .categories
-        |> List.foldl
-            (\category unique ->
-                if List.any (.account >> (==) category.account) unique then
-                    unique
+        |> List.foldl addCategoryTotal []
+        |> List.sortBy (Tuple.first >> negate)
+        |> List.map Tuple.second
+
+
+addCategoryTotal : BreakdownItem -> List ( Float, BreakdownItem ) -> List ( Float, BreakdownItem )
+addCategoryTotal category totals =
+    let
+        amount =
+            abs (decimalFloat category.quantity)
+
+        isSameAccount ( _, item ) =
+            item.account == category.account
+    in
+    if List.any isSameAccount totals then
+        List.map
+            (\( total, item ) ->
+                if item.account == category.account then
+                    ( total + amount, item )
 
                 else
-                    category :: unique
+                    ( total, item )
             )
-            []
-        |> List.sortBy .account
+            totals
+
+    else
+        ( amount, category ) :: totals
 
 
 type alias ActivityCategoryLegendConfig msg =
     { theme : Theme
     , tone : ActivityTone
     , categories : List BreakdownItem
+    , maxVisible : Int
     , legendState : LegendState
     , onToggle : msg
     , highlightedCategory : Maybe Int
@@ -894,100 +928,82 @@ type alias ActivityCategoryLegendConfig msg =
 
 activityCategoryLegend : ActivityCategoryLegendConfig msg -> Element msg
 activityCategoryLegend config =
-    let
-        theme =
-            config.theme
-
-        tone =
-            config.tone
-
-        categories =
-            config.categories
-
-        legendState =
-            config.legendState
-
-        onToggle =
-            config.onToggle
-
-        highlightedCategory =
-            config.highlightedCategory
-
-        onCategoryHighlight =
-            config.onCategoryHighlight
-    in
-    if List.isEmpty categories then
+    if List.isEmpty config.categories then
         Element.none
 
     else
         let
-            maxVisible =
-                5
+            theme =
+                config.theme
+
+            tone =
+                config.tone
 
             isExpanded =
-                legendState == LegendExpanded
+                config.legendState == LegendExpanded
 
-            visibleCategories =
-                if isExpanded || List.length categories <= maxVisible then
-                    categories
+            indexedCategories =
+                List.indexedMap Tuple.pair config.categories
 
-                else
-                    List.take maxVisible categories
+            hiddenCount =
+                max 0 (List.length config.categories - config.maxVisible)
 
-            remainingCount =
-                max 0 (List.length categories - maxVisible)
-        in
-        Element.column [ Element.width Element.fill, Element.spacing Tokens.space10 ]
-            [ Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
-                (List.indexedMap
-                    (\index category ->
-                        let
-                            isHighlighted =
-                                highlightedCategory == Just index
+            chip ( index, category ) =
+                let
+                    dotColor =
+                        if category.account == "Other" then
+                            otherColor theme
 
-                            dotColor =
-                                if category.account == "Other" then
-                                    otherColor theme
-
-                                else
-                                    activityCategoryColor theme tone index
-                        in
-                        Ui.legendButton theme
-                            { accent = dotColor
-                            , selected = isHighlighted
-                            , onPress = onCategoryHighlight index
-                            , label =
-                                Element.row [ Element.spacing Tokens.space5 ]
-                                    [ Ui.accentDot dotColor
-                                    , Typography.mutedCaption
-                                        theme
-                                        (categoryLabel category.account)
-                                    ]
-                            }
-                    )
-                    visibleCategories
-                )
-            , if remainingCount > 0 && not isExpanded then
-                Ui.legendToggleButton theme
-                    { onPress = onToggle
+                        else
+                            activityCategoryColor theme tone index
+                in
+                Ui.legendButton theme
+                    { accent = dotColor
+                    , selected = config.highlightedCategory == Just index
+                    , onPress = config.onCategoryHighlight index
                     , label =
-                        Typography.mutedCaption
-                            theme
-                            ("+"
-                                ++ String.fromInt remainingCount
-                                ++ " more"
-                            )
+                        Element.row [ Element.spacing Tokens.space5 ]
+                            [ Ui.accentDot dotColor
+                            , Typography.mutedCaption theme (categoryLabel category.account)
+                            ]
                     }
 
-              else if isExpanded && List.length categories > maxVisible then
+            toggle text =
                 Ui.legendToggleButton theme
-                    { onPress = onToggle
-                    , label = Typography.mutedCaption theme "show less"
+                    { onPress = config.onToggle
+                    , label = Typography.mutedCaption theme text
                     }
+        in
+        if isExpanded then
+            Element.wrappedRow
+                [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+                (List.map chip indexedCategories
+                    ++ (if hiddenCount > 0 then
+                            [ toggle "show less" ]
 
-              else
-                Element.none
-            ]
+                        else
+                            []
+                       )
+                )
+
+        else
+            Element.row
+                [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+                [ Element.el
+                    [ Element.width Element.fill
+                    , Element.clip
+                    , Typography.minWidthZero
+                    ]
+                    (Element.row
+                        [ Element.spacing Tokens.space10 ]
+                        (List.map chip (List.take config.maxVisible indexedCategories))
+                    )
+                , if hiddenCount > 0 then
+                    toggle ("+" ++ String.fromInt hiddenCount ++ " more")
+
+                  else
+                    Element.none
+                ]
 
 
 activityDayRing :
@@ -1229,10 +1245,15 @@ activityYear :
         , onLegendToggle : msg
         , highlightedCategory : Maybe Int
         , onCategoryHighlight : Int -> msg
+        , maxVisible : Int
         }
     -> Element msg
 activityYear theme config =
-    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle), Element.alignTop ]
+    Ui.cardWith
+        [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+        , Element.alignTop
+        , Element.height Element.fill
+        ]
         theme
         [ Typography.subsectionTitle theme config.title
         , case config.response of
@@ -1256,14 +1277,7 @@ activityYear theme config =
                             |> padToMultiple config.columns Nothing
                 in
                 Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-                    [ activityLegend theme
-                        config.tone
-                        categories
-                        config.legendState
-                        config.onLegendToggle
-                        config.highlightedCategory
-                        config.onCategoryHighlight
-                    , Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
+                    [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                         (chunks config.columns slots
                             |> List.map
                                 (\row ->
@@ -1312,6 +1326,14 @@ activityYear theme config =
                                         )
                                 )
                         )
+                    , activityLegend theme
+                        config.maxVisible
+                        config.tone
+                        categories
+                        config.legendState
+                        config.onLegendToggle
+                        config.highlightedCategory
+                        config.onCategoryHighlight
                     , case selected of
                         Nothing ->
                             Element.el
@@ -1712,6 +1734,7 @@ directionValueText commodity ( spec, amount ) =
 
 activityLegend :
     Theme
+    -> Int
     -> ActivityTone
     -> List BreakdownItem
     -> LegendState
@@ -1719,7 +1742,7 @@ activityLegend :
     -> Maybe Int
     -> (Int -> msg)
     -> Element msg
-activityLegend theme tone categories legendState onToggle highlighted onHighlight =
+activityLegend theme maxVisible tone categories legendState onToggle highlighted onHighlight =
     case directionSpecsFor theme tone of
         Just specs ->
             activityDirectionLegend theme specs highlighted onHighlight
@@ -1729,6 +1752,7 @@ activityLegend theme tone categories legendState onToggle highlighted onHighligh
                 { theme = theme
                 , tone = tone
                 , categories = categories
+                , maxVisible = maxVisible
                 , legendState = legendState
                 , onToggle = onToggle
                 , highlightedCategory = highlighted

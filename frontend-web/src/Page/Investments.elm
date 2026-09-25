@@ -349,35 +349,51 @@ allocationGrid layout theme commodity allocations =
                 Responsive.Wide ->
                     3
 
-        rows =
-            chunksOf columnCount allocations
+        cells =
+            allocations
+                |> List.map Just
+                |> padToMultiple columnCount Nothing
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        (List.map (allocationGridRow columnCount theme commodity) rows)
+        (chunksOf columnCount cells
+            |> List.map (allocationGridRow theme commodity)
+        )
 
 
 allocationGridRow :
-    Int
-    -> Theme
+    Theme
     -> String
-    -> List Investments.AssetClassAllocation
+    -> List (Maybe Investments.AssetClassAllocation)
     -> Element Msg
-allocationGridRow columnCount theme commodity allocations =
-    let
-        items =
-            List.map (allocationGridItem theme commodity) allocations
-
-        placeholders =
-            List.repeat
-                (columnCount - List.length allocations)
-                (Element.el
-                    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
-                    ]
-                    Element.none
-                )
-    in
+allocationGridRow theme commodity cells =
     Element.row [ Element.width Element.fill, Element.spacing Tokens.space12, Element.alignTop ]
-        (items ++ placeholders)
+        (List.map (allocationGridCell theme commodity) cells)
+
+
+allocationGridCell :
+    Theme
+    -> String
+    -> Maybe Investments.AssetClassAllocation
+    -> Element Msg
+allocationGridCell theme commodity maybeAllocation =
+    case maybeAllocation of
+        Just allocation ->
+            allocationGridItem theme commodity allocation
+
+        Nothing ->
+            Element.el
+                (Border.color theme.transparent :: allocationCardAttributes)
+                Element.none
+
+
+allocationCardAttributes : List (Element.Attribute msg)
+allocationCardAttributes =
+    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+    , Element.height Element.fill
+    , Element.padding Tokens.space12
+    , Border.width Tokens.borderHairline
+    , Border.rounded Tokens.radiusMedium
+    ]
 
 
 allocationGridItem :
@@ -387,12 +403,7 @@ allocationGridItem :
     -> Element Msg
 allocationGridItem theme commodity allocation =
     Element.el
-        [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
-        , Element.padding Tokens.space12
-        , Border.width Tokens.borderHairline
-        , Border.color theme.divider
-        , Border.rounded Tokens.radiusMedium
-        ]
+        (Border.color theme.divider :: allocationCardAttributes)
         (assetClassAllocationRow theme commodity allocation)
 
 
@@ -403,6 +414,14 @@ chunksOf size values =
 
     else
         List.take size values :: chunksOf size (List.drop size values)
+
+
+padToMultiple : Int -> value -> List value -> List value
+padToMultiple size padding values =
+    values
+        ++ List.repeat
+            (modBy size (size - modBy size (List.length values)))
+            padding
 
 
 assetClassAllocationRow :
@@ -654,6 +673,7 @@ investmentMasterDetail layout theme commodity chartWidth selectedMode selected r
             [ Element.el
                 [ Element.width (Element.px Tokens.investmentNavigatorWidth)
                 , Element.alignTop
+                , Element.height Element.fill
                 ]
                 navigator
             , Element.el [ Element.width Element.fill, Element.alignTop ] history
@@ -954,6 +974,7 @@ investmentNavigator :
 investmentNavigator theme commodity breadcrumbs children =
     Ui.cardWith
         [ Element.width Element.fill
+        , Element.height Element.fill
         , Region.navigation
         , Element.htmlAttribute (Attr.attribute "aria-label" "Investment account navigator")
         ]

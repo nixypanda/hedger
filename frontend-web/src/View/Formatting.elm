@@ -4,6 +4,7 @@ module View.Formatting exposing
     , formatAmountDisplay
     , formatBalance
     , formatFullAmount
+    , formatFullBalance
     , formatFullValue
     , formatPercentage
     , formatRatePercentage
@@ -107,18 +108,23 @@ formatAmountDisplay symbol amount =
             compactValue symbol absoluteAmount
 
         separator =
-            case String.right 1 symbol |> String.uncons of
-                Just ( c, "" ) ->
-                    if Char.isAlpha c then
-                        " "
-
-                    else
-                        ""
-
-                _ ->
-                    ""
+            symbolSeparator symbol
     in
     sign ++ symbol ++ separator ++ value ++ suffix
+
+
+symbolSeparator : String -> String
+symbolSeparator symbol =
+    case String.right 1 symbol |> String.uncons of
+        Just ( c, "" ) ->
+            if Char.isAlpha c then
+                " "
+
+            else
+                ""
+
+        _ ->
+            ""
 
 
 compactValue : String -> Float -> ( String, String )
@@ -145,6 +151,23 @@ compactValue commodity amount =
 formatFullAmount : String -> Decimal -> String
 formatFullAmount commodity amount =
     formatFullValue amount ++ " " ++ commodity
+
+
+formatFullBalance : Quantity -> String
+formatFullBalance balance =
+    let
+        symbol =
+            commodityDisplaySymbol (Quantity.commodity balance)
+
+        value =
+            formatFullValue (Quantity.quantity balance)
+    in
+    case String.uncons value of
+        Just ( '-', digits ) ->
+            "-" ++ symbol ++ symbolSeparator symbol ++ digits
+
+        _ ->
+            symbol ++ symbolSeparator symbol ++ value
 
 
 formatFullValue : Decimal -> String
