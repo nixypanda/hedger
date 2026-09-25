@@ -12,6 +12,7 @@ import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Decimal (Decimal)
 import Data.Either (isRight)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Text qualified as Text
 import Network.HTTP.Types (hContentType, methodGet, methodPost)
 import Network.Wai qualified as Wai
 import Network.Wai.Test (
@@ -25,7 +26,7 @@ import Network.Wai.Test (
  )
 import Test.Tasty.HUnit (assertBool)
 
-import Hedger.Config (Config (..))
+import Hedger.Config (Config (..), mkMonthOfYear, mkPort)
 import Hedger.Domain.Investment (
     AssetClass (Equity),
     AssetClassMapping (..),
@@ -43,9 +44,9 @@ configuration =
     Config
         { journalPath = "test/fixtures/shared.journal"
         , listenAddress = "127.0.0.1"
-        , listenPort = 8080
+        , listenPort = either (error . Text.unpack) id (mkPort 8080)
         , defaultDisplayCommodity = "INR"
-        , fiscalYearStartMonth = 4
+        , fiscalYearStartMonth = either (error . Text.unpack) id (mkMonthOfYear 4)
         , investmentMappings = emptyInvestmentMappings
         , assetClassMappings = configuredAssetClasses
         }

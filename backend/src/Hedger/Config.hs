@@ -1,5 +1,11 @@
 module Hedger.Config (
     Config (..),
+    Port,
+    mkPort,
+    portValue,
+    MonthOfYear,
+    mkMonthOfYear,
+    monthOfYearValue,
     loadConfig,
     parseConfig,
 ) where
@@ -24,13 +30,37 @@ import Hedger.Domain.Investment qualified as Investment
 data Config = Config
     { journalPath :: Text
     , listenAddress :: Text
-    , listenPort :: Int
+    , listenPort :: Port
     , defaultDisplayCommodity :: Text
-    , fiscalYearStartMonth :: Int
+    , fiscalYearStartMonth :: MonthOfYear
     , investmentMappings :: Investment.InvestmentMappings
     , assetClassMappings :: Investment.AssetClassMappings
     }
     deriving stock (Eq, Show)
+
+-- | A TCP port in the valid range.
+newtype Port = Port Int
+    deriving stock (Eq, Show)
+
+mkPort :: Int -> Either Text Port
+mkPort value
+    | value >= 1 && value <= 65535 = Right (Port value)
+    | otherwise = Left "Port must be between 1 and 65535."
+
+portValue :: Port -> Int
+portValue (Port value) = value
+
+-- | A calendar month in @[1, 12]@.
+newtype MonthOfYear = MonthOfYear Int
+    deriving stock (Eq, Show)
+
+mkMonthOfYear :: Int -> Either Text MonthOfYear
+mkMonthOfYear value
+    | value >= 1 && value <= 12 = Right (MonthOfYear value)
+    | otherwise = Left "Fiscal-year start must be between 1 and 12."
+
+monthOfYearValue :: MonthOfYear -> Int
+monthOfYearValue (MonthOfYear value) = value
 
 -- * Boundary configuration types
 data FileConfig = FileConfig
@@ -146,19 +176,23 @@ resolveConfig :: FileConfig -> CliOptions -> Either Text Config
 resolveConfig fileConfig cli = do
     mappings <- investmentMappingsFrom fileConfig.investments
     assetClasses <- assetClassMappingsFrom fileConfig.investments
+    listenPort <- mkPort ((cli.cliListenPort <|> (fileConfig.server >>= (.port))) `orDefault` 8080)
+    fiscalYearStartMonth <-
+        mkMonthOfYear
+            ( (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
+                `orDefault` 4
+            )
     validate
         Config
             { journalPath = (cli.cliJournalPath <|> ((.path) <$> fileConfig.journal)) `orDefault` ""
             , listenAddress =
                 (cli.cliListenAddress <|> (fileConfig.server >>= (.listenAddress)))
                     `orDefault` "127.0.0.1"
-            , listenPort = (cli.cliListenPort <|> (fileConfig.server >>= (.port))) `orDefault` 8080
+            , listenPort = listenPort
             , defaultDisplayCommodity =
                 (cli.cliDisplayCommodity <|> (fileConfig.display >>= (.commodity)))
                     `orDefault` "INR"
-            , fiscalYearStartMonth =
-                (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
-                    `orDefault` 4
+            , fiscalYearStartMonth = fiscalYearStartMonth
             , investmentMappings = mappings
             , assetClassMappings = assetClasses
             }
@@ -217,12 +251,6 @@ validate config = do
     requireNonBlank "journal path" config.journalPath
     requireToken "listen address" config.listenAddress
     requireToken "display commodity" config.defaultDisplayCommodity
-    if
-        | config.listenPort < 1 || config.listenPort > 65535 ->
-            Left "Port must be between 1 and 65535."
-        | config.fiscalYearStartMonth < 1 || config.fiscalYearStartMonth > 12 ->
-            Left "Fiscal-year start must be between 1 and 12."
-        | otherwise -> pure ()
     pure config
 
 requireNonBlank :: Text -> Text -> Either Text ()

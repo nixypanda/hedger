@@ -33,7 +33,7 @@ import Hedger.Application.TransactionQuery (
     TransactionPageRequest (..),
     transactionPage,
  )
-import Hedger.Config (Config (..))
+import Hedger.Config (Config (..), mkMonthOfYear, mkPort)
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
@@ -300,9 +300,9 @@ benchmarkConfig path =
     Config
         { journalPath = path
         , listenAddress = "127.0.0.1"
-        , listenPort = 8080
+        , listenPort = either (error . Text.unpack) id (mkPort 8080)
         , defaultDisplayCommodity = "INR"
-        , fiscalYearStartMonth = 4
+        , fiscalYearStartMonth = either (error . Text.unpack) id (mkMonthOfYear 4)
         , investmentMappings = benchmarkMappings
         , assetClassMappings = benchmarkAssetClassMappings
         }

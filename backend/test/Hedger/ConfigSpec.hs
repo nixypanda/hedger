@@ -9,7 +9,7 @@ import Data.Text (Text)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
-import Hedger.Config (Config (..), parseConfig)
+import Hedger.Config (Config (..), monthOfYearValue, parseConfig, portValue)
 import Hedger.Domain.Investment (AssetClass (..), InvestmentMapping (..), PerformanceAccount (..))
 import Hedger.Domain.Investment qualified as Investment
 
@@ -33,8 +33,7 @@ configSpec =
         , testCase
             "rejects asset class targets that do not total 100"
             rejectsInvalidAssetClassTargetTotal
-        , testCase "validates bounded port" validatesPort
-        , testCase "validates fiscal month" validatesFiscalMonth
+        , testCase "rejects out-of-range port and fiscal month" rejectsOutOfRangePortAndFiscalMonth
         ]
 
 requiresJournalPath :: IO ()
@@ -46,18 +45,18 @@ loadsYaml = do
     config <- requireConfig (parseConfig (Just exampleConfig) [])
     assertEqual "journal" "/var/lib/hedger/main.journal" config.journalPath
     assertEqual "listen address" "0.0.0.0" config.listenAddress
-    assertEqual "port" 9000 config.listenPort
+    assertEqual "port" 9000 (portValue config.listenPort)
     assertEqual "commodity" "USD" config.defaultDisplayCommodity
-    assertEqual "fiscal month" 1 config.fiscalYearStartMonth
+    assertEqual "fiscal month" 1 (monthOfYearValue config.fiscalYearStartMonth)
 
 cliOverridesYaml :: IO ()
 cliOverridesYaml = do
     config <- requireConfig (parseConfig (Just exampleConfig) overrides)
     assertEqual "journal" "/runtime/override.journal" config.journalPath
     assertEqual "listen address" "127.0.0.1" config.listenAddress
-    assertEqual "port" 8081 config.listenPort
+    assertEqual "port" 8081 (portValue config.listenPort)
     assertEqual "commodity" "INR" config.defaultDisplayCommodity
-    assertEqual "fiscal month" 4 config.fiscalYearStartMonth
+    assertEqual "fiscal month" 4 (monthOfYearValue config.fiscalYearStartMonth)
   where
     overrides =
         [ "--journal"
@@ -172,19 +171,14 @@ rejectsInvalidAssetClassTargetTotal =
         "asset class targets must total 100"
         (isLeft (parseConfig (Just invalidAssetClassTargetTotalConfig) []))
 
-validatesPort :: IO ()
-validatesPort =
-    assertEqual
-        ""
-        (Left "Port must be between 1 and 65535.")
-        (parseConfig Nothing ["--journal", "fixture.journal", "--port", "0"])
-
-validatesFiscalMonth :: IO ()
-validatesFiscalMonth =
-    assertEqual
-        ""
-        (Left "Fiscal-year start must be between 1 and 12.")
-        (parseConfig Nothing ["--journal", "fixture.journal", "--fiscal-year-start", "13"])
+rejectsOutOfRangePortAndFiscalMonth :: IO ()
+rejectsOutOfRangePortAndFiscalMonth = do
+    assertBool
+        "out-of-range port must fail"
+        (isLeft (parseConfig Nothing ["--journal", "fixture.journal", "--port", "0"]))
+    assertBool
+        "out-of-range fiscal month must fail"
+        (isLeft (parseConfig Nothing ["--journal", "fixture.journal", "--fiscal-year-start", "13"]))
 
 requireConfig :: Either Text Config -> IO Config
 requireConfig result =

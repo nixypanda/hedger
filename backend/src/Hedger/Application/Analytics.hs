@@ -47,7 +47,7 @@ import Hedger.Application.Common (
     metadataFor,
  )
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
-import Hedger.Config (Config (..))
+import Hedger.Config (Config (..), monthOfYearValue)
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Activity (
     ActivityBucketFigures (..),
@@ -253,7 +253,10 @@ activity request = do
             AssetActivity -> pure snapshot.transactions
             LiabilityActivity -> pure snapshot.transactions
     activityPeriod <-
-        either throwError pure (parseActivityPeriod fiscalStart request.range request.period)
+        either
+            throwError
+            pure
+            (parseActivityPeriod (monthOfYearValue fiscalStart) request.range request.period)
     let figures =
             computeActivity
                 snapshot
@@ -270,7 +273,7 @@ activity request = do
             , kind = request.kind
             , range = request.range
             , period = reportPeriodKey activityPeriod
-            , fiscalYearStartMonth = fiscalStart
+            , fiscalYearStartMonth = monthOfYearValue fiscalStart
             , buckets = fmap toActivityBucket figures.buckets
             , warnings = conversionWarnings figures.missing
             , classifyAccount = accountTypeClassifier snapshot.journal
