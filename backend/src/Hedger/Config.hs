@@ -13,6 +13,7 @@ module Hedger.Config (
 import Control.Applicative ((<|>))
 import Control.Exception (IOException, displayException, try)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
 import Data.Char qualified as Char
@@ -108,12 +109,49 @@ data GainMappingFileConfig = GainMappingFileConfig
     deriving anyclass (FromJSON, ToJSON)
 
 data AssetClassFileConfig = AssetClassFileConfig
-    { kind :: Text
+    { kind :: AssetClassKind
     , accountPrefixes :: [Text]
     , targetPercent :: Maybe Scientific
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON)
+
+newtype AssetClassKind = AssetClassKind Investment.AssetClass
+    deriving stock (Eq, Show)
+
+instance FromJSON AssetClassKind where
+    parseJSON =
+        Aeson.withText "asset class" $ \raw ->
+            maybe
+                (fail ("Unsupported asset class kind: " <> Text.unpack raw))
+                (pure . AssetClassKind)
+                (parseAssetClass raw)
+
+instance ToJSON AssetClassKind where
+    toJSON (AssetClassKind assetClass) = Aeson.String (assetClassText assetClass)
+
+parseAssetClass :: Text -> Maybe Investment.AssetClass
+parseAssetClass raw =
+    case raw of
+        "equity" -> Just Investment.Equity
+        "debt" -> Just Investment.Debt
+        "cash" -> Just Investment.Cash
+        "gold" -> Just Investment.Gold
+        "hybrid" -> Just Investment.Hybrid
+        "property" -> Just Investment.Property
+        "other" -> Just Investment.Other
+        _ -> Nothing
+
+assetClassText :: Investment.AssetClass -> Text
+assetClassText assetClass =
+    case assetClass of
+        Investment.Equity -> "equity"
+        Investment.Debt -> "debt"
+        Investment.Cash -> "cash"
+        Investment.Gold -> "gold"
+        Investment.Hybrid -> "hybrid"
+        Investment.Property -> "property"
+        Investment.Other -> "other"
 
 data CliOptions = CliOptions
     { cliConfigPath :: Maybe Text
@@ -223,7 +261,7 @@ investmentMappingFrom configured = do
 
 assetClassMappingFrom :: AssetClassFileConfig -> Either Text Investment.AssetClassMapping
 assetClassMappingFrom configured = do
-    assetClass <- assetClassFrom configured.kind
+    let AssetClassKind assetClass = configured.kind
     assetPrefixes <- traverse Investment.mkAssetAccount configured.accountPrefixes
     accountPrefixes <-
         maybe
@@ -233,18 +271,6 @@ assetClassMappingFrom configured = do
     targetPercentage <-
         traverse (Investment.mkPercentage . realToFrac) configured.targetPercent
     pure Investment.AssetClassMapping{assetClass, accountPrefixes, targetPercentage}
-
-assetClassFrom :: Text -> Either Text Investment.AssetClass
-assetClassFrom kind =
-    case kind of
-        "equity" -> Right Investment.Equity
-        "debt" -> Right Investment.Debt
-        "cash" -> Right Investment.Cash
-        "gold" -> Right Investment.Gold
-        "hybrid" -> Right Investment.Hybrid
-        "property" -> Right Investment.Property
-        "other" -> Right Investment.Other
-        _ -> Left ("Unsupported asset class kind: " <> kind)
 
 validate :: Config -> Either Text Config
 validate config = do
