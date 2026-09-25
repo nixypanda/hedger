@@ -19,9 +19,15 @@ import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
-import Hedger.Domain.Account (AccountInfo, accountInfo, accountLabel)
+import Hedger.Domain.Account (AccountInfo, accountInfo)
 import Hedger.Domain.Internal.Account (isAssetOnly, isCashOnly, isLiabilities, isRevenue)
-import Hedger.Domain.Internal.Transaction (dominantMovement)
+import Hedger.Domain.Internal.Transaction (
+    AccountGroup (..),
+    DominantMovement (..),
+    accountGroup,
+    dominantMovement,
+    fraction,
+ )
 import Hedger.Domain.Transaction (
     TransactionClassification (..),
     classificationFor,
@@ -59,8 +65,7 @@ transactionSpec =
             [ testCase "two groups exact tie uses alphabetical order" dominantTwoGroupsTie
             , testGroup
                 "properties"
-                [ testProperty "pct is always between 0 and 1" dominantPctInRange
-                , testProperty "no debit postings yields (\"\", 0.0)" dominantEmptyDebits
+                [ testProperty "no debit postings yields NoDebits" dominantEmptyDebits
                 , testProperty
                     "the returned group's sum is the largest among all groups"
                     dominantIsMaximal
@@ -123,7 +128,10 @@ openingEmptyDebits = do
 -- dominantMovement tests
 dominantTwoGroupsTie :: Assertion
 dominantTwoGroupsTie =
-    assertEqual "assets 50 vs expenses 50" ("assets", 0.5) (dominantMovement tieTransaction)
+    assertEqual
+        "assets 50 vs expenses 50"
+        (Dominant Assets (fraction 0.5))
+        (dominantMovement tieTransaction)
 
 -- Sorting tests
 syntheticTransactions :: [Hledger.Transaction]
@@ -230,34 +238,29 @@ genArbitraryCreditPosting = do
 isCredit :: Hledger.Posting -> Bool
 isCredit p = any ((< 0) . (.aquantity)) (amountsRaw p.pamount)
 
-dominantPctInRange :: Property
-dominantPctInRange =
-    property $ do
-        tx <- forAll genGroupTransaction
-        let (_, pct) = dominantMovement tx
-        assert (0 <= pct && pct <= 1)
-
 dominantEmptyDebits :: Property
 dominantEmptyDebits =
     property $ do
         postings <- forAll (Gen.list (Range.linear 0 5) genArbitraryCreditPosting)
         let tx = nulltransaction{Hledger.tpostings = postings}
-        dominantMovement tx === ("", 0.0)
+        dominantMovement tx === NoDebits
 
 dominantIsMaximal :: Property
 dominantIsMaximal =
     property $ do
         tx <- forAll genGroupTransaction
-        let (dominantGroup, _) = dominantMovement tx
-            groupSums =
+        let groupSums =
                 Map.fromListWith
                     (+)
-                    [ (accountLabel (accountInfo p.paccount), abs amount.aquantity)
+                    [ (accountGroup (accountInfo p.paccount), abs amount.aquantity)
                     | p <- tx.tpostings
                     , amount <- amountsRaw p.pamount
                     , amount.aquantity > 0
                     ]
-            dominantSum = Map.findWithDefault 0 dominantGroup groupSums
+            dominantSum =
+                case dominantMovement tx of
+                    Dominant dominantGroup _ -> Map.findWithDefault 0 dominantGroup groupSums
+                    NoDebits -> 0
         assert (all (<= dominantSum) (Map.elems groupSums))
 
 spliceAt :: Int -> [value] -> [value] -> [value]
@@ -340,7 +343,11 @@ structural invariant implied by the branch that produced it.
 structuralLaws :: Hledger.Transaction -> PropertyT IO ()
 structuralLaws tx = do
     let classification = classificationFor tx
-        (dominantGroup, dominantPct) = dominantMovement tx
+        movement = dominantMovement tx
+        dominantPct =
+            case movement of
+                Dominant _ pct -> pct
+                NoDebits -> fraction 0
         credits = creditPostings tx
         debits = debitPostings tx
 
@@ -367,19 +374,23 @@ structuralLaws tx = do
 
     footnote "Repayment implies a liability-dominant debit and a liability debit"
     when (classification == Repayment) $ do
-        dominantGroup === "liabilities"
+        assert (isDominant Liabilities movement)
         assert (anyPostingAccount isLiabilities debits)
 
     footnote "TransactionExpense implies an expense-dominant debit"
-    when (classification == TransactionExpense) (dominantGroup === "expenses")
+    when (classification == TransactionExpense) (assert (isDominant Expenses movement))
 
     footnote "TransactionIncome implies an asset-dominant debit and a revenue credit"
     when (classification == TransactionIncome) $ do
-        dominantGroup === "assets"
+        assert (isDominant Assets movement)
         assert (anyPostingAccount isRevenue credits)
 
     footnote "below the threshold and not opening implies Unclassified"
-    when (not (isOpening tx) && dominantPct < 0.8) (classification === Unclassified)
+    when (not (isOpening tx) && dominantPct < fraction 0.8) (classification === Unclassified)
+
+isDominant :: AccountGroup -> DominantMovement -> Bool
+isDominant group (Dominant actual _) = actual == group
+isDominant _ NoDebits = False
 
 postingOrderIndependence :: Property
 postingOrderIndependence =
