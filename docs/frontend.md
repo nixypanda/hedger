@@ -2,7 +2,7 @@
 
 ## Overview
 
-The frontend is an Elm 0.19.1 Progressive Web App in `frontend-web/`. It uses
+The frontend is an Elm 0.19.2 Progressive Web App in `frontend-web/`. It uses
 `mdgriffith/elm-ui` for layout and `gampleman/elm-visualization` for charts.
 
 ```text
@@ -74,7 +74,7 @@ frontend-web/
   vite.config.js
 ```
 
-It is an Elm 0.19.1 `Browser.application` that talks to the Haskell backend
+It is an Elm 0.19.2 `Browser.application` that talks to the Haskell backend
 through HTTP JSON under `/api/v1`.
 
 ## Architecture

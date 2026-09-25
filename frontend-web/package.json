@@ -13,10 +13,10 @@
     "test": "elm-test"
   },
   "devDependencies": {
-    "elm": "0.19.1-6",
+    "elm": "0.19.2-0",
     "elm-format": "0.8.8",
-    "elm-review": "2.13.2",
-    "elm-test": "0.19.1-revision17",
+    "elm-review": "2.13.5",
+    "elm-test": "0.19.2-1",
     "vite": "6.3.5",
     "vite-plugin-elm": "3.0.1"
   }
