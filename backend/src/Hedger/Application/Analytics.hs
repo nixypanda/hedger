@@ -7,6 +7,7 @@ module Hedger.Application.Analytics (
     ActivityRequest (..),
     Kpi (..),
     TimelinePoint (..),
+    Magnitude,
     BreakdownItem (..),
     CategoryBreakdown (..),
     PerformancePoint (..),
@@ -57,7 +58,7 @@ import Hedger.Domain.Activity (
     computeActivity,
     parseActivityPeriod,
  )
-import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
+import Hedger.Domain.Cashflow (CashflowFigures (..), Magnitude, computeCashflow)
 import Hedger.Domain.NetWorth (
     BreakdownItem (..),
     NetWorthFigures (..),
@@ -110,7 +111,7 @@ data NetWorthReport = NetWorthReport
     , netWorthKpi :: Kpi
     , assetsKpi :: Kpi
     , liabilitiesKpi :: Kpi
-    , timeline :: [TimelinePoint]
+    , timeline :: [TimelinePoint Decimal]
     , assetsBreakdown :: CategoryBreakdown
     , liabilitiesBreakdown :: CategoryBreakdown
     , performance :: [PerformancePoint]
@@ -126,7 +127,7 @@ data CashflowReport = CashflowReport
     , totalCount :: Int
     , filteredCount :: Int
     , timelineAvailable :: Bool
-    , timeline :: [TimelinePoint]
+    , timeline :: [TimelinePoint Magnitude]
     , incomeBreakdown :: CategoryBreakdown
     , expenseBreakdown :: CategoryBreakdown
     , warnings :: [ConversionWarning]
@@ -294,7 +295,7 @@ parseTransactions snapshot requested = do
     pure (filter (HledgerQuery.matchesTransaction parsed) snapshot.transactions)
 
 -- * Read-model shaping (presentation, not calculation)
-kpiFor :: Maybe Text -> (TimelinePoint -> Decimal) -> [TimelinePoint] -> Kpi
+kpiFor :: Maybe Text -> (TimelinePoint Decimal -> Decimal) -> [TimelinePoint Decimal] -> Kpi
 kpiFor selectedKey select points =
     let selectedIndex =
             fromMaybe
@@ -331,7 +332,7 @@ percentageFrom current previous
     | abs previous < 0.000001 = Nothing
     | otherwise = Just (((current - previous) / abs previous) * 100)
 
-zeroTimeline :: TimelinePoint
+zeroTimeline :: TimelinePoint Decimal
 zeroTimeline =
     TimelinePoint
         { period = ""

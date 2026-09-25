@@ -3,6 +3,9 @@ the line-item value objects used by the net-worth and cashflow calculations.
 -}
 module Hedger.Domain.Internal.PeriodReport (
     TimelinePoint (..),
+    Magnitude,
+    magnitude,
+    magnitudeValue,
     BreakdownItem (..),
     ReportSide (..),
     periodicBalanceReport,
@@ -59,14 +62,26 @@ import Hedger.Domain.Valuation (
     missingCommodities,
  )
 
-data TimelinePoint = TimelinePoint
+data TimelinePoint side = TimelinePoint
     { period :: Text
     , startDate :: Day
-    , positive :: Decimal
-    , negative :: Decimal
+    , positive :: side
+    , negative :: side
     , net :: Decimal
     , missing :: Set Text
     }
+
+{- | A non-negative amount, used for the cashflow timeline's two sides. The
+constructor is not exported.
+-}
+newtype Magnitude = Magnitude Decimal
+    deriving stock (Eq, Ord, Show)
+
+magnitude :: Decimal -> Magnitude
+magnitude = Magnitude . abs
+
+magnitudeValue :: Magnitude -> Decimal
+magnitudeValue (Magnitude value) = value
 
 data BreakdownItem = BreakdownItem
     { account :: Text

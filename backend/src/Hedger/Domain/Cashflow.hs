@@ -3,6 +3,8 @@ ledger, as opposed to net worth's stock).
 -}
 module Hedger.Domain.Cashflow (
     TimelinePoint (..),
+    Magnitude,
+    magnitudeValue,
     BreakdownItem (..),
     CashflowFigures (..),
     computeCashflow,
@@ -20,8 +22,11 @@ import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Internal.Cashflow (incomeExpensePeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
+    Magnitude,
     TimelinePoint (..),
     breakdownItemsFor,
+    magnitude,
+    magnitudeValue,
     periodsWithData,
     reportMissing,
     reportPeriodsFrom,
@@ -34,7 +39,7 @@ import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..), conversionMissing, conversionValue)
 
 data CashflowFigures = CashflowFigures
-    { timeline :: [TimelinePoint]
+    { timeline :: [TimelinePoint Magnitude]
     , available :: Bool
     , totalCount :: Int
     , filteredCount :: Int
@@ -116,15 +121,19 @@ computeCashflow
                         expenseSide
                 else (maybe "" reportPeriodKey negativePeriod, [])
 
-cashflowPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
+cashflowPointFrom ::
+    ReportPeriod ->
+    Conversion Decimal ->
+    Conversion Decimal ->
+    TimelinePoint Magnitude
 cashflowPointFrom period incomeResult expenseResult =
     let income = fromMaybe 0 (conversionValue incomeResult)
         expenses = fromMaybe 0 (conversionValue expenseResult)
      in TimelinePoint
             { period = reportPeriodKey period
             , startDate = reportPeriodStart period
-            , positive = income
-            , negative = expenses
+            , positive = magnitude income
+            , negative = magnitude expenses
             , net = income - expenses
             , missing = conversionMissing incomeResult <> conversionMissing expenseResult
             }

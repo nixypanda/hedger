@@ -3,7 +3,7 @@ module Hedger.Domain.CashflowSpec (
 ) where
 
 import Data.Foldable (for_)
-import Hedgehog (Gen, Property, assert, forAll, property, (===))
+import Hedgehog (Gen, Property, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
@@ -11,7 +11,6 @@ import Test.Tasty.Hedgehog (testProperty)
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Cashflow (
     CashflowFigures (..),
-    TimelinePoint (..),
     computeCashflow,
  )
 import Hedger.Domain.Period (Granularity (..))
@@ -26,9 +25,6 @@ cashflowSpec =
         [ testGroup
             "cashflow conservation"
             [ testProperty
-                "available figures have non-negative sides"
-                nonNegativeSides
-            , testProperty
                 "income breakdown magnitude is invariant under display depth"
                 incomeDepthInvariance
             , testProperty
@@ -42,17 +38,6 @@ depths = [Depth1, Depth2, Depth3, Depth4]
 
 genGranularity :: Gen Granularity
 genGranularity = Gen.element [Monthly, Yearly]
-
-nonNegativeSides :: Property
-nonNegativeSides =
-    property $ do
-        snapshot <- forAll genSnapshot
-        granularity <- forAll genGranularity
-        let figures = cashflowFigures snapshot granularity Depth1
-        if figures.available
-            then for_ figures.timeline $ \point ->
-                assert (point.positive >= 0 && point.negative >= 0)
-            else pure ()
 
 incomeDepthInvariance :: Property
 incomeDepthInvariance =

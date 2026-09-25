@@ -60,7 +60,7 @@ data PerformancePoint = PerformancePoint
     }
 
 data NetWorthFigures = NetWorthFigures
-    { timeline :: [TimelinePoint]
+    { timeline :: [TimelinePoint Decimal]
     , performance :: [PerformancePoint]
     , incompletePeriods :: Int
     , selectedKey :: Maybe Text
@@ -164,7 +164,11 @@ whereas the timeline reports a partial sum alongside its missing set.
 strictLatest :: [Conversion Decimal] -> Conversion Decimal
 strictLatest = maybe (complete 0) requireComplete . lastMaybe
 
-netWorthPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
+netWorthPointFrom ::
+    ReportPeriod ->
+    Conversion Decimal ->
+    Conversion Decimal ->
+    TimelinePoint Decimal
 netWorthPointFrom period assetsResult liabilitiesResult =
     let assets = fromMaybe 0 (conversionValue assetsResult)
         liabilities = fromMaybe 0 (conversionValue liabilitiesResult)
@@ -180,7 +184,7 @@ netWorthPointFrom period assetsResult liabilitiesResult =
 performanceFrom ::
     Text ->
     [ReportPeriod] ->
-    [TimelinePoint] ->
+    [TimelinePoint Decimal] ->
     [Conversion Decimal] ->
     [Conversion Decimal] ->
     ReportSide ->

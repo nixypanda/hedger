@@ -667,7 +667,7 @@ cashflowWeight snapshot =
             + Text.length figures.expenseBreakdownPeriod
             + Set.size figures.missing
 
-timelineWeight :: TimelinePoint -> Int
+timelineWeight :: (Show side) => TimelinePoint side -> Int
 timelineWeight point =
     length (show point.positive)
         + length (show point.negative)
