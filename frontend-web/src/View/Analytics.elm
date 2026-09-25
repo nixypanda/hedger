@@ -410,7 +410,11 @@ categoryCard :
         }
     -> Element msg
 categoryCard theme config =
-    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle), Element.alignTop ]
+    Ui.cardWith
+        [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+        , Element.alignTop
+        , Element.height Element.fill
+        ]
         theme
         [ Typography.subsectionTitle theme config.title
         , if List.isEmpty config.breakdown.items then
@@ -435,6 +439,7 @@ categoryCard theme config =
                 , Element.column
                     [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
                     , Element.spacing Tokens.space12
+                    , Element.alignTop
                     ]
                     (categoryRows theme config)
                 ]
@@ -472,22 +477,24 @@ categoryBreakdownDonut theme palette highlightedCategory onSliceClick items =
             else
                 paletteColor theme palette index
     in
-    Donut.view
-        { size = 240
-        , outerRadius = 108
-        , innerRadius = 64
-        , padAngle = 0.035
-        , cornerRadius = 3
-        , selectedOffset = 18
-        , label = "Category breakdown"
-        , items = items
-        , value = .quantity >> decimalFloat
-        , color = sliceColor
-        , itemLabel = .account >> categoryLabel >> (\label -> label ++ " slice")
-        , selected = highlightedCategory
-        , onSelect = onSliceClick
-        , backgroundColor = theme.cardBg
-        }
+    Element.el [ Element.alignTop ]
+        (Donut.view
+            { size = 240
+            , outerRadius = 108
+            , innerRadius = 64
+            , padAngle = 0.035
+            , cornerRadius = 3
+            , selectedOffset = 18
+            , label = "Category breakdown"
+            , items = items
+            , value = .quantity >> decimalFloat
+            , color = sliceColor
+            , itemLabel = .account >> categoryLabel >> (\label -> label ++ " slice")
+            , selected = highlightedCategory
+            , onSelect = onSliceClick
+            , backgroundColor = theme.cardBg
+            }
+        )
 
 
 categoryRow :
