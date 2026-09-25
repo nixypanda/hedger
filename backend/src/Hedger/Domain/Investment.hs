@@ -167,17 +167,25 @@ assetClassForAccount account (AssetClassMappings mappings) =
 isAssetClassAccount :: Text -> AssetClassMappings -> Bool
 isAssetClassAccount account (AssetClassMappings mappings) =
     any
-        (\prefix -> assetAccountText prefix `accountWithin` account)
-        (concatMap (NonEmpty.toList . (.accountPrefixes)) mappings)
+        ( \mapping ->
+            any
+                (\prefix -> assetAccountText prefix `accountWithin` account)
+                mapping.accountPrefixes
+        )
+        mappings
 
 assetClassScopeOverlaps :: Text -> AssetClassMappings -> Bool
 assetClassScopeOverlaps account (AssetClassMappings mappings) =
     any
-        ( \prefix ->
-            assetAccountText prefix `accountWithin` account
-                || account `accountWithin` assetAccountText prefix
+        ( \mapping ->
+            any
+                ( \prefix ->
+                    assetAccountText prefix `accountWithin` account
+                        || account `accountWithin` assetAccountText prefix
+                )
+                mapping.accountPrefixes
         )
-        (concatMap (NonEmpty.toList . (.accountPrefixes)) mappings)
+        mappings
 
 mkInvestmentMappings :: [InvestmentMapping] -> Either Text InvestmentMappings
 mkInvestmentMappings mappings
