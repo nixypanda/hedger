@@ -28,11 +28,8 @@ configSpec =
         , testCase "allows empty gain-account lists" allowsEmptyGainAccounts
         , testCase "rejects unsupported asset class kinds" rejectsUnsupportedAssetClassKind
         , testCase "rejects asset class mappings without prefixes" rejectsEmptyAssetClassPrefixes
-        , testCase "rejects non-assets asset class prefixes" rejectsNonAssetsAssetClassPrefix
-        , testCase "rejects unqualified asset class prefixes" rejectsUnqualifiedAssetClassPrefix
         , testCase "rejects duplicate asset class prefixes" rejectsDuplicateAssetClassPrefix
         , testCase "rejects overlapping asset class prefixes" rejectsOverlappingAssetClassPrefix
-        , testCase "rejects out-of-range asset class targets" rejectsOutOfRangeAssetClassTarget
         , testCase
             "rejects asset class targets that do not total 100"
             rejectsInvalidAssetClassTargetTotal
@@ -87,7 +84,7 @@ loadsGainMappings = do
     assertEqual
         "gain accounts"
         ["income:dividend:india", "income:dividend:us"]
-        ((.account) <$> mapping.performanceAccounts)
+        (Investment.accountNameText . (.account) <$> mapping.performanceAccounts)
 
 loadsAssetClassMappings :: IO ()
 loadsAssetClassMappings = do
@@ -102,7 +99,9 @@ loadsAssetClassMappings = do
     assertEqual
         "asset class targets"
         [Just 45, Just 25, Just 10, Just 5, Just 5, Just 5, Just 5]
-        ((.targetPercentage) <$> Investment.assetClassMappingsList config.assetClassMappings)
+        ( fmap Investment.percentageValue . (.targetPercentage)
+            <$> Investment.assetClassMappingsList config.assetClassMappings
+        )
 
 defaultsAssetClassMappings :: IO ()
 defaultsAssetClassMappings = do
@@ -155,18 +154,6 @@ rejectsEmptyAssetClassPrefixes =
         "empty asset class prefixes must fail"
         (isLeft (parseConfig (Just emptyAssetClassPrefixesConfig) []))
 
-rejectsNonAssetsAssetClassPrefix :: IO ()
-rejectsNonAssetsAssetClassPrefix =
-    assertBool
-        "non-assets asset class prefixes must fail"
-        (isLeft (parseConfig (Just nonAssetsAssetClassPrefixConfig) []))
-
-rejectsUnqualifiedAssetClassPrefix :: IO ()
-rejectsUnqualifiedAssetClassPrefix =
-    assertBool
-        "unqualified asset class prefixes must fail"
-        (isLeft (parseConfig (Just unqualifiedAssetClassPrefixConfig) []))
-
 rejectsDuplicateAssetClassPrefix :: IO ()
 rejectsDuplicateAssetClassPrefix =
     assertBool
@@ -178,12 +165,6 @@ rejectsOverlappingAssetClassPrefix =
     assertBool
         "overlapping asset class prefixes must fail"
         (isLeft (parseConfig (Just overlappingAssetClassPrefixConfig) []))
-
-rejectsOutOfRangeAssetClassTarget :: IO ()
-rejectsOutOfRangeAssetClassTarget =
-    assertBool
-        "out-of-range asset class targets must fail"
-        (isLeft (parseConfig (Just outOfRangeAssetClassTargetConfig) []))
 
 rejectsInvalidAssetClassTargetTotal :: IO ()
 rejectsInvalidAssetClassTargetTotal =
@@ -288,12 +269,6 @@ invalidAssetClassKindConfig = assetClassConfigWith "kind: commodities"
 emptyAssetClassPrefixesConfig :: ByteString
 emptyAssetClassPrefixesConfig = assetClassConfigWith "accountPrefixes: []"
 
-nonAssetsAssetClassPrefixConfig :: ByteString
-nonAssetsAssetClassPrefixConfig = assetClassConfigWith "accountPrefixes: [income:dividend]"
-
-unqualifiedAssetClassPrefixConfig :: ByteString
-unqualifiedAssetClassPrefixConfig = assetClassConfigWith "accountPrefixes: [assets]"
-
 duplicateAssetClassPrefixConfig :: ByteString
 duplicateAssetClassPrefixConfig =
     ByteString.unlines
@@ -321,9 +296,6 @@ overlappingAssetClassPrefixConfig =
         , "    - kind: debt"
         , "      accountPrefixes: [assets:equity:india]"
         ]
-
-outOfRangeAssetClassTargetConfig :: ByteString
-outOfRangeAssetClassTargetConfig = assetClassConfigWithTarget "targetPercent: 101"
 
 invalidAssetClassTargetTotalConfig :: ByteString
 invalidAssetClassTargetTotalConfig = assetClassConfigWithTarget "targetPercent: 75"

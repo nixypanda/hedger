@@ -6,6 +6,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
 import Data.Time (Day, fromGregorian)
@@ -31,6 +32,7 @@ import Hedger.Domain.Internal.InvestmentPerformance (
     scopeScansAt,
  )
 import Hedger.Domain.Investment (
+    AssetAccount,
     AssetClass (Cash, Debt, Equity, Hybrid, Other, Property),
     AssetClassMapping (..),
     AssetClassMappings,
@@ -40,6 +42,8 @@ import Hedger.Domain.Investment (
     PerformanceRole (Fee, Interest, RealisedGain),
     emptyAssetClassMappings,
     emptyInvestmentMappings,
+    mkAccountName,
+    mkAssetAccount,
     mkAssetClassMappings,
     mkInvestmentMappings,
  )
@@ -126,10 +130,21 @@ retainedFdInterest = do
 fdMapping :: InvestmentMapping
 fdMapping =
     InvestmentMapping
-        { assetAccount = "assets:investments:fd:hdfc"
+        { assetAccount = assetAccount "assets:investments:fd:hdfc"
         , performanceAccounts =
-            [PerformanceAccount{account = "income:investments:fd:interest", role = Interest}]
+            [performanceAccount "income:investments:fd:interest" Interest]
         }
+
+assetAccount :: Text.Text -> AssetAccount
+assetAccount = either (error . Text.unpack) id . mkAssetAccount
+
+performanceAccount :: Text.Text -> PerformanceRole -> PerformanceAccount
+performanceAccount name role =
+    PerformanceAccount{account = either (error . Text.unpack) id (mkAccountName name), role}
+
+mappingWithoutPerformance :: Text.Text -> InvestmentMapping
+mappingWithoutPerformance asset =
+    InvestmentMapping{assetAccount = assetAccount asset, performanceAccounts = []}
 
 descendantFdInterest :: IO ()
 descendantFdInterest = do
@@ -159,9 +174,9 @@ descendantFdInterest = do
 parentFdMapping :: InvestmentMapping
 parentFdMapping =
     InvestmentMapping
-        { assetAccount = "assets:investments:fd"
+        { assetAccount = assetAccount "assets:investments:fd"
         , performanceAccounts =
-            [PerformanceAccount{account = "income:investments:fd:interest", role = Interest}]
+            [performanceAccount "income:investments:fd:interest" Interest]
         }
 
 partialDisposal :: IO ()
@@ -204,7 +219,7 @@ foreignAcquisitionCost :: IO ()
 foreignAcquisitionCost = do
     snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
     mappings <-
-        case mkInvestmentMappings [InvestmentMapping "assets:investments:equity" []] of
+        case mkInvestmentMappings [mappingWithoutPerformance "assets:investments:equity"] of
             Left message -> assertFailure (show message) >> fail "invalid mapping"
             Right value -> pure value
     case snapshotResult of
@@ -228,7 +243,7 @@ foreignCashHistoricalCost :: IO ()
 foreignCashHistoricalCost = do
     snapshotResult <- loadSnapshot "test/fixtures/investment-foreign-cash.journal"
     mappings <-
-        case mkInvestmentMappings [InvestmentMapping "assets:cash:brokerage" []] of
+        case mkInvestmentMappings [mappingWithoutPerformance "assets:cash:brokerage"] of
             Left message -> assertFailure (show message) >> fail "invalid mapping"
             Right value -> pure value
     case snapshotResult of
@@ -322,14 +337,18 @@ ambiguousXirr = do
 
 ambiguousMapping :: InvestmentMapping
 ambiguousMapping =
-    InvestmentMapping{assetAccount = "assets:investments:ambiguous", performanceAccounts = []}
+    mappingWithoutPerformance "assets:investments:ambiguous"
 
 assetClassAllowlist :: IO ()
 assetClassAllowlist = do
     snapshotResult <- loadSnapshot "test/fixtures/investments.journal"
     assetClasses <-
         case mkAssetClassMappings
-            [AssetClassMapping Equity ["assets:investments:equity:xyz"] Nothing] of
+            [ AssetClassMapping
+                Equity
+                (assetAccount "assets:investments:equity:xyz" :| [])
+                Nothing
+            ] of
             Left message -> assertFailure (show message) >> pure emptyAssetClassMappings
             Right value -> pure value
     mappings <-
@@ -377,10 +396,10 @@ settledAccount = do
 xirrMapping :: InvestmentMapping
 xirrMapping =
     InvestmentMapping
-        { assetAccount = "assets:investments:fund"
+        { assetAccount = assetAccount "assets:investments:fund"
         , performanceAccounts =
-            [ PerformanceAccount "income:investments:fund:dividend" Interest
-            , PerformanceAccount "expenses:investments:fund:fee" Fee
+            [ performanceAccount "income:investments:fund:dividend" Interest
+            , performanceAccount "expenses:investments:fund:fee" Fee
             ]
         }
 
@@ -412,15 +431,16 @@ transactionOn year month day = nulltransaction{Hledger.tdate = fromGregorian yea
 equityMapping :: InvestmentMapping
 equityMapping =
     InvestmentMapping
-        { assetAccount = "assets:investments:equity:xyz"
-        , performanceAccounts = [PerformanceAccount "income:investments:xyz:gains" RealisedGain]
+        { assetAccount = assetAccount "assets:investments:equity:xyz"
+        , performanceAccounts =
+            [performanceAccount "income:investments:xyz:gains" RealisedGain]
         }
 
 testAssetClasses :: AssetClassMappings
 testAssetClasses =
     case mkAssetClassMappings
-        [ AssetClassMapping Equity ["assets:investments"] Nothing
-        , AssetClassMapping Cash ["assets:cash:brokerage"] Nothing
+        [ AssetClassMapping Equity (assetAccount "assets:investments" :| []) Nothing
+        , AssetClassMapping Cash (assetAccount "assets:cash:brokerage" :| []) Nothing
         ] of
         Left _ -> emptyAssetClassMappings
         Right value -> value
@@ -429,8 +449,8 @@ testAssetClasses =
 edgeCaseAssetClasses :: AssetClassMappings
 edgeCaseAssetClasses =
     case mkAssetClassMappings
-        [ AssetClassMapping Equity ["assets:investments"] Nothing
-        , AssetClassMapping Cash ["assets:cash"] Nothing
+        [ AssetClassMapping Equity (assetAccount "assets:investments" :| []) Nothing
+        , AssetClassMapping Cash (assetAccount "assets:cash" :| []) Nothing
         ] of
         Left _ -> emptyAssetClassMappings
         Right value -> value
@@ -521,7 +541,7 @@ parentFdMappings :: InvestmentMappings
 parentFdMappings = mappingsOrEmpty [parentFdMapping]
 
 foreignCashMappings :: InvestmentMappings
-foreignCashMappings = mappingsOrEmpty [InvestmentMapping "assets:cash:brokerage" []]
+foreignCashMappings = mappingsOrEmpty [InvestmentMapping (assetAccount "assets:cash:brokerage") []]
 
 xirrJournalMappings :: InvestmentMappings
 xirrJournalMappings = mappingsOrEmpty [xirrMapping]
@@ -533,10 +553,10 @@ bug6Mappings :: InvestmentMappings
 bug6Mappings =
     mappingsOrEmpty
         [ InvestmentMapping
-            { assetAccount = "assets:investments:equity"
+            { assetAccount = assetAccount "assets:investments:equity"
             , performanceAccounts =
-                [ PerformanceAccount "income:investments:xyz:gains" RealisedGain
-                , PerformanceAccount "expenses:investments:fee" Fee
+                [ performanceAccount "income:investments:xyz:gains" RealisedGain
+                , performanceAccount "expenses:investments:fee" Fee
                 ]
             }
         ]
@@ -548,8 +568,9 @@ nestedMappings :: InvestmentMappings
 nestedMappings =
     mappingsOrEmpty
         [ InvestmentMapping
-            { assetAccount = "assets:investments"
-            , performanceAccounts = [PerformanceAccount "income:investments:dividend" Interest]
+            { assetAccount = assetAccount "assets:investments"
+            , performanceAccounts =
+                [performanceAccount "income:investments:dividend" Interest]
             }
         ]
 
@@ -786,9 +807,9 @@ generatedAssetClasses :: AssetClassMappings
 generatedAssetClasses =
     either (error . Text.unpack) id $
         mkAssetClassMappings
-            [ AssetClassMapping Equity ["assets:investments"] Nothing
-            , AssetClassMapping Cash ["assets:cash"] Nothing
-            , AssetClassMapping Property ["assets:property"] Nothing
+            [ AssetClassMapping Equity (assetAccount "assets:investments" :| []) Nothing
+            , AssetClassMapping Cash (assetAccount "assets:cash" :| []) Nothing
+            , AssetClassMapping Property (assetAccount "assets:property" :| []) Nothing
             ]
 
 {- | The same account prefixes as 'generatedAssetClasses' with different
@@ -799,9 +820,9 @@ generatedAssetClassesRelabelled :: AssetClassMappings
 generatedAssetClassesRelabelled =
     either (error . Text.unpack) id $
         mkAssetClassMappings
-            [ AssetClassMapping Debt ["assets:investments"] Nothing
-            , AssetClassMapping Other ["assets:cash"] Nothing
-            , AssetClassMapping Hybrid ["assets:property"] Nothing
+            [ AssetClassMapping Debt (assetAccount "assets:investments" :| []) Nothing
+            , AssetClassMapping Other (assetAccount "assets:cash" :| []) Nothing
+            , AssetClassMapping Hybrid (assetAccount "assets:property" :| []) Nothing
             ]
 
 {- | Investment mappings covering the generated performance accounts. The
@@ -813,13 +834,16 @@ generatedMappings =
     either (error . Text.unpack) id $
         mkInvestmentMappings
             [ InvestmentMapping
-                { assetAccount = "assets:investments"
+                { assetAccount = assetAccount "assets:investments"
                 , performanceAccounts =
-                    [ PerformanceAccount "income:capital:gains" RealisedGain
-                    , PerformanceAccount "income:salary" Interest
+                    [ performanceAccount "income:capital:gains" RealisedGain
+                    , performanceAccount "income:salary" Interest
                     ]
                 }
-            , InvestmentMapping{assetAccount = "assets:property", performanceAccounts = []}
+            , InvestmentMapping
+                { assetAccount = assetAccount "assets:property"
+                , performanceAccounts = []
+                }
             ]
 
 {- | Nonempty generated ledgers only: the bulk-equals-singular properties are

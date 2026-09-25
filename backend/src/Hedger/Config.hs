@@ -10,6 +10,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
 import Data.Char qualified as Char
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -175,25 +176,29 @@ assetClassMappingsFrom (Just configured) = do
     Investment.mkAssetClassMappings mappings
 
 investmentMappingFrom :: GainMappingFileConfig -> Either Text Investment.InvestmentMapping
-investmentMappingFrom configured =
-    Right
-        Investment.InvestmentMapping
-            { assetAccount = configured.assetAccount
-            , performanceAccounts =
-                [ Investment.PerformanceAccount{account, role = Investment.OtherIncome}
-                | account <- configured.gainAccounts
-                ]
-            }
+investmentMappingFrom configured = do
+    assetAccount <- Investment.mkAssetAccount configured.assetAccount
+    performanceAccounts <-
+        traverse
+            ( \name -> do
+                account <- Investment.mkAccountName name
+                pure Investment.PerformanceAccount{account, role = Investment.OtherIncome}
+            )
+            configured.gainAccounts
+    pure Investment.InvestmentMapping{assetAccount, performanceAccounts}
 
 assetClassMappingFrom :: AssetClassFileConfig -> Either Text Investment.AssetClassMapping
 assetClassMappingFrom configured = do
     assetClass <- assetClassFrom configured.kind
-    pure
-        Investment.AssetClassMapping
-            { assetClass
-            , accountPrefixes = configured.accountPrefixes
-            , targetPercentage = realToFrac <$> configured.targetPercent
-            }
+    assetPrefixes <- traverse Investment.mkAssetAccount configured.accountPrefixes
+    accountPrefixes <-
+        maybe
+            (Left "Each asset class mapping requires at least one account prefix.")
+            Right
+            (NonEmpty.nonEmpty assetPrefixes)
+    targetPercentage <-
+        traverse (Investment.mkPercentage . realToFrac) configured.targetPercent
+    pure Investment.AssetClassMapping{assetClass, accountPrefixes, targetPercentage}
 
 assetClassFrom :: Text -> Either Text Investment.AssetClass
 assetClassFrom kind =

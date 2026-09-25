@@ -8,6 +8,8 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
@@ -372,9 +374,9 @@ investmentDrillDownScopes snapshot day = List.nub (Nothing : fmap Just children 
     accounts = Performance.investmentAccountsAt snapshot benchmarkAssetClassMappings Nothing day
     children = Performance.childrenOf Nothing accounts
     allocationScopes =
-        [ Just prefix
+        [ Just (Investment.assetAccountText prefix)
         | mapping <- Investment.assetClassMappingsList benchmarkAssetClassMappings
-        , prefix <- mapping.accountPrefixes
+        , prefix <- NonEmpty.toList mapping.accountPrefixes
         ]
 
 prepareContext :: Snapshot -> Performance.InvestmentPerformanceContext
@@ -584,20 +586,31 @@ benchmarkMappings =
   where
     mapping assetAccount performanceAccounts =
         InvestmentMapping
-            { assetAccount
+            { assetAccount = mkAssetAccountOrError assetAccount
             , performanceAccounts =
-                [PerformanceAccount account OtherIncome | account <- performanceAccounts]
+                [ PerformanceAccount (mkAccountNameOrError account) OtherIncome
+                | account <- performanceAccounts
+                ]
             }
+
+mkAssetAccountOrError :: Text.Text -> Investment.AssetAccount
+mkAssetAccountOrError = either (error . Text.unpack) id . Investment.mkAssetAccount
+
+mkAccountNameOrError :: Text.Text -> Investment.AccountName
+mkAccountNameOrError = either (error . Text.unpack) id . Investment.mkAccountName
 
 benchmarkAssetClassMappings :: Investment.AssetClassMappings
 benchmarkAssetClassMappings =
     either (error . Text.unpack) id $
         mkAssetClassMappings
-            [ AssetClassMapping Equity ["assets:equity"] (Just 60)
-            , AssetClassMapping Debt ["assets:debt"] (Just 25)
-            , AssetClassMapping Cash ["assets:liquid"] (Just 5)
-            , AssetClassMapping Hybrid ["assets:hybrid"] (Just 10)
+            [ AssetClassMapping Equity (assetPrefix "assets:equity") (Just (percentage 60))
+            , AssetClassMapping Debt (assetPrefix "assets:debt") (Just (percentage 25))
+            , AssetClassMapping Cash (assetPrefix "assets:liquid") (Just (percentage 5))
+            , AssetClassMapping Hybrid (assetPrefix "assets:hybrid") (Just (percentage 10))
             ]
+  where
+    assetPrefix name = mkAssetAccountOrError name :| []
+    percentage value = either (error . Text.unpack) id (Investment.mkPercentage value)
 
 -- * Analytics: net worth and cashflow both iterate every period across the
 

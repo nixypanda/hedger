@@ -13,6 +13,7 @@ import Control.Monad.Except (throwError)
 import Control.Monad.Reader (asks)
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -113,9 +114,9 @@ investments request = do
         investmentAccounts = investmentAccountsAt snapshot config.assetClassMappings scope latest
         childAccounts = childrenOf scope investmentAccounts
         allocationScopes =
-            [ Just prefix
+            [ Just (Investment.assetAccountText prefix)
             | mapping <- Investment.assetClassMappingsList config.assetClassMappings
-            , prefix <- mapping.accountPrefixes
+            , prefix <- NonEmpty.toList mapping.accountPrefixes
             ]
         periodDays = List.nub [end | (_, _, end) <- periods]
         periodSummaries =
@@ -203,8 +204,8 @@ assetClassAllocations summaryFor total mappings = fmap allocationFor configuredC
             values =
                 [ result.summary.marketValue
                 | mapping <- matching
-                , prefix <- mapping.accountPrefixes
-                , Just result <- [summaryFor (Just prefix)]
+                , prefix <- NonEmpty.toList mapping.accountPrefixes
+                , Just result <- [summaryFor (Just (Investment.assetAccountText prefix))]
                 ]
             value =
                 if null values
@@ -215,7 +216,7 @@ assetClassAllocations summaryFor total mappings = fmap allocationFor configuredC
                 { assetClass
                 , marketValue = value
                 , currentPercentage = allocationPercentage total value
-                , targetPercentage = target
+                , targetPercentage = Investment.percentageValue <$> target
                 }
 
 firstJust :: [Maybe value] -> Maybe value

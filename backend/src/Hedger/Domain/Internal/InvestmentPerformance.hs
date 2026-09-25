@@ -47,6 +47,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
 
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -83,6 +84,29 @@ import Hedger.Domain.Period (
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (completeDecimal, missingCommodities, valueMixedAt)
 import Hedger.Domain.Xirr qualified as Xirr
+
+-- | The text form of a mapping's asset account, for prefix comparisons.
+assetAccountTextOf :: Investment.InvestmentMapping -> Text
+assetAccountTextOf mapping = Investment.assetAccountText mapping.assetAccount
+
+-- | The text form of a mapped performance account, for prefix comparisons.
+performanceAccountText :: Investment.PerformanceAccount -> Text
+performanceAccountText performance = Investment.accountNameText performance.account
+
+-- | The text form of a configured asset-class account prefix.
+assetPrefixText :: Investment.AssetAccount -> Text
+assetPrefixText = Investment.assetAccountText
+
+-- | Whether a posting's account lies within a mapped performance account.
+postingWithinPerformance :: Investment.PerformanceAccount -> Hledger.Posting -> Bool
+postingWithinPerformance performance posting =
+    performanceAccountText performance `accountWithin` posting.paccount
+
+-- | Whether a mapping's asset account lies inside the configured asset-class scopes.
+mappingScopeOverlaps ::
+    Investment.InvestmentMapping -> Investment.AssetClassMappings -> Bool
+mappingScopeOverlaps mapping assetClasses =
+    Investment.assetClassScopeOverlaps (assetAccountTextOf mapping) assetClasses
 
 data InvestmentCompleteness
     = Complete
@@ -400,7 +424,7 @@ scopePlan context selectedScope =
             filter
                 ( \mapping ->
                     Investment.assetClassScopeOverlaps
-                        mapping.assetAccount
+                        (assetAccountTextOf mapping)
                         context.assetClasses
                 )
                 ( case selectedScope of
@@ -440,8 +464,8 @@ stepAccumulator context plan acc transaction =
     mappedAssetScope mapping =
         case scope of
             Just selected
-                | mapping.assetAccount `accountWithin` selected -> selected
-            _ -> mapping.assetAccount
+                | assetAccountTextOf mapping `accountWithin` selected -> selected
+            _ -> assetAccountTextOf mapping
     touchesPortfolio =
         any (isInvestmentAccount context.assetClasses scope . (.paccount)) transaction.tpostings
     transactionHasSelectedPerformance =
@@ -451,7 +475,7 @@ stepAccumulator context plan acc transaction =
                     && any
                         ( \performance ->
                             any
-                                (\posting -> performance.account `accountWithin` posting.paccount)
+                                (postingWithinPerformance performance)
                                 transaction.tpostings
                         )
                         mapping.performanceAccounts
@@ -462,7 +486,7 @@ stepAccumulator context plan acc transaction =
             ( \mapping ->
                 transactionMatchesScope scope mapping transaction
                     && any
-                        (\performance -> performance.account `accountWithin` posting.paccount)
+                        (\performance -> postingWithinPerformance performance posting)
                         mapping.performanceAccounts
             )
             plan.selectedMappings
@@ -486,7 +510,7 @@ stepAccumulator context plan acc transaction =
                 ( \performance ->
                     isIncomeLike performance.role
                         && any
-                            (\candidate -> performance.account `accountWithin` candidate.paccount)
+                            (\candidate -> postingWithinPerformance performance candidate)
                             transaction.tpostings
                 )
                 mapping.performanceAccounts
@@ -508,7 +532,7 @@ stepAccumulator context plan acc transaction =
             , transactionMatchesScope scope mapping transaction
             , posting <- transaction.tpostings
             , performance <- mapping.performanceAccounts
-            , performance.account `accountWithin` posting.paccount
+            , performanceAccountText performance `accountWithin` posting.paccount
             ]
     hasExplicitCost amount = abs amount.aquantity >= 0.000001 && amount.acost /= Nothing
     addSticky Nothing _ = Nothing
@@ -766,12 +790,15 @@ investmentQuery assetClasses scope =
     HledgerQuery.And ([HledgerQuery.Type [Hledger.Asset], configuredAccounts] <> scopeQuery)
   where
     configuredAccounts =
-        case [ HledgerQuery.Acct (HledgerAccountName.accountNameToAccountRegex prefix)
-             | mapping <- Investment.assetClassMappingsList assetClasses
-             , prefix <- mapping.accountPrefixes
-             ] of
+        case configuredQueries of
             [] -> HledgerQuery.None
             queries -> HledgerQuery.Or queries
+    configuredQueries =
+        [ HledgerQuery.Acct
+            (HledgerAccountName.accountNameToAccountRegex (assetPrefixText prefix))
+        | mapping <- Investment.assetClassMappingsList assetClasses
+        , prefix <- NonEmpty.toList mapping.accountPrefixes
+        ]
     scopeQuery =
         maybe
             []
@@ -810,7 +837,7 @@ attributedAtWith valueAt snapshot assetClasses mappings commodity scope day =
   where
     selectedMappings =
         filter
-            (\mapping -> Investment.assetClassScopeOverlaps mapping.assetAccount assetClasses)
+            (\mapping -> mappingScopeOverlaps mapping assetClasses)
             ( case scope of
                 Nothing -> Investment.mappingsForScope "" mappings
                 Just selected -> Investment.mappingsForScope selected mappings
@@ -830,7 +857,7 @@ attributedAtWith valueAt snapshot assetClasses mappings commodity scope day =
         , transactionMatchesScope scope mapping transaction
         , posting <- transaction.tpostings
         , performance <- mapping.performanceAccounts
-        , performance.account `accountWithin` posting.paccount
+        , performanceAccountText performance `accountWithin` posting.paccount
         ]
     combine Nothing _ = Nothing
     combine _ Nothing = Nothing
@@ -871,7 +898,7 @@ retainedPerformanceAtWith valueAt snapshot assetClasses mappings commodity scope
   where
     selectedMappings =
         filter
-            (\mapping -> Investment.assetClassScopeOverlaps mapping.assetAccount assetClasses)
+            (\mapping -> mappingScopeOverlaps mapping assetClasses)
             ( case scope of
                 Nothing -> Investment.mappingsForScope "" mappings
                 Just selected -> Investment.mappingsForScope selected mappings
@@ -886,7 +913,7 @@ retainedPerformanceAtWith valueAt snapshot assetClasses mappings commodity scope
             ( \performance ->
                 incomeLike performance.role
                     && any
-                        (\candidate -> performance.account `accountWithin` candidate.paccount)
+                        (\candidate -> postingWithinPerformance performance candidate)
                         transaction.tpostings
             )
             mapping.performanceAccounts
@@ -897,8 +924,8 @@ retainedPerformanceAtWith valueAt snapshot assetClasses mappings commodity scope
     mappedAssetScope mapping =
         case scope of
             Just selected
-                | mapping.assetAccount `accountWithin` selected -> selected
-            _ -> mapping.assetAccount
+                | assetAccountTextOf mapping `accountWithin` selected -> selected
+            _ -> assetAccountTextOf mapping
     incomeLike role =
         case role of
             Investment.Interest -> True
@@ -946,7 +973,7 @@ externalCashFlowsAtWith valueAt snapshot assetClasses mappings commodity scope d
   where
     selectedMappings =
         filter
-            (\mapping -> Investment.assetClassScopeOverlaps mapping.assetAccount assetClasses)
+            (\mapping -> mappingScopeOverlaps mapping assetClasses)
             ( case scope of
                 Nothing -> Investment.mappingsForScope "" mappings
                 Just selected -> Investment.mappingsForScope selected mappings
@@ -966,7 +993,7 @@ externalCashFlowsAtWith valueAt snapshot assetClasses mappings commodity scope d
                     && any
                         ( \performance ->
                             any
-                                (\posting -> performance.account `accountWithin` posting.paccount)
+                                (postingWithinPerformance performance)
                                 transaction.tpostings
                         )
                         mapping.performanceAccounts
@@ -989,7 +1016,7 @@ externalCashFlowsAtWith valueAt snapshot assetClasses mappings commodity scope d
             ( \mapping ->
                 transactionMatchesScope scope mapping transaction
                     && any
-                        (\performance -> performance.account `accountWithin` posting.paccount)
+                        (\performance -> postingWithinPerformance performance posting)
                         mapping.performanceAccounts
             )
             selectedMappings
@@ -1021,7 +1048,8 @@ transactionMatchesScope :: Maybe Text -> Investment.InvestmentMapping -> Hledger
 transactionMatchesScope scope mapping transaction =
     case scope of
         Just selected
-            | mapping.assetAccount /= selected && mapping.assetAccount `accountWithin` selected ->
+            | assetAccountTextOf mapping /= selected
+                && assetAccountTextOf mapping `accountWithin` selected ->
                 any
                     ( \candidate ->
                         selected `accountWithin` candidate.paccount

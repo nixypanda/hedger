@@ -11,6 +11,7 @@ import Data.ByteString qualified as ByteString
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Decimal (Decimal)
 import Data.Either (isRight)
+import Data.List.NonEmpty (NonEmpty (..))
 import Network.HTTP.Types (hContentType, methodGet, methodPost)
 import Network.Wai qualified as Wai
 import Network.Wai.Test (
@@ -31,6 +32,7 @@ import Hedger.Domain.Investment (
     AssetClassMappings,
     emptyAssetClassMappings,
     emptyInvestmentMappings,
+    mkAssetAccount,
     mkAssetClassMappings,
  )
 import Hedger.Domain.NetWorth (BreakdownItem (..))
@@ -53,7 +55,13 @@ configuredAssetClasses =
     either
         (const emptyAssetClassMappings)
         id
-        (mkAssetClassMappings [AssetClassMapping Equity ["assets:investments"] Nothing])
+        ( mkAssetClassMappings
+            [ AssetClassMapping
+                Equity
+                (either (error . show) id (mkAssetAccount "assets:investments") :| [])
+                Nothing
+            ]
+        )
 
 loadedStore :: IO SnapshotStore
 loadedStore = do
