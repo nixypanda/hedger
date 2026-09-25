@@ -2,19 +2,14 @@ module Hedger.Domain.Internal.Account (
     AccountInfo (..),
     accountInfo,
     accountLabel,
-    accountGroups,
-    sortedAccountInfos,
-    isAssets,
     isCashOnly,
     isAssetOnly,
     isLiabilities,
-    isExpenses,
     isRevenue,
     isEquity,
     isIncomeOrExpenses,
 ) where
 
-import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 
@@ -42,18 +37,6 @@ accountLabel ai =
         Just Conversion -> "equity"
         Just Gain -> "income"
         Nothing -> Text.toLower (Text.takeWhile (/= ':') ai.aname)
-
-accountGroups :: [AccountInfo] -> Set.Set Text
-accountGroups = Set.fromList . fmap accountLabel
-
-sortedAccountInfos :: [AccountInfo] -> [AccountInfo]
-sortedAccountInfos = Set.toList . Set.fromList
-
-isAssets :: AccountInfo -> Bool
-isAssets ai = ai.atype == Just Asset || ai.atype == Just Cash
-
-isExpenses :: AccountInfo -> Bool
-isExpenses ai = ai.atype == Just Expense
 
 isEquity :: AccountInfo -> Bool
 isEquity ai = ai.atype == Just Equity || ai.atype == Just Conversion

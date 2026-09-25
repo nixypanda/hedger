@@ -56,8 +56,6 @@ library
     Hedger.Domain.Internal.Cashflow
     Hedger.Domain.Internal.InvestmentPerformance
     Hedger.Domain.Internal.NetWorth
-    Hedger.Domain.Internal.PeriodReport
-    Hedger.Domain.Internal.Xirr
     Hedger.Domain.Internal.Transaction
     Hedger.Domain.Investment
     Hedger.Domain.InvestmentPerformance
@@ -81,6 +79,9 @@ library
     Hedger.Interface.HTTP.Endpoints.Transactions
     Hedger.Runtime.Internal.Server
     Hedger.Runtime.Server
+
+  other-modules:
+    Hedger.Domain.Internal.PeriodReport
 
   hs-source-dirs: src
   build-depends:
