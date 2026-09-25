@@ -630,13 +630,16 @@ categoryRows theme config =
                                                 isHighlighted
                                                 item
                                             )
-                                        , Element.text
-                                            (if config.otherExpanded then
-                                                "⌃"
+                                        , Icon.view
+                                            { icon =
+                                                if config.otherExpanded then
+                                                    Icon.ChevronUp
 
-                                             else
-                                                "⌄"
-                                            )
+                                                else
+                                                    Icon.ChevronDown
+                                            , size = Tokens.iconSizeSmallGlyph
+                                            , color = theme.textMuted
+                                            }
                                         ]
                                 }
 
