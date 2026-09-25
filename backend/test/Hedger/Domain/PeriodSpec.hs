@@ -24,6 +24,7 @@ import Hedger.Domain.Period (
     reportPeriodKey,
     reportPeriodStart,
     takeLast,
+    yearMonthParts,
  )
 import Hedger.Generators (formatYearMonth, genDay, genMonth, genYear)
 
@@ -72,7 +73,7 @@ monthKeyRoundTrip =
     property $ do
         day <- forAll genDay
         let (year, month, _) = toGregorian day
-        parseYearMonth (monthKey day) === Just (year, month)
+        fmap yearMonthParts (parseYearMonth (monthKey day)) === Just (year, month)
 
 genUnpaddedMonth :: Gen Text
 genUnpaddedMonth = do

@@ -15,7 +15,11 @@ module Hedger.Domain.Period (
     fiscalYearPeriod,
     periodsFromDateSpan,
     periodsFromReport,
+    YearMonth,
     parseYearMonth,
+    yearMonthParts,
+    yearMonthStart,
+    yearMonthMonth,
     intervalFor,
 
     -- * List helpers
@@ -132,14 +136,30 @@ reportPeriod granularity start end =
                 let (year, _, _) = toGregorian start
                  in Text.pack (show year)
 
-parseYearMonth :: Text -> Maybe (Integer, Int)
+{- | A validated @YYYY-MM@. The constructor is not exported, so the month is
+always in @[1, 12]@ and the text form is canonical.
+-}
+newtype YearMonth = YearMonth (Integer, Int)
+    deriving stock (Eq, Ord, Show)
+
+yearMonthParts :: YearMonth -> (Integer, Int)
+yearMonthParts (YearMonth parts) = parts
+
+-- | The first day of the represented month.
+yearMonthStart :: YearMonth -> Day
+yearMonthStart (YearMonth (year, month)) = fromGregorian year month 1
+
+yearMonthMonth :: YearMonth -> Int
+yearMonthMonth (YearMonth (_, month)) = month
+
+parseYearMonth :: Text -> Maybe YearMonth
 parseYearMonth raw =
     case Text.splitOn "-" raw of
         [yearText, monthText] -> do
             year <- readText yearText
             month <- readText monthText
             if month >= 1 && month <= 12 && raw == Text.pack (show year <> "-" <> pad2 month)
-                then Just (year, month)
+                then Just (YearMonth (year, month))
                 else Nothing
         _ -> Nothing
   where

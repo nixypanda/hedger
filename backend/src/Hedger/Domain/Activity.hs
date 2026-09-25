@@ -22,7 +22,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day, fromGregorian)
+import Data.Time (Day)
 import Text.Read (readMaybe)
 
 import Hledger.Data.Types qualified as Hledger
@@ -40,6 +40,8 @@ import Hedger.Domain.Period (
     parseYearMonth,
     reportPeriodEnd,
     reportPeriodStart,
+    yearMonthMonth,
+    yearMonthStart,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Transaction qualified as Transaction
@@ -147,7 +149,7 @@ toBucketFigures depth activityRange (key, contributions) =
         case activityRange of
             MonthActivity -> fromMaybe epoch (readMaybe (Text.unpack key))
             FiscalYearActivity ->
-                maybe epoch (\(year, month) -> fromGregorian year month 1) (parseYearMonth key)
+                maybe epoch yearMonthStart (parseYearMonth key)
     itemsFrom ms =
         [ BreakdownItem{account, quantity = abs quantity}
         | (account, quantity) <-
@@ -373,14 +375,13 @@ parseActivityPeriod fiscalStart activityRange raw =
     case activityRange of
         MonthActivity ->
             case parseYearMonth raw of
-                Just (year, month) -> Right (monthPeriod (fromGregorian year month 1))
+                Just yearMonth -> Right (monthPeriod (yearMonthStart yearMonth))
                 Nothing -> Left (InvalidRequest "Activity month must use YYYY-MM.")
         FiscalYearActivity ->
             case parseYearMonth raw of
-                Just (year, month)
-                    | month == fiscalStart ->
-                        let first = fromGregorian year month 1
-                         in Right (fiscalYearPeriod fiscalStart first)
+                Just yearMonth
+                    | yearMonthMonth yearMonth == fiscalStart ->
+                        Right (fiscalYearPeriod fiscalStart (yearMonthStart yearMonth))
                 _ ->
                     Left
                         ( InvalidRequest
