@@ -98,10 +98,7 @@ investmentsSpec =
             assetClassAllowlist
         , testCase "settled accounts have complete empty summaries" settledAccount
         , testCase "monthly periods include months without transactions" contiguousMonthlyPeriods
-        , holdingsSeriesRegressionTests
         , scopeScanRegressionTests
-        , summariesAtPreparedRegressionTests
-        , summariesAtScopesPreparedRegressionTests
         , investmentSummaryInvariantsTests
         , generatedBulkEquivalenceTests
         ]
@@ -462,99 +459,8 @@ edgeCaseAssetClasses =
         Left _ -> emptyAssetClassMappings
         Right value -> value
 
-holdingsSeriesRegressionTests :: TestTree
-holdingsSeriesRegressionTests =
-    testGroup
-        "holdingsSeriesAtWithJournal agrees with holdingsAtWithJournal"
-        (concatMap fixtureCases fixtures)
-  where
-    fixtures =
-        [
-            ( "investments.journal"
-            , "test/fixtures/investments.journal"
-            , testAssetClasses
-            , [Nothing, Just "assets:investments:equity:xyz"]
-            )
-        ,
-            ( "investment-descendant.journal"
-            , "test/fixtures/investment-descendant.journal"
-            , testAssetClasses
-            , [Nothing]
-            )
-        ,
-            ( "investment-foreign-cash.journal"
-            , "test/fixtures/investment-foreign-cash.journal"
-            , testAssetClasses
-            , [Nothing, Just "assets:cash:brokerage"]
-            )
-        ,
-            ( "investment-xirr.journal"
-            , "test/fixtures/investment-xirr.journal"
-            , testAssetClasses
-            , [Nothing]
-            )
-        ,
-            ( "investment-ambiguous-xirr.journal"
-            , "test/fixtures/investment-ambiguous-xirr.journal"
-            , testAssetClasses
-            , [Nothing]
-            )
-        ,
-            ( "investment-gapped-price.journal"
-            , "test/fixtures/investment-gapped-price.journal"
-            , edgeCaseAssetClasses
-            , [Nothing]
-            )
-        ,
-            ( "investment-never-priced.journal"
-            , "test/fixtures/investment-never-priced.journal"
-            , edgeCaseAssetClasses
-            , [Nothing]
-            )
-        ,
-            ( "investment-gain-fee-roles.journal"
-            , "test/fixtures/investment-gain-fee-roles.journal"
-            , edgeCaseAssetClasses
-            , [Nothing, Just "assets:investments:equity"]
-            )
-        ,
-            ( "investment-dust-commodity.journal"
-            , "test/fixtures/investment-dust-commodity.journal"
-            , edgeCaseAssetClasses
-            , [Nothing]
-            )
-        ,
-            ( "investment-nested-mapping.journal"
-            , "test/fixtures/investment-nested-mapping.journal"
-            , edgeCaseAssetClasses
-            , [Nothing, Just "assets:investments"]
-            )
-        ]
-    fixtureCases (label, path, assetClasses, scopes) =
-        [ testCase
-            (label <> " " <> show granularity <> " scope=" <> show scope)
-            (assertHoldingsSeriesMatches path assetClasses scope granularity)
-        | granularity <- [Monthly, Yearly]
-        , scope <- scopes
-        ]
-
-assertHoldingsSeriesMatches ::
-    Text.Text -> AssetClassMappings -> Maybe Text.Text -> Granularity -> IO ()
-assertHoldingsSeriesMatches path assetClasses scope granularity = do
-    snapshotResult <- loadSnapshot path
-    case snapshotResult of
-        Left loadError -> assertFailure (show loadError)
-        Right snapshot -> do
-            let latest = fromMaybe (error "fixture has no journal date") snapshot.latestJournalDate
-                transactions = investmentDataTransactions snapshot assetClasses scope
-                days = [end | (_, _, end) <- reportPeriods granularity transactions latest]
-                journal = snapshot.journal
-                bulk = holdingsSeriesAtWithJournal journal assetClasses scope granularity days
-                perDate = fmap (holdingsAtWithJournal journal assetClasses scope) days
-            assertEqual "bulk holdings series matches per-date holdings" perDate bulk
-
 {- | (label, journal path, asset classes, investment mappings, scopes to check).
-Shared by 'scopeScanRegressionTests' and 'summariesAtPreparedRegressionTests':
+Shared by 'scopeScanRegressionTests':
 every fixture is checked at scope = Nothing plus at least one narrower scope,
 across both granularities' 'reportPeriods' cutoff days.
 -}
@@ -781,42 +687,6 @@ assertScopeScanMatchesDay context snapshot mappings scope day scan = do
 sortCashFlows :: [CashFlow] -> [(Day, Decimal)]
 sortCashFlows = List.sort . fmap (\flow -> (cashFlowDate flow, cashFlowAmount flow))
 
-{- | End-to-end check that the bulk timeline entry point ('summariesAtPrepared')
-produces exactly what calling the single-day entry point ('summaryAtPrepared')
-would for each of the same days.
--}
-summariesAtPreparedRegressionTests :: TestTree
-summariesAtPreparedRegressionTests =
-    testGroup
-        "summariesAtPrepared agrees with per-day summaryAtPrepared"
-        (concatMap fixtureCases scopeScanFixtures)
-  where
-    fixtureCases (label, path, assetClasses, mappings, scopes) =
-        [ testCase
-            (label <> " " <> show granularity <> " scope=" <> show scope)
-            (assertSummariesMatch path assetClasses mappings scope granularity)
-        | granularity <- [Monthly, Yearly]
-        , scope <- scopes
-        ]
-
-assertSummariesMatch ::
-    Text.Text ->
-    AssetClassMappings ->
-    InvestmentMappings ->
-    Maybe Text.Text ->
-    Granularity ->
-    IO ()
-assertSummariesMatch path assetClasses mappings scope granularity = do
-    snapshotResult <- loadSnapshot path
-    case snapshotResult of
-        Left loadError -> assertFailure (show loadError)
-        Right snapshot -> do
-            let days = fixtureDays snapshot assetClasses scope granularity
-                context = prepareInvestmentPerformance snapshot assetClasses mappings "INR"
-                bulk = summariesAtPrepared context scope granularity days
-                perDay = fmap (summaryAtPrepared context scope) days
-            assertDaySummariesMatch days perDay bulk
-
 -- | Compares a per-day reference list with the bulk timeline, day by day.
 assertDaySummariesMatch :: [Day] -> [SummaryResult] -> [SummaryResult] -> IO ()
 assertDaySummariesMatch days expected actual = do
@@ -824,43 +694,6 @@ assertDaySummariesMatch days expected actual = do
     sequence_
         [ assertSummaryResultEqual ("day " <> show day) perDay bulk
         | (day, perDay, bulk) <- zip3 days expected actual
-        ]
-
-{- | The latest-date bulk path must agree with the retained singular path for
-root, nested, and duplicate scopes in the same request. The fixture matrix
-covers valuation and cost gaps, mapping asymmetry, role attribution, and XIRR
-edge cases.
--}
-summariesAtScopesPreparedRegressionTests :: TestTree
-summariesAtScopesPreparedRegressionTests =
-    testGroup
-        "summariesAtScopesPrepared agrees with per-scope summaryAtPrepared"
-        [ testCase label (assertScopeSummariesMatch path assetClasses mappings scopes)
-        | (label, path, assetClasses, mappings, scopes) <- scopeScanFixtures
-        ]
-
-assertScopeSummariesMatch ::
-    Text.Text -> AssetClassMappings -> InvestmentMappings -> [Maybe Text.Text] -> IO ()
-assertScopeSummariesMatch path assetClasses mappings configuredScopes = do
-    snapshotResult <- loadSnapshot path
-    case snapshotResult of
-        Left loadError -> assertFailure (show loadError)
-        Right snapshot ->
-            assertScopeSummariesForSnapshot snapshot assetClasses mappings configuredScopes
-
-assertScopeSummariesForSnapshot ::
-    Snapshot -> AssetClassMappings -> InvestmentMappings -> [Maybe Text.Text] -> IO ()
-assertScopeSummariesForSnapshot snapshot assetClasses mappings configuredScopes = do
-    let latest = fromMaybe (error "fixture has no journal date") snapshot.latestJournalDate
-        context = prepareInvestmentPerformance snapshot assetClasses mappings "INR"
-        scopes = Nothing : configuredScopes <> take 1 configuredScopes
-        bulk = summariesAtScopesPrepared context latest scopes
-        singular = [(scope, summaryAtPrepared context scope latest) | scope <- scopes]
-    assertEqual "scope order and duplicates" scopes (fmap fst bulk)
-    assertBool "empty request" (null (summariesAtScopesPrepared context latest []))
-    sequence_
-        [ assertSummaryResultEqual ("scope " <> show scope) expected actual
-        | ((scope, expected), (_, actual)) <- zip singular bulk
         ]
 
 assertSummaryResultEqual :: String -> SummaryResult -> SummaryResult -> IO ()

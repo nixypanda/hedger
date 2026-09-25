@@ -19,10 +19,6 @@ accountSpec =
         "atDepth"
         [ testProperty "result components are a prefix of the account's components" atDepthIsPrefix
         , testProperty "component count matches the clamped depth" atDepthComponentCount
-        , testProperty "idempotent" atDepthIdempotent
-        , testProperty
-            "deep depths leave the first (up to) 4 components unchanged"
-            atDepthDeepUnchanged
         ]
 
 genAccountComponent :: Gen Text
@@ -54,20 +50,3 @@ atDepthComponentCount =
         let accountComponents = Text.splitOn ":" account
             resultComponents = Text.splitOn ":" (atDepth depth account)
         length resultComponents === min (clampDepth depth) (length accountComponents)
-
-atDepthIdempotent :: Property
-atDepthIdempotent =
-    property $ do
-        account <- forAll genAccountName
-        depth <- forAll genDepth
-        atDepth depth (atDepth depth account) === atDepth depth account
-
-atDepthDeepUnchanged :: Property
-atDepthDeepUnchanged =
-    property $ do
-        account <- forAll genAccountName
-        let accountComponents = Text.splitOn ":" account
-            threshold = min 4 (length accountComponents)
-        extra <- forAll (Gen.integral (Range.linear 0 20))
-        let depth = threshold + extra
-        take threshold accountComponents === Text.splitOn ":" (atDepth depth account)

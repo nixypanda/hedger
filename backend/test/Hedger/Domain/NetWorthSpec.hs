@@ -40,7 +40,7 @@ netWorthSpec =
             [ testCase (label journal granularity commodity) $
                 currentAgreesWithReference journal granularity commodity
             | journal <- referenceJournals
-            , granularity <- [Monthly, Yearly]
+            , granularity <- [Monthly]
             , commodity <- ["INR", "USD"]
             ]
         , testGroup

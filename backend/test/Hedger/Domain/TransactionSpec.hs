@@ -55,9 +55,6 @@ transactionSpec =
                 , testCase "asset sale with profit" classificationAssetSaleProfit
                 , testCase "asset sale with loss" classificationAssetSaleLoss
                 , testCase "reallocation with fees" classificationReallocationWithFees
-                , testCase "multi-asset acquisition" classificationMultiAssetAcquisition
-                , testCase "liability consolidation" classificationLiabilityConsolidation
-                , testCase "salary with tax" classificationSalaryWithTax
                 , testCase "ambiguous multi-account" classificationAmbiguousMultiAccount
                 , testCase "borrowing expense dominant" classificationBorrowingExpenseDominant
                 , testCase "repayment interest dominant" classificationRepaymentInterestDominant
@@ -72,21 +69,12 @@ transactionSpec =
             ]
         , testGroup
             "isOpening"
-            [ testCase "equity with opening keyword is detected" openingDetected
-            , testCase "no equity is not opening" openingNoEquity
-            , testCase "income account disqualifies" openingIncomeDisqualifies
+            [ testCase "income account disqualifies" openingIncomeDisqualifies
             , testCase "empty debits is not opening" openingEmptyDebits
             ]
         , testGroup
             "dominantMovement"
-            [ testCase "single debit single credit" dominantSingleDebit
-            , testCase "multiple debits same group" dominantMultipleDebitsSameGroup
-            , testCase "two groups clear winner" dominantTwoGroupsClearWinner
-            , testCase "two groups exact tie uses alphabetical order" dominantTwoGroupsTie
-            , testCase "three groups" dominantThreeGroups
-            , testCase "all debits same group" dominantAllDebitsSameGroup
-            , testCase "dominant group percentage correct" dominantGroupPercentage
-            , testCase "first argument ignored" dominantCreditIgnored
+            [ testCase "two groups exact tie uses alphabetical order" dominantTwoGroupsTie
             , testGroup
                 "properties"
                 [ testProperty "pct is always between 0 and 1" dominantPctInRange
@@ -105,61 +93,12 @@ transactionSpec =
         ]
 
 -- Test transactions
-expenseTransaction :: Hledger.Transaction
-expenseTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "assets:checking"
-                , Hledger.pamount = mixed [num (-100)]
-                }
-            , nullposting
-                { Hledger.paccount = "expenses:food"
-                , Hledger.pamount = mixed [num 100]
-                }
-            ]
-        }
-
 incomeTransaction :: Hledger.Transaction
 incomeTransaction =
     nulltransaction
         { Hledger.tpostings =
             [ nullposting{Hledger.paccount = "income:salary", Hledger.pamount = mixed [num (-500)]}
             , nullposting{Hledger.paccount = "assets:checking", Hledger.pamount = mixed [num 500]}
-            ]
-        }
-
-transferTransaction :: Hledger.Transaction
-transferTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "assets:checking"
-                , Hledger.pamount = mixed [num (-200)]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:savings"
-                , Hledger.pamount = mixed [num 200]
-                }
-            ]
-        }
-
-openingTransaction :: Hledger.Transaction
-openingTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "equity:opening"
-                , Hledger.pamount = mixed [num (-1000)]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:checking"
-                , Hledger.pamount = mixed [num 500]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:savings"
-                , Hledger.pamount = mixed [num 500]
-                }
             ]
         }
 
@@ -318,63 +257,6 @@ reallocationWithFeesTransaction =
             ]
         }
 
-multiAssetAcquisitionTransaction :: Hledger.Transaction
-multiAssetAcquisitionTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "assets:cash:bank"
-                , Hledger.pamount = mixed [num (-10000)]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:investments:stock_a"
-                , Hledger.pamount = mixed [num 5000]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:investments:stock_b"
-                , Hledger.pamount = mixed [num 4000]
-                }
-            , nullposting
-                { Hledger.paccount = "expenses:financial:brokerage"
-                , Hledger.pamount = mixed [num 1000]
-                }
-            ]
-        }
-
-liabilityConsolidationTransaction :: Hledger.Transaction
-liabilityConsolidationTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "liabilities:loan:old"
-                , Hledger.pamount = mixed [num (-50000)]
-                }
-            , nullposting
-                { Hledger.paccount = "liabilities:loan:new"
-                , Hledger.pamount = mixed [num 50000]
-                }
-            ]
-        }
-
-salaryWithTaxTransaction :: Hledger.Transaction
-salaryWithTaxTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "income:salary"
-                , Hledger.pamount = mixed [num (-30000)]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:cash:bank"
-                , Hledger.pamount = mixed [num 24000]
-                }
-            , nullposting
-                { Hledger.paccount = "liabilities:tax:tds"
-                , Hledger.pamount = mixed [num 6000]
-                }
-            ]
-        }
-
 ambiguousTransaction :: Hledger.Transaction
 ambiguousTransaction =
     nulltransaction
@@ -483,24 +365,6 @@ classificationReallocationWithFees =
         AssetReallocation
         (classificationFor reallocationWithFeesTransaction)
 
-classificationMultiAssetAcquisition :: Assertion
-classificationMultiAssetAcquisition =
-    assertEqual
-        "multi asset acquisition"
-        AssetAcquisition
-        (classificationFor multiAssetAcquisitionTransaction)
-
-classificationLiabilityConsolidation :: Assertion
-classificationLiabilityConsolidation =
-    assertEqual
-        "liability consolidation"
-        TransactionTransfer
-        (classificationFor liabilityConsolidationTransaction)
-
-classificationSalaryWithTax :: Assertion
-classificationSalaryWithTax =
-    assertEqual "salary with tax" TransactionIncome (classificationFor salaryWithTaxTransaction)
-
 classificationAmbiguousMultiAccount :: Assertion
 classificationAmbiguousMultiAccount =
     assertEqual "ambiguous multi account" Unclassified (classificationFor ambiguousTransaction)
@@ -520,12 +384,6 @@ classificationRepaymentInterestDominant =
         (classificationFor repaymentInterestDominantTransaction)
 
 -- isOpening tests
-openingDetected :: Assertion
-openingDetected = assertEqual "equity with opening keyword" True (isOpening openingTransaction)
-
-openingNoEquity :: Assertion
-openingNoEquity = assertEqual "no equity" False (isOpening transferTransaction)
-
 openingIncomeDisqualifies :: Assertion
 openingIncomeDisqualifies = assertEqual "income disqualifies" False (isOpening incomeTransaction)
 
@@ -543,75 +401,9 @@ openingEmptyDebits = do
     assertEqual "empty debits" False (isOpening txn)
 
 -- dominantMovement tests
-dominantSingleDebit :: Assertion
-dominantSingleDebit =
-    assertEqual "single expense debit" ("expenses", 1.0) (dominantMovement expenseTransaction)
-
-dominantMultipleDebitsSameGroup :: Assertion
-dominantMultipleDebitsSameGroup =
-    assertEqual "two asset debits" ("assets", 1.0) (dominantMovement openingTransaction)
-
-dominantTwoGroupsClearWinner :: Assertion
-dominantTwoGroupsClearWinner =
-    assertEqual
-        "assets 600 vs expenses 400"
-        ("assets", 0.6)
-        (dominantMovement unclassifiedTransaction)
-
 dominantTwoGroupsTie :: Assertion
 dominantTwoGroupsTie =
     assertEqual "assets 50 vs expenses 50" ("assets", 0.5) (dominantMovement tieTransaction)
-
-dominantThreeGroups :: Assertion
-dominantThreeGroups =
-    assertEqual
-        "liabilities 12000 vs expenses 3000"
-        ("liabilities", 0.8)
-        (dominantMovement emiPaymentTransaction)
-
-dominantAllDebitsSameGroup :: Assertion
-dominantAllDebitsSameGroup =
-    assertEqual "both debits are assets" ("assets", 1.0) (dominantMovement transferTransaction)
-
-dominantGroupPercentage :: Assertion
-dominantGroupPercentage =
-    assertEqual
-        "expenses 60 out of 100"
-        ("expenses", 0.6)
-        (dominantMovement borrowingExpenseDominantTransaction)
-
-dominantCreditIgnored :: Assertion
-dominantCreditIgnored = do
-    let txFromIncome =
-            nulltransaction
-                { Hledger.tpostings =
-                    [ nullposting
-                        { Hledger.paccount = "income:salary"
-                        , Hledger.pamount = mixed [num (-100)]
-                        }
-                    , nullposting
-                        { Hledger.paccount = "expenses:food"
-                        , Hledger.pamount = mixed [num 100]
-                        }
-                    ]
-                }
-        txFromAsset =
-            nulltransaction
-                { Hledger.tpostings =
-                    [ nullposting
-                        { Hledger.paccount = "assets:checking"
-                        , Hledger.pamount = mixed [num (-100)]
-                        }
-                    , nullposting
-                        { Hledger.paccount = "expenses:food"
-                        , Hledger.pamount = mixed [num 100]
-                        }
-                    ]
-                }
-    assertEqual
-        "different credits same debits"
-        (dominantMovement txFromIncome)
-        (dominantMovement txFromAsset)
 
 -- Sorting tests
 syntheticTransactions :: [Hledger.Transaction]

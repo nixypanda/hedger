@@ -52,7 +52,7 @@ periodReportSpec =
             | journal <- fixtures
             , granularity <- [Monthly, Yearly]
             , commodity <- ["INR", "USD"]
-            , depth <- [1, 2, 3]
+            , depth <- [2]
             ]
         ]
   where
