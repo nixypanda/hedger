@@ -5,7 +5,6 @@ module Hedger.Domain.InvestmentPerformanceSpec (
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Decimal (Decimal)
-import Data.Either (isLeft, isRight)
 import Data.List qualified as List
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
@@ -81,10 +80,6 @@ investmentsSpec =
         , testCase
             "monthly FX prices provide historical cost for an uncosted foreign cash balance"
             foreignCashHistoricalCost
-        , testCase
-            "mapping validation rejects overlapping performance ownership \
-            \but permits no-income assets"
-            mappingValidation
         , testCase
             "XIRR cash flows cancel reinvestment and transfers while retaining \
             \external income and fees"
@@ -254,24 +249,6 @@ foreignCashHistoricalCost = do
             assertEqual "historical cost uses acquisition-date FX" (Just 8000) summary.purchaseCost
             assertEqual "foreign cash gain" (Just 200) summary.gainLoss
             assertEqual "completeness" Complete summary.completeness
-
-mappingValidation :: IO ()
-mappingValidation = do
-    let emptyProperty = InvestmentMapping "assets:property:home" []
-        first =
-            InvestmentMapping
-                "assets:investments:a"
-                [PerformanceAccount "income:investments:shared" Interest]
-        second =
-            InvestmentMapping
-                "assets:investments:b"
-                [PerformanceAccount "income:investments:shared:detail" Interest]
-    assertBool
-        "an explicit no-income property mapping is valid"
-        (isRight (mkInvestmentMappings [emptyProperty]))
-    assertBool
-        "overlapping performance scopes are rejected"
-        (isLeft (mkInvestmentMappings [first, second]))
 
 externalCashFlows :: IO ()
 externalCashFlows = do

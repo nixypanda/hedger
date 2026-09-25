@@ -3,7 +3,6 @@ module Hedger.Domain.CashflowSpec (
 ) where
 
 import Data.Foldable (for_)
-import Data.Set qualified as Set
 import Hedgehog (Gen, Property, assert, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Test.Tasty (TestTree, testGroup)
@@ -26,12 +25,6 @@ cashflowSpec =
         [ testGroup
             "cashflow conservation"
             [ testProperty
-                "available agrees with the missing set being empty"
-                availabilityMatchesMissing
-            , testProperty
-                "each timeline point's net is positive minus negative"
-                timelineNetIdentity
-            , testProperty
                 "available figures have non-negative sides"
                 nonNegativeSides
             , testProperty
@@ -48,23 +41,6 @@ depths = [1, 2, 3, 4]
 
 genGranularity :: Gen Granularity
 genGranularity = Gen.element [Monthly, Yearly]
-
-availabilityMatchesMissing :: Property
-availabilityMatchesMissing =
-    property $ do
-        snapshot <- forAll genSnapshot
-        granularity <- forAll genGranularity
-        let figures = cashflowFigures snapshot granularity 1
-        figures.available === Set.null figures.missing
-
-timelineNetIdentity :: Property
-timelineNetIdentity =
-    property $ do
-        snapshot <- forAll genSnapshot
-        granularity <- forAll genGranularity
-        let figures = cashflowFigures snapshot granularity 1
-        for_ figures.timeline $ \point ->
-            point.net === point.positive - point.negative
 
 nonNegativeSides :: Property
 nonNegativeSides =

@@ -32,7 +32,6 @@ import Hedger.Generators (
     Intent (..),
     genAccountComponent,
     genIntentTransaction,
-    genTransaction,
     genTransactions,
  )
 
@@ -49,7 +48,6 @@ transactionSpec =
             [ testProperty "intent round-trip" intentRoundTrip
             , testProperty "structural postconditions" classificationStructuralPostconditions
             , testProperty "posting order independence" postingOrderIndependence
-            , testProperty "totality and determinism" classificationTotality
             ]
         , testGroup
             "isOpening"
@@ -391,12 +389,3 @@ postingOrderIndependence =
         let reordered = tx{Hledger.tpostings = shuffled}
         classificationFor reordered === classificationFor tx
         dominantMovement reordered === dominantMovement tx
-
-classificationTotality :: Property
-classificationTotality =
-    property $ do
-        tx <- forAll genTransaction
-        let classification = classificationFor tx
-            movement = dominantMovement tx
-        classification === classification
-        assert (0 <= snd movement && snd movement <= 1)

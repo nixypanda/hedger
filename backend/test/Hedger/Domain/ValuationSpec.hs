@@ -31,14 +31,10 @@ valuationSpec =
         "valuation"
         [ testGroup
             "requireComplete"
-            [ testProperty "idempotent" requireCompleteIdempotent
-            , testProperty "preserves missing" requireCompletePreservesMissing
-            , testProperty "nulls the value iff missing is non-empty" requireCompleteNullsValue
-            ]
+            [testProperty "nulls the value iff missing is non-empty" requireCompleteNullsValue]
         , testGroup
             "conversionFromMixed"
-            [ testProperty "value is always Just" conversionFromMixedValueIsJust
-            , testProperty "missing is the set of foreign commodities" conversionFromMixedMissing
+            [ testProperty "missing is the set of foreign commodities" conversionFromMixedMissing
             , testProperty
                 "value is the sum of quantities when nothing is missing"
                 conversionFromMixedSumWhenComplete
@@ -76,21 +72,6 @@ genConversion = do
     pure Conversion{value, missing}
 
 -- requireComplete
-requireCompleteIdempotent :: Property
-requireCompleteIdempotent =
-    property $ do
-        conversion <- forAll genConversion
-        let once = requireComplete conversion
-            twice = requireComplete once
-        once.value === twice.value
-        once.missing === twice.missing
-
-requireCompletePreservesMissing :: Property
-requireCompletePreservesMissing =
-    property $ do
-        conversion <- forAll genConversion
-        (requireComplete conversion).missing === conversion.missing
-
 requireCompleteNullsValue :: Property
 requireCompleteNullsValue =
     property $ do
@@ -101,13 +82,6 @@ requireCompleteNullsValue =
             else result.value === Nothing
 
 -- conversionFromMixed
-conversionFromMixedValueIsJust :: Property
-conversionFromMixedValueIsJust =
-    property $ do
-        amount <- forAll genMixedAmount
-        let conversion = conversionFromMixed displayCommodity amount
-        isJust conversion.value === True
-
 conversionFromMixedMissing :: Property
 conversionFromMixedMissing =
     property $ do

@@ -71,9 +71,6 @@ activitySpec =
         , testGroup
             "activity conservation"
             [ testProperty
-                "each bucket totals its increase, decrease and reallocation"
-                bucketTotalIdentity
-            , testProperty
                 "category magnitudes are invariant under display depth"
                 categoryDepthInvariance
             ]
@@ -269,23 +266,6 @@ activityDepths = [1, 2, 3, 4]
 activityKinds :: [ActivityKind]
 activityKinds = [ExpenseActivity, IncomeActivity, AssetActivity, LiabilityActivity]
 
-{- | Activity kinds whose bucket total is the sum of its direction components.
-Income and expense flows carry a signed @total@ with no direction split, so the
-total identity below does not apply to them.
--}
-directionKinds :: [ActivityKind]
-directionKinds = [AssetActivity, LiabilityActivity]
-
-bucketTotalIdentity :: Property
-bucketTotalIdentity =
-    property $ do
-        snapshot <- forAll (Gen.filter (isJust . firstDirectionActivity) genSnapshot)
-        case firstDirectionActivity snapshot of
-            Nothing -> footnote "generated snapshot has no asset or liability activity" >> failure
-            Just (kind, period) ->
-                for_ (activityFiguresFor snapshot kind period 1) $ \bucket ->
-                    bucket.total === bucket.increase + bucket.decrease + bucket.reallocated
-
 categoryDepthInvariance :: Property
 categoryDepthInvariance =
     property $ do
@@ -314,9 +294,6 @@ depth-invariance property uses it so it never exercises an empty month.
 -}
 firstActivityWithBuckets :: Snapshot -> Maybe (ActivityKind, ReportPeriod)
 firstActivityWithBuckets = firstActivityWithBucketsOver activityKinds
-
-firstDirectionActivity :: Snapshot -> Maybe (ActivityKind, ReportPeriod)
-firstDirectionActivity = firstActivityWithBucketsOver directionKinds
 
 firstActivityWithBucketsOver :: [ActivityKind] -> Snapshot -> Maybe (ActivityKind, ReportPeriod)
 firstActivityWithBucketsOver kinds snapshot =

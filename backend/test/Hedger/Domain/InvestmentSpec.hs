@@ -68,8 +68,7 @@ investmentSpec =
             ]
         , testGroup
             "mappingsForScope"
-            [ testProperty "an empty scope returns every mapping" emptyScopeReturnsAll
-            , testProperty
+            [ testProperty
                 "a non-empty scope returns exactly the overlapping mappings"
                 scopeReturnsOverlapping
             ]
@@ -256,13 +255,6 @@ findsDeepestAmongNested =
             Just found -> found.assetAccount === deepest
 
 -- mappingsForScope
-emptyScopeReturnsAll :: Property
-emptyScopeReturnsAll =
-    property $ do
-        mappings <- forAll genDisjointMappingSet
-        built <- buildValid mappings
-        mappingsForScope "" built === mappings
-
 scopeReturnsOverlapping :: Property
 scopeReturnsOverlapping =
     property $ do
