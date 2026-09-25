@@ -783,10 +783,15 @@ activityViews :
     -> ModelData
     -> Element Msg
 activityViews theme layout columns config report data =
+    let
+        maxLegendItems =
+            legendCapacity layout
+    in
     responsiveGrid layout
         [ activityView
             theme
             columns
+            maxLegendItems
             data.granularity
             config.positive
             Positive
@@ -795,6 +800,7 @@ activityViews theme layout columns config report data =
         , activityView
             theme
             columns
+            maxLegendItems
             data.granularity
             config.negative
             Negative
@@ -803,8 +809,22 @@ activityViews theme layout columns config report data =
         ]
 
 
+legendCapacity : Responsive.ContentLayout -> Int
+legendCapacity layout =
+    case layout of
+        Responsive.Compact ->
+            4
+
+        Responsive.Medium ->
+            2
+
+        Responsive.Wide ->
+            3
+
+
 activityView :
     Theme
+    -> Int
     -> Int
     -> Granularity
     -> SideConfig
@@ -812,7 +832,7 @@ activityView :
     -> String
     -> ModelData
     -> Element Msg
-activityView theme columns granularity config side commodity data =
+activityView theme columns maxLegendItems granularity config side commodity data =
     let
         sideState =
             sideFor side data
@@ -837,6 +857,7 @@ activityView theme columns granularity config side commodity data =
                 , onLegendToggle = LegendToggled side
                 , highlightedCategory = sideState.calendarHighlight
                 , onCategoryHighlight = LegendCategoryHighlighted side
+                , maxVisible = maxLegendItems
                 }
 
         Yearly ->
@@ -852,6 +873,7 @@ activityView theme columns granularity config side commodity data =
                 , onLegendToggle = LegendToggled side
                 , highlightedCategory = sideState.calendarHighlight
                 , onCategoryHighlight = LegendCategoryHighlighted side
+                , maxVisible = maxLegendItems
                 }
 
 
