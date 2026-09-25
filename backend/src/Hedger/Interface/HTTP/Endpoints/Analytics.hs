@@ -14,6 +14,7 @@ import Servant
 import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Common (AccountTypeClassifier)
+import Hedger.Domain.Account (DisplayDepth (..), parseDisplayDepth)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata,
@@ -245,11 +246,12 @@ parseActivityRange value =
         "year" -> Right Analytics.FiscalYearActivity
         _ -> Left (InvalidRequest "Activity range must be month or year.")
 
-parseDepth :: Maybe Int -> Either AppError Int
-parseDepth Nothing = Right 2
-parseDepth (Just value)
-    | value >= 1 && value <= 4 = Right value
-    | otherwise = Left (InvalidRequest "Category depth must be between 1 and 4.")
+parseDepth :: Maybe Int -> Either AppError DisplayDepth
+parseDepth Nothing = Right Depth2
+parseDepth (Just value) =
+    case parseDisplayDepth value of
+        Just depth -> Right depth
+        Nothing -> Left (InvalidRequest "Category depth must be between 1 and 4.")
 
 toNetWorth :: Analytics.NetWorthReport -> NetWorthResponse
 toNetWorth report =

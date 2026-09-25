@@ -36,7 +36,7 @@ import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 import Hledger.Reports.ReportTypes qualified as HledgerReportTypes
 
-import Hedger.Domain.Account (atDepth)
+import Hedger.Domain.Account (DisplayDepth (..), atDepth, displayDepthValue)
 import Hedger.Domain.Period (
     Granularity (..),
     ReportPeriod,
@@ -122,7 +122,7 @@ periodicBalanceReport ::
     HledgerReportOptions.BalanceCalculation ->
     HledgerReportOptions.BalanceAccumulation ->
     -- | Display depth to clip rows to; 'Nothing' leaves the report unclipped.
-    Maybe Int ->
+    Maybe DisplayDepth ->
     HledgerMultiBalance.MultiBalanceReport
 periodicBalanceReport
     snapshot
@@ -144,7 +144,7 @@ periodicBalanceReport
         baseReportOptions =
             HledgerReportOptions.defreportopts
                 { HledgerReportOptions.interval_ = reportInterval
-                , HledgerReportOptions.depth_ = Hledger.DepthSpec (max 1 <$> depth) []
+                , HledgerReportOptions.depth_ = Hledger.DepthSpec (displayDepthValue <$> depth) []
                 , HledgerReportOptions.empty_ = True
                 , HledgerReportOptions.balancecalc_ = calculation
                 , HledgerReportOptions.balanceaccum_ = accumulation
@@ -253,7 +253,12 @@ selectedPeriod requested periods =
 top-N / \"Other\" grouping is a presentation concern applied downstream.
 -}
 breakdownItemsFor ::
-    Text -> Int -> Maybe ReportPeriod -> [ReportPeriod] -> ReportSide -> (Text, [BreakdownItem])
+    Text ->
+    DisplayDepth ->
+    Maybe ReportPeriod ->
+    [ReportPeriod] ->
+    ReportSide ->
+    (Text, [BreakdownItem])
 breakdownItemsFor commodity depth selected periods side =
     case selected of
         Nothing -> ("", [])

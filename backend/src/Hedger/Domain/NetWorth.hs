@@ -20,6 +20,7 @@ import Data.Time (Day)
 
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Internal.NetWorth (assetLiabilityPeriodicReport, gainPeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
@@ -80,8 +81,8 @@ computeNetWorth ::
     Text ->
     Maybe Text ->
     Maybe Text ->
-    Int ->
-    Int ->
+    DisplayDepth ->
+    DisplayDepth ->
     NetWorthFigures
 computeNetWorth
     snapshot

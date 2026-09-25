@@ -23,6 +23,7 @@ import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Activity (
     ActivityBucketFigures (..),
     ActivityDirection (..),
@@ -181,7 +182,7 @@ activityFigures kind transactions =
                 "R"
                 kind
                 MonthActivity
-                3
+                Depth3
                 activityPeriod
             ).buckets
 
@@ -265,8 +266,8 @@ fiscalYearMalformed =
 
 -- Conservation properties
 
-activityDepths :: [Int]
-activityDepths = [1, 2, 3, 4]
+activityDepths :: [DisplayDepth]
+activityDepths = [Depth1, Depth2, Depth3, Depth4]
 
 activityKinds :: [ActivityKind]
 activityKinds = [ExpenseActivity, IncomeActivity, AssetActivity, LiabilityActivity]
@@ -285,7 +286,7 @@ categoryDepthInvariance =
                             ]
                 for_ activityDepths $ \depth -> do
                     footnote ("display depth " <> show depth)
-                    totalsAt depth === totalsAt 1
+                    totalsAt depth === totalsAt Depth1
 
 -- The month of each transaction, earliest first, as activity periods.
 transactionMonths :: Snapshot -> [ReportPeriod]
@@ -305,12 +306,17 @@ firstActivityWithBucketsOver kinds snapshot =
     case [ (kind, period)
          | period <- transactionMonths snapshot
          , kind <- kinds
-         , not (null (activityFiguresFor snapshot kind period 1))
+         , not (null (activityFiguresFor snapshot kind period Depth1))
          ] of
         sample : _ -> Just sample
         [] -> Nothing
 
-activityFiguresFor :: Snapshot -> ActivityKind -> ReportPeriod -> Int -> [ActivityBucketFigures]
+activityFiguresFor ::
+    Snapshot ->
+    ActivityKind ->
+    ReportPeriod ->
+    DisplayDepth ->
+    [ActivityBucketFigures]
 activityFiguresFor snapshot kind period depth =
     ( computeActivity
         snapshot

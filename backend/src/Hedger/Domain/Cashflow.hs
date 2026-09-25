@@ -16,6 +16,7 @@ import Data.Text (Text)
 
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Internal.Cashflow (incomeExpensePeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
@@ -51,8 +52,8 @@ computeCashflow ::
     Text ->
     Maybe Text ->
     Maybe Text ->
-    Int ->
-    Int ->
+    DisplayDepth ->
+    DisplayDepth ->
     CashflowFigures
 computeCashflow
     snapshot

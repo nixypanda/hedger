@@ -47,6 +47,7 @@ import Hedger.Application.Common (
  )
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
 import Hedger.Config (Config (..))
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Activity (
     ActivityBucketFigures (..),
     ActivityDirection (..),
@@ -75,8 +76,8 @@ data AnalyticsRequest = AnalyticsRequest
     , displayCommodity :: Maybe Text
     , positivePeriod :: Maybe Text
     , negativePeriod :: Maybe Text
-    , positiveDepth :: Int
-    , negativeDepth :: Int
+    , positiveDepth :: DisplayDepth
+    , negativeDepth :: DisplayDepth
     }
 
 data ActivityRequest = ActivityRequest
@@ -85,7 +86,7 @@ data ActivityRequest = ActivityRequest
     , period :: Text
     , query :: Maybe Text
     , displayCommodity :: Maybe Text
-    , depth :: Int
+    , depth :: DisplayDepth
     }
 
 data Kpi = Kpi

@@ -8,6 +8,7 @@ import Hedgehog.Gen qualified as Gen
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Cashflow (
     CashflowFigures (..),
     TimelinePoint (..),
@@ -36,8 +37,8 @@ cashflowSpec =
             ]
         ]
 
-depths :: [Int]
-depths = [1, 2, 3, 4]
+depths :: [DisplayDepth]
+depths = [Depth1, Depth2, Depth3, Depth4]
 
 genGranularity :: Gen Granularity
 genGranularity = Gen.element [Monthly, Yearly]
@@ -47,7 +48,7 @@ nonNegativeSides =
     property $ do
         snapshot <- forAll genSnapshot
         granularity <- forAll genGranularity
-        let figures = cashflowFigures snapshot granularity 1
+        let figures = cashflowFigures snapshot granularity Depth1
         if figures.available
             then for_ figures.timeline $ \point ->
                 assert (point.positive >= 0 && point.negative >= 0)
@@ -62,7 +63,7 @@ incomeDepthInvariance =
                 sumQuantities
                     (cashflowFigures snapshot granularity depth).incomeBreakdownItems
         for_ depths $ \depth ->
-            totalAt depth === totalAt 1
+            totalAt depth === totalAt Depth1
 
 expenseDepthInvariance :: Property
 expenseDepthInvariance =
@@ -73,9 +74,9 @@ expenseDepthInvariance =
                 sumQuantities
                     (cashflowFigures snapshot granularity depth).expenseBreakdownItems
         for_ depths $ \depth ->
-            totalAt depth === totalAt 1
+            totalAt depth === totalAt Depth1
 
-cashflowFigures :: Snapshot -> Granularity -> Int -> CashflowFigures
+cashflowFigures :: Snapshot -> Granularity -> DisplayDepth -> CashflowFigures
 cashflowFigures snapshot granularity depth =
     computeCashflow
         snapshot

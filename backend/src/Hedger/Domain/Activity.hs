@@ -99,7 +99,7 @@ computeActivity ::
     Text ->
     ActivityKind ->
     ActivityRange ->
-    Int ->
+    Account.DisplayDepth ->
     ReportPeriod ->
     ActivityFigures
 computeActivity snapshot filtered commodity activityKind activityRange depth activityPeriod =
@@ -124,7 +124,11 @@ computeActivity snapshot filtered commodity activityKind activityRange depth act
             | contribution <- contributions
             ]
 
-toBucketFigures :: Int -> ActivityRange -> (Text, [ActivityContribution]) -> ActivityBucketFigures
+toBucketFigures ::
+    Account.DisplayDepth ->
+    ActivityRange ->
+    (Text, [ActivityContribution]) ->
+    ActivityBucketFigures
 toBucketFigures depth activityRange (key, contributions) =
     ActivityBucketFigures
         { key

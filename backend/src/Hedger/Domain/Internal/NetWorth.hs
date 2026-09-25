@@ -23,6 +23,7 @@ import Hledger.Reports.BalanceReport qualified as HledgerBalance
 import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
+import Hedger.Domain.Internal.Account (DisplayDepth (..))
 import Hedger.Domain.Internal.PeriodReport (periodicBalanceReport)
 import Hedger.Domain.Period (Granularity)
 import Hedger.Domain.Snapshot (Snapshot (..))
@@ -54,7 +55,7 @@ assetCashPeriodicReport ::
     [Hledger.Transaction] ->
     Granularity ->
     Text ->
-    Int ->
+    DisplayDepth ->
     HledgerMultiBalance.MultiBalanceReport
 assetCashPeriodicReport snapshot transactions granularity commodity depth =
     periodicBalanceReport
@@ -72,7 +73,7 @@ liabilityPeriodicReport ::
     [Hledger.Transaction] ->
     Granularity ->
     Text ->
-    Int ->
+    DisplayDepth ->
     HledgerMultiBalance.MultiBalanceReport
 liabilityPeriodicReport snapshot transactions granularity commodity depth =
     periodicBalanceReport
@@ -100,7 +101,7 @@ gainPeriodicReport snapshot transactions granularity commodity =
         [Hledger.Asset, Hledger.Cash, Hledger.Liability]
         HledgerReportOptions.CalcGain
         HledgerReportOptions.Historical
-        (Just 1)
+        (Just Depth1)
 
 currentAssetCashBalance :: Snapshot -> [Hledger.Transaction] -> Text -> Conversion Decimal
 currentAssetCashBalance snapshot transactions commodity =

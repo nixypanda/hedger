@@ -34,6 +34,7 @@ import Hedger.Application.TransactionQuery (
     transactionPage,
  )
 import Hedger.Config (Config (..))
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
 import Hedger.Domain.Internal.Cashflow qualified as Cashflow
@@ -621,7 +622,16 @@ a partial weight would silently skip, hiding two whole report passes.
 -}
 netWorthWeight :: Snapshot -> Int
 netWorthWeight snapshot =
-    let figures = computeNetWorth snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+    let figures =
+            computeNetWorth
+                snapshot
+                snapshot.transactions
+                Monthly
+                "INR"
+                Nothing
+                Nothing
+                Depth2
+                Depth2
      in sum (timelineWeight <$> figures.timeline)
             + sum (breakdownWeight <$> figures.assetsBreakdownItems)
             + sum (breakdownWeight <$> figures.liabilitiesBreakdownItems)
@@ -637,7 +647,16 @@ netWorthWeight snapshot =
 
 cashflowWeight :: Snapshot -> Int
 cashflowWeight snapshot =
-    let figures = computeCashflow snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+    let figures =
+            computeCashflow
+                snapshot
+                snapshot.transactions
+                Monthly
+                "INR"
+                Nothing
+                Nothing
+                Depth2
+                Depth2
      in sum (timelineWeight <$> figures.timeline)
             + sum (breakdownWeight <$> figures.incomeBreakdownItems)
             + sum (breakdownWeight <$> figures.expenseBreakdownItems)
@@ -670,22 +689,22 @@ incomeExpensePeriodicWeight snapshot =
 incomeGainPeriodicWeight :: Snapshot -> Int
 incomeGainPeriodicWeight snapshot =
     periodicReportWeight
-        (Cashflow.incomeGainPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (Cashflow.incomeGainPeriodicReport snapshot snapshot.transactions Monthly "INR" Depth2)
 
 expensePeriodicWeight :: Snapshot -> Int
 expensePeriodicWeight snapshot =
     periodicReportWeight
-        (Cashflow.expensePeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (Cashflow.expensePeriodicReport snapshot snapshot.transactions Monthly "INR" Depth2)
 
 assetCashPeriodicWeight :: Snapshot -> Int
 assetCashPeriodicWeight snapshot =
     periodicReportWeight
-        (NetWorth.assetCashPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (NetWorth.assetCashPeriodicReport snapshot snapshot.transactions Monthly "INR" Depth2)
 
 liabilityPeriodicWeight :: Snapshot -> Int
 liabilityPeriodicWeight snapshot =
     periodicReportWeight
-        (NetWorth.liabilityPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (NetWorth.liabilityPeriodicReport snapshot snapshot.transactions Monthly "INR" Depth2)
 
 assetLiabilityPeriodicWeight :: Snapshot -> Int
 assetLiabilityPeriodicWeight snapshot =
