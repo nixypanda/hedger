@@ -2,6 +2,12 @@ module Hedger.Generators (
     genTransaction,
     genTransactions,
 
+    -- * Ledgers
+    Intent (..),
+    genIntentTransaction,
+    genSnapshot,
+    genPriceDirective,
+
     -- * Amounts and commodities
     displayCommodity,
     otherCommodities,
@@ -27,15 +33,18 @@ module Hedger.Generators (
 ) where
 
 import Data.Decimal (Decimal, realFracToDecimal)
+import Data.List qualified as List
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Time (Day (ModifiedJulianDay), fromGregorian)
+import Data.Time (Day (ModifiedJulianDay), addDays, fromGregorian)
 import Hedgehog (Gen)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
+import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Amount (mixed, num)
+import Hledger.Data.Journal (nulljournal)
 import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
@@ -45,6 +54,7 @@ import Hedger.Domain.Investment (
     PerformanceAccount (..),
     PerformanceRole (..),
  )
+import Hedger.Domain.Snapshot (Snapshot (..))
 
 genTransaction :: Gen Hledger.Transaction
 genTransaction = do
@@ -71,6 +81,158 @@ genTransactions range = Gen.list range genTransaction
 
 genText :: Range.Range Int -> Gen Text.Text
 genText range = Text.pack <$> Gen.list range Gen.alphaNum
+
+-- Ledgers
+
+{- | The intended classification of a generated transaction: the
+'Hedger.Domain.Internal.Transaction.TransactionClassification' constructor
+that 'genIntentTransaction' targets.
+-}
+data Intent
+    = ExpenseIntent
+    | IncomeIntent
+    | TransferIntent
+    | OpeningIntent
+    | AcquisitionIntent
+    | DisposalIntent
+    | ReallocationIntent
+    | BorrowingIntent
+    | RepaymentIntent
+    deriving stock (Eq, Show, Enum, Bounded)
+
+-- | Account names whose inferred hledger types drive classification.
+cashAccountNames :: [Text]
+cashAccountNames = ["assets:cash:bank", "assets:checking", "assets:savings"]
+
+nonCashAssetAccountNames :: [Text]
+nonCashAssetAccountNames =
+    ["assets:investments:stock", "assets:investments:fund", "assets:property:home"]
+
+liabilityAccountNames :: [Text]
+liabilityAccountNames = ["liabilities:loan:personal", "liabilities:card"]
+
+incomeAccountNames :: [Text]
+incomeAccountNames = ["income:salary", "income:capital:gains"]
+
+expenseAccountNames :: [Text]
+expenseAccountNames = ["expenses:food", "expenses:financial:interest"]
+
+openingEquityAccountName :: Text
+openingEquityAccountName = "equity:opening"
+
+{- | Builds a small, balanced transaction whose account types make
+'Hedger.Domain.Internal.Transaction.classificationFor' return the classification
+implied by the argument.
+-}
+genIntentTransaction :: Intent -> Gen Hledger.Transaction
+genIntentTransaction intent = do
+    day <- genLedgerDate
+    magnitude <- genMagnitude
+    postings <- genIntentPostings intent magnitude
+    pure
+        nulltransaction
+            { Hledger.tdate = day
+            , Hledger.tpostings = postings
+            }
+
+-- | A date spanning roughly January 2024 through February 2025.
+genLedgerDate :: Gen Day
+genLedgerDate =
+    addDays <$> Gen.integral (Range.linear 0 397) <*> pure (fromGregorian 2024 1 1)
+
+-- | A strictly positive magnitude; callers apply the sign their recipe requires.
+genMagnitude :: Gen Decimal
+genMagnitude = fromInteger <$> Gen.integral (Range.linear 1 1000000)
+
+-- | A posting for the display commodity.
+intentPosting :: Text -> Decimal -> Hledger.Posting
+intentPosting account quantity =
+    nullposting
+        { Hledger.paccount = account
+        , Hledger.pamount = mixed [(num quantity){Hledger.acommodity = displayCommodity}]
+        }
+
+genIntentPostings :: Intent -> Decimal -> Gen [Hledger.Posting]
+genIntentPostings intent magnitude = case intent of
+    ExpenseIntent -> do
+        expense <- Gen.element expenseAccountNames
+        cash <- Gen.element cashAccountNames
+        pure [intentPosting expense magnitude, intentPosting cash (negate magnitude)]
+    IncomeIntent -> do
+        income <- Gen.element incomeAccountNames
+        cash <- Gen.element cashAccountNames
+        pure [intentPosting income (negate magnitude), intentPosting cash magnitude]
+    TransferIntent -> do
+        (from, to) <- genTwoDistinct cashAccountNames
+        pure [intentPosting from (negate magnitude), intentPosting to magnitude]
+    OpeningIntent -> do
+        cash <- Gen.element cashAccountNames
+        pure
+            [ intentPosting openingEquityAccountName (negate magnitude)
+            , intentPosting cash magnitude
+            ]
+    AcquisitionIntent -> do
+        cash <- Gen.element cashAccountNames
+        asset <- Gen.element nonCashAssetAccountNames
+        pure [intentPosting cash (negate magnitude), intentPosting asset magnitude]
+    DisposalIntent -> do
+        asset <- Gen.element nonCashAssetAccountNames
+        cash <- Gen.element cashAccountNames
+        pure [intentPosting asset (negate magnitude), intentPosting cash magnitude]
+    ReallocationIntent -> do
+        (from, to) <- genTwoDistinct nonCashAssetAccountNames
+        pure [intentPosting from (negate magnitude), intentPosting to magnitude]
+    BorrowingIntent -> do
+        liability <- Gen.element liabilityAccountNames
+        cash <- Gen.element cashAccountNames
+        pure [intentPosting liability (negate magnitude), intentPosting cash magnitude]
+    RepaymentIntent -> do
+        cash <- Gen.element cashAccountNames
+        liability <- Gen.element liabilityAccountNames
+        pure [intentPosting cash (negate magnitude), intentPosting liability magnitude]
+
+-- | Two distinct elements of a pool that has at least two members.
+genTwoDistinct :: (Eq value) => [value] -> Gen (value, value)
+genTwoDistinct values = do
+    first <- Gen.element values
+    second <- Gen.element (filter (/= first) values)
+    pure (first, second)
+
+{- | A whole ledger: a nonempty list of transactions drawn from a random
+nonempty subset of 'Intent's (with repetitions), packaged as a 'Snapshot'.
+-}
+genSnapshot :: Gen Snapshot
+genSnapshot = do
+    intents <- Gen.list (Range.linear 1 24) (Gen.element [minBound .. maxBound])
+    transactions <- traverse genIntentTransaction intents
+    pure
+        Snapshot
+            { journal = nulljournal{Hledger.jtxns = transactions}
+            , transactions = transactions
+            , accountTree =
+                HledgerAccount.accountFromPostings
+                    (const Nothing)
+                    (concatMap Hledger.tpostings transactions)
+            , latestJournalDate = maximumMaybe (Hledger.tdate <$> transactions)
+            , revision = "md5:synthetic"
+            }
+
+-- | Total maximum, unlike the partial 'maximum'.
+maximumMaybe :: (Ord value) => [value] -> Maybe value
+maximumMaybe [] = Nothing
+maximumMaybe (value : values) = Just (List.foldl' max value values)
+
+{- | A price directive stating that one unit of @symbol@ is worth @price@ units
+of the display commodity.
+-}
+genPriceDirective :: Day -> Text -> Decimal -> Hledger.PriceDirective
+genPriceDirective day symbol price =
+    Hledger.PriceDirective
+        { Hledger.pdsourcepos = Hledger.nullsourcepos
+        , Hledger.pddate = day
+        , Hledger.pdcommodity = symbol
+        , Hledger.pdamount = (num price){Hledger.acommodity = displayCommodity}
+        }
 
 -- | The commodity that valuation tests project into.
 displayCommodity :: Text

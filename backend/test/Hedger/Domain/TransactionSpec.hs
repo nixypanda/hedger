@@ -2,11 +2,12 @@ module Hedger.Domain.TransactionSpec (
     transactionSpec,
 ) where
 
+import Control.Monad (when)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (fromGregorian)
-import Hedgehog (Gen, Property, assert, forAll, property, (===))
+import Hedgehog (Gen, Property, PropertyT, assert, footnote, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
@@ -18,7 +19,8 @@ import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
-import Hedger.Domain.Account (accountInfo, accountLabel)
+import Hedger.Domain.Account (AccountInfo, accountInfo, accountLabel)
+import Hedger.Domain.Internal.Account (isAssetOnly, isCashOnly, isLiabilities, isRevenue)
 import Hedger.Domain.Internal.Transaction (
     TransactionClassification (..),
     classificationFor,
@@ -26,7 +28,13 @@ import Hedger.Domain.Internal.Transaction (
     isOpening,
     newestFirst,
  )
-import Hedger.Generators (genAccountComponent, genTransactions)
+import Hedger.Generators (
+    Intent (..),
+    genAccountComponent,
+    genIntentTransaction,
+    genTransaction,
+    genTransactions,
+ )
 
 transactionSpec :: TestTree
 transactionSpec =
@@ -38,19 +46,7 @@ transactionSpec =
         , testProperty "result is sorted in descending order by (date, index)" sortedProperty
         , testGroup
             "classificationFor"
-            [ testCase "expense transaction" classificationExpense
-            , testCase "income transaction" classificationIncome
-            , testCase "transfer between same-group accounts" classificationTransfer
-            , testCase "opening balance transaction" classificationOpening
-            , testGroup
-                "new classification types"
-                [ testCase "asset acquisition: Cash -> Asset" classificationAssetAcquisition
-                , testCase "asset disposal: Asset -> Cash" classificationAssetDisposal
-                , testCase "asset reallocation: Asset -> Asset" classificationAssetReallocation
-                , testCase "borrowing: Liability -> Asset" classificationBorrowing
-                , testCase "repayment: Asset -> Liability" classificationRepayment
-                , testCase "unclassified: below 80% threshold" classificationUnclassified
-                ]
+            [ testCase "unclassified: below 80% threshold" classificationUnclassified
             , testGroup
                 "complex multi-account scenarios"
                 [ testCase "SIP: Cash -> multiple Assets + Expense" classificationSIP
@@ -66,6 +62,13 @@ transactionSpec =
                 , testCase "borrowing expense dominant" classificationBorrowingExpenseDominant
                 , testCase "repayment interest dominant" classificationRepaymentInterestDominant
                 ]
+            ]
+        , testGroup
+            "classification laws"
+            [ testProperty "intent round-trip" intentRoundTrip
+            , testProperty "structural postconditions" classificationStructuralPostconditions
+            , testProperty "posting order independence" postingOrderIndependence
+            , testProperty "totality and determinism" classificationTotality
             ]
         , testGroup
             "isOpening"
@@ -160,82 +163,7 @@ openingTransaction =
             ]
         }
 
--- New classification type test transactions
-assetAcquisitionTransaction :: Hledger.Transaction
-assetAcquisitionTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "assets:cash:bank"
-                , Hledger.pamount = mixed [num (-100)]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:investments:stock"
-                , Hledger.pamount = mixed [num 100]
-                }
-            ]
-        }
-
-assetDisposalTransaction :: Hledger.Transaction
-assetDisposalTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "assets:investments:stock"
-                , Hledger.pamount = mixed [num (-100)]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:cash:bank"
-                , Hledger.pamount = mixed [num 100]
-                }
-            ]
-        }
-
-assetReallocationTransaction :: Hledger.Transaction
-assetReallocationTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "assets:investments:stock_a"
-                , Hledger.pamount = mixed [num (-100)]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:investments:stock_b"
-                , Hledger.pamount = mixed [num 100]
-                }
-            ]
-        }
-
-borrowingTransaction :: Hledger.Transaction
-borrowingTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "liability:loan:personal"
-                , Hledger.pamount = mixed [num (-100)]
-                }
-            , nullposting
-                { Hledger.paccount = "assets:cash:bank"
-                , Hledger.pamount = mixed [num 100]
-                }
-            ]
-        }
-
-repaymentTransaction :: Hledger.Transaction
-repaymentTransaction =
-    nulltransaction
-        { Hledger.tpostings =
-            [ nullposting
-                { Hledger.paccount = "assets:cash:bank"
-                , Hledger.pamount = mixed [num (-100)]
-                }
-            , nullposting
-                { Hledger.paccount = "liabilities:loan:personal"
-                , Hledger.pamount = mixed [num 100]
-                }
-            ]
-        }
-
+-- Unclassified test transaction
 unclassifiedTransaction :: Hledger.Transaction
 unclassifiedTransaction =
     nulltransaction
@@ -524,42 +452,6 @@ tieTransaction =
         }
 
 -- classificationFor tests
-classificationExpense :: Assertion
-classificationExpense =
-    assertEqual "expense" TransactionExpense (classificationFor expenseTransaction)
-
-classificationIncome :: Assertion
-classificationIncome = assertEqual "income" TransactionIncome (classificationFor incomeTransaction)
-
-classificationTransfer :: Assertion
-classificationTransfer =
-    assertEqual "transfer" TransactionTransfer (classificationFor transferTransaction)
-
-classificationOpening :: Assertion
-classificationOpening = assertEqual "opening" OpeningBalance (classificationFor openingTransaction)
-
--- New classification type tests
-classificationAssetAcquisition :: Assertion
-classificationAssetAcquisition =
-    assertEqual "asset acquisition" AssetAcquisition (classificationFor assetAcquisitionTransaction)
-
-classificationAssetDisposal :: Assertion
-classificationAssetDisposal =
-    assertEqual "asset disposal" AssetDisposal (classificationFor assetDisposalTransaction)
-
-classificationAssetReallocation :: Assertion
-classificationAssetReallocation =
-    assertEqual
-        "asset reallocation"
-        AssetReallocation
-        (classificationFor assetReallocationTransaction)
-
-classificationBorrowing :: Assertion
-classificationBorrowing = assertEqual "borrowing" Borrowing (classificationFor borrowingTransaction)
-
-classificationRepayment :: Assertion
-classificationRepayment = assertEqual "repayment" Repayment (classificationFor repaymentTransaction)
-
 classificationUnclassified :: Assertion
 classificationUnclassified =
     assertEqual "unclassified" Unclassified (classificationFor unclassifiedTransaction)
@@ -876,3 +768,121 @@ dominantDropCreditsInvariant =
         tx <- forAll genGroupTransaction
         let onlyNonCredits = tx{Hledger.tpostings = filter (not . isCredit) tx.tpostings}
         dominantMovement onlyNonCredits === dominantMovement tx
+
+-- classificationFor laws
+
+-- | The classification that each intent's generated transaction must receive.
+intentClassification :: Intent -> TransactionClassification
+intentClassification intent = case intent of
+    ExpenseIntent -> TransactionExpense
+    IncomeIntent -> TransactionIncome
+    TransferIntent -> TransactionTransfer
+    OpeningIntent -> OpeningBalance
+    AcquisitionIntent -> AssetAcquisition
+    DisposalIntent -> AssetDisposal
+    ReallocationIntent -> AssetReallocation
+    BorrowingIntent -> Borrowing
+    RepaymentIntent -> Repayment
+
+intentRoundTrip :: Property
+intentRoundTrip =
+    property $ do
+        intent <- forAll (Gen.element [minBound .. maxBound])
+        tx <- forAll (genIntentTransaction intent)
+        classificationFor tx === intentClassification intent
+
+{- | Exercise both arbitrary group-shaped accounts and the curated per-intent
+recipes, so every classification branch is reachable.
+-}
+genClassificationTransaction :: Gen Hledger.Transaction
+genClassificationTransaction =
+    Gen.choice
+        [ genGroupTransaction
+        , genIntentTransaction =<< Gen.element [minBound .. maxBound]
+        ]
+
+isDebit :: Hledger.Posting -> Bool
+isDebit p = any ((> 0) . (.aquantity)) (amountsRaw p.pamount)
+
+-- | Postings with a negative quantity; mirrors the domain's internal creditsFor.
+creditPostings :: Hledger.Transaction -> [Hledger.Posting]
+creditPostings = filter isCredit . (.tpostings)
+
+-- | Postings with a positive quantity; mirrors the domain's internal debitsFor.
+debitPostings :: Hledger.Transaction -> [Hledger.Posting]
+debitPostings tx = filter isDebit tx.tpostings
+
+-- | Does any posting's inferred account satisfy the predicate?
+anyPostingAccount :: (AccountInfo -> Bool) -> [Hledger.Posting] -> Bool
+anyPostingAccount predicate = any (predicate . accountInfo . (.paccount))
+
+classificationStructuralPostconditions :: Property
+classificationStructuralPostconditions =
+    property $ do
+        tx <- forAll genClassificationTransaction
+        structuralLaws tx
+
+{- | The classification 'classificationFor' returns must satisfy every
+structural invariant implied by the branch that produced it.
+-}
+structuralLaws :: Hledger.Transaction -> PropertyT IO ()
+structuralLaws tx = do
+    let classification = classificationFor tx
+        (dominantGroup, dominantPct) = dominantMovement tx
+        credits = creditPostings tx
+        debits = debitPostings tx
+
+    footnote "isOpening implies OpeningBalance"
+    when (isOpening tx) (classification === OpeningBalance)
+
+    footnote "AssetAcquisition implies a cash credit and an asset debit"
+    when (classification == AssetAcquisition) $ do
+        assert (anyPostingAccount isCashOnly credits)
+        assert (anyPostingAccount isAssetOnly debits)
+
+    footnote "AssetDisposal implies an asset credit and a cash debit"
+    when (classification == AssetDisposal) $ do
+        assert (anyPostingAccount isAssetOnly credits)
+        assert (anyPostingAccount isCashOnly debits)
+
+    footnote "AssetReallocation implies asset credits and asset debits"
+    when (classification == AssetReallocation) $ do
+        assert (anyPostingAccount isAssetOnly credits)
+        assert (anyPostingAccount isAssetOnly debits)
+
+    footnote "Borrowing implies a liability credit"
+    when (classification == Borrowing) (assert (anyPostingAccount isLiabilities credits))
+
+    footnote "Repayment implies a liability-dominant debit and a liability debit"
+    when (classification == Repayment) $ do
+        dominantGroup === "liabilities"
+        assert (anyPostingAccount isLiabilities debits)
+
+    footnote "TransactionExpense implies an expense-dominant debit"
+    when (classification == TransactionExpense) (dominantGroup === "expenses")
+
+    footnote "TransactionIncome implies an asset-dominant debit and a revenue credit"
+    when (classification == TransactionIncome) $ do
+        dominantGroup === "assets"
+        assert (anyPostingAccount isRevenue credits)
+
+    footnote "below the threshold and not opening implies Unclassified"
+    when (not (isOpening tx) && dominantPct < 0.8) (classification === Unclassified)
+
+postingOrderIndependence :: Property
+postingOrderIndependence =
+    property $ do
+        tx <- forAll genGroupTransaction
+        shuffled <- forAll (Gen.shuffle tx.tpostings)
+        let reordered = tx{Hledger.tpostings = shuffled}
+        classificationFor reordered === classificationFor tx
+        dominantMovement reordered === dominantMovement tx
+
+classificationTotality :: Property
+classificationTotality =
+    property $ do
+        tx <- forAll genTransaction
+        let classification = classificationFor tx
+            movement = dominantMovement tx
+        classification === classification
+        assert (0 <= snd movement && snd movement <= 1)

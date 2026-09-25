@@ -2,9 +2,11 @@ module Hedger.Application.TransactionQuerySpec (
     transactionQuerySpec,
 ) where
 
+import Data.List qualified as List
+import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
 import Data.Time (fromGregorian)
-import Hedgehog (Property, forAll, property, (===))
+import Hedgehog (Gen, Property, assert, failure, footnote, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
@@ -14,16 +16,19 @@ import Test.Tasty.Hedgehog (testProperty)
 import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
+import Hledger.Query qualified as HledgerQuery
 
 import Hedger.Application.TransactionQuery (
     TransactionPage (..),
     TransactionPageRequest (..),
+    parseHledgerQuery,
     transactionPage,
  )
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Internal.Transaction (newestFirst)
+import Hedger.Domain.Period (epoch)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Generators (genTransactions)
+import Hedger.Generators (genSnapshot, genTransactions)
 import Hedger.SyntheticTransactions (mkSnapshot)
 
 transactionQuerySpec :: TestTree
@@ -37,6 +42,18 @@ transactionQuerySpec =
         , testCase
             "binds cursors to query, revision, ordering, and relative-date reference"
             bindsCursorsCorrectly
+        , testGroup
+            "hledger query filter containment"
+            [ testProperty
+                "a parsed query selects a subset of the unfiltered view"
+                queryFilterContainmentProperty
+            , testProperty
+                "the empty query is the full view"
+                emptyQueryIsFullViewProperty
+            , testProperty
+                "an over-long query is rejected"
+                overLongQueryRejectedProperty
+            ]
         ]
 
 matchesPayeeAndNote :: IO ()
@@ -160,6 +177,122 @@ collectPages snapshot limit cursor = do
 isInvalidCursor :: Either AppError value -> Bool
 isInvalidCursor (Left (InvalidCursor _)) = True
 isInvalidCursor _ = False
+
+{- | An account term drawn from the generated ledger's vocabulary. Every term
+is a valid hledger @acct:@ query, optionally negated with @not:@.
+-}
+genAccountQueryTerm :: Gen Text.Text
+genAccountQueryTerm = do
+    negated <- Gen.bool
+    account <- Gen.element accountQueryVocabulary
+    pure (if negated then "not:" <> account else account)
+
+accountQueryVocabulary :: [Text.Text]
+accountQueryVocabulary =
+    [ "acct:assets"
+    , "acct:income"
+    , "acct:expenses"
+    , "acct:liabilities"
+    , "acct:equity"
+    , "acct:investments"
+    , "acct:cash"
+    , "acct:investments:stock"
+    ]
+
+{- | Either one account term, or two of them conjoined with @and@. hledger's
+top-level query parser only understands boolean operators inside an
+@expr:@ argument, and the whitespace-separated expression must be quoted so
+it survives the top-level word split.
+-}
+genAccountQueryExpression :: Gen Text.Text
+genAccountQueryExpression = do
+    first <- genAccountQueryTerm
+    combined <- Gen.bool
+    if combined
+        then do
+            second <- genAccountQueryTerm
+            pure ("expr:\"(" <> first <> " and " <> second <> ")\"")
+        else pure first
+
+{- | A parsed query's matches are drawn from the unfiltered transaction view:
+the filtered page is no larger than the full one, every transaction in it is
+one of the full view's transactions, and each transaction satisfies the parsed
+query.
+-}
+queryFilterContainmentProperty :: Property
+queryFilterContainmentProperty = property $ do
+    snapshot <- forAll genSnapshot
+    rawQuery <- forAll genAccountQueryExpression
+    let reference = fromMaybe epoch snapshot.latestJournalDate
+    parsedQuery <- case parseHledgerQuery reference rawQuery of
+        Left parseError -> do
+            footnote ("generated query: " <> show rawQuery)
+            footnote ("parse error: " <> show parseError)
+            failure
+        Right parsed -> pure parsed
+    full <- unwrapPage (pageFor snapshot Nothing)
+    filtered <- unwrapPage (pageFor snapshot (Just rawQuery))
+    footnote ("generated query: " <> show rawQuery)
+    footnote ("unfiltered transaction count: " <> show (length full))
+    footnote ("filtered transaction count: " <> show (length filtered))
+    assert (length filtered <= length full)
+    assert (all (`List.elem` full) filtered)
+    assert (all (HledgerQuery.matchesTransaction parsedQuery) filtered)
+  where
+    pageFor snapshot queryText =
+        fmap (.transactions) $
+            transactionPage
+                snapshot
+                TransactionPageRequest{query = queryText, limit = fullViewLimit, cursor = Nothing}
+
+    unwrapPage pageResult = case pageResult of
+        Left pageError -> do
+            footnote ("page error: " <> show pageError)
+            failure
+        Right transactions -> pure transactions
+
+{- | The empty query is hledger's @Any@ and returns every transaction in the
+snapshot, ignoring order.
+-}
+emptyQueryIsFullViewProperty :: Property
+emptyQueryIsFullViewProperty = property $ do
+    snapshot <- forAll genSnapshot
+    let reference = fromMaybe epoch snapshot.latestJournalDate
+    parseHledgerQuery reference "" === Right HledgerQuery.Any
+    page <-
+        unwrapPage $
+            transactionPage
+                snapshot
+                TransactionPageRequest{query = Just "", limit = fullViewLimit, cursor = Nothing}
+    length page.transactions === length snapshot.transactions
+    assert (isSameTransactionBag page.transactions snapshot.transactions)
+  where
+    unwrapPage pageResult = case pageResult of
+        Left pageError -> do
+            footnote ("page error: " <> show pageError)
+            failure
+        Right page -> pure page
+
+{- | A query longer than the domain limit is rejected before hledger ever sees
+it, regardless of its contents.
+-}
+overLongQueryRejectedProperty :: Property
+overLongQueryRejectedProperty = property $ do
+    rawQuery <- forAll genOverLongQuery
+    parseHledgerQuery epoch rawQuery === Left (QueryTooLong 2048)
+
+genOverLongQuery :: Gen Text.Text
+genOverLongQuery = Text.pack <$> Gen.list (Range.linear 2049 4096) Gen.alphaNum
+
+-- | Multiset equality for transactions, which have 'Eq' but not 'Ord'.
+isSameTransactionBag :: [Hledger.Transaction] -> [Hledger.Transaction] -> Bool
+isSameTransactionBag left right =
+    length left == length right
+        && null (List.foldl' (flip List.delete) left right)
+
+-- | The page size used to request an unpaginated view of a generated snapshot.
+fullViewLimit :: Int
+fullViewLimit = 100000
 
 syntheticSnapshot :: Snapshot
 syntheticSnapshot =
