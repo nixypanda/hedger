@@ -8,6 +8,7 @@ import Data.Time (Day, addDays, fromGregorian, toGregorian)
 import Hedgehog (Gen, Property, assert, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
+import Numeric.Natural (Natural)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
@@ -52,7 +53,7 @@ periodSpec =
             ]
         , testGroup
             "takeLast"
-            [ testProperty "matches reverse . take (max 0 n) . reverse" takeLastMatchesReverseTake
+            [ testProperty "matches reverse . take n . reverse" takeLastMatchesReverseTake
             ]
         , testGroup
             "atIndex"
@@ -161,15 +162,15 @@ monthPeriodConsistent =
 genIntList :: Gen [Int]
 genIntList = Gen.list (Range.linear 0 50) (Gen.integral (Range.linearFrom 0 (-1000) 1000))
 
-genTakeCount :: Gen Int
-genTakeCount = Gen.integral (Range.linearFrom 0 (-10) 60)
+genTakeCount :: Gen Natural
+genTakeCount = Gen.integral (Range.linear 0 60)
 
 takeLastMatchesReverseTake :: Property
 takeLastMatchesReverseTake =
     property $ do
         xs <- forAll genIntList
         n <- forAll genTakeCount
-        takeLast n xs === reverse (take (max 0 n) (reverse xs))
+        takeLast n xs === reverse (take (fromIntegral n) (reverse xs))
 
 -- atIndex
 atIndexInRange :: Property

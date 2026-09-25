@@ -33,6 +33,7 @@ module Hedger.Domain.Period (
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, fromGregorian, toGregorian)
+import Numeric.Natural (Natural)
 import Text.Read (readMaybe)
 
 import Hledger.Data.DayPartition qualified as HledgerDayPartition
@@ -172,8 +173,10 @@ pad2 value =
         then "0" <> show value
         else show value
 
-takeLast :: Int -> [value] -> [value]
-takeLast count values = drop (max 0 (length values - count)) values
+takeLast :: Natural -> [value] -> [value]
+takeLast count values =
+    let requested = fromIntegral count :: Int
+     in drop (length values - min requested (length values)) values
 
 maximumMaybe :: (Ord value) => [value] -> Maybe value
 maximumMaybe [] = Nothing
