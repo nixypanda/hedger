@@ -390,7 +390,6 @@ cashflowSkeleton theme viewport =
             [ Skeleton.inputBar theme
             , Skeleton.chipRow theme
             ]
-        , Typography.mutedBody theme "Loading transactions…"
         , Skeleton.chartCard theme
         , if isCompact then
             Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
