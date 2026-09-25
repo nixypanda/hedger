@@ -28,7 +28,7 @@ import Hedger.Domain.Internal.PeriodReport (
     reportTotals,
     selectedPeriod,
  )
-import Hedger.Domain.Period (Granularity, ReportPeriod (..))
+import Hedger.Domain.Period (Granularity, ReportPeriod, reportPeriodKey, reportPeriodStart)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion (..), conversionMissing, conversionValue)
 
@@ -80,7 +80,7 @@ computeCashflow
         expenseSide = reportSide snapshot.journal [Hledger.Expense] combinedReport
         reportPeriods = reportPeriodsFrom granularity combinedReport
         dataPeriods = periodsWithData granularity matched reportPeriods
-        dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
+        dataPeriodKeys = Set.fromList (fmap reportPeriodKey dataPeriods)
         incomeTotals = fmap (fmap negate) (reportTotals commodity incomeSide)
         expenseTotals = reportTotals commodity expenseSide
         missing = reportMissing commodity incomeSide <> reportMissing commodity expenseSide
@@ -103,7 +103,7 @@ computeCashflow
                         positivePeriod
                         reportPeriods
                         incomeSide
-                else (maybe "" (.key) positivePeriod, [])
+                else (maybe "" reportPeriodKey positivePeriod, [])
         expenseBreakdown =
             if available
                 then
@@ -113,15 +113,15 @@ computeCashflow
                         negativePeriod
                         reportPeriods
                         expenseSide
-                else (maybe "" (.key) negativePeriod, [])
+                else (maybe "" reportPeriodKey negativePeriod, [])
 
 cashflowPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
 cashflowPointFrom period incomeResult expenseResult =
     let income = fromMaybe 0 (conversionValue incomeResult)
         expenses = fromMaybe 0 (conversionValue expenseResult)
      in TimelinePoint
-            { period = period.key
-            , startDate = period.start
+            { period = reportPeriodKey period
+            , startDate = reportPeriodStart period
             , positive = income
             , negative = expenses
             , net = income - expenses

@@ -73,12 +73,14 @@ import Hedger.Domain.Investment (accountWithin)
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.Period (
     Granularity (..),
-    ReportPeriod (..),
     epoch,
     intervalFor,
     maximumMaybe,
     minimumMaybe,
     periodsFromDateSpan,
+    reportPeriodEnd,
+    reportPeriodKey,
+    reportPeriodStart,
     takeLast,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
@@ -1131,7 +1133,9 @@ childrenOf scope accounts =
 
 reportPeriods :: Granularity -> [Hledger.Transaction] -> Day -> [(Text, Day, Day)]
 reportPeriods granularity transactions latest =
-    [(period.key, period.start, min reportLastDay period.end) | period <- selectedPeriods]
+    [ (reportPeriodKey period, reportPeriodStart period, min reportLastDay (reportPeriodEnd period))
+    | period <- selectedPeriods
+    ]
   where
     first = fromMaybe latest (minimumMaybe (fmap (.tdate) transactions))
     reportPeriod = Hledger.PeriodBetween first (addDays 1 latest)

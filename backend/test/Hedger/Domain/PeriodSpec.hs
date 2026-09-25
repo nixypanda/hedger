@@ -12,7 +12,6 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
 import Hedger.Domain.Period (
-    ReportPeriod (..),
     atIndex,
     lastMaybe,
     maximumMaybe,
@@ -21,6 +20,9 @@ import Hedger.Domain.Period (
     monthPeriod,
     monthStart,
     parseYearMonth,
+    reportPeriodEnd,
+    reportPeriodKey,
+    reportPeriodStart,
     takeLast,
  )
 import Hedger.Generators (formatYearMonth, genDay, genMonth, genYear)
@@ -149,11 +151,10 @@ monthPeriodConsistent =
     property $ do
         day <- forAll genDay
         let period = monthPeriod day
-        period.start === monthStart day
-        assert (period.start <= period.end)
-        period.key === monthKey period.start
-        assert (period.start <= day && day <= period.end)
-        addDays 1 period.end === nextMonthFirstDay period.start
+        reportPeriodStart period === monthStart day
+        reportPeriodKey period === monthKey (reportPeriodStart period)
+        assert (reportPeriodStart period <= day && day <= reportPeriodEnd period)
+        addDays 1 (reportPeriodEnd period) === nextMonthFirstDay (reportPeriodStart period)
 
 -- takeLast
 genIntList :: Gen [Int]

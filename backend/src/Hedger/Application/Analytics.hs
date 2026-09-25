@@ -64,7 +64,7 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..), ReportPeriod (..), atIndex, epoch)
+import Hedger.Domain.Period (Granularity (..), atIndex, epoch, reportPeriodKey)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (ConversionWarning (..))
 
@@ -267,7 +267,7 @@ activity request = do
             , displayCommodity = commodity
             , kind = request.kind
             , range = request.range
-            , period = activityPeriod.key
+            , period = reportPeriodKey activityPeriod
             , fiscalYearStartMonth = fiscalStart
             , buckets = fmap toActivityBucket figures.buckets
             , warnings = conversionWarnings figures.missing

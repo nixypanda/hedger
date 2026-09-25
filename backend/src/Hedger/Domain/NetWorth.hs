@@ -34,7 +34,13 @@ import Hedger.Domain.Internal.PeriodReport (
     selectedPeriod,
     wholeReport,
  )
-import Hedger.Domain.Period (Granularity, ReportPeriod (..), lastMaybe)
+import Hedger.Domain.Period (
+    Granularity,
+    ReportPeriod,
+    lastMaybe,
+    reportPeriodKey,
+    reportPeriodStart,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (
     Conversion (..),
@@ -91,7 +97,7 @@ computeNetWorth
             , performance = mapMaybe conversionValue performanceResults
             , incompletePeriods =
                 length (filter (not . Set.null . conversionMissing) performanceResults)
-            , selectedKey = (.key) <$> selectedPeriod positiveReq dataPeriods
+            , selectedKey = reportPeriodKey <$> selectedPeriod positiveReq dataPeriods
             , currentAssets = conversionValue assetsCurrent
             , currentLiabilities = conversionValue liabilitiesCurrent
             , currentNetWorth =
@@ -110,7 +116,7 @@ computeNetWorth
         gainSide = wholeReport (gainPeriodicReport snapshot matched granularity commodity)
         reportPeriods = reportPeriodsFrom granularity combinedReport
         dataPeriods = periodsWithData granularity matched reportPeriods
-        dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
+        dataPeriodKeys = Set.fromList (fmap reportPeriodKey dataPeriods)
         assetTotals = reportTotals commodity assetSide
         liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilitySide)
         allPoints = zipWith3 netWorthPointFrom reportPeriods assetTotals liabilityTotals
@@ -162,8 +168,8 @@ netWorthPointFrom period assetsResult liabilitiesResult =
     let assets = fromMaybe 0 (conversionValue assetsResult)
         liabilities = fromMaybe 0 (conversionValue liabilitiesResult)
      in TimelinePoint
-            { period = period.key
-            , startDate = period.start
+            { period = reportPeriodKey period
+            , startDate = reportPeriodStart period
             , positive = assets
             , negative = liabilities
             , net = assets - liabilities
@@ -194,8 +200,8 @@ performanceFrom commodity periods netWorthPoints assetResults liabilityResults g
                 gain <- conversionValue gainResult
                 pure
                     PerformancePoint
-                        { period = period.key
-                        , startDate = period.start
+                        { period = reportPeriodKey period
+                        , startDate = reportPeriodStart period
                         , netInvestment = worthPoint.net - gain
                         , netWorth = worthPoint.net
                         , gainLoss = gain

@@ -1,7 +1,10 @@
 module Hedger.Domain.Period (
     -- * Types
     Granularity (..),
-    ReportPeriod (..),
+    ReportPeriod,
+    reportPeriodKey,
+    reportPeriodStart,
+    reportPeriodEnd,
 
     -- * Calendar anchors and keys
     epoch,
@@ -44,6 +47,21 @@ data ReportPeriod = ReportPeriod
     , start :: Day
     , end :: Day
     }
+
+{- | Build a period whose interval is ordered: an end before the start is
+clamped up to the start, so @start <= end@ holds for every value.
+-}
+mkReportPeriod :: Text -> Day -> Day -> ReportPeriod
+mkReportPeriod key start end = ReportPeriod{key, start, end = max start end}
+
+reportPeriodKey :: ReportPeriod -> Text
+reportPeriodKey period = period.key
+
+reportPeriodStart :: ReportPeriod -> Day
+reportPeriodStart period = period.start
+
+reportPeriodEnd :: ReportPeriod -> Day
+reportPeriodEnd period = period.end
 
 -- | The reference date used when a journal contributes no dates of its own.
 epoch :: Day
@@ -92,8 +110,9 @@ periodContaining interval keyFor day =
     case HledgerDayPartition.splitSpan True interval enclosingSpan of
         Just partition ->
             let (start, end) = HledgerDayPartition.dayPartitionFind day partition
-             in ReportPeriod{key = keyFor (maybe day id start), start = maybe day id start, end}
-        Nothing -> ReportPeriod{key = keyFor day, start = day, end = day}
+                periodStart = maybe day id start
+             in mkReportPeriod (keyFor periodStart) periodStart end
+        Nothing -> mkReportPeriod (keyFor day) day day
   where
     enclosingSpan =
         Hledger.DateSpan (Just (Hledger.Exact day)) (Just (Hledger.Exact (addDays 1 day)))
@@ -104,16 +123,14 @@ intervalFor Yearly = Hledger.Years 1
 
 reportPeriod :: Granularity -> Day -> Day -> ReportPeriod
 reportPeriod granularity start end =
-    ReportPeriod
-        { key =
-            case granularity of
-                Monthly -> monthKey start
-                Yearly ->
-                    let (year, _, _) = toGregorian start
-                     in Text.pack (show year)
-        , start
-        , end
-        }
+    mkReportPeriod keyValue start end
+  where
+    keyValue =
+        case granularity of
+            Monthly -> monthKey start
+            Yearly ->
+                let (year, _, _) = toGregorian start
+                 in Text.pack (show year)
 
 parseYearMonth :: Text -> Maybe (Integer, Int)
 parseYearMonth raw =

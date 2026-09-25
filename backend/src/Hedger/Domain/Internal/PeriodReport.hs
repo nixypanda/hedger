@@ -39,13 +39,16 @@ import Hledger.Reports.ReportTypes qualified as HledgerReportTypes
 import Hedger.Domain.Account (atDepth)
 import Hedger.Domain.Period (
     Granularity (..),
-    ReportPeriod (..),
+    ReportPeriod,
     atIndex,
     epoch,
     lastMaybe,
     monthKey,
     periodsFromDateSpan,
     periodsFromReport,
+    reportPeriodEnd,
+    reportPeriodKey,
+    reportPeriodStart,
     takeLast,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
@@ -205,7 +208,9 @@ reportWindow granularity journal reportSpec =
         [] -> (Hledger.PeriodAll, interval)
         first : rest ->
             let final = fromMaybe first (lastMaybe rest)
-             in (Hledger.PeriodBetween first.start (addDays 1 final.end), interval)
+                windowStart = reportPeriodStart first
+                windowEnd = addDays 1 (reportPeriodEnd final)
+             in (Hledger.PeriodBetween windowStart windowEnd, interval)
   where
     interval =
         case granularity of
@@ -225,7 +230,7 @@ periodsWithData granularity transactions periods =
     case granularity of
         Monthly ->
             let dataMonths = Set.fromList (fmap (monthKey . (.tdate)) transactions)
-             in filter ((`Set.member` dataMonths) . (.key)) periods
+             in filter ((`Set.member` dataMonths) . reportPeriodKey) periods
         Yearly -> periods
 
 reportTotals :: Text -> ReportSide -> [Conversion Decimal]
@@ -240,7 +245,7 @@ reportMissing commodity side =
 
 selectedPeriod :: Maybe Text -> [ReportPeriod] -> Maybe ReportPeriod
 selectedPeriod requested periods =
-    case requested >>= (\key -> List.find ((== key) . (.key)) periods) of
+    case requested >>= (\key -> List.find ((== key) . reportPeriodKey) periods) of
         Just period -> Just period
         Nothing -> lastMaybe periods
 
@@ -253,7 +258,10 @@ breakdownItemsFor commodity depth selected periods side =
     case selected of
         Nothing -> ("", [])
         Just period ->
-            let periodIndex = fromMaybe 0 (List.findIndex ((== period.key) . (.key)) periods)
+            let periodIndex =
+                    fromMaybe
+                        0
+                        (List.findIndex ((== reportPeriodKey period) . reportPeriodKey) periods)
                 raw =
                     mapMaybe
                         ( \row -> do
@@ -280,4 +288,4 @@ breakdownItemsFor commodity depth selected periods side =
                                 ]
                             )
                     ]
-             in (period.key, depthGrouped)
+             in (reportPeriodKey period, depthGrouped)

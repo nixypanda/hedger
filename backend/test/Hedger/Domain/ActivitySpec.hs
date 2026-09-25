@@ -33,7 +33,13 @@ import Hedger.Domain.Activity (
     computeActivity,
     parseActivityPeriod,
  )
-import Hedger.Domain.Period (ReportPeriod (..), monthKey)
+import Hedger.Domain.Period (
+    ReportPeriod,
+    monthKey,
+    reportPeriodEnd,
+    reportPeriodKey,
+    reportPeriodStart,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Generators (displayCommodity, formatYearMonth, genMonth, genSnapshot, genYear)
 import Hedger.SyntheticTransactions (mkSnapshot)
@@ -196,10 +202,9 @@ monthActivityValid =
         case parseActivityPeriod fiscalStart MonthActivity raw of
             Left err -> footnote (show err) >> failure
             Right period -> do
-                period.start === expectedStart
-                assert (period.start <= period.end)
-                period.key === monthKey period.start
-                addDays 1 period.end === addGregorianMonthsClip 1 expectedStart
+                reportPeriodStart period === expectedStart
+                reportPeriodKey period === monthKey (reportPeriodStart period)
+                addDays 1 (reportPeriodEnd period) === addGregorianMonthsClip 1 expectedStart
 
 genMalformedYearMonth :: Gen Text
 genMalformedYearMonth = Gen.choice [genUnpaddedMonth, genOutOfRangeMonth, genWrongComponentCount]
@@ -239,8 +244,8 @@ fiscalYearValid =
         case parseActivityPeriod fiscalStart FiscalYearActivity raw of
             Left err -> footnote (show err) >> failure
             Right period -> do
-                assert (period.start <= period.end)
-                addGregorianMonthsClip 12 period.start === addDays 1 period.end
+                addGregorianMonthsClip 12 (reportPeriodStart period)
+                    === addDays 1 (reportPeriodEnd period)
 
 fiscalYearMismatch :: Property
 fiscalYearMismatch =

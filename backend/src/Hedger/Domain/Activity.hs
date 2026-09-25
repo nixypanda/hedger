@@ -15,7 +15,6 @@ module Hedger.Domain.Activity (
 ) where
 
 import Data.Decimal (Decimal)
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
@@ -32,13 +31,15 @@ import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Internal.PeriodReport (BreakdownItem (..))
 import Hedger.Domain.Period (
-    ReportPeriod (..),
+    ReportPeriod,
     dayKey,
     epoch,
     fiscalYearPeriod,
     monthKey,
     monthPeriod,
     parseYearMonth,
+    reportPeriodEnd,
+    reportPeriodStart,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Transaction qualified as Transaction
@@ -110,7 +111,8 @@ computeActivity snapshot filtered commodity activityKind activityRange depth act
     inRange =
         filter
             ( \transaction ->
-                transaction.tdate >= activityPeriod.start && transaction.tdate <= activityPeriod.end
+                transaction.tdate >= reportPeriodStart activityPeriod
+                    && transaction.tdate <= reportPeriodEnd activityPeriod
             )
             filtered
     results = fmap (activityContribution snapshot commodity activityKind) inRange
