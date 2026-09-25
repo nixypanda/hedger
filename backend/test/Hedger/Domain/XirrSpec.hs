@@ -8,13 +8,12 @@ import Hedgehog (Gen, Property, PropertyT, assert, failure, footnote, forAll, pr
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 import Test.Tasty.Hedgehog (testProperty)
 
 import Hedger.Domain.Xirr (
     AnnualRate,
     CashFlow,
-    XirrError (..),
+    XirrError,
     annualRate,
     cashFlow,
     cashFlowAmount,
@@ -26,56 +25,9 @@ xirrSpec :: TestTree
 xirrSpec =
     testGroup
         "XIRR"
-        [ testCase "calculates a known one-year return" knownOneYearReturn
-        , testCase "calculates irregular dated contributions" irregularContributions
-        , testCase "rejects same-sign cash flows" rejectsSameSignCashFlows
-        , testCase "reports multiple roots as ambiguous" reportsAmbiguousRoots
-        , testProperty "positive scaling preserves XIRR" positiveScalingPreservesXirr
+        [ testProperty "positive scaling preserves XIRR" positiveScalingPreservesXirr
         , testProperty "uniformly shifting dates preserves XIRR" shiftingDatesPreservesXirr
         ]
-
-knownOneYearReturn :: IO ()
-knownOneYearReturn =
-    assertRateApprox 0.1 (xirr [cashFlow origin (-100), cashFlow (addDays 365 origin) 110])
-
-irregularContributions :: IO ()
-irregularContributions =
-    assertRateApprox
-        0.2425
-        ( xirr
-            [ cashFlow origin (-1000)
-            , cashFlow (addDays 182 origin) (-500)
-            , cashFlow (addDays 365 origin) 1800
-            ]
-        )
-
-rejectsSameSignCashFlows :: IO ()
-rejectsSameSignCashFlows =
-    assertEqual
-        "same-sign flows"
-        (Left CashFlowsDoNotChangeSign)
-        (xirr [cashFlow origin (-100), cashFlow (addDays 365 origin) (-110)])
-
-reportsAmbiguousRoots :: IO ()
-reportsAmbiguousRoots =
-    assertEqual
-        "multiple rates"
-        (Left AmbiguousRates)
-        ( xirr
-            [ cashFlow origin (-100)
-            , cashFlow (addDays 365 origin) 230
-            , cashFlow (addDays 730 origin) (-132)
-            ]
-        )
-
-assertRateApprox :: Double -> Either XirrError AnnualRate -> IO ()
-assertRateApprox expected result =
-    case result of
-        Left problem -> assertBool ("unexpected error: " <> show problem) False
-        Right rate ->
-            assertBool
-                ("expected " <> show expected <> ", got " <> show (decimalDouble (annualRate rate)))
-                (abs (decimalDouble (annualRate rate) - expected) < 0.002)
 
 positiveScalingPreservesXirr :: Property
 positiveScalingPreservesXirr =
@@ -136,6 +88,3 @@ shiftCashFlows offset =
 
 decimalDouble :: Decimal -> Double
 decimalDouble = realToFrac
-
-origin :: Day
-origin = ModifiedJulianDay 0

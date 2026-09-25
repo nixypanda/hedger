@@ -25,9 +25,9 @@ import Hedger.Application.TransactionQuery (
     transactionPage,
  )
 import Hedger.Domain.Error (AppError (..))
-import Hedger.Domain.Internal.Transaction (newestFirst)
 import Hedger.Domain.Period (epoch)
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Transaction (newestFirst)
 import Hedger.Generators (genSnapshot, genTransactions)
 import Hedger.SyntheticTransactions (mkSnapshot)
 

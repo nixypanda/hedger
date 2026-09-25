@@ -25,7 +25,6 @@ import Network.Wai.Test (
 import Test.Tasty.HUnit (assertBool)
 
 import Hedger.Config (Config (..))
-import Hedger.Domain.Internal.PeriodReport (BreakdownItem (..))
 import Hedger.Domain.Investment (
     AssetClass (Equity),
     AssetClassMapping (..),
@@ -34,6 +33,7 @@ import Hedger.Domain.Investment (
     emptyInvestmentMappings,
     mkAssetClassMappings,
  )
+import Hedger.Domain.NetWorth (BreakdownItem (..))
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 
 configuration :: Config

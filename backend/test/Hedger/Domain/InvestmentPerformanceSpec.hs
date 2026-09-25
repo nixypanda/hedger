@@ -98,7 +98,6 @@ investmentsSpec =
             assetClassAllowlist
         , testCase "settled accounts have complete empty summaries" settledAccount
         , testCase "monthly periods include months without transactions" contiguousMonthlyPeriods
-        , scopeScanRegressionTests
         , investmentSummaryInvariantsTests
         , generatedBulkEquivalenceTests
         ]
@@ -459,10 +458,9 @@ edgeCaseAssetClasses =
         Left _ -> emptyAssetClassMappings
         Right value -> value
 
-{- | (label, journal path, asset classes, investment mappings, scopes to check).
-Shared by 'scopeScanRegressionTests':
-every fixture is checked at scope = Nothing plus at least one narrower scope,
-across both granularities' 'reportPeriods' cutoff days.
+{- | (label, journal path, asset classes, investment mappings, scopes to check):
+every fixture is checked at scope = Nothing plus at least one narrower scope.
+Sampled by the investment summary invariants property.
 -}
 scopeScanFixtures ::
     [(String, Text.Text, AssetClassMappings, InvestmentMappings, [Maybe Text.Text])]
@@ -583,54 +581,6 @@ mappingsOrEmpty mappings =
     case mkInvestmentMappings mappings of
         Left _ -> emptyInvestmentMappings
         Right value -> value
-
-fixtureDays :: Snapshot -> AssetClassMappings -> Maybe Text.Text -> Granularity -> [Day]
-fixtureDays snapshot assetClasses scope granularity =
-    List.nub [end | (_, _, end) <- reportPeriods granularity transactions latest]
-  where
-    latest = fromMaybe (error "fixture has no journal date") snapshot.latestJournalDate
-    transactions = investmentDataTransactions snapshot assetClasses scope
-
-{- | 'scopeScansAt' must agree, field by field, with the four independent
-per-day functions it replaces inside 'summaryFromHoldings'. 'cashFlows' is
-compared as a multiset (sorted by date then amount): the sweep emits cash
-flows in date order rather than 'externalCashFlowsAtWith''s file order, which
-is an intentional, harmless difference (see 'scopeScansAt').
--}
-scopeScanRegressionTests :: TestTree
-scopeScanRegressionTests =
-    testGroup
-        "scopeScansAt agrees with the per-day scope functions"
-        (concatMap fixtureCases scopeScanFixtures)
-  where
-    fixtureCases (label, path, assetClasses, mappings, scopes) =
-        [ testCase
-            (label <> " " <> show granularity <> " scope=" <> show scope)
-            (assertScopeScanMatches path assetClasses mappings scope granularity)
-        | granularity <- [Monthly, Yearly]
-        , scope <- scopes
-        ]
-
-assertScopeScanMatches ::
-    Text.Text ->
-    AssetClassMappings ->
-    InvestmentMappings ->
-    Maybe Text.Text ->
-    Granularity ->
-    IO ()
-assertScopeScanMatches path assetClasses mappings scope granularity = do
-    snapshotResult <- loadSnapshot path
-    case snapshotResult of
-        Left loadError -> assertFailure (show loadError)
-        Right snapshot -> do
-            let days = fixtureDays snapshot assetClasses scope granularity
-                context = prepareInvestmentPerformance snapshot assetClasses mappings "INR"
-                scans = scopeScansAt context scope days
-            assertEqual "one ScopeScan per requested day" (length days) (length scans)
-            sequence_
-                [ assertScopeScanMatchesDay context snapshot mappings scope day scan
-                | (day, scan) <- zip days scans
-                ]
 
 assertScopeScanMatchesDay ::
     InvestmentPerformanceContext ->

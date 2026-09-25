@@ -6,6 +6,7 @@ import Test.Tasty (defaultMain, testGroup)
 
 import Hedger.Application.AppMSpec (appMSpec)
 import Hedger.Application.EventsSpec (eventsSpec)
+import Hedger.Application.Internal.CursorSpec (cursorSpec)
 import Hedger.Application.TransactionQuerySpec (transactionQuerySpec)
 import Hedger.ConfigSpec (configSpec)
 import Hedger.Domain.AccountSpec (accountSpec)
@@ -14,12 +15,10 @@ import Hedger.Domain.CashflowSpec (cashflowSpec)
 import Hedger.Domain.InvestmentPerformanceSpec (investmentsSpec)
 import Hedger.Domain.InvestmentSpec (investmentSpec)
 import Hedger.Domain.NetWorthSpec (netWorthSpec)
-import Hedger.Domain.PeriodReportSpec (periodReportSpec)
 import Hedger.Domain.PeriodSpec (periodSpec)
 import Hedger.Domain.TransactionSpec (transactionSpec)
 import Hedger.Domain.ValuationSpec (valuationSpec)
 import Hedger.Domain.XirrSpec (xirrSpec)
-import Hedger.Infrastructure.Internal.CursorSpec (cursorSpec)
 import Hedger.Infrastructure.JournalWatcherSpec (journalWatcherSpec)
 import Hedger.Infrastructure.SnapshotStoreSpec (snapshotStoreSpec)
 import Hedger.Interface.HTTP.APISpec (apiSpec)
@@ -37,7 +36,6 @@ main =
             , investmentsSpec
             , investmentSpec
             , netWorthSpec
-            , periodReportSpec
             , activitySpec
             , cashflowSpec
             , snapshotStoreSpec

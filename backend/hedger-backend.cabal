@@ -143,14 +143,13 @@ test-suite hedger-backend-test
     Hedger.Domain.InvestmentPerformanceSpec
     Hedger.Domain.InvestmentSpec
     Hedger.Domain.NetWorthSpec
-    Hedger.Domain.PeriodReportSpec
     Hedger.ConfigSpec
     Hedger.Domain.PeriodSpec
     Hedger.Domain.TransactionSpec
     Hedger.Domain.ValuationSpec
     Hedger.Domain.XirrSpec
     Hedger.Generators
-    Hedger.Infrastructure.Internal.CursorSpec
+    Hedger.Application.Internal.CursorSpec
     Hedger.Infrastructure.JournalWatcherSpec
     Hedger.Infrastructure.SnapshotStoreSpec
     Hedger.Interface.HTTP.APISpec
