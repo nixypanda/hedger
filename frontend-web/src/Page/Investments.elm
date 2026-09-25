@@ -654,6 +654,7 @@ investmentMasterDetail layout theme commodity chartWidth selectedMode selected r
             [ Element.el
                 [ Element.width (Element.px Tokens.investmentNavigatorWidth)
                 , Element.alignTop
+                , Element.height Element.fill
                 ]
                 navigator
             , Element.el [ Element.width Element.fill, Element.alignTop ] history
@@ -954,6 +955,7 @@ investmentNavigator :
 investmentNavigator theme commodity breadcrumbs children =
     Ui.cardWith
         [ Element.width Element.fill
+        , Element.height Element.fill
         , Region.navigation
         , Element.htmlAttribute (Attr.attribute "aria-label" "Investment account navigator")
         ]
