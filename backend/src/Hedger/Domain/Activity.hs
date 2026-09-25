@@ -15,6 +15,8 @@ module Hedger.Domain.Activity (
 ) where
 
 import Data.Decimal (Decimal)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set (Set)
@@ -40,7 +42,14 @@ import Hedger.Domain.Period (
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Transaction qualified as Transaction
-import Hedger.Domain.Valuation (Conversion (..), completeNothing, convertMixedAt, foldMapConversion)
+import Hedger.Domain.Valuation (
+    Conversion (..),
+    conversionMissing,
+    conversionValue,
+    convertMixedAt,
+    foldMapConversion,
+    notApplicable,
+ )
 
 data ActivityKind
     = IncomeActivity
@@ -95,7 +104,7 @@ computeActivity ::
 computeActivity snapshot filtered commodity activityKind activityRange depth activityPeriod =
     ActivityFigures
         { buckets = fmap (toBucketFigures depth activityRange) (Map.toAscList bucketed)
-        , missing = Set.unions (fmap (.missing) results)
+        , missing = Set.unions (fmap conversionMissing results)
         }
   where
     inRange =
@@ -105,7 +114,7 @@ computeActivity snapshot filtered commodity activityKind activityRange depth act
             )
             filtered
     results = fmap (activityContribution snapshot commodity activityKind) inRange
-    contributions = mapMaybe (.value) results
+    contributions = mapMaybe conversionValue results
     bucketed =
         Map.fromListWith
             (<>)
@@ -201,14 +210,14 @@ activityContribution snapshot commodity activityKind transaction =
                     assetActivity snapshot commodity classification transaction
                 Transaction.AssetReallocation ->
                     assetActivity snapshot commodity classification transaction
-                _ -> completeNothing
+                _ -> notApplicable
         LiabilityActivity ->
             case classification of
                 Transaction.Borrowing ->
                     liabilityActivity snapshot commodity classification transaction
                 Transaction.Repayment ->
                     liabilityActivity snapshot commodity classification transaction
-                _ -> completeNothing
+                _ -> notApplicable
   where
     classification = Transaction.classificationFor transaction
 
@@ -222,7 +231,7 @@ flowActivity ::
 flowActivity snapshot commodity category change transaction =
     let movementsResult = categoryPostingMovements snapshot commodity category transaction change
         contribution = do
-            movements <- movementsResult.value
+            movements <- conversionValue movementsResult
             let total = sum (fmap (.quantity) movements)
             if abs total < 0.000001
                 then Nothing
@@ -238,13 +247,9 @@ flowActivity snapshot commodity category change transaction =
                             , categories = movements
                             , transaction
                             }
-     in Conversion
-            { value =
-                if Set.null movementsResult.missing
-                    then contribution
-                    else Nothing
-            , missing = movementsResult.missing
-            }
+     in case NonEmpty.nonEmpty (Set.toList (conversionMissing movementsResult)) of
+            Just unconverted -> Unconverted unconverted
+            Nothing -> maybe NotApplicable Converted contribution
 
 assetActivity ::
     Snapshot ->
@@ -260,8 +265,8 @@ assetActivity snapshot commodity classification transaction =
             | posting <- transaction.tpostings
             , belongsTo "assets" posting
             ]
-        missing = Set.unions (fmap (.missing) results)
-        postings = mapMaybe (.value) results
+        missing = Set.unions (fmap conversionMissing results)
+        postings = mapMaybe conversionValue results
         cash posting =
             Account.isCashOnly (Account.accountInfo posting.paccount)
                 || inferredCashName posting.paccount
@@ -282,22 +287,23 @@ assetActivity snapshot commodity classification transaction =
             , abs amount >= 0.000001
             ]
         relevant = acquired > 0 || disposed > 0 || realloc > 0
-        result =
-            if relevant && Set.null missing
-                then
-                    Just
-                        ActivityContribution
-                            { date = transaction.tdate
-                            , total = acquired + disposed + realloc
-                            , increase = acquired
-                            , decrease = disposed
-                            , reallocated = realloc
-                            , direction = directionFor classification
-                            , categories = categoryValues
-                            , transaction
-                            }
-                else Nothing
-     in Conversion{value = result, missing}
+     in case NonEmpty.nonEmpty (Set.toList missing) of
+            Just unconverted -> Unconverted unconverted
+            Nothing ->
+                if relevant
+                    then
+                        Converted
+                            ActivityContribution
+                                { date = transaction.tdate
+                                , total = acquired + disposed + realloc
+                                , increase = acquired
+                                , decrease = disposed
+                                , reallocated = realloc
+                                , direction = directionFor classification
+                                , categories = categoryValues
+                                , transaction
+                                }
+                    else NotApplicable
 
 liabilityActivity ::
     Snapshot ->
@@ -313,8 +319,8 @@ liabilityActivity snapshot commodity classification transaction =
             | posting <- transaction.tpostings
             , belongsTo "liabilities" posting
             ]
-        missing = Set.unions (fmap (.missing) results)
-        movements = mapMaybe (.value) results
+        missing = Set.unions (fmap conversionMissing results)
+        movements = mapMaybe conversionValue results
         borrowed =
             if classification == Transaction.Borrowing
                 then sum [abs movement.quantity | movement <- movements, movement.quantity < 0]
@@ -324,22 +330,23 @@ liabilityActivity snapshot commodity classification transaction =
                 then sum [movement.quantity | movement <- movements, movement.quantity > 0]
                 else 0
         relevant = borrowed > 0 || repaid > 0
-        result =
-            if relevant && Set.null missing
-                then
-                    Just
-                        ActivityContribution
-                            { date = transaction.tdate
-                            , total = borrowed + repaid
-                            , increase = borrowed
-                            , decrease = repaid
-                            , reallocated = 0
-                            , direction = directionFor classification
-                            , categories = fmap absoluteMovement movements
-                            , transaction
-                            }
-                else Nothing
-     in Conversion{value = result, missing}
+     in case NonEmpty.nonEmpty (Set.toList missing) of
+            Just unconverted -> Unconverted unconverted
+            Nothing ->
+                if relevant
+                    then
+                        Converted
+                            ActivityContribution
+                                { date = transaction.tdate
+                                , total = borrowed + repaid
+                                , increase = borrowed
+                                , decrease = repaid
+                                , reallocated = 0
+                                , direction = directionFor classification
+                                , categories = fmap absoluteMovement movements
+                                , transaction
+                                }
+                    else NotApplicable
 
 inferredCashName :: Text -> Bool
 inferredCashName account =

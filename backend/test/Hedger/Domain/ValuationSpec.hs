@@ -3,8 +3,10 @@ module Hedger.Domain.ValuationSpec (
 ) where
 
 import Data.Decimal (Decimal)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Maybe (isJust, mapMaybe)
 import Data.Set qualified as Set
+import Data.Text (Text)
 import Hedgehog (Gen, Property, assert, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
@@ -19,9 +21,10 @@ import Hedger.Domain.Valuation (
     Conversion (..),
     completeDecimal,
     conversionFromMixed,
+    conversionMissing,
+    conversionValue,
     foldMapConversion,
     missingCommodities,
-    requireComplete,
  )
 import Hedger.Generators (displayCommodity, genCommodity, genMixedAmount, genQuantity)
 
@@ -30,9 +33,6 @@ valuationSpec =
     testGroup
         "valuation"
         [ testGroup
-            "requireComplete"
-            [testProperty "nulls the value iff missing is non-empty" requireCompleteNullsValue]
-        , testGroup
             "conversionFromMixed"
             [ testProperty "missing is the set of foreign commodities" conversionFromMixedMissing
             , testProperty
@@ -62,31 +62,30 @@ genMixedAmountInDisplayCommodity = mixed <$> Gen.list (Range.linear 0 6) genAmou
         quantity <- genQuantity
         pure (num quantity){Hledger.acommodity = displayCommodity}
 
-{- | A 'Conversion' built directly from its fields, so both the 'Nothing' value branch and
-arbitrary (possibly empty, possibly overlapping) missing sets are exercised.
+{- | Generators for a non-empty commodity set and each 'Conversion' constructor,
+so every state and both the complete and incomplete branches are exercised.
 -}
-genConversion :: Gen (Conversion Decimal)
-genConversion = do
-    value <- Gen.maybe genQuantity
-    missing <- Set.fromList <$> Gen.list (Range.linear 0 4) genCommodity
-    pure Conversion{value, missing}
+genNonEmptyCommodities :: Gen (NonEmpty Text)
+genNonEmptyCommodities = do
+    first <- genCommodity
+    rest <- Gen.list (Range.linear 0 3) genCommodity
+    pure (first :| rest)
 
--- requireComplete
-requireCompleteNullsValue :: Property
-requireCompleteNullsValue =
-    property $ do
-        conversion <- forAll genConversion
-        let result = requireComplete conversion
-        if Set.null conversion.missing
-            then result.value === conversion.value
-            else result.value === Nothing
+genConversion :: Gen (Conversion Decimal)
+genConversion =
+    Gen.choice
+        [ Converted <$> genQuantity
+        , PartlyConverted <$> genQuantity <*> genNonEmptyCommodities
+        , Unconverted <$> genNonEmptyCommodities
+        , pure NotApplicable
+        ]
 
 -- conversionFromMixed
 conversionFromMixedMissing :: Property
 conversionFromMixedMissing =
     property $ do
         amount <- forAll genMixedAmount
-        let missing = (conversionFromMixed displayCommodity amount).missing
+        let missing = conversionMissing (conversionFromMixed displayCommodity amount)
             commodities = [item.acommodity | item <- amountsRaw amount]
         -- the display commodity is never reported missing
         assert (displayCommodity `Set.notMember` missing)
@@ -108,7 +107,7 @@ conversionFromMixedSumWhenComplete =
         amount <- forAll genMixedAmountInDisplayCommodity
         let conversion = conversionFromMixed displayCommodity amount
             expected = sum [item.aquantity | item <- amountsRaw amount]
-        conversion.value === Just (expected :: Decimal)
+        conversionValue conversion === Just (expected :: Decimal)
 
 {- | A foreign-commodity residual below the 1e-6 magnitude epsilon that
 'completeDecimal' and 'missingCommodities' ignore should not appear in
@@ -126,7 +125,7 @@ conversionFromMixedIgnoresDustResidual =
      in assertEqual
             "a sub-1e-6 foreign residual should not be reported as missing"
             Set.empty
-            conversion.missing
+            (conversionMissing conversion)
 
 -- foldMapConversion
 genConversions :: Gen [Conversion Decimal]
@@ -137,14 +136,14 @@ foldMapConversionMissing =
     property $ do
         conversions <- forAll genConversions
         let result = foldMapConversion conversions
-        result.missing === Set.unions (fmap (.missing) conversions)
+        conversionMissing result === Set.unions (fmap conversionMissing conversions)
 
 foldMapConversionValue :: Property
 foldMapConversionValue =
     property $ do
         conversions <- forAll genConversions
         let result = foldMapConversion conversions
-        result.value === Just (mapMaybe (.value) conversions)
+        conversionValue result === Just (mapMaybe conversionValue conversions)
 
 -- completeDecimal / missingCommodities
 completeDecimalConsistency :: Property

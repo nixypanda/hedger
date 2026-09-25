@@ -49,7 +49,12 @@ import Hedger.Domain.Period (
     takeLast,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..), conversionFromMixed, missingCommodities)
+import Hedger.Domain.Valuation (
+    Conversion (..),
+    conversionFromMixed,
+    conversionValue,
+    missingCommodities,
+ )
 
 data TimelinePoint = TimelinePoint
     { period :: Text
@@ -253,7 +258,7 @@ breakdownItemsFor commodity depth selected periods side =
                     mapMaybe
                         ( \row -> do
                             amount <- atIndex periodIndex row.prrAmounts
-                            quantity <- (conversionFromMixed commodity amount).value
+                            quantity <- conversionValue (conversionFromMixed commodity amount)
                             if abs quantity < 0.000001
                                 then Nothing
                                 else

@@ -7,13 +7,17 @@ module Hedger.Domain.Valuation (
     requireComplete,
     foldMapConversion,
     complete,
-    completeNothing,
+    notApplicable,
+    conversionValue,
+    conversionMissing,
     completeDecimal,
     missingCommodities,
     ConversionWarning (..),
 ) where
 
 import Data.Decimal (Decimal)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -26,18 +30,44 @@ import Hledger.Data.Types qualified as Hledger
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Snapshot (Snapshot (..))
 
-{- | A value projected into the display commodity together with the set of
-commodities that could not be converted (because a dated price was missing).
+{- | The outcome of projecting an amount into the display commodity.
+
+'Converted' and 'PartlyConverted' carry a value; 'Unconverted' and
+'NotApplicable' carry none. Only the constructors that recorded unconvertible
+commodities carry a non-empty missing set, so "carries a value together with an
+empty missing set" is a complete conversion by construction.
 -}
-data Conversion value = Conversion
-    { value :: Maybe value
-    , missing :: Set Text
-    }
+data Conversion value
+    = Converted value
+    | PartlyConverted value (NonEmpty Text)
+    | Unconverted (NonEmpty Text)
+    | NotApplicable
     deriving stock (Show)
 
 instance Functor Conversion where
-    fmap change conversion =
-        Conversion{value = fmap change conversion.value, missing = conversion.missing}
+    fmap change = \case
+        Converted value -> Converted (change value)
+        PartlyConverted value missing -> PartlyConverted (change value) missing
+        Unconverted missing -> Unconverted missing
+        NotApplicable -> NotApplicable
+
+{- | The projected value, when there is one. Present for 'Converted' and
+'PartlyConverted', absent otherwise.
+-}
+conversionValue :: Conversion value -> Maybe value
+conversionValue = \case
+    Converted value -> Just value
+    PartlyConverted value _ -> Just value
+    Unconverted _ -> Nothing
+    NotApplicable -> Nothing
+
+-- | The commodities that could not be converted.
+conversionMissing :: Conversion value -> Set Text
+conversionMissing = \case
+    Converted _ -> Set.empty
+    PartlyConverted _ missing -> Set.fromList (NonEmpty.toList missing)
+    Unconverted missing -> Set.fromList (NonEmpty.toList missing)
+    NotApplicable -> Set.empty
 
 -- | Value a mixed amount into the display commodity as at a given date.
 valueMixedAt :: Snapshot -> Text -> Day -> Hledger.MixedAmount -> Hledger.MixedAmount
@@ -49,51 +79,59 @@ any non-negligible foreign commodities as missing.
 -}
 conversionFromMixed :: Text -> Hledger.MixedAmount -> Conversion Decimal
 conversionFromMixed commodity amount =
-    let projected = HledgerAmount.amountsRaw amount
-        missing =
-            Set.fromList
-                [ item.acommodity
-                | item <- projected
-                , abs item.aquantity >= negligibleQuantity
-                , item.acommodity /= commodity
-                ]
-     in Conversion{value = Just (commodityQuantity commodity amount), missing}
+    case NonEmpty.nonEmpty (Set.toList missing) of
+        Nothing -> Converted total
+        Just uncoverted -> PartlyConverted total uncoverted
+  where
+    total = commodityQuantity commodity amount
+    missing =
+        Set.fromList
+            [ item.acommodity
+            | item <- projected
+            , abs item.aquantity >= negligibleQuantity
+            , item.acommodity /= commodity
+            ]
+    projected = HledgerAmount.amountsRaw amount
 
 -- | Value an amount at a date and require a complete conversion for a result.
 convertMixedAt :: Snapshot -> Text -> Day -> Hledger.MixedAmount -> Conversion Decimal
 convertMixedAt snapshot commodity day amount =
-    let valued = valueMixedAt snapshot commodity day amount
-        projected = HledgerAmount.amountsRaw valued
-        missing =
-            Set.fromList
-                [ item.acommodity
-                | item <- projected
-                , abs item.aquantity >= negligibleQuantity
-                , item.acommodity /= commodity
-                ]
-     in Conversion
-            { value =
-                if Set.null missing
-                    then Just (commodityQuantity commodity valued)
-                    else Nothing
-            , missing
-            }
+    case NonEmpty.nonEmpty (Set.toList missing) of
+        Nothing -> Converted (commodityQuantity commodity valued)
+        Just uncoverted -> Unconverted uncoverted
+  where
+    valued = valueMixedAt snapshot commodity day amount
+    missing =
+        Set.fromList
+            [ item.acommodity
+            | item <- projected
+            , abs item.aquantity >= negligibleQuantity
+            , item.acommodity /= commodity
+            ]
+    projected = HledgerAmount.amountsRaw valued
 
 requireComplete :: Conversion value -> Conversion value
-requireComplete conversion
-    | Set.null conversion.missing = conversion
-    | otherwise = Conversion{value = Nothing, missing = conversion.missing}
+requireComplete = \case
+    Converted value -> Converted value
+    PartlyConverted _ missing -> Unconverted missing
+    Unconverted missing -> Unconverted missing
+    NotApplicable -> NotApplicable
 
 foldMapConversion :: [Conversion value] -> Conversion [value]
 foldMapConversion conversions =
-    let missing = Set.unions (fmap (.missing) conversions)
-     in Conversion{value = Just (mapMaybe (.value) conversions), missing}
+    case NonEmpty.nonEmpty (Set.toList missing) of
+        Nothing -> Converted values
+        Just uncoverted -> PartlyConverted values uncoverted
+  where
+    missing = Set.unions (fmap conversionMissing conversions)
+    values = mapMaybe conversionValue conversions
 
 complete :: value -> Conversion value
-complete value = Conversion{value = Just value, missing = Set.empty}
+complete = Converted
 
-completeNothing :: Conversion value
-completeNothing = Conversion{value = Nothing, missing = Set.empty}
+-- | This projection does not apply to the value; there is nothing to convert.
+notApplicable :: Conversion value
+notApplicable = NotApplicable
 
 {- | The display-commodity total of an amount, or 'Nothing' if any non-negligible
 component is in another commodity.

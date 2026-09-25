@@ -30,7 +30,7 @@ import Hedger.Domain.Internal.PeriodReport (
  )
 import Hedger.Domain.Period (Granularity, ReportPeriod (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..))
+import Hedger.Domain.Valuation (Conversion (..), conversionMissing, conversionValue)
 
 data CashflowFigures = CashflowFigures
     { timeline :: [TimelinePoint]
@@ -117,13 +117,13 @@ computeCashflow
 
 cashflowPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
 cashflowPointFrom period incomeResult expenseResult =
-    let income = fromMaybe 0 incomeResult.value
-        expenses = fromMaybe 0 expenseResult.value
+    let income = fromMaybe 0 (conversionValue incomeResult)
+        expenses = fromMaybe 0 (conversionValue expenseResult)
      in TimelinePoint
             { period = period.key
             , startDate = period.start
             , positive = income
             , negative = expenses
             , net = income - expenses
-            , missing = incomeResult.missing <> expenseResult.missing
+            , missing = conversionMissing incomeResult <> conversionMissing expenseResult
             }

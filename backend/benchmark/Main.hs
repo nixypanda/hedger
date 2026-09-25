@@ -56,7 +56,7 @@ import Hedger.Domain.NetWorth (
  )
 import Hedger.Domain.Period (Granularity (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..))
+import Hedger.Domain.Valuation (Conversion, conversionMissing, conversionValue)
 import Hedger.Domain.Xirr qualified as Xirr
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot, newSnapshotStore, reloadSnapshot)
 import Hedger.Interface.HTTP.Core.Common (ResponseMetadata (..))
@@ -701,7 +701,8 @@ periodicReportWeight report =
             ]
 
 conversionWeight :: Conversion Decimal -> Int
-conversionWeight conversion = maybe 0 (length . show) conversion.value + Set.size conversion.missing
+conversionWeight conversion =
+    maybe 0 (length . show) (conversionValue conversion) + Set.size (conversionMissing conversion)
 
 -- * Accounts: the tree values every account against the price oracle; the
 
