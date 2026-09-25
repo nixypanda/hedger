@@ -7,6 +7,7 @@ module Hedger.Application.Analytics (
     ActivityRequest (..),
     Kpi (..),
     TimelinePoint (..),
+    Magnitude,
     BreakdownItem (..),
     CategoryBreakdown (..),
     PerformancePoint (..),
@@ -46,7 +47,8 @@ import Hedger.Application.Common (
     metadataFor,
  )
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
-import Hedger.Config (Config (..))
+import Hedger.Config (Config (..), monthOfYearValue)
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Activity (
     ActivityBucketFigures (..),
     ActivityDirection (..),
@@ -56,7 +58,7 @@ import Hedger.Domain.Activity (
     computeActivity,
     parseActivityPeriod,
  )
-import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
+import Hedger.Domain.Cashflow (CashflowFigures (..), Magnitude, computeCashflow)
 import Hedger.Domain.NetWorth (
     BreakdownItem (..),
     NetWorthFigures (..),
@@ -64,7 +66,7 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..), ReportPeriod (..), atIndex, epoch)
+import Hedger.Domain.Period (Granularity (..), atIndex, epoch, reportPeriodKey)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (ConversionWarning (..))
 
@@ -75,8 +77,8 @@ data AnalyticsRequest = AnalyticsRequest
     , displayCommodity :: Maybe Text
     , positivePeriod :: Maybe Text
     , negativePeriod :: Maybe Text
-    , positiveDepth :: Int
-    , negativeDepth :: Int
+    , positiveDepth :: DisplayDepth
+    , negativeDepth :: DisplayDepth
     }
 
 data ActivityRequest = ActivityRequest
@@ -85,7 +87,7 @@ data ActivityRequest = ActivityRequest
     , period :: Text
     , query :: Maybe Text
     , displayCommodity :: Maybe Text
-    , depth :: Int
+    , depth :: DisplayDepth
     }
 
 data Kpi = Kpi
@@ -109,7 +111,7 @@ data NetWorthReport = NetWorthReport
     , netWorthKpi :: Kpi
     , assetsKpi :: Kpi
     , liabilitiesKpi :: Kpi
-    , timeline :: [TimelinePoint]
+    , timeline :: [TimelinePoint Decimal]
     , assetsBreakdown :: CategoryBreakdown
     , liabilitiesBreakdown :: CategoryBreakdown
     , performance :: [PerformancePoint]
@@ -125,7 +127,7 @@ data CashflowReport = CashflowReport
     , totalCount :: Int
     , filteredCount :: Int
     , timelineAvailable :: Bool
-    , timeline :: [TimelinePoint]
+    , timeline :: [TimelinePoint Magnitude]
     , incomeBreakdown :: CategoryBreakdown
     , expenseBreakdown :: CategoryBreakdown
     , warnings :: [ConversionWarning]
@@ -251,7 +253,10 @@ activity request = do
             AssetActivity -> pure snapshot.transactions
             LiabilityActivity -> pure snapshot.transactions
     activityPeriod <-
-        either throwError pure (parseActivityPeriod fiscalStart request.range request.period)
+        either
+            throwError
+            pure
+            (parseActivityPeriod (monthOfYearValue fiscalStart) request.range request.period)
     let figures =
             computeActivity
                 snapshot
@@ -267,8 +272,8 @@ activity request = do
             , displayCommodity = commodity
             , kind = request.kind
             , range = request.range
-            , period = activityPeriod.key
-            , fiscalYearStartMonth = fiscalStart
+            , period = reportPeriodKey activityPeriod
+            , fiscalYearStartMonth = monthOfYearValue fiscalStart
             , buckets = fmap toActivityBucket figures.buckets
             , warnings = conversionWarnings figures.missing
             , classifyAccount = accountTypeClassifier snapshot.journal
@@ -293,7 +298,7 @@ parseTransactions snapshot requested = do
     pure (filter (HledgerQuery.matchesTransaction parsed) snapshot.transactions)
 
 -- * Read-model shaping (presentation, not calculation)
-kpiFor :: Maybe Text -> (TimelinePoint -> Decimal) -> [TimelinePoint] -> Kpi
+kpiFor :: Maybe Text -> (TimelinePoint Decimal -> Decimal) -> [TimelinePoint Decimal] -> Kpi
 kpiFor selectedKey select points =
     let selectedIndex =
             fromMaybe
@@ -330,7 +335,7 @@ percentageFrom current previous
     | abs previous < 0.000001 = Nothing
     | otherwise = Just (((current - previous) / abs previous) * 100)
 
-zeroTimeline :: TimelinePoint
+zeroTimeline :: TimelinePoint Decimal
 zeroTimeline =
     TimelinePoint
         { period = ""

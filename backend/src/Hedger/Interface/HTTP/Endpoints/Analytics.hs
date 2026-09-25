@@ -14,6 +14,8 @@ import Servant
 import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Common (AccountTypeClassifier)
+import Hedger.Domain.Account (DisplayDepth (..), parseDisplayDepth)
+import Hedger.Domain.Cashflow (magnitudeValue)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata,
@@ -245,11 +247,12 @@ parseActivityRange value =
         "year" -> Right Analytics.FiscalYearActivity
         _ -> Left (InvalidRequest "Activity range must be month or year.")
 
-parseDepth :: Maybe Int -> Either AppError Int
-parseDepth Nothing = Right 2
-parseDepth (Just value)
-    | value >= 1 && value <= 4 = Right value
-    | otherwise = Left (InvalidRequest "Category depth must be between 1 and 4.")
+parseDepth :: Maybe Int -> Either AppError DisplayDepth
+parseDepth Nothing = Right Depth2
+parseDepth (Just value) =
+    case parseDisplayDepth value of
+        Just depth -> Right depth
+        Nothing -> Left (InvalidRequest "Category depth must be between 1 and 4.")
 
 toNetWorth :: Analytics.NetWorthReport -> NetWorthResponse
 toNetWorth report =
@@ -260,7 +263,7 @@ toNetWorth report =
         , netWorth = toKpi report.netWorthKpi
         , assets = toKpi report.assetsKpi
         , liabilities = toKpi report.liabilitiesKpi
-        , timeline = fmap toTimeline report.timeline
+        , timeline = fmap (toTimeline decimalText) report.timeline
         , assetsBreakdown = toBreakdown report.classifyAccount report.assetsBreakdown
         , liabilitiesBreakdown = toBreakdown report.classifyAccount report.liabilitiesBreakdown
         , performance = fmap toPerformance report.performance
@@ -277,7 +280,7 @@ toCashflow report =
         , totalCount = report.totalCount
         , filteredCount = report.filteredCount
         , timelineAvailable = report.timelineAvailable
-        , timeline = fmap toTimeline report.timeline
+        , timeline = fmap (toTimeline (decimalText . magnitudeValue)) report.timeline
         , incomeBreakdown = toBreakdown report.classifyAccount report.incomeBreakdown
         , expenseBreakdown = toBreakdown report.classifyAccount report.expenseBreakdown
         , warnings = fmap renderWarning report.warnings
@@ -305,13 +308,13 @@ toKpi value =
         , trend = decimalText <$> value.trend
         }
 
-toTimeline :: Analytics.TimelinePoint -> TimelinePointDto
-toTimeline value =
+toTimeline :: (side -> Text) -> Analytics.TimelinePoint side -> TimelinePointDto
+toTimeline render value =
     TimelinePointDto
         { period = value.period
         , startDate = value.startDate
-        , positive = decimalText value.positive
-        , negative = decimalText value.negative
+        , positive = render value.positive
+        , negative = render value.negative
         , net = decimalText value.net
         , completeness =
             if Set.null value.missing

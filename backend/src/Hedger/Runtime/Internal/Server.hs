@@ -21,7 +21,7 @@ import Network.Wai.Handler.Warp (
 import System.Posix.Signals (Handler (Catch), installHandler, sigHUP, sigTERM)
 
 import Hedger.Application.AppM (Env (..))
-import Hedger.Config (Config (..))
+import Hedger.Config (Config (..), portValue)
 import Hedger.Infrastructure.JournalWatcher (withJournalWatcher)
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 import Hedger.Interface.HTTP.API (application)
@@ -46,11 +46,13 @@ runServer configuration = do
             setInstallShutdownHandler installShutdownHandler
                 . setBeforeMainLoop
                     ( Text.putStrLn
-                        ("\nStarted server on port " <> Text.pack (show configuration.listenPort))
+                        ( "\nStarted server on port "
+                            <> Text.pack (show (portValue configuration.listenPort))
+                        )
                     )
                 . setGracefulShutdownTimeout (Just 10)
                 . setHost (fromString (Text.unpack configuration.listenAddress))
-                . setPort configuration.listenPort
+                . setPort (portValue configuration.listenPort)
                 $ defaultSettings
     withJournalWatcher store $
         runSettings settings (productionMiddleware (coreApplication configuration store))

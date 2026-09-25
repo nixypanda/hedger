@@ -50,9 +50,13 @@ import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Domain.Investment (
+    AccountName,
+    AssetAccount,
     InvestmentMapping (..),
     PerformanceAccount (..),
     PerformanceRole (..),
+    mkAccountName,
+    mkAssetAccount,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
 
@@ -297,6 +301,12 @@ genQualifiedAccountName topSegment = do
     subs <- Gen.list (Range.linear 1 3) genAccountComponent
     pure (Text.intercalate ":" (topSegment : subs))
 
+mkAssetAccountOrError :: Text -> AssetAccount
+mkAssetAccountOrError = either (error . Text.unpack) id . mkAssetAccount
+
+mkAccountNameOrError :: Text -> AccountName
+mkAccountNameOrError = either (error . Text.unpack) id . mkAccountName
+
 -- Investment mappings
 genPerformanceRole :: Gen PerformanceRole
 genPerformanceRole = Gen.element [Interest, Dividend, RealisedGain, Fee, OtherIncome]
@@ -309,13 +319,13 @@ mapping; use 'genDisjointMappingSet' when a whole valid set is needed.
 -}
 genInvestmentMapping :: Gen InvestmentMapping
 genInvestmentMapping = do
-    assetAccount <- genQualifiedAccountName "assets"
+    assetAccount <- mkAssetAccountOrError <$> genQualifiedAccountName "assets"
     performanceAccounts <- Gen.list (Range.linear 0 3) genPerformanceAccount
     pure InvestmentMapping{assetAccount, performanceAccounts}
   where
     genPerformanceAccount = do
         segment <- Gen.element ("assets" : performanceSegments)
-        account <- genQualifiedAccountName segment
+        account <- mkAccountNameOrError <$> genQualifiedAccountName segment
         role <- genPerformanceRole
         pure PerformanceAccount{account, role}
 
@@ -334,7 +344,10 @@ genDisjointMappingSet = do
     pure
         ( zipWith
             ( \leaf chunk ->
-                InvestmentMapping{assetAccount = "assets:" <> leaf, performanceAccounts = chunk}
+                InvestmentMapping
+                    { assetAccount = mkAssetAccountOrError ("assets:" <> leaf)
+                    , performanceAccounts = chunk
+                    }
             )
             assetLeaves
             performanceChunks
@@ -348,7 +361,7 @@ genDistinctPerformanceAccounts total = do
     pure (zipWith3 toPerformanceAccount segments leaves roles)
   where
     toPerformanceAccount segment leaf role =
-        PerformanceAccount{account = segment <> ":" <> leaf, role}
+        PerformanceAccount{account = mkAccountNameOrError (segment <> ":" <> leaf), role}
 
 chunksByCounts :: [Int] -> [value] -> [[value]]
 chunksByCounts [] _ = []

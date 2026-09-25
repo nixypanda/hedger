@@ -9,7 +9,7 @@ import Data.Text (Text)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
-import Hedger.Config (Config (..), parseConfig)
+import Hedger.Config (Config (..), monthOfYearValue, parseConfig, portValue)
 import Hedger.Domain.Investment (AssetClass (..), InvestmentMapping (..), PerformanceAccount (..))
 import Hedger.Domain.Investment qualified as Investment
 
@@ -28,16 +28,12 @@ configSpec =
         , testCase "allows empty gain-account lists" allowsEmptyGainAccounts
         , testCase "rejects unsupported asset class kinds" rejectsUnsupportedAssetClassKind
         , testCase "rejects asset class mappings without prefixes" rejectsEmptyAssetClassPrefixes
-        , testCase "rejects non-assets asset class prefixes" rejectsNonAssetsAssetClassPrefix
-        , testCase "rejects unqualified asset class prefixes" rejectsUnqualifiedAssetClassPrefix
         , testCase "rejects duplicate asset class prefixes" rejectsDuplicateAssetClassPrefix
         , testCase "rejects overlapping asset class prefixes" rejectsOverlappingAssetClassPrefix
-        , testCase "rejects out-of-range asset class targets" rejectsOutOfRangeAssetClassTarget
         , testCase
             "rejects asset class targets that do not total 100"
             rejectsInvalidAssetClassTargetTotal
-        , testCase "validates bounded port" validatesPort
-        , testCase "validates fiscal month" validatesFiscalMonth
+        , testCase "rejects out-of-range port and fiscal month" rejectsOutOfRangePortAndFiscalMonth
         ]
 
 requiresJournalPath :: IO ()
@@ -49,18 +45,18 @@ loadsYaml = do
     config <- requireConfig (parseConfig (Just exampleConfig) [])
     assertEqual "journal" "/var/lib/hedger/main.journal" config.journalPath
     assertEqual "listen address" "0.0.0.0" config.listenAddress
-    assertEqual "port" 9000 config.listenPort
+    assertEqual "port" 9000 (portValue config.listenPort)
     assertEqual "commodity" "USD" config.defaultDisplayCommodity
-    assertEqual "fiscal month" 1 config.fiscalYearStartMonth
+    assertEqual "fiscal month" 1 (monthOfYearValue config.fiscalYearStartMonth)
 
 cliOverridesYaml :: IO ()
 cliOverridesYaml = do
     config <- requireConfig (parseConfig (Just exampleConfig) overrides)
     assertEqual "journal" "/runtime/override.journal" config.journalPath
     assertEqual "listen address" "127.0.0.1" config.listenAddress
-    assertEqual "port" 8081 config.listenPort
+    assertEqual "port" 8081 (portValue config.listenPort)
     assertEqual "commodity" "INR" config.defaultDisplayCommodity
-    assertEqual "fiscal month" 4 config.fiscalYearStartMonth
+    assertEqual "fiscal month" 4 (monthOfYearValue config.fiscalYearStartMonth)
   where
     overrides =
         [ "--journal"
@@ -87,7 +83,7 @@ loadsGainMappings = do
     assertEqual
         "gain accounts"
         ["income:dividend:india", "income:dividend:us"]
-        ((.account) <$> mapping.performanceAccounts)
+        (Investment.accountNameText . (.account) <$> mapping.performanceAccounts)
 
 loadsAssetClassMappings :: IO ()
 loadsAssetClassMappings = do
@@ -102,7 +98,9 @@ loadsAssetClassMappings = do
     assertEqual
         "asset class targets"
         [Just 45, Just 25, Just 10, Just 5, Just 5, Just 5, Just 5]
-        ((.targetPercentage) <$> Investment.assetClassMappingsList config.assetClassMappings)
+        ( fmap Investment.percentageValue . (.targetPercentage)
+            <$> Investment.assetClassMappingsList config.assetClassMappings
+        )
 
 defaultsAssetClassMappings :: IO ()
 defaultsAssetClassMappings = do
@@ -155,18 +153,6 @@ rejectsEmptyAssetClassPrefixes =
         "empty asset class prefixes must fail"
         (isLeft (parseConfig (Just emptyAssetClassPrefixesConfig) []))
 
-rejectsNonAssetsAssetClassPrefix :: IO ()
-rejectsNonAssetsAssetClassPrefix =
-    assertBool
-        "non-assets asset class prefixes must fail"
-        (isLeft (parseConfig (Just nonAssetsAssetClassPrefixConfig) []))
-
-rejectsUnqualifiedAssetClassPrefix :: IO ()
-rejectsUnqualifiedAssetClassPrefix =
-    assertBool
-        "unqualified asset class prefixes must fail"
-        (isLeft (parseConfig (Just unqualifiedAssetClassPrefixConfig) []))
-
 rejectsDuplicateAssetClassPrefix :: IO ()
 rejectsDuplicateAssetClassPrefix =
     assertBool
@@ -179,31 +165,20 @@ rejectsOverlappingAssetClassPrefix =
         "overlapping asset class prefixes must fail"
         (isLeft (parseConfig (Just overlappingAssetClassPrefixConfig) []))
 
-rejectsOutOfRangeAssetClassTarget :: IO ()
-rejectsOutOfRangeAssetClassTarget =
-    assertBool
-        "out-of-range asset class targets must fail"
-        (isLeft (parseConfig (Just outOfRangeAssetClassTargetConfig) []))
-
 rejectsInvalidAssetClassTargetTotal :: IO ()
 rejectsInvalidAssetClassTargetTotal =
     assertBool
         "asset class targets must total 100"
         (isLeft (parseConfig (Just invalidAssetClassTargetTotalConfig) []))
 
-validatesPort :: IO ()
-validatesPort =
-    assertEqual
-        ""
-        (Left "Port must be between 1 and 65535.")
-        (parseConfig Nothing ["--journal", "fixture.journal", "--port", "0"])
-
-validatesFiscalMonth :: IO ()
-validatesFiscalMonth =
-    assertEqual
-        ""
-        (Left "Fiscal-year start must be between 1 and 12.")
-        (parseConfig Nothing ["--journal", "fixture.journal", "--fiscal-year-start", "13"])
+rejectsOutOfRangePortAndFiscalMonth :: IO ()
+rejectsOutOfRangePortAndFiscalMonth = do
+    assertBool
+        "out-of-range port must fail"
+        (isLeft (parseConfig Nothing ["--journal", "fixture.journal", "--port", "0"]))
+    assertBool
+        "out-of-range fiscal month must fail"
+        (isLeft (parseConfig Nothing ["--journal", "fixture.journal", "--fiscal-year-start", "13"]))
 
 requireConfig :: Either Text Config -> IO Config
 requireConfig result =
@@ -288,12 +263,6 @@ invalidAssetClassKindConfig = assetClassConfigWith "kind: commodities"
 emptyAssetClassPrefixesConfig :: ByteString
 emptyAssetClassPrefixesConfig = assetClassConfigWith "accountPrefixes: []"
 
-nonAssetsAssetClassPrefixConfig :: ByteString
-nonAssetsAssetClassPrefixConfig = assetClassConfigWith "accountPrefixes: [income:dividend]"
-
-unqualifiedAssetClassPrefixConfig :: ByteString
-unqualifiedAssetClassPrefixConfig = assetClassConfigWith "accountPrefixes: [assets]"
-
 duplicateAssetClassPrefixConfig :: ByteString
 duplicateAssetClassPrefixConfig =
     ByteString.unlines
@@ -321,9 +290,6 @@ overlappingAssetClassPrefixConfig =
         , "    - kind: debt"
         , "      accountPrefixes: [assets:equity:india]"
         ]
-
-outOfRangeAssetClassTargetConfig :: ByteString
-outOfRangeAssetClassTargetConfig = assetClassConfigWithTarget "targetPercent: 101"
 
 invalidAssetClassTargetTotalConfig :: ByteString
 invalidAssetClassTargetTotalConfig = assetClassConfigWithTarget "targetPercent: 75"

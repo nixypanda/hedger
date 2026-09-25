@@ -13,6 +13,7 @@ import Control.Monad.Except (throwError)
 import Control.Monad.Reader (asks)
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -27,9 +28,8 @@ import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (InternalError))
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance (
-    InvestmentSummary (..),
     InvestmentWarning,
-    SummaryResult (..),
+    SummaryResult,
     childrenOf,
     investmentAccountsAt,
     investmentDataTransactions,
@@ -37,6 +37,9 @@ import Hedger.Domain.InvestmentPerformance (
     reportPeriods,
     summariesAtPrepared,
     summariesAtScopesPrepared,
+    summaryMarketValue,
+    summaryPurchaseCost,
+    summaryWarnings,
     validateScope,
  )
 import Hedger.Domain.Period (Granularity, epoch, lastMaybe)
@@ -51,7 +54,7 @@ data InvestmentsRequest = InvestmentsRequest
 data InvestmentPoint = InvestmentPoint
     { period :: Text
     , startDate :: Day
-    , summary :: InvestmentSummary
+    , summary :: SummaryResult
     }
 
 data InvestmentBreadcrumb = InvestmentBreadcrumb
@@ -62,7 +65,7 @@ data InvestmentBreadcrumb = InvestmentBreadcrumb
 data InvestmentChild = InvestmentChild
     { account :: Text
     , label :: Text
-    , summary :: InvestmentSummary
+    , summary :: SummaryResult
     , hasChildren :: Bool
     , assetClass :: Investment.AssetClass
     , allocationPercentage :: Maybe Decimal
@@ -80,7 +83,7 @@ data InvestmentsReport = InvestmentsReport
     , displayCommodity :: Text
     , granularity :: Granularity
     , accountPrefix :: Maybe Text
-    , summary :: InvestmentSummary
+    , summary :: SummaryResult
     , timeline :: [InvestmentPoint]
     , breadcrumbs :: [InvestmentBreadcrumb]
     , children :: [InvestmentChild]
@@ -113,9 +116,9 @@ investments request = do
         investmentAccounts = investmentAccountsAt snapshot config.assetClassMappings scope latest
         childAccounts = childrenOf scope investmentAccounts
         allocationScopes =
-            [ Just prefix
+            [ Just (Investment.assetAccountText prefix)
             | mapping <- Investment.assetClassMappingsList config.assetClassMappings
-            , prefix <- mapping.accountPrefixes
+            , prefix <- NonEmpty.toList mapping.accountPrefixes
             ]
         periodDays = List.nub [end | (_, _, end) <- periods]
         periodSummaries =
@@ -144,13 +147,13 @@ investments request = do
         traverse
             (\child -> maybe (throwError InternalError) pure (summaryFor (Just child)))
             childAccounts
-    let currentSummary = current.summary
+    let currentSummary = current
         hasInvestments =
-            currentSummary.marketValue /= Nothing || currentSummary.purchaseCost /= Nothing
+            summaryMarketValue current /= Nothing || summaryPurchaseCost current /= Nothing
         points =
             if hasInvestments
                 then
-                    [ InvestmentPoint key start result.summary
+                    [ InvestmentPoint key start result
                     | (key, start, end) <- periods
                     , Just result <- [periodSummaryAt end]
                     ]
@@ -161,11 +164,11 @@ investments request = do
                 then
                     assetClassAllocations
                         summaryFor
-                        currentSummary.marketValue
+                        (summaryMarketValue current)
                         config.assetClassMappings
                 else []
         childReport child result =
-            let childSummary = result.summary
+            let childSummary = result
              in InvestmentChild
                     { account = child
                     , label = accountLabel child
@@ -173,7 +176,9 @@ investments request = do
                     , hasChildren = not (null (childrenOf (Just child) investmentAccounts))
                     , assetClass = Investment.assetClassForAccount child config.assetClassMappings
                     , allocationPercentage =
-                        allocationPercentage currentSummary.marketValue childSummary.marketValue
+                        allocationPercentage
+                            (summaryMarketValue current)
+                            (summaryMarketValue childSummary)
                     }
     pure
         InvestmentsReport
@@ -186,7 +191,7 @@ investments request = do
             , breadcrumbs = breadcrumbsFor scope
             , children
             , assetClassAllocations = allocations
-            , warnings = current.warnings
+            , warnings = summaryWarnings current
             }
 
 assetClassAllocations ::
@@ -201,10 +206,10 @@ assetClassAllocations summaryFor total mappings = fmap allocationFor configuredC
     allocationFor assetClass =
         let matching = filter ((== assetClass) . (.assetClass)) configured
             values =
-                [ result.summary.marketValue
+                [ summaryMarketValue result
                 | mapping <- matching
-                , prefix <- mapping.accountPrefixes
-                , Just result <- [summaryFor (Just prefix)]
+                , prefix <- NonEmpty.toList mapping.accountPrefixes
+                , Just result <- [summaryFor (Just (Investment.assetAccountText prefix))]
                 ]
             value =
                 if null values
@@ -215,7 +220,7 @@ assetClassAllocations summaryFor total mappings = fmap allocationFor configuredC
                 { assetClass
                 , marketValue = value
                 , currentPercentage = allocationPercentage total value
-                , targetPercentage = target
+                , targetPercentage = Investment.percentageValue <$> target
                 }
 
 firstJust :: [Maybe value] -> Maybe value

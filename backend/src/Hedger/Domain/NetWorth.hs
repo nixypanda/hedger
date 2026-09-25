@@ -11,6 +11,7 @@ module Hedger.Domain.NetWorth (
 ) where
 
 import Data.Decimal (Decimal)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -19,6 +20,7 @@ import Data.Time (Day)
 
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Internal.NetWorth (assetLiabilityPeriodicReport, gainPeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
@@ -33,9 +35,21 @@ import Hedger.Domain.Internal.PeriodReport (
     selectedPeriod,
     wholeReport,
  )
-import Hedger.Domain.Period (Granularity, ReportPeriod (..), lastMaybe)
+import Hedger.Domain.Period (
+    Granularity,
+    ReportPeriod,
+    lastMaybe,
+    reportPeriodKey,
+    reportPeriodStart,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..), complete, requireComplete)
+import Hedger.Domain.Valuation (
+    Conversion (..),
+    complete,
+    conversionMissing,
+    conversionValue,
+    requireComplete,
+ )
 
 data PerformancePoint = PerformancePoint
     { period :: Text
@@ -46,7 +60,7 @@ data PerformancePoint = PerformancePoint
     }
 
 data NetWorthFigures = NetWorthFigures
-    { timeline :: [TimelinePoint]
+    { timeline :: [TimelinePoint Decimal]
     , performance :: [PerformancePoint]
     , incompletePeriods :: Int
     , selectedKey :: Maybe Text
@@ -67,8 +81,8 @@ computeNetWorth ::
     Text ->
     Maybe Text ->
     Maybe Text ->
-    Int ->
-    Int ->
+    DisplayDepth ->
+    DisplayDepth ->
     NetWorthFigures
 computeNetWorth
     snapshot
@@ -81,12 +95,14 @@ computeNetWorth
     negativeDepth =
         NetWorthFigures
             { timeline = points
-            , performance = mapMaybe (.value) performanceResults
-            , incompletePeriods = length (filter (not . Set.null . (.missing)) performanceResults)
-            , selectedKey = (.key) <$> selectedPeriod positiveReq dataPeriods
-            , currentAssets = assetsCurrent.value
-            , currentLiabilities = liabilitiesCurrent.value
-            , currentNetWorth = (-) <$> assetsCurrent.value <*> liabilitiesCurrent.value
+            , performance = mapMaybe conversionValue performanceResults
+            , incompletePeriods =
+                length (filter (not . Set.null . conversionMissing) performanceResults)
+            , selectedKey = reportPeriodKey <$> selectedPeriod positiveReq dataPeriods
+            , currentAssets = conversionValue assetsCurrent
+            , currentLiabilities = conversionValue liabilitiesCurrent
+            , currentNetWorth =
+                (-) <$> conversionValue assetsCurrent <*> conversionValue liabilitiesCurrent
             , assetsBreakdownPeriod = fst assetsBreakdown
             , assetsBreakdownItems = snd assetsBreakdown
             , liabilitiesBreakdownPeriod = fst liabilitiesBreakdown
@@ -101,7 +117,7 @@ computeNetWorth
         gainSide = wholeReport (gainPeriodicReport snapshot matched granularity commodity)
         reportPeriods = reportPeriodsFrom granularity combinedReport
         dataPeriods = periodsWithData granularity matched reportPeriods
-        dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
+        dataPeriodKeys = Set.fromList (fmap reportPeriodKey dataPeriods)
         assetTotals = reportTotals commodity assetSide
         liabilityTotals = fmap (fmap abs) (reportTotals commodity liabilitySide)
         allPoints = zipWith3 netWorthPointFrom reportPeriods assetTotals liabilityTotals
@@ -122,7 +138,7 @@ computeNetWorth
                 liabilitySide
         performanceResults =
             filter
-                (maybe False ((`Set.member` dataPeriodKeys) . (.period)) . (.value))
+                (maybe False ((`Set.member` dataPeriodKeys) . (.period)) . conversionValue)
                 ( performanceFrom
                     commodity
                     reportPeriods
@@ -135,7 +151,7 @@ computeNetWorth
         historyMissing = reportMissing commodity assetSide <> reportMissing commodity liabilitySide
         assetsCurrent = strictLatest assetTotals
         liabilitiesCurrent = strictLatest liabilityTotals
-        currentMissing = assetsCurrent.missing <> liabilitiesCurrent.missing
+        currentMissing = conversionMissing assetsCurrent <> conversionMissing liabilitiesCurrent
 
 {- | The KPI value of a periodic column series.
 
@@ -148,23 +164,27 @@ whereas the timeline reports a partial sum alongside its missing set.
 strictLatest :: [Conversion Decimal] -> Conversion Decimal
 strictLatest = maybe (complete 0) requireComplete . lastMaybe
 
-netWorthPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
+netWorthPointFrom ::
+    ReportPeriod ->
+    Conversion Decimal ->
+    Conversion Decimal ->
+    TimelinePoint Decimal
 netWorthPointFrom period assetsResult liabilitiesResult =
-    let assets = fromMaybe 0 assetsResult.value
-        liabilities = fromMaybe 0 liabilitiesResult.value
+    let assets = fromMaybe 0 (conversionValue assetsResult)
+        liabilities = fromMaybe 0 (conversionValue liabilitiesResult)
      in TimelinePoint
-            { period = period.key
-            , startDate = period.start
+            { period = reportPeriodKey period
+            , startDate = reportPeriodStart period
             , positive = assets
             , negative = liabilities
             , net = assets - liabilities
-            , missing = assetsResult.missing <> liabilitiesResult.missing
+            , missing = conversionMissing assetsResult <> conversionMissing liabilitiesResult
             }
 
 performanceFrom ::
     Text ->
     [ReportPeriod] ->
-    [TimelinePoint] ->
+    [TimelinePoint Decimal] ->
     [Conversion Decimal] ->
     [Conversion Decimal] ->
     ReportSide ->
@@ -177,21 +197,20 @@ performanceFrom commodity periods netWorthPoints assetResults liabilityResults g
         (zip3 assetResults liabilityResults (reportTotals commodity gainSide))
   where
     toPerformance period worthPoint (assetResult, liabilityResult, gainResult) =
-        let missing = assetResult.missing <> liabilityResult.missing <> gainResult.missing
+        let missing =
+                conversionMissing assetResult
+                    <> conversionMissing liabilityResult
+                    <> conversionMissing gainResult
             point = do
-                gain <- gainResult.value
+                gain <- conversionValue gainResult
                 pure
                     PerformancePoint
-                        { period = period.key
-                        , startDate = period.start
+                        { period = reportPeriodKey period
+                        , startDate = reportPeriodStart period
                         , netInvestment = worthPoint.net - gain
                         , netWorth = worthPoint.net
                         , gainLoss = gain
                         }
-         in Conversion
-                { value =
-                    if Set.null missing
-                        then point
-                        else Nothing
-                , missing
-                }
+         in case NonEmpty.nonEmpty (Set.toList missing) of
+                Just uncoverted -> Unconverted uncoverted
+                Nothing -> maybe NotApplicable Converted point

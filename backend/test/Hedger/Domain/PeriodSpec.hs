@@ -8,11 +8,11 @@ import Data.Time (Day, addDays, fromGregorian, toGregorian)
 import Hedgehog (Gen, Property, assert, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
+import Numeric.Natural (Natural)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
 import Hedger.Domain.Period (
-    ReportPeriod (..),
     atIndex,
     lastMaybe,
     maximumMaybe,
@@ -21,7 +21,11 @@ import Hedger.Domain.Period (
     monthPeriod,
     monthStart,
     parseYearMonth,
+    reportPeriodEnd,
+    reportPeriodKey,
+    reportPeriodStart,
     takeLast,
+    yearMonthParts,
  )
 import Hedger.Generators (formatYearMonth, genDay, genMonth, genYear)
 
@@ -49,7 +53,7 @@ periodSpec =
             ]
         , testGroup
             "takeLast"
-            [ testProperty "matches reverse . take (max 0 n) . reverse" takeLastMatchesReverseTake
+            [ testProperty "matches reverse . take n . reverse" takeLastMatchesReverseTake
             ]
         , testGroup
             "atIndex"
@@ -70,7 +74,7 @@ monthKeyRoundTrip =
     property $ do
         day <- forAll genDay
         let (year, month, _) = toGregorian day
-        parseYearMonth (monthKey day) === Just (year, month)
+        fmap yearMonthParts (parseYearMonth (monthKey day)) === Just (year, month)
 
 genUnpaddedMonth :: Gen Text
 genUnpaddedMonth = do
@@ -149,25 +153,24 @@ monthPeriodConsistent =
     property $ do
         day <- forAll genDay
         let period = monthPeriod day
-        period.start === monthStart day
-        assert (period.start <= period.end)
-        period.key === monthKey period.start
-        assert (period.start <= day && day <= period.end)
-        addDays 1 period.end === nextMonthFirstDay period.start
+        reportPeriodStart period === monthStart day
+        reportPeriodKey period === monthKey (reportPeriodStart period)
+        assert (reportPeriodStart period <= day && day <= reportPeriodEnd period)
+        addDays 1 (reportPeriodEnd period) === nextMonthFirstDay (reportPeriodStart period)
 
 -- takeLast
 genIntList :: Gen [Int]
 genIntList = Gen.list (Range.linear 0 50) (Gen.integral (Range.linearFrom 0 (-1000) 1000))
 
-genTakeCount :: Gen Int
-genTakeCount = Gen.integral (Range.linearFrom 0 (-10) 60)
+genTakeCount :: Gen Natural
+genTakeCount = Gen.integral (Range.linear 0 60)
 
 takeLastMatchesReverseTake :: Property
 takeLastMatchesReverseTake =
     property $ do
         xs <- forAll genIntList
         n <- forAll genTakeCount
-        takeLast n xs === reverse (take (max 0 n) (reverse xs))
+        takeLast n xs === reverse (take (fromIntegral n) (reverse xs))
 
 -- atIndex
 atIndexInRange :: Property

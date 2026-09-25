@@ -1,7 +1,10 @@
 module Hedger.Domain.Period (
     -- * Types
     Granularity (..),
-    ReportPeriod (..),
+    ReportPeriod,
+    reportPeriodKey,
+    reportPeriodStart,
+    reportPeriodEnd,
 
     -- * Calendar anchors and keys
     epoch,
@@ -12,7 +15,11 @@ module Hedger.Domain.Period (
     fiscalYearPeriod,
     periodsFromDateSpan,
     periodsFromReport,
+    YearMonth,
     parseYearMonth,
+    yearMonthParts,
+    yearMonthStart,
+    yearMonthMonth,
     intervalFor,
 
     -- * List helpers
@@ -26,6 +33,7 @@ module Hedger.Domain.Period (
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, fromGregorian, toGregorian)
+import Numeric.Natural (Natural)
 import Text.Read (readMaybe)
 
 import Hledger.Data.DayPartition qualified as HledgerDayPartition
@@ -44,6 +52,21 @@ data ReportPeriod = ReportPeriod
     , start :: Day
     , end :: Day
     }
+
+{- | Build a period whose interval is ordered: an end before the start is
+clamped up to the start, so @start <= end@ holds for every value.
+-}
+mkReportPeriod :: Text -> Day -> Day -> ReportPeriod
+mkReportPeriod key start end = ReportPeriod{key, start, end = max start end}
+
+reportPeriodKey :: ReportPeriod -> Text
+reportPeriodKey period = period.key
+
+reportPeriodStart :: ReportPeriod -> Day
+reportPeriodStart period = period.start
+
+reportPeriodEnd :: ReportPeriod -> Day
+reportPeriodEnd period = period.end
 
 -- | The reference date used when a journal contributes no dates of its own.
 epoch :: Day
@@ -92,8 +115,9 @@ periodContaining interval keyFor day =
     case HledgerDayPartition.splitSpan True interval enclosingSpan of
         Just partition ->
             let (start, end) = HledgerDayPartition.dayPartitionFind day partition
-             in ReportPeriod{key = keyFor (maybe day id start), start = maybe day id start, end}
-        Nothing -> ReportPeriod{key = keyFor day, start = day, end = day}
+                periodStart = maybe day id start
+             in mkReportPeriod (keyFor periodStart) periodStart end
+        Nothing -> mkReportPeriod (keyFor day) day day
   where
     enclosingSpan =
         Hledger.DateSpan (Just (Hledger.Exact day)) (Just (Hledger.Exact (addDays 1 day)))
@@ -104,25 +128,39 @@ intervalFor Yearly = Hledger.Years 1
 
 reportPeriod :: Granularity -> Day -> Day -> ReportPeriod
 reportPeriod granularity start end =
-    ReportPeriod
-        { key =
-            case granularity of
-                Monthly -> monthKey start
-                Yearly ->
-                    let (year, _, _) = toGregorian start
-                     in Text.pack (show year)
-        , start
-        , end
-        }
+    mkReportPeriod keyValue start end
+  where
+    keyValue =
+        case granularity of
+            Monthly -> monthKey start
+            Yearly ->
+                let (year, _, _) = toGregorian start
+                 in Text.pack (show year)
 
-parseYearMonth :: Text -> Maybe (Integer, Int)
+{- | A validated @YYYY-MM@. The constructor is not exported, so the month is
+always in @[1, 12]@ and the text form is canonical.
+-}
+newtype YearMonth = YearMonth (Integer, Int)
+    deriving stock (Eq, Ord, Show)
+
+yearMonthParts :: YearMonth -> (Integer, Int)
+yearMonthParts (YearMonth parts) = parts
+
+-- | The first day of the represented month.
+yearMonthStart :: YearMonth -> Day
+yearMonthStart (YearMonth (year, month)) = fromGregorian year month 1
+
+yearMonthMonth :: YearMonth -> Int
+yearMonthMonth (YearMonth (_, month)) = month
+
+parseYearMonth :: Text -> Maybe YearMonth
 parseYearMonth raw =
     case Text.splitOn "-" raw of
         [yearText, monthText] -> do
             year <- readText yearText
             month <- readText monthText
             if month >= 1 && month <= 12 && raw == Text.pack (show year <> "-" <> pad2 month)
-                then Just (year, month)
+                then Just (YearMonth (year, month))
                 else Nothing
         _ -> Nothing
   where
@@ -135,8 +173,10 @@ pad2 value =
         then "0" <> show value
         else show value
 
-takeLast :: Int -> [value] -> [value]
-takeLast count values = drop (max 0 (length values - count)) values
+takeLast :: Natural -> [value] -> [value]
+takeLast count values =
+    let requested = fromIntegral count :: Int
+     in drop (length values - min requested (length values)) values
 
 maximumMaybe :: (Ord value) => [value] -> Maybe value
 maximumMaybe [] = Nothing

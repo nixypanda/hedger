@@ -1,5 +1,11 @@
 module Hedger.Config (
     Config (..),
+    Port,
+    mkPort,
+    portValue,
+    MonthOfYear,
+    mkMonthOfYear,
+    monthOfYearValue,
     loadConfig,
     parseConfig,
 ) where
@@ -7,9 +13,11 @@ module Hedger.Config (
 import Control.Applicative ((<|>))
 import Control.Exception (IOException, displayException, try)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
 import Data.Char qualified as Char
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -23,13 +31,37 @@ import Hedger.Domain.Investment qualified as Investment
 data Config = Config
     { journalPath :: Text
     , listenAddress :: Text
-    , listenPort :: Int
+    , listenPort :: Port
     , defaultDisplayCommodity :: Text
-    , fiscalYearStartMonth :: Int
+    , fiscalYearStartMonth :: MonthOfYear
     , investmentMappings :: Investment.InvestmentMappings
     , assetClassMappings :: Investment.AssetClassMappings
     }
     deriving stock (Eq, Show)
+
+-- | A TCP port in the valid range.
+newtype Port = Port Int
+    deriving stock (Eq, Show)
+
+mkPort :: Int -> Either Text Port
+mkPort value
+    | value >= 1 && value <= 65535 = Right (Port value)
+    | otherwise = Left "Port must be between 1 and 65535."
+
+portValue :: Port -> Int
+portValue (Port value) = value
+
+-- | A calendar month in @[1, 12]@.
+newtype MonthOfYear = MonthOfYear Int
+    deriving stock (Eq, Show)
+
+mkMonthOfYear :: Int -> Either Text MonthOfYear
+mkMonthOfYear value
+    | value >= 1 && value <= 12 = Right (MonthOfYear value)
+    | otherwise = Left "Fiscal-year start must be between 1 and 12."
+
+monthOfYearValue :: MonthOfYear -> Int
+monthOfYearValue (MonthOfYear value) = value
 
 -- * Boundary configuration types
 data FileConfig = FileConfig
@@ -77,12 +109,49 @@ data GainMappingFileConfig = GainMappingFileConfig
     deriving anyclass (FromJSON, ToJSON)
 
 data AssetClassFileConfig = AssetClassFileConfig
-    { kind :: Text
+    { kind :: AssetClassKind
     , accountPrefixes :: [Text]
     , targetPercent :: Maybe Scientific
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON)
+
+newtype AssetClassKind = AssetClassKind Investment.AssetClass
+    deriving stock (Eq, Show)
+
+instance FromJSON AssetClassKind where
+    parseJSON =
+        Aeson.withText "asset class" $ \raw ->
+            maybe
+                (fail ("Unsupported asset class kind: " <> Text.unpack raw))
+                (pure . AssetClassKind)
+                (parseAssetClass raw)
+
+instance ToJSON AssetClassKind where
+    toJSON (AssetClassKind assetClass) = Aeson.String (assetClassText assetClass)
+
+parseAssetClass :: Text -> Maybe Investment.AssetClass
+parseAssetClass raw =
+    case raw of
+        "equity" -> Just Investment.Equity
+        "debt" -> Just Investment.Debt
+        "cash" -> Just Investment.Cash
+        "gold" -> Just Investment.Gold
+        "hybrid" -> Just Investment.Hybrid
+        "property" -> Just Investment.Property
+        "other" -> Just Investment.Other
+        _ -> Nothing
+
+assetClassText :: Investment.AssetClass -> Text
+assetClassText assetClass =
+    case assetClass of
+        Investment.Equity -> "equity"
+        Investment.Debt -> "debt"
+        Investment.Cash -> "cash"
+        Investment.Gold -> "gold"
+        Investment.Hybrid -> "hybrid"
+        Investment.Property -> "property"
+        Investment.Other -> "other"
 
 data CliOptions = CliOptions
     { cliConfigPath :: Maybe Text
@@ -145,19 +214,23 @@ resolveConfig :: FileConfig -> CliOptions -> Either Text Config
 resolveConfig fileConfig cli = do
     mappings <- investmentMappingsFrom fileConfig.investments
     assetClasses <- assetClassMappingsFrom fileConfig.investments
+    listenPort <- mkPort ((cli.cliListenPort <|> (fileConfig.server >>= (.port))) `orDefault` 8080)
+    fiscalYearStartMonth <-
+        mkMonthOfYear
+            ( (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
+                `orDefault` 4
+            )
     validate
         Config
             { journalPath = (cli.cliJournalPath <|> ((.path) <$> fileConfig.journal)) `orDefault` ""
             , listenAddress =
                 (cli.cliListenAddress <|> (fileConfig.server >>= (.listenAddress)))
                     `orDefault` "127.0.0.1"
-            , listenPort = (cli.cliListenPort <|> (fileConfig.server >>= (.port))) `orDefault` 8080
+            , listenPort = listenPort
             , defaultDisplayCommodity =
                 (cli.cliDisplayCommodity <|> (fileConfig.display >>= (.commodity)))
                     `orDefault` "INR"
-            , fiscalYearStartMonth =
-                (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
-                    `orDefault` 4
+            , fiscalYearStartMonth = fiscalYearStartMonth
             , investmentMappings = mappings
             , assetClassMappings = assetClasses
             }
@@ -175,49 +248,35 @@ assetClassMappingsFrom (Just configured) = do
     Investment.mkAssetClassMappings mappings
 
 investmentMappingFrom :: GainMappingFileConfig -> Either Text Investment.InvestmentMapping
-investmentMappingFrom configured =
-    Right
-        Investment.InvestmentMapping
-            { assetAccount = configured.assetAccount
-            , performanceAccounts =
-                [ Investment.PerformanceAccount{account, role = Investment.OtherIncome}
-                | account <- configured.gainAccounts
-                ]
-            }
+investmentMappingFrom configured = do
+    assetAccount <- Investment.mkAssetAccount configured.assetAccount
+    performanceAccounts <-
+        traverse
+            ( \name -> do
+                account <- Investment.mkAccountName name
+                pure Investment.PerformanceAccount{account, role = Investment.OtherIncome}
+            )
+            configured.gainAccounts
+    pure Investment.InvestmentMapping{assetAccount, performanceAccounts}
 
 assetClassMappingFrom :: AssetClassFileConfig -> Either Text Investment.AssetClassMapping
 assetClassMappingFrom configured = do
-    assetClass <- assetClassFrom configured.kind
-    pure
-        Investment.AssetClassMapping
-            { assetClass
-            , accountPrefixes = configured.accountPrefixes
-            , targetPercentage = realToFrac <$> configured.targetPercent
-            }
-
-assetClassFrom :: Text -> Either Text Investment.AssetClass
-assetClassFrom kind =
-    case kind of
-        "equity" -> Right Investment.Equity
-        "debt" -> Right Investment.Debt
-        "cash" -> Right Investment.Cash
-        "gold" -> Right Investment.Gold
-        "hybrid" -> Right Investment.Hybrid
-        "property" -> Right Investment.Property
-        "other" -> Right Investment.Other
-        _ -> Left ("Unsupported asset class kind: " <> kind)
+    let AssetClassKind assetClass = configured.kind
+    assetPrefixes <- traverse Investment.mkAssetAccount configured.accountPrefixes
+    accountPrefixes <-
+        maybe
+            (Left "Each asset class mapping requires at least one account prefix.")
+            Right
+            (NonEmpty.nonEmpty assetPrefixes)
+    targetPercentage <-
+        traverse (Investment.mkPercentage . realToFrac) configured.targetPercent
+    pure Investment.AssetClassMapping{assetClass, accountPrefixes, targetPercentage}
 
 validate :: Config -> Either Text Config
 validate config = do
     requireNonBlank "journal path" config.journalPath
     requireToken "listen address" config.listenAddress
     requireToken "display commodity" config.defaultDisplayCommodity
-    if
-        | config.listenPort < 1 || config.listenPort > 65535 ->
-            Left "Port must be between 1 and 65535."
-        | config.fiscalYearStartMonth < 1 || config.fiscalYearStartMonth > 12 ->
-            Left "Fiscal-year start must be between 1 and 12."
-        | otherwise -> pure ()
     pure config
 
 requireNonBlank :: Text -> Text -> Either Text ()

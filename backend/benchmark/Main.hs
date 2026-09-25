@@ -8,6 +8,8 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
@@ -31,7 +33,8 @@ import Hedger.Application.TransactionQuery (
     TransactionPageRequest (..),
     transactionPage,
  )
-import Hedger.Config (Config (..))
+import Hedger.Config (Config (..), mkMonthOfYear, mkPort)
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
 import Hedger.Domain.Internal.Cashflow qualified as Cashflow
@@ -56,7 +59,7 @@ import Hedger.Domain.NetWorth (
  )
 import Hedger.Domain.Period (Granularity (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..))
+import Hedger.Domain.Valuation (Conversion, conversionMissing, conversionValue)
 import Hedger.Domain.Xirr qualified as Xirr
 import Hedger.Infrastructure.SnapshotStore (loadSnapshot, newSnapshotStore, reloadSnapshot)
 import Hedger.Interface.HTTP.Core.Common (ResponseMetadata (..))
@@ -116,11 +119,11 @@ fixtureBenchmarks (name, path) =
                     [ bench "current" $ nf (summaryWeight . investmentSummary snapshot) input.latest
                     , bench "drill-down-singular-reference" $
                         nf
-                            (sum . fmap summaryResultWeight . investmentDrillDownSingular snapshot)
+                            (sum . fmap summaryWeight . investmentDrillDownSingular snapshot)
                             input.latest
                     , bench "drill-down-latest" $
                         nf
-                            (sum . fmap summaryResultWeight . investmentDrillDown snapshot)
+                            (sum . fmap summaryWeight . investmentDrillDown snapshot)
                             input.latest
                     , bench "monthly-24" $
                         nf (sum . fmap summaryWeight . investmentSummaries snapshot) input.monthEnds
@@ -159,7 +162,7 @@ fixtureBenchmarks (name, path) =
                     , bench "retained" $
                         nf (decimalWeight . retainedComponent context snapshot) input.latest
                     , bench "attributed" $
-                        nf (tripleWeight . attributedComponent context snapshot) input.latest
+                        nf (attributionWeight . attributedComponent context snapshot) input.latest
                     , bench "cash-flows" $
                         nf (cashFlowsWeight . cashFlowsComponent context snapshot) input.latest
                     , bench "xirr-solve" $ nf xirrWeight input.investmentCashFlows
@@ -271,12 +274,12 @@ loadFixtureInput path = do
         monthEnds = (\(_, _, end) -> end) <$> Performance.reportPeriods Monthly transactions latest
         current = investmentSummary snapshot latest
         context = prepareContext snapshot
-        terminal = Xirr.cashFlow latest (fromMaybe 0 current.marketValue)
+        terminal = Xirr.cashFlow latest (fromMaybe 0 (Performance.summaryMarketValue current))
         investmentCashFlows =
             fromMaybe [] (cashFlowsComponent context snapshot latest) <> [terminal]
     _ <- evaluate (length (show configuration))
     _ <- evaluate environment
-    case current.marketValue of
+    case Performance.summaryMarketValue current of
         Nothing -> fail "investment benchmark fixture produced an empty portfolio"
         Just _ -> pure ()
     pure
@@ -297,9 +300,9 @@ benchmarkConfig path =
     Config
         { journalPath = path
         , listenAddress = "127.0.0.1"
-        , listenPort = 8080
+        , listenPort = either (error . Text.unpack) id (mkPort 8080)
         , defaultDisplayCommodity = "INR"
-        , fiscalYearStartMonth = 4
+        , fiscalYearStartMonth = either (error . Text.unpack) id (mkMonthOfYear 4)
         , investmentMappings = benchmarkMappings
         , assetClassMappings = benchmarkAssetClassMappings
         }
@@ -327,7 +330,7 @@ queryWeight snapshot query =
                 (toTransactions (accountTypeClassifier snapshot.journal) page.transactions)
 
 -- * Investments
-investmentSummary :: Snapshot -> Day -> Performance.InvestmentSummary
+investmentSummary :: Snapshot -> Day -> Performance.SummaryResult
 investmentSummary snapshot day =
     Performance.investmentSummaryAt
         snapshot
@@ -337,7 +340,7 @@ investmentSummary snapshot day =
         Nothing
         day
 
-investmentSummaries :: Snapshot -> [Day] -> [Performance.InvestmentSummary]
+investmentSummaries :: Snapshot -> [Day] -> [Performance.SummaryResult]
 investmentSummaries snapshot days =
     let context =
             Performance.prepareInvestmentPerformance
@@ -345,8 +348,7 @@ investmentSummaries snapshot days =
                 benchmarkAssetClassMappings
                 benchmarkMappings
                 "INR"
-     in (.summary)
-            <$> Performance.summariesAtPrepared context Nothing Monthly days
+     in Performance.summariesAtPrepared context Nothing Monthly days
 
 investmentDrillDown :: Snapshot -> Day -> [Performance.SummaryResult]
 investmentDrillDown snapshot day =
@@ -372,9 +374,9 @@ investmentDrillDownScopes snapshot day = List.nub (Nothing : fmap Just children 
     accounts = Performance.investmentAccountsAt snapshot benchmarkAssetClassMappings Nothing day
     children = Performance.childrenOf Nothing accounts
     allocationScopes =
-        [ Just prefix
+        [ Just (Investment.assetAccountText prefix)
         | mapping <- Investment.assetClassMappingsList benchmarkAssetClassMappings
-        , prefix <- mapping.accountPrefixes
+        , prefix <- NonEmpty.toList mapping.accountPrefixes
         ]
 
 prepareContext :: Snapshot -> Performance.InvestmentPerformanceContext
@@ -424,7 +426,7 @@ attributedComponent ::
     Performance.InvestmentPerformanceContext ->
     Snapshot ->
     Day ->
-    Maybe (Decimal, Decimal, Decimal)
+    Maybe Performance.Attribution
 attributedComponent context snapshot =
     Performance.attributedAtWith
         context.valueAt
@@ -448,8 +450,8 @@ cashFlowsComponent context snapshot =
 decimalWeight :: Maybe Decimal -> Int
 decimalWeight = length . show
 
-tripleWeight :: Maybe (Decimal, Decimal, Decimal) -> Int
-tripleWeight = length . show
+attributionWeight :: Maybe Performance.Attribution -> Int
+attributionWeight = length . show
 
 cashFlowsWeight :: Maybe [Xirr.CashFlow] -> Int
 cashFlowsWeight = length . show
@@ -465,7 +467,7 @@ scopeScanWeight scan =
     sum (Text.length <$> scan.accounts)
         + fromEnum scan.mappingComplete
         + decimalWeight scan.retained
-        + tripleWeight scan.attributed
+        + attributionWeight scan.attributed
         + cashFlowsWeight scan.cashFlows
 
 timelineHoldingsMarket :: Performance.InvestmentPerformanceContext -> [Day] -> [Hledger.MixedAmount]
@@ -484,21 +486,19 @@ timelineHoldingsCost context =
         Nothing
         Monthly
 
-summaryWeight :: Performance.InvestmentSummary -> Int
+summaryWeight :: Performance.SummaryResult -> Int
 summaryWeight summary =
     sum
-        [ length (show summary.marketValue)
-        , length (show summary.purchaseCost)
-        , length (show summary.gainLoss)
-        , length (show summary.xirr)
-        , length (show summary.attributedIncome)
-        , length (show summary.realisedGain)
-        , length (show summary.totalProfit)
-        , length (show summary.completeness)
+        [ length (show (Performance.summaryMarketValue summary))
+        , length (show (Performance.summaryPurchaseCost summary))
+        , length (show (Performance.summaryGainLoss summary))
+        , length (show (Performance.summaryXirr summary))
+        , length (show (Performance.summaryAttributedIncome summary))
+        , length (show (Performance.summaryRealisedGain summary))
+        , length (show (Performance.summaryTotalProfit summary))
+        , length (show (Performance.summaryCompleteness summary))
+        , length (show (Performance.summaryWarnings summary))
         ]
-
-summaryResultWeight :: Performance.SummaryResult -> Int
-summaryResultWeight result = summaryWeight result.summary + length (show result.warnings)
 
 {- | Run the complete in-memory application use case. Fixture parsing and the
 snapshot store's initial publication happen in 'loadFixtureInput'; this timed
@@ -584,20 +584,31 @@ benchmarkMappings =
   where
     mapping assetAccount performanceAccounts =
         InvestmentMapping
-            { assetAccount
+            { assetAccount = mkAssetAccountOrError assetAccount
             , performanceAccounts =
-                [PerformanceAccount account OtherIncome | account <- performanceAccounts]
+                [ PerformanceAccount (mkAccountNameOrError account) OtherIncome
+                | account <- performanceAccounts
+                ]
             }
+
+mkAssetAccountOrError :: Text.Text -> Investment.AssetAccount
+mkAssetAccountOrError = either (error . Text.unpack) id . Investment.mkAssetAccount
+
+mkAccountNameOrError :: Text.Text -> Investment.AccountName
+mkAccountNameOrError = either (error . Text.unpack) id . Investment.mkAccountName
 
 benchmarkAssetClassMappings :: Investment.AssetClassMappings
 benchmarkAssetClassMappings =
     either (error . Text.unpack) id $
         mkAssetClassMappings
-            [ AssetClassMapping Equity ["assets:equity"] (Just 60)
-            , AssetClassMapping Debt ["assets:debt"] (Just 25)
-            , AssetClassMapping Cash ["assets:liquid"] (Just 5)
-            , AssetClassMapping Hybrid ["assets:hybrid"] (Just 10)
+            [ AssetClassMapping Equity (assetPrefix "assets:equity") (Just (percentage 60))
+            , AssetClassMapping Debt (assetPrefix "assets:debt") (Just (percentage 25))
+            , AssetClassMapping Cash (assetPrefix "assets:liquid") (Just (percentage 5))
+            , AssetClassMapping Hybrid (assetPrefix "assets:hybrid") (Just (percentage 10))
             ]
+  where
+    assetPrefix name = mkAssetAccountOrError name :| []
+    percentage value = either (error . Text.unpack) id (Investment.mkPercentage value)
 
 -- * Analytics: net worth and cashflow both iterate every period across the
 
@@ -608,7 +619,16 @@ a partial weight would silently skip, hiding two whole report passes.
 -}
 netWorthWeight :: Snapshot -> Int
 netWorthWeight snapshot =
-    let figures = computeNetWorth snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+    let figures =
+            computeNetWorth
+                snapshot
+                snapshot.transactions
+                Monthly
+                "INR"
+                Nothing
+                Nothing
+                Depth2
+                Depth2
      in sum (timelineWeight <$> figures.timeline)
             + sum (breakdownWeight <$> figures.assetsBreakdownItems)
             + sum (breakdownWeight <$> figures.liabilitiesBreakdownItems)
@@ -624,7 +644,16 @@ netWorthWeight snapshot =
 
 cashflowWeight :: Snapshot -> Int
 cashflowWeight snapshot =
-    let figures = computeCashflow snapshot snapshot.transactions Monthly "INR" Nothing Nothing 2 2
+    let figures =
+            computeCashflow
+                snapshot
+                snapshot.transactions
+                Monthly
+                "INR"
+                Nothing
+                Nothing
+                Depth2
+                Depth2
      in sum (timelineWeight <$> figures.timeline)
             + sum (breakdownWeight <$> figures.incomeBreakdownItems)
             + sum (breakdownWeight <$> figures.expenseBreakdownItems)
@@ -635,7 +664,7 @@ cashflowWeight snapshot =
             + Text.length figures.expenseBreakdownPeriod
             + Set.size figures.missing
 
-timelineWeight :: TimelinePoint -> Int
+timelineWeight :: (Show side) => TimelinePoint side -> Int
 timelineWeight point =
     length (show point.positive)
         + length (show point.negative)
@@ -657,22 +686,22 @@ incomeExpensePeriodicWeight snapshot =
 incomeGainPeriodicWeight :: Snapshot -> Int
 incomeGainPeriodicWeight snapshot =
     periodicReportWeight
-        (Cashflow.incomeGainPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (Cashflow.incomeGainPeriodicReport snapshot snapshot.transactions Monthly "INR" Depth2)
 
 expensePeriodicWeight :: Snapshot -> Int
 expensePeriodicWeight snapshot =
     periodicReportWeight
-        (Cashflow.expensePeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (Cashflow.expensePeriodicReport snapshot snapshot.transactions Monthly "INR" Depth2)
 
 assetCashPeriodicWeight :: Snapshot -> Int
 assetCashPeriodicWeight snapshot =
     periodicReportWeight
-        (NetWorth.assetCashPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (NetWorth.assetCashPeriodicReport snapshot snapshot.transactions Monthly "INR" Depth2)
 
 liabilityPeriodicWeight :: Snapshot -> Int
 liabilityPeriodicWeight snapshot =
     periodicReportWeight
-        (NetWorth.liabilityPeriodicReport snapshot snapshot.transactions Monthly "INR" 2)
+        (NetWorth.liabilityPeriodicReport snapshot snapshot.transactions Monthly "INR" Depth2)
 
 assetLiabilityPeriodicWeight :: Snapshot -> Int
 assetLiabilityPeriodicWeight snapshot =
@@ -701,7 +730,8 @@ periodicReportWeight report =
             ]
 
 conversionWeight :: Conversion Decimal -> Int
-conversionWeight conversion = maybe 0 (length . show) conversion.value + Set.size conversion.missing
+conversionWeight conversion =
+    maybe 0 (length . show) (conversionValue conversion) + Set.size (conversionMissing conversion)
 
 -- * Accounts: the tree values every account against the price oracle; the
 

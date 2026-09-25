@@ -4,6 +4,7 @@ module Hedger.Domain.InvestmentSpec (
 
 import Data.Either (isLeft, isRight)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Ord (comparing)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -12,21 +13,27 @@ import Hedgehog (Gen, MonadTest, Property, assert, failure, footnote, forAll, pr
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
+import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Test.Tasty.Hedgehog (testProperty)
 
 import Hedger.Domain.Investment (
+    AccountName,
+    AssetAccount,
     AssetClass (..),
     AssetClassMapping (..),
     AssetClassMappings,
     InvestmentMapping (..),
     InvestmentMappings,
     PerformanceAccount (..),
+    assetAccountText,
     assetClassForAccount,
     mappingForAccount,
     mappingsForScope,
+    mkAccountName,
+    mkAssetAccount,
     mkAssetClassMappings,
     mkInvestmentMappings,
+    mkPercentage,
  )
 import Hedger.Generators (
     genAccountComponent,
@@ -50,8 +57,6 @@ investmentSpec =
             "mkInvestmentMappings"
             [ testProperty "a disjoint, well-formed set is accepted" happyPath
             , testProperty "a duplicated asset account is rejected" rejectsDuplicateAssetAccount
-            , testProperty "a single-component asset account is rejected" rejectsUnqualifiedAsset
-            , testProperty "an asset account outside assets is rejected" rejectsAssetOutsideAssets
             , testProperty
                 "overlapping performance scopes are rejected"
                 rejectsOverlappingPerformanceScopes
@@ -71,6 +76,13 @@ investmentSpec =
             [ testProperty
                 "a non-empty scope returns exactly the overlapping mappings"
                 scopeReturnsOverlapping
+            ]
+        , testGroup
+            "smart constructors"
+            [ testCase "rejects an unqualified asset account" rejectsUnqualifiedAssetName
+            , testCase "rejects a non-assets asset account" rejectsNonAssetsAssetName
+            , testCase "rejects a percentage above the range" rejectsHighPercentage
+            , testCase "accepts a percentage within the range" acceptsInRangePercentage
             ]
         ]
 
@@ -96,14 +108,19 @@ isComponentPrefixOf prefix account = componentsOf prefix `List.isPrefixOf` compo
 componentCount :: Text -> Int
 componentCount = length . componentsOf
 
+accountDepth :: InvestmentMapping -> Int
+accountDepth = componentCount . assetAccountText . (.assetAccount)
+
 -- Asset class mappings
 unmatchedAccountsAreOther :: IO ()
 unmatchedAccountsAreOther = do
     mappings <-
-        case mkAssetClassMappings [AssetClassMapping Equity ["assets:equity"] Nothing] of
+        case mkAssetClassMappings configured of
             Left err -> assertFailure (Text.unpack err) >> fail "invalid asset class mapping"
             Right value -> pure value
     assertEqual "unmatched asset class" Other (assetClassForAccount "assets:debt:fund" mappings)
+  where
+    configured = [AssetClassMapping Equity (mkAssetAccountOrError "assets:equity" :| []) Nothing]
 
 genAssetClass :: Gen AssetClass
 genAssetClass = Gen.element [Equity, Debt, Cash, Gold, Hybrid, Property, Other]
@@ -114,7 +131,7 @@ genDisjointAssetClassMappingSet = do
     leaves <- Set.toList <$> Gen.set (Range.singleton mappingCount) genAccountComponent
     classes <- Gen.list (Range.singleton mappingCount) genAssetClass
     pure
-        [ AssetClassMapping assetClass ["assets:" <> leaf] Nothing
+        [ AssetClassMapping assetClass (mkAssetAccountOrError ("assets:" <> leaf) :| []) Nothing
         | (assetClass, leaf) <- zip classes leaves
         ]
 
@@ -128,10 +145,9 @@ assetClassLookupPermutationInvariant =
         mapping <- forAll (Gen.element mappings)
         suffix <- forAll (Gen.list (Range.linear 0 3) genAccountComponent)
         case mapping.accountPrefixes of
-            prefix : _ -> do
-                let query = Text.intercalate ":" (prefix : suffix)
+            prefix :| _ -> do
+                let query = Text.intercalate ":" (assetAccountText prefix : suffix)
                 assetClassForAccount query first === assetClassForAccount query second
-            [] -> footnote "generator produced an empty prefix set" >> failure
 
 -- mkInvestmentMappings
 happyPath :: Property
@@ -147,21 +163,6 @@ rejectsDuplicateAssetAccount =
         let duplicated = head mappings : mappings
         assert (isLeft (mkInvestmentMappings duplicated))
 
-rejectsUnqualifiedAsset :: Property
-rejectsUnqualifiedAsset =
-    property $ do
-        mappings <- forAll genDisjointMappingSet
-        let bad = InvestmentMapping{assetAccount = "assets", performanceAccounts = []}
-        assert (isLeft (mkInvestmentMappings (bad : mappings)))
-
-rejectsAssetOutsideAssets :: Property
-rejectsAssetOutsideAssets =
-    property $ do
-        mappings <- forAll genDisjointMappingSet
-        outsideAsset <- forAll (genQualifiedAccountName "income")
-        let bad = InvestmentMapping{assetAccount = outsideAsset, performanceAccounts = []}
-        assert (isLeft (mkInvestmentMappings (bad : mappings)))
-
 genOverlappingMappingPair :: Gen (InvestmentMapping, InvestmentMapping)
 genOverlappingMappingPair = do
     base <- genQualifiedAccountName "income"
@@ -171,13 +172,15 @@ genOverlappingMappingPair = do
     let nested = Text.intercalate ":" (base : extraComponents)
         first =
             InvestmentMapping
-                { assetAccount = "assets:one"
-                , performanceAccounts = [PerformanceAccount base firstRole]
+                { assetAccount = mkAssetAccountOrError "assets:one"
+                , performanceAccounts =
+                    [PerformanceAccount (mkAccountNameOrError base) firstRole]
                 }
         second =
             InvestmentMapping
-                { assetAccount = "assets:two"
-                , performanceAccounts = [PerformanceAccount nested secondRole]
+                { assetAccount = mkAssetAccountOrError "assets:two"
+                , performanceAccounts =
+                    [PerformanceAccount (mkAccountNameOrError nested) secondRole]
                 }
     pure (first, second)
 
@@ -200,7 +203,7 @@ genQueryAccount mappings = Gen.choice (genUnrelatedAccount : fmap extend mapping
   where
     extend mapping = do
         extra <- Gen.list (Range.linear 0 3) (Gen.element ["x", "y", "z", "extra"])
-        pure (Text.intercalate ":" (mapping.assetAccount : extra))
+        pure (Text.intercalate ":" (assetAccountText mapping.assetAccount : extra))
     genUnrelatedAccount = do
         segment <- Gen.element ["assets", "income", "expenses", "liabilities", "equity", "other"]
         genQualifiedAccountName segment
@@ -213,18 +216,18 @@ findsDeepestPrefix =
         query <- forAll (genQueryAccount mappings)
         let candidates =
                 filter
-                    (\mapping -> mapping.assetAccount `isComponentPrefixOf` query)
+                    (\mapping -> assetAccountText mapping.assetAccount `isComponentPrefixOf` query)
                     mappings
             result = mappingForAccount query built
         case candidates of
             [] -> result === Nothing
             _ -> do
-                let deepestDepth = maximum (fmap (componentCount . (.assetAccount)) candidates)
+                let deepestDepth = maximum (fmap accountDepth candidates)
                 case result of
                     Nothing -> footnote "expected a match" >> failure
                     Just found -> do
-                        assert (found.assetAccount `isComponentPrefixOf` query)
-                        componentCount found.assetAccount === deepestDepth
+                        assert (assetAccountText found.assetAccount `isComponentPrefixOf` query)
+                        componentCount (assetAccountText found.assetAccount) === deepestDepth
 
 -- | A chain of mappings whose asset accounts are strictly nested prefixes of one another.
 genNestedAssetChain :: Gen [InvestmentMapping]
@@ -234,7 +237,13 @@ genNestedAssetChain = do
             [ Text.intercalate ":" ("assets" : take size components)
             | size <- [1 .. length components]
             ]
-    pure [InvestmentMapping{assetAccount = asset, performanceAccounts = []} | asset <- prefixes]
+    pure
+        [ InvestmentMapping
+            { assetAccount = mkAssetAccountOrError asset
+            , performanceAccounts = []
+            }
+        | asset <- prefixes
+        ]
 
 findsDeepestAmongNested :: Property
 findsDeepestAmongNested =
@@ -245,11 +254,11 @@ findsDeepestAmongNested =
         let deepest =
                 ( (.assetAccount)
                     ( List.maximumBy
-                        (comparing (componentCount . (.assetAccount)))
+                        (comparing accountDepth)
                         chain
                     )
                 )
-            query = Text.intercalate ":" (deepest : extra)
+            query = Text.intercalate ":" (assetAccountText deepest : extra)
         case mappingForAccount query built of
             Nothing -> footnote "expected a match for a query under the deepest asset" >> failure
             Just found -> found.assetAccount === deepest
@@ -263,7 +272,30 @@ scopeReturnsOverlapping =
         scope <- forAll (genQueryAccount mappings)
         let result = mappingsForScope scope built
             overlaps mapping =
-                let asset = mapping.assetAccount
+                let asset = assetAccountText mapping.assetAccount
                  in scope `isComponentPrefixOf` asset || asset `isComponentPrefixOf` scope
         assert (all overlaps result)
         assert (all (not . overlaps) (mappings List.\\ result))
+
+-- Smart constructors
+rejectsUnqualifiedAssetName :: IO ()
+rejectsUnqualifiedAssetName =
+    assertBool "assets is not a fully qualified account name" (isLeft (mkAssetAccount "assets"))
+
+rejectsNonAssetsAssetName :: IO ()
+rejectsNonAssetsAssetName =
+    assertBool "income:dividend is not under assets" (isLeft (mkAssetAccount "income:dividend"))
+
+rejectsHighPercentage :: IO ()
+rejectsHighPercentage =
+    assertBool "101 is out of range" (isLeft (mkPercentage 101))
+
+acceptsInRangePercentage :: IO ()
+acceptsInRangePercentage =
+    assertBool "45 is in range" (isRight (mkPercentage 45))
+
+mkAssetAccountOrError :: Text -> AssetAccount
+mkAssetAccountOrError = either (error . Text.unpack) id . mkAssetAccount
+
+mkAccountNameOrError :: Text -> AccountName
+mkAccountNameOrError = either (error . Text.unpack) id . mkAccountName

@@ -23,6 +23,7 @@ import Hledger.Data.Posting (nullposting)
 import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Activity (
     ActivityBucketFigures (..),
     ActivityDirection (..),
@@ -33,7 +34,13 @@ import Hedger.Domain.Activity (
     computeActivity,
     parseActivityPeriod,
  )
-import Hedger.Domain.Period (ReportPeriod (..), monthKey)
+import Hedger.Domain.Period (
+    ReportPeriod,
+    monthKey,
+    reportPeriodEnd,
+    reportPeriodKey,
+    reportPeriodStart,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Generators (displayCommodity, formatYearMonth, genMonth, genSnapshot, genYear)
 import Hedger.SyntheticTransactions (mkSnapshot)
@@ -175,7 +182,7 @@ activityFigures kind transactions =
                 "R"
                 kind
                 MonthActivity
-                3
+                Depth3
                 activityPeriod
             ).buckets
 
@@ -196,10 +203,9 @@ monthActivityValid =
         case parseActivityPeriod fiscalStart MonthActivity raw of
             Left err -> footnote (show err) >> failure
             Right period -> do
-                period.start === expectedStart
-                assert (period.start <= period.end)
-                period.key === monthKey period.start
-                addDays 1 period.end === addGregorianMonthsClip 1 expectedStart
+                reportPeriodStart period === expectedStart
+                reportPeriodKey period === monthKey (reportPeriodStart period)
+                addDays 1 (reportPeriodEnd period) === addGregorianMonthsClip 1 expectedStart
 
 genMalformedYearMonth :: Gen Text
 genMalformedYearMonth = Gen.choice [genUnpaddedMonth, genOutOfRangeMonth, genWrongComponentCount]
@@ -239,8 +245,8 @@ fiscalYearValid =
         case parseActivityPeriod fiscalStart FiscalYearActivity raw of
             Left err -> footnote (show err) >> failure
             Right period -> do
-                assert (period.start <= period.end)
-                addGregorianMonthsClip 12 period.start === addDays 1 period.end
+                addGregorianMonthsClip 12 (reportPeriodStart period)
+                    === addDays 1 (reportPeriodEnd period)
 
 fiscalYearMismatch :: Property
 fiscalYearMismatch =
@@ -260,8 +266,8 @@ fiscalYearMalformed =
 
 -- Conservation properties
 
-activityDepths :: [Int]
-activityDepths = [1, 2, 3, 4]
+activityDepths :: [DisplayDepth]
+activityDepths = [Depth1, Depth2, Depth3, Depth4]
 
 activityKinds :: [ActivityKind]
 activityKinds = [ExpenseActivity, IncomeActivity, AssetActivity, LiabilityActivity]
@@ -280,7 +286,7 @@ categoryDepthInvariance =
                             ]
                 for_ activityDepths $ \depth -> do
                     footnote ("display depth " <> show depth)
-                    totalsAt depth === totalsAt 1
+                    totalsAt depth === totalsAt Depth1
 
 -- The month of each transaction, earliest first, as activity periods.
 transactionMonths :: Snapshot -> [ReportPeriod]
@@ -300,12 +306,17 @@ firstActivityWithBucketsOver kinds snapshot =
     case [ (kind, period)
          | period <- transactionMonths snapshot
          , kind <- kinds
-         , not (null (activityFiguresFor snapshot kind period 1))
+         , not (null (activityFiguresFor snapshot kind period Depth1))
          ] of
         sample : _ -> Just sample
         [] -> Nothing
 
-activityFiguresFor :: Snapshot -> ActivityKind -> ReportPeriod -> Int -> [ActivityBucketFigures]
+activityFiguresFor ::
+    Snapshot ->
+    ActivityKind ->
+    ReportPeriod ->
+    DisplayDepth ->
+    [ActivityBucketFigures]
 activityFiguresFor snapshot kind period depth =
     ( computeActivity
         snapshot

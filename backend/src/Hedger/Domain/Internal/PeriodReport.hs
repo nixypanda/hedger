@@ -3,6 +3,9 @@ the line-item value objects used by the net-worth and cashflow calculations.
 -}
 module Hedger.Domain.Internal.PeriodReport (
     TimelinePoint (..),
+    Magnitude,
+    magnitude,
+    magnitudeValue,
     BreakdownItem (..),
     ReportSide (..),
     periodicBalanceReport,
@@ -36,29 +39,49 @@ import Hledger.Reports.MultiBalanceReport qualified as HledgerMultiBalance
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 import Hledger.Reports.ReportTypes qualified as HledgerReportTypes
 
-import Hedger.Domain.Account (atDepth)
+import Hedger.Domain.Account (DisplayDepth (..), atDepth, displayDepthValue)
 import Hedger.Domain.Period (
     Granularity (..),
-    ReportPeriod (..),
+    ReportPeriod,
     atIndex,
     epoch,
     lastMaybe,
     monthKey,
     periodsFromDateSpan,
     periodsFromReport,
+    reportPeriodEnd,
+    reportPeriodKey,
+    reportPeriodStart,
     takeLast,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..), conversionFromMixed, missingCommodities)
+import Hedger.Domain.Valuation (
+    Conversion (..),
+    conversionFromMixed,
+    conversionValue,
+    missingCommodities,
+ )
 
-data TimelinePoint = TimelinePoint
+data TimelinePoint side = TimelinePoint
     { period :: Text
     , startDate :: Day
-    , positive :: Decimal
-    , negative :: Decimal
+    , positive :: side
+    , negative :: side
     , net :: Decimal
     , missing :: Set Text
     }
+
+{- | A non-negative amount, used for the cashflow timeline's two sides. The
+constructor is not exported.
+-}
+newtype Magnitude = Magnitude Decimal
+    deriving stock (Eq, Ord, Show)
+
+magnitude :: Decimal -> Magnitude
+magnitude = Magnitude . abs
+
+magnitudeValue :: Magnitude -> Decimal
+magnitudeValue (Magnitude value) = value
 
 data BreakdownItem = BreakdownItem
     { account :: Text
@@ -114,7 +137,7 @@ periodicBalanceReport ::
     HledgerReportOptions.BalanceCalculation ->
     HledgerReportOptions.BalanceAccumulation ->
     -- | Display depth to clip rows to; 'Nothing' leaves the report unclipped.
-    Maybe Int ->
+    Maybe DisplayDepth ->
     HledgerMultiBalance.MultiBalanceReport
 periodicBalanceReport
     snapshot
@@ -136,7 +159,7 @@ periodicBalanceReport
         baseReportOptions =
             HledgerReportOptions.defreportopts
                 { HledgerReportOptions.interval_ = reportInterval
-                , HledgerReportOptions.depth_ = Hledger.DepthSpec (max 1 <$> depth) []
+                , HledgerReportOptions.depth_ = Hledger.DepthSpec (displayDepthValue <$> depth) []
                 , HledgerReportOptions.empty_ = True
                 , HledgerReportOptions.balancecalc_ = calculation
                 , HledgerReportOptions.balanceaccum_ = accumulation
@@ -200,7 +223,9 @@ reportWindow granularity journal reportSpec =
         [] -> (Hledger.PeriodAll, interval)
         first : rest ->
             let final = fromMaybe first (lastMaybe rest)
-             in (Hledger.PeriodBetween first.start (addDays 1 final.end), interval)
+                windowStart = reportPeriodStart first
+                windowEnd = addDays 1 (reportPeriodEnd final)
+             in (Hledger.PeriodBetween windowStart windowEnd, interval)
   where
     interval =
         case granularity of
@@ -220,7 +245,7 @@ periodsWithData granularity transactions periods =
     case granularity of
         Monthly ->
             let dataMonths = Set.fromList (fmap (monthKey . (.tdate)) transactions)
-             in filter ((`Set.member` dataMonths) . (.key)) periods
+             in filter ((`Set.member` dataMonths) . reportPeriodKey) periods
         Yearly -> periods
 
 reportTotals :: Text -> ReportSide -> [Conversion Decimal]
@@ -235,7 +260,7 @@ reportMissing commodity side =
 
 selectedPeriod :: Maybe Text -> [ReportPeriod] -> Maybe ReportPeriod
 selectedPeriod requested periods =
-    case requested >>= (\key -> List.find ((== key) . (.key)) periods) of
+    case requested >>= (\key -> List.find ((== key) . reportPeriodKey) periods) of
         Just period -> Just period
         Nothing -> lastMaybe periods
 
@@ -243,17 +268,25 @@ selectedPeriod requested periods =
 top-N / \"Other\" grouping is a presentation concern applied downstream.
 -}
 breakdownItemsFor ::
-    Text -> Int -> Maybe ReportPeriod -> [ReportPeriod] -> ReportSide -> (Text, [BreakdownItem])
+    Text ->
+    DisplayDepth ->
+    Maybe ReportPeriod ->
+    [ReportPeriod] ->
+    ReportSide ->
+    (Text, [BreakdownItem])
 breakdownItemsFor commodity depth selected periods side =
     case selected of
         Nothing -> ("", [])
         Just period ->
-            let periodIndex = fromMaybe 0 (List.findIndex ((== period.key) . (.key)) periods)
+            let periodIndex =
+                    fromMaybe
+                        0
+                        (List.findIndex ((== reportPeriodKey period) . reportPeriodKey) periods)
                 raw =
                     mapMaybe
                         ( \row -> do
                             amount <- atIndex periodIndex row.prrAmounts
-                            quantity <- (conversionFromMixed commodity amount).value
+                            quantity <- conversionValue (conversionFromMixed commodity amount)
                             if abs quantity < 0.000001
                                 then Nothing
                                 else
@@ -275,4 +308,4 @@ breakdownItemsFor commodity depth selected periods side =
                                 ]
                             )
                     ]
-             in (period.key, depthGrouped)
+             in (reportPeriodKey period, depthGrouped)

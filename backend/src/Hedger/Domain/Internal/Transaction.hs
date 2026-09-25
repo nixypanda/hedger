@@ -2,6 +2,9 @@ module Hedger.Domain.Internal.Transaction (
     -- * Types
     TransactionClassification (..),
     TransactionPresentation (..),
+    AccountGroup (..),
+    DominantMovement (..),
+    Fraction,
 
     -- * Core API
     newestFirst,
@@ -11,6 +14,9 @@ module Hedger.Domain.Internal.Transaction (
     classificationFor,
     dominantMovement,
     isOpening,
+    accountGroup,
+    fraction,
+    fractionValue,
 ) where
 
 import Data.List qualified as List
@@ -41,33 +47,100 @@ data TransactionPresentation = TransactionPresentation
     }
     deriving stock (Eq, Show)
 
+{- | A top-level account group, as produced by 'accountLabel'. Unknown groups
+keep their raw label so behaviour matches the previous string grouping.
+-}
+data AccountGroup
+    = Assets
+    | Liabilities
+    | Equity
+    | Income
+    | Expenses
+    | OtherGroup Text.Text
+    deriving stock (Show)
+
+-- | Ordering mirrors the label text, so grouping and tie-breaking are unchanged.
+instance Eq AccountGroup where
+    left == right = accountGroupLabel left == accountGroupLabel right
+
+instance Ord AccountGroup where
+    compare left right = compare (accountGroupLabel left) (accountGroupLabel right)
+
+accountGroupLabel :: AccountGroup -> Text.Text
+accountGroupLabel group =
+    case group of
+        Assets -> "assets"
+        Liabilities -> "liabilities"
+        Equity -> "equity"
+        Income -> "income"
+        Expenses -> "expenses"
+        OtherGroup label -> label
+
+accountGroup :: AccountInfo -> AccountGroup
+accountGroup = groupFromLabel . accountLabel
+  where
+    groupFromLabel label =
+        case label of
+            "assets" -> Assets
+            "liabilities" -> Liabilities
+            "equity" -> Equity
+            "income" -> Income
+            "expenses" -> Expenses
+            other -> OtherGroup other
+
+-- | A fraction in the closed interval [0, 1]. The constructor is not exported.
+newtype Fraction = Fraction Double
+    deriving stock (Eq, Ord, Show)
+
+-- | Build a fraction by clamping into [0, 1]; this keeps the invariant total.
+fraction :: Double -> Fraction
+fraction value = Fraction (max 0 (min 1 value))
+
+fractionValue :: Fraction -> Double
+fractionValue (Fraction value) = value
+
+data DominantMovement
+    = Dominant AccountGroup Fraction
+    | NoDebits
+    deriving stock (Eq, Show)
+
 newestFirst :: [Hledger.Transaction] -> [Hledger.Transaction]
 newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transaction.tindex))
 
 -- * Domain queries
-classificationThreshold :: Double
-classificationThreshold = 0.8
+classificationThreshold :: Fraction
+classificationThreshold = fraction 0.8
 
 classificationFor :: Hledger.Transaction -> TransactionClassification
 classificationFor tx
     | isOpening tx = OpeningBalance
-    | dominantPct < classificationThreshold = Unclassified
-    | any isLiabilities creditAccounts && any isLiabilities debitAccounts = TransactionTransfer
-    | any isLiabilities creditAccounts = Borrowing
-    | dominantGroup == "liabilities" && any isLiabilities debitAccounts = Repayment
-    | dominantGroup == "assets" && any isCashOnly creditAccounts && any isAssetOnly debitAccounts =
-        AssetAcquisition
-    | dominantGroup == "assets" && any isAssetOnly creditAccounts && any isCashOnly debitAccounts =
-        AssetDisposal
-    | dominantGroup == "assets" && any isAssetOnly creditAccounts && any isAssetOnly debitAccounts =
-        AssetReallocation
-    | dominantGroup == "assets" && any isRevenue creditAccounts = TransactionIncome
-    | dominantGroup == "expenses" = TransactionExpense
-    | otherwise = TransactionTransfer
+    | otherwise =
+        case dominantMovement tx of
+            NoDebits -> Unclassified
+            Dominant dominantGroup dominantPct
+                | dominantPct < classificationThreshold -> Unclassified
+                | any isLiabilities creditAccounts && any isLiabilities debitAccounts ->
+                    TransactionTransfer
+                | any isLiabilities creditAccounts -> Borrowing
+                | dominantGroup == Liabilities && any isLiabilities debitAccounts -> Repayment
+                | dominantGroup == Assets
+                    && any isCashOnly creditAccounts
+                    && any isAssetOnly debitAccounts ->
+                    AssetAcquisition
+                | dominantGroup == Assets
+                    && any isAssetOnly creditAccounts
+                    && any isCashOnly debitAccounts ->
+                    AssetDisposal
+                | dominantGroup == Assets
+                    && any isAssetOnly creditAccounts
+                    && any isAssetOnly debitAccounts ->
+                    AssetReallocation
+                | dominantGroup == Assets && any isRevenue creditAccounts -> TransactionIncome
+                | dominantGroup == Expenses -> TransactionExpense
+                | otherwise -> TransactionTransfer
   where
     creditAccounts = postingAccountInfos (creditsFor tx.tpostings)
     debitAccounts = postingAccountInfos (debitsFor tx.tpostings)
-    (dominantGroup, dominantPct) = dominantMovement tx
 
 isOpening :: Hledger.Transaction -> Bool
 isOpening tx =
@@ -84,14 +157,16 @@ isOpening tx =
             (`Text.isInfixOf` Text.toLower posting.paccount)
             ["opening", "open", "balance", "balances", "conversion", "migration", "initial"]
 
-dominantMovement :: Hledger.Transaction -> (Text.Text, Double)
-dominantMovement tx = (dominantGroup, dominantPct)
+dominantMovement :: Hledger.Transaction -> DominantMovement
+dominantMovement tx
+    | Map.null groupAmounts = NoDebits
+    | otherwise = Dominant dominantGroup (fraction (dominantAmount / totalDebit))
   where
     debitPs = debitsFor tx.tpostings
     groupAmounts =
         Map.fromListWith
             (+)
-            [ ( accountLabel (accountInfo p.paccount)
+            [ ( accountGroup (accountInfo p.paccount)
               , abs (fromRational (toRational amount.aquantity))
               )
             | p <- debitPs
@@ -99,26 +174,15 @@ dominantMovement tx = (dominantGroup, dominantPct)
             , amount.aquantity > 0
             ]
     totalDebit = sum (Map.elems groupAmounts)
-    dominantGroup =
-        if Map.null groupAmounts
-            then ""
-            else
-                fst
-                    ( Map.foldlWithKey'
-                        ( \(!bestKey, !bestVal) candidateKey candidateVal ->
-                            if candidateVal > bestVal
-                                then (candidateKey, candidateVal)
-                                else (bestKey, bestVal)
-                        )
-                        ("", 0.0)
-                        groupAmounts
-                    )
-    dominantPct =
-        if totalDebit == 0
-            then 0.0
-            else case Map.lookup dominantGroup groupAmounts of
-                Just amount -> amount / totalDebit
-                Nothing -> 0.0
+    (dominantGroup, dominantAmount) =
+        Map.foldlWithKey'
+            ( \(!bestGroup, !bestAmount) candidateGroup candidateAmount ->
+                if candidateAmount > bestAmount
+                    then (candidateGroup, candidateAmount)
+                    else (bestGroup, bestAmount)
+            )
+            (Map.findMin groupAmounts)
+            groupAmounts
 
 -- * Core API
 presentationFor :: Hledger.Transaction -> TransactionPresentation

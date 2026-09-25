@@ -3,6 +3,8 @@ ledger, as opposed to net worth's stock).
 -}
 module Hedger.Domain.Cashflow (
     TimelinePoint (..),
+    Magnitude,
+    magnitudeValue,
     BreakdownItem (..),
     CashflowFigures (..),
     computeCashflow,
@@ -16,11 +18,15 @@ import Data.Text (Text)
 
 import Hledger.Data.Types qualified as Hledger
 
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Internal.Cashflow (incomeExpensePeriodicReport)
 import Hedger.Domain.Internal.PeriodReport (
     BreakdownItem (..),
+    Magnitude,
     TimelinePoint (..),
     breakdownItemsFor,
+    magnitude,
+    magnitudeValue,
     periodsWithData,
     reportMissing,
     reportPeriodsFrom,
@@ -28,12 +34,12 @@ import Hedger.Domain.Internal.PeriodReport (
     reportTotals,
     selectedPeriod,
  )
-import Hedger.Domain.Period (Granularity, ReportPeriod (..))
+import Hedger.Domain.Period (Granularity, ReportPeriod, reportPeriodKey, reportPeriodStart)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Valuation (Conversion (..))
+import Hedger.Domain.Valuation (Conversion (..), conversionMissing, conversionValue)
 
 data CashflowFigures = CashflowFigures
-    { timeline :: [TimelinePoint]
+    { timeline :: [TimelinePoint Magnitude]
     , available :: Bool
     , totalCount :: Int
     , filteredCount :: Int
@@ -51,8 +57,8 @@ computeCashflow ::
     Text ->
     Maybe Text ->
     Maybe Text ->
-    Int ->
-    Int ->
+    DisplayDepth ->
+    DisplayDepth ->
     CashflowFigures
 computeCashflow
     snapshot
@@ -80,7 +86,7 @@ computeCashflow
         expenseSide = reportSide snapshot.journal [Hledger.Expense] combinedReport
         reportPeriods = reportPeriodsFrom granularity combinedReport
         dataPeriods = periodsWithData granularity matched reportPeriods
-        dataPeriodKeys = Set.fromList (fmap (.key) dataPeriods)
+        dataPeriodKeys = Set.fromList (fmap reportPeriodKey dataPeriods)
         incomeTotals = fmap (fmap negate) (reportTotals commodity incomeSide)
         expenseTotals = reportTotals commodity expenseSide
         missing = reportMissing commodity incomeSide <> reportMissing commodity expenseSide
@@ -103,7 +109,7 @@ computeCashflow
                         positivePeriod
                         reportPeriods
                         incomeSide
-                else (maybe "" (.key) positivePeriod, [])
+                else (maybe "" reportPeriodKey positivePeriod, [])
         expenseBreakdown =
             if available
                 then
@@ -113,17 +119,21 @@ computeCashflow
                         negativePeriod
                         reportPeriods
                         expenseSide
-                else (maybe "" (.key) negativePeriod, [])
+                else (maybe "" reportPeriodKey negativePeriod, [])
 
-cashflowPointFrom :: ReportPeriod -> Conversion Decimal -> Conversion Decimal -> TimelinePoint
+cashflowPointFrom ::
+    ReportPeriod ->
+    Conversion Decimal ->
+    Conversion Decimal ->
+    TimelinePoint Magnitude
 cashflowPointFrom period incomeResult expenseResult =
-    let income = fromMaybe 0 incomeResult.value
-        expenses = fromMaybe 0 expenseResult.value
+    let income = fromMaybe 0 (conversionValue incomeResult)
+        expenses = fromMaybe 0 (conversionValue expenseResult)
      in TimelinePoint
-            { period = period.key
-            , startDate = period.start
-            , positive = income
-            , negative = expenses
+            { period = reportPeriodKey period
+            , startDate = reportPeriodStart period
+            , positive = magnitude income
+            , negative = magnitude expenses
             , net = income - expenses
-            , missing = incomeResult.missing <> expenseResult.missing
+            , missing = conversionMissing incomeResult <> conversionMissing expenseResult
             }

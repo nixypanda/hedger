@@ -1,13 +1,16 @@
 module Hedger.Domain.Account (
     AccountInfo (..),
+    DisplayDepth (..),
     ValuationContext,
     ValuationCompleteness (..),
     ValuedBalances (..),
     accountInfo,
     accountLabel,
     atDepth,
+    displayDepthValue,
     isCashOnly,
     mkValuationContext,
+    parseDisplayDepth,
     valueAt,
     valueBalances,
 ) where
@@ -23,10 +26,10 @@ import Hledger.Data.Valuation qualified as HledgerValuation
 
 import Hedger.Domain.Internal.Account
 
--- | Collapse an account path to the first @depth@ components (clamped to 1..4).
-atDepth :: Int -> Text -> Text
+-- | Collapse an account path to the first @depth@ components.
+atDepth :: DisplayDepth -> Text -> Text
 atDepth depth =
-    HledgerAccountName.clipAccountName (Hledger.DepthSpec (Just (max 1 (min 4 depth))) [])
+    HledgerAccountName.clipAccountName (Hledger.DepthSpec (Just (displayDepthValue depth)) [])
 
 data ValuationCompleteness
     = Complete

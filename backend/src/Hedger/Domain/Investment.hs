@@ -1,5 +1,14 @@
 module Hedger.Domain.Investment (
     AssetClass (..),
+    AccountName,
+    mkAccountName,
+    accountNameText,
+    AssetAccount,
+    mkAssetAccount,
+    assetAccountText,
+    Percentage,
+    mkPercentage,
+    percentageValue,
     AssetClassMapping (..),
     AssetClassMappings,
     InvestmentMappings,
@@ -22,6 +31,8 @@ module Hedger.Domain.Investment (
 
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (Text)
 import Data.Text qualified as Text
 
@@ -37,10 +48,48 @@ data AssetClass
     | Other
     deriving stock (Eq, Ord, Show)
 
+-- | A fully qualified account name: at least two colon-separated components.
+newtype AccountName = AccountName Text
+    deriving stock (Eq, Ord, Show)
+
+mkAccountName :: Text -> Either Text AccountName
+mkAccountName name
+    | fullyQualified name = Right (AccountName name)
+    | otherwise = Left ("Account names must be fully qualified: " <> name)
+
+accountNameText :: AccountName -> Text
+accountNameText (AccountName name) = name
+
+{- | An account rooted at @assets@: an asset-class prefix or the asset side of
+an investment mapping.
+-}
+newtype AssetAccount = AssetAccount AccountName
+    deriving stock (Eq, Ord, Show)
+
+mkAssetAccount :: Text -> Either Text AssetAccount
+mkAssetAccount name
+    | "assets" `accountWithin` name = AssetAccount <$> mkAccountName name
+    | otherwise = Left ("Asset accounts must be under assets: " <> name)
+
+assetAccountText :: AssetAccount -> Text
+assetAccountText (AssetAccount name) = accountNameText name
+
+-- | A percentage in the closed interval @[0, 100]@.
+newtype Percentage = Percentage Decimal
+    deriving stock (Eq, Ord, Show)
+
+mkPercentage :: Decimal -> Either Text Percentage
+mkPercentage value
+    | value < 0 || value > 100 = Left "Asset class target percentages must be between 0 and 100."
+    | otherwise = Right (Percentage value)
+
+percentageValue :: Percentage -> Decimal
+percentageValue (Percentage value) = value
+
 data AssetClassMapping = AssetClassMapping
     { assetClass :: AssetClass
-    , accountPrefixes :: [Text]
-    , targetPercentage :: Maybe Decimal
+    , accountPrefixes :: NonEmpty AssetAccount
+    , targetPercentage :: Maybe Percentage
     }
     deriving stock (Eq, Show)
 
@@ -53,13 +102,13 @@ newtype InvestmentMappings
     deriving stock (Eq, Show)
 
 data InvestmentMapping = InvestmentMapping
-    { assetAccount :: Text
+    { assetAccount :: AssetAccount
     , performanceAccounts :: [PerformanceAccount]
     }
     deriving stock (Eq, Show)
 
 data PerformanceAccount = PerformanceAccount
-    { account :: Text
+    { account :: AccountName
     , role :: PerformanceRole
     }
     deriving stock (Eq, Show)
@@ -80,12 +129,6 @@ emptyAssetClassMappings = AssetClassMappings []
 
 mkAssetClassMappings :: [AssetClassMapping] -> Either Text AssetClassMappings
 mkAssetClassMappings mappings
-    | any (null . (.accountPrefixes)) mappings =
-        Left "Each asset class mapping requires at least one account prefix."
-    | any (any invalidPrefix . (.accountPrefixes)) mappings =
-        Left "Asset class mappings require fully qualified assets account prefixes."
-    | any (maybe False (\target -> target < 0 || target > 100) . (.targetPercentage)) mappings =
-        Left "Asset class target percentages must be between 0 and 100."
     | not (null targeted) && sum targeted /= 100 =
         Left "Configured asset class target percentages must total 100."
     | otherwise =
@@ -93,10 +136,13 @@ mkAssetClassMappings mappings
             first : _ -> Left ("Asset class account-prefix scopes overlap: " <> first)
             [] -> Right (AssetClassMappings mappings)
   where
-    invalidPrefix prefix = not (fullyQualified prefix) || not ("assets" `accountWithin` prefix)
-    fullyQualified = (>= 2) . length . HledgerAccountName.accountNameComponents
-    prefixes = concatMap (.accountPrefixes) mappings
-    targeted = [target | mapping <- mappings, Just target <- [mapping.targetPercentage]]
+    prefixes =
+        [ assetAccountText prefix
+        | mapping <- mappings
+        , prefix <- NonEmpty.toList mapping.accountPrefixes
+        ]
+    targeted =
+        [percentageValue target | mapping <- mappings, Just target <- [mapping.targetPercentage]]
     overlappingPrefixes =
         [ left
         | (leftIndex, left) <- zip [0 :: Int ..] prefixes
@@ -112,26 +158,37 @@ assetClassForAccount :: Text -> AssetClassMappings -> AssetClass
 assetClassForAccount account (AssetClassMappings mappings) =
     case [ mapping.assetClass
          | mapping <- mappings
-         , prefix <- mapping.accountPrefixes
-         , prefix `accountWithin` account
+         , prefix <- NonEmpty.toList mapping.accountPrefixes
+         , assetAccountText prefix `accountWithin` account
          ] of
         assetClass : _ -> assetClass
         [] -> Other
 
 isAssetClassAccount :: Text -> AssetClassMappings -> Bool
 isAssetClassAccount account (AssetClassMappings mappings) =
-    any (\prefix -> prefix `accountWithin` account) (concatMap (.accountPrefixes) mappings)
+    any
+        ( \mapping ->
+            any
+                (\prefix -> assetAccountText prefix `accountWithin` account)
+                mapping.accountPrefixes
+        )
+        mappings
 
 assetClassScopeOverlaps :: Text -> AssetClassMappings -> Bool
 assetClassScopeOverlaps account (AssetClassMappings mappings) =
     any
-        (\prefix -> prefix `accountWithin` account || account `accountWithin` prefix)
-        (concatMap (.accountPrefixes) mappings)
+        ( \mapping ->
+            any
+                ( \prefix ->
+                    assetAccountText prefix `accountWithin` account
+                        || account `accountWithin` assetAccountText prefix
+                )
+                mapping.accountPrefixes
+        )
+        mappings
 
 mkInvestmentMappings :: [InvestmentMapping] -> Either Text InvestmentMappings
 mkInvestmentMappings mappings
-    | any invalidMapping mappings =
-        Left "Investment mappings require fully qualified asset and performance account names."
     | length assetAccounts /= length (List.nub assetAccounts) =
         Left "Each asset account may have only one investment mapping."
     | otherwise =
@@ -143,17 +200,12 @@ mkInvestmentMappings mappings
                     )
             [] -> Right (InvestmentMappings mappings)
   where
-    invalidMapping mapping =
-        not (fullyQualified mapping.assetAccount)
-            || not ("assets" `accountWithin` mapping.assetAccount)
-            || any (not . fullyQualified . (.account)) mapping.performanceAccounts
-    fullyQualified = (>= 2) . length . HledgerAccountName.accountNameComponents
     owned =
-        [ (performance.account, mapping.assetAccount)
+        [ (accountNameText performance.account, assetAccountText mapping.assetAccount)
         | mapping <- mappings
         , performance <- mapping.performanceAccounts
         ]
-    assetAccounts = fmap (.assetAccount) mappings
+    assetAccounts = fmap (assetAccountText . (.assetAccount)) mappings
     ambiguousPerformanceAccounts =
         [ leftAccount
         | (leftIndex, (leftAccount, _)) <- zip [0 :: Int ..] owned
@@ -169,8 +221,8 @@ mappingsForScope scope (InvestmentMappings mappings) =
         else
             filter
                 ( \mapping ->
-                    scope `accountWithin` mapping.assetAccount
-                        || mapping.assetAccount `accountWithin` scope
+                    scope `accountWithin` assetAccountText mapping.assetAccount
+                        || assetAccountText mapping.assetAccount `accountWithin` scope
                 )
                 mappings
 
@@ -178,16 +230,22 @@ mappingForAccount :: Text -> InvestmentMappings -> Maybe InvestmentMapping
 mappingForAccount asset (InvestmentMappings mappings) =
     maximumByMay
         compareDepth
-        (filter (\mapping -> mapping.assetAccount `accountWithin` asset) mappings)
+        (filter (\mapping -> assetAccountText mapping.assetAccount `accountWithin` asset) mappings)
   where
-    compareDepth left right = compare (depth left.assetAccount) (depth right.assetAccount)
+    compareDepth left right =
+        compare
+            (depth (assetAccountText left.assetAccount))
+            (depth (assetAccountText right.assetAccount))
     depth = length . HledgerAccountName.accountNameComponents
 
-mappedAssetAccounts :: InvestmentMappings -> [Text]
+mappedAssetAccounts :: InvestmentMappings -> [AssetAccount]
 mappedAssetAccounts (InvestmentMappings mappings) = fmap (.assetAccount) mappings
 
 accountWithin :: Text -> Text -> Bool
 accountWithin prefix account = prefix == account || (prefix <> ":") `Text.isPrefixOf` account
+
+fullyQualified :: Text -> Bool
+fullyQualified = (>= 2) . length . HledgerAccountName.accountNameComponents
 
 maximumByMay :: (value -> value -> Ordering) -> [value] -> Maybe value
 maximumByMay _ [] = Nothing

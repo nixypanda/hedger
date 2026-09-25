@@ -8,6 +8,7 @@ import Hedgehog.Gen qualified as Gen
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
+import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.NetWorth (
     NetWorthFigures (..),
     computeNetWorth,
@@ -32,8 +33,8 @@ netWorthSpec =
             ]
         ]
 
-depths :: [Int]
-depths = [1, 2, 3, 4]
+depths :: [DisplayDepth]
+depths = [Depth1, Depth2, Depth3, Depth4]
 
 genGranularity :: Gen Granularity
 genGranularity = Gen.element [Monthly, Yearly]
@@ -47,7 +48,7 @@ assetsDepthInvariance =
                 sumQuantities
                     (netWorthFigures snapshot granularity depth).assetsBreakdownItems
         for_ depths $ \depth ->
-            totalAt depth === totalAt 1
+            totalAt depth === totalAt Depth1
 
 liabilitiesDepthInvariance :: Property
 liabilitiesDepthInvariance =
@@ -58,9 +59,9 @@ liabilitiesDepthInvariance =
                 sumQuantities
                     (netWorthFigures snapshot granularity depth).liabilitiesBreakdownItems
         for_ depths $ \depth ->
-            totalAt depth === totalAt 1
+            totalAt depth === totalAt Depth1
 
-netWorthFigures :: Snapshot -> Granularity -> Int -> NetWorthFigures
+netWorthFigures :: Snapshot -> Granularity -> DisplayDepth -> NetWorthFigures
 netWorthFigures snapshot granularity depth =
     computeNetWorth
         snapshot
