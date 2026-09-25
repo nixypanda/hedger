@@ -119,11 +119,11 @@ fixtureBenchmarks (name, path) =
                     [ bench "current" $ nf (summaryWeight . investmentSummary snapshot) input.latest
                     , bench "drill-down-singular-reference" $
                         nf
-                            (sum . fmap summaryResultWeight . investmentDrillDownSingular snapshot)
+                            (sum . fmap summaryWeight . investmentDrillDownSingular snapshot)
                             input.latest
                     , bench "drill-down-latest" $
                         nf
-                            (sum . fmap summaryResultWeight . investmentDrillDown snapshot)
+                            (sum . fmap summaryWeight . investmentDrillDown snapshot)
                             input.latest
                     , bench "monthly-24" $
                         nf (sum . fmap summaryWeight . investmentSummaries snapshot) input.monthEnds
@@ -274,12 +274,12 @@ loadFixtureInput path = do
         monthEnds = (\(_, _, end) -> end) <$> Performance.reportPeriods Monthly transactions latest
         current = investmentSummary snapshot latest
         context = prepareContext snapshot
-        terminal = Xirr.cashFlow latest (fromMaybe 0 current.marketValue)
+        terminal = Xirr.cashFlow latest (fromMaybe 0 (Performance.summaryMarketValue current))
         investmentCashFlows =
             fromMaybe [] (cashFlowsComponent context snapshot latest) <> [terminal]
     _ <- evaluate (length (show configuration))
     _ <- evaluate environment
-    case current.marketValue of
+    case Performance.summaryMarketValue current of
         Nothing -> fail "investment benchmark fixture produced an empty portfolio"
         Just _ -> pure ()
     pure
@@ -330,7 +330,7 @@ queryWeight snapshot query =
                 (toTransactions (accountTypeClassifier snapshot.journal) page.transactions)
 
 -- * Investments
-investmentSummary :: Snapshot -> Day -> Performance.InvestmentSummary
+investmentSummary :: Snapshot -> Day -> Performance.SummaryResult
 investmentSummary snapshot day =
     Performance.investmentSummaryAt
         snapshot
@@ -340,7 +340,7 @@ investmentSummary snapshot day =
         Nothing
         day
 
-investmentSummaries :: Snapshot -> [Day] -> [Performance.InvestmentSummary]
+investmentSummaries :: Snapshot -> [Day] -> [Performance.SummaryResult]
 investmentSummaries snapshot days =
     let context =
             Performance.prepareInvestmentPerformance
@@ -348,8 +348,7 @@ investmentSummaries snapshot days =
                 benchmarkAssetClassMappings
                 benchmarkMappings
                 "INR"
-     in (.summary)
-            <$> Performance.summariesAtPrepared context Nothing Monthly days
+     in Performance.summariesAtPrepared context Nothing Monthly days
 
 investmentDrillDown :: Snapshot -> Day -> [Performance.SummaryResult]
 investmentDrillDown snapshot day =
@@ -487,21 +486,19 @@ timelineHoldingsCost context =
         Nothing
         Monthly
 
-summaryWeight :: Performance.InvestmentSummary -> Int
+summaryWeight :: Performance.SummaryResult -> Int
 summaryWeight summary =
     sum
-        [ length (show summary.marketValue)
-        , length (show summary.purchaseCost)
-        , length (show summary.gainLoss)
-        , length (show summary.xirr)
-        , length (show summary.attributedIncome)
-        , length (show summary.realisedGain)
-        , length (show summary.totalProfit)
-        , length (show summary.completeness)
+        [ length (show (Performance.summaryMarketValue summary))
+        , length (show (Performance.summaryPurchaseCost summary))
+        , length (show (Performance.summaryGainLoss summary))
+        , length (show (Performance.summaryXirr summary))
+        , length (show (Performance.summaryAttributedIncome summary))
+        , length (show (Performance.summaryRealisedGain summary))
+        , length (show (Performance.summaryTotalProfit summary))
+        , length (show (Performance.summaryCompleteness summary))
+        , length (show (Performance.summaryWarnings summary))
         ]
-
-summaryResultWeight :: Performance.SummaryResult -> Int
-summaryResultWeight result = summaryWeight result.summary + length (show result.warnings)
 
 {- | Run the complete in-memory application use case. Fixture parsing and the
 snapshot store's initial publication happen in 'loadFixtureInput'; this timed

@@ -153,17 +153,17 @@ toResponse report =
         , warnings = fmap toWarning report.warnings
         }
 
-toSummary :: Performance.InvestmentSummary -> InvestmentSummaryDto
+toSummary :: Performance.SummaryResult -> InvestmentSummaryDto
 toSummary value =
     InvestmentSummaryDto
-        { marketValue = decimalText <$> value.marketValue
-        , purchaseCost = decimalText <$> value.purchaseCost
-        , gainLoss = decimalText <$> value.gainLoss
-        , xirr = decimalText <$> value.xirr
-        , attributedIncome = decimalText <$> value.attributedIncome
-        , realisedGain = decimalText <$> value.realisedGain
-        , totalProfit = decimalText <$> value.totalProfit
-        , completeness = investmentCompletenessText value.completeness
+        { marketValue = decimalText <$> Performance.summaryMarketValue value
+        , purchaseCost = decimalText <$> Performance.summaryPurchaseCost value
+        , gainLoss = decimalText <$> Performance.summaryGainLoss value
+        , xirr = decimalText <$> Performance.summaryXirr value
+        , attributedIncome = decimalText <$> Performance.summaryAttributedIncome value
+        , realisedGain = decimalText <$> Performance.summaryRealisedGain value
+        , totalProfit = decimalText <$> Performance.summaryTotalProfit value
+        , completeness = investmentCompletenessText (Performance.summaryCompleteness value)
         }
 
 toPoint :: Investments.InvestmentPoint -> InvestmentPointDto

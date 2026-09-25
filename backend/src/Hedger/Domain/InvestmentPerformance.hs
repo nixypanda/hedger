@@ -1,10 +1,20 @@
 module Hedger.Domain.InvestmentPerformance (
     -- * Value objects
     InvestmentCompleteness (..),
-    InvestmentSummary (..),
+    InvestmentSummary,
+    Completeness,
+    SummaryResult,
+    summaryMarketValue,
+    summaryPurchaseCost,
+    summaryGainLoss,
+    summaryXirr,
+    summaryAttributedIncome,
+    summaryRealisedGain,
+    summaryTotalProfit,
+    summaryWarnings,
+    summaryCompleteness,
     InvestmentWarning (..),
     WarningKind (..),
-    SummaryResult (..),
     InvestmentPerformanceContext,
 
     -- * Performance calculation

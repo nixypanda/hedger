@@ -1,10 +1,23 @@
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE GADTs #-}
+
 module Hedger.Domain.Internal.InvestmentPerformance (
     -- * Value objects
     InvestmentCompleteness (..),
-    InvestmentSummary (..),
+    InvestmentSummary,
+    Completeness,
+    SummaryResult,
+    summaryMarketValue,
+    summaryPurchaseCost,
+    summaryGainLoss,
+    summaryXirr,
+    summaryAttributedIncome,
+    summaryRealisedGain,
+    summaryTotalProfit,
+    summaryWarnings,
+    summaryCompleteness,
     InvestmentWarning (..),
     WarningKind (..),
-    SummaryResult (..),
     InvestmentPerformanceContext (..),
     Attribution (..),
 
@@ -15,7 +28,6 @@ module Hedger.Domain.Internal.InvestmentPerformance (
     summariesAtScopesPrepared,
     summaryAt,
     investmentSummaryAt,
-    emptySummary,
 
     -- * Ledger policies and derivations
     validateScope,
@@ -48,6 +60,7 @@ module Hedger.Domain.Internal.InvestmentPerformance (
 
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import Data.Set qualified as Set
@@ -127,15 +140,75 @@ data Attribution = Attribution
     }
     deriving stock (Eq, Show)
 
-data InvestmentSummary = InvestmentSummary
-    { marketValue :: Maybe Decimal
+-- | The completeness index of an 'InvestmentSummary'.
+data Completeness
+    = SummaryNoHoldingsK
+    | SummaryUnavailableK
+    | SummaryPartialK
+    | SummaryCompleteK
+    deriving stock (Eq, Show)
+
+{- | An investment summary whose constructors encode how complete its evidence
+is. 'SummaryComplete' carries no warnings; 'SummaryUnavailable' carries neither a
+market value nor a purchase cost; each partial constructor either raised a
+warning or withholds the total profit, so the completeness invariants are facts
+of the type rather than runtime checks.
+-}
+data InvestmentSummary (c :: Completeness) where
+    SummaryNoHoldings :: InvestmentSummary 'SummaryNoHoldingsK
+    SummaryUnavailable ::
+        Maybe Decimal -> -- attributed income
+        Maybe Decimal -> -- realised gain
+        [InvestmentWarning] ->
+        InvestmentSummary 'SummaryUnavailableK
+    SummaryPartialUnpriced ::
+        UnpricedPartial ->
+        [InvestmentWarning] ->
+        InvestmentSummary 'SummaryPartialK
+    SummaryPartialPricedWarned ::
+        PricedPartial ->
+        NonEmpty InvestmentWarning ->
+        InvestmentSummary 'SummaryPartialK
+    SummaryPartialPricedIncomplete ::
+        PricedPartialNoTotal ->
+        InvestmentSummary 'SummaryPartialK
+    SummaryComplete ::
+        CompleteSummary ->
+        InvestmentSummary 'SummaryCompleteK
+
+data UnpricedPartial = UnpricedPartial
+    { purchaseCost :: Maybe Decimal
+    , attributedIncome :: Maybe Decimal
+    , realisedGain :: Maybe Decimal
+    }
+
+data PricedPartial = PricedPartial
+    { marketValue :: Decimal
     , purchaseCost :: Maybe Decimal
     , gainLoss :: Maybe Decimal
     , xirr :: Maybe Decimal
     , attributedIncome :: Maybe Decimal
     , realisedGain :: Maybe Decimal
     , totalProfit :: Maybe Decimal
-    , completeness :: InvestmentCompleteness
+    }
+
+data PricedPartialNoTotal = PricedPartialNoTotal
+    { marketValue :: Decimal
+    , purchaseCost :: Maybe Decimal
+    , gainLoss :: Maybe Decimal
+    , xirr :: Maybe Decimal
+    , attributedIncome :: Maybe Decimal
+    , realisedGain :: Maybe Decimal
+    }
+
+data CompleteSummary = CompleteSummary
+    { marketValue :: Decimal
+    , purchaseCost :: Maybe Decimal
+    , gainLoss :: Decimal
+    , xirr :: Maybe Decimal
+    , attributedIncome :: Decimal
+    , realisedGain :: Decimal
+    , totalProfit :: Decimal
     }
 
 {- | A data-quality condition detected while computing an investment summary.
@@ -162,10 +235,127 @@ data WarningKind
       UnresolvedReturn
     deriving stock (Eq, Show)
 
-data SummaryResult = SummaryResult
-    { summary :: InvestmentSummary
-    , warnings :: [InvestmentWarning]
-    }
+{- | An existentially packed summary, so the various entry points can return one
+regardless of the completeness index.
+-}
+data SummaryResult = forall c. SummaryResult (InvestmentSummary c)
+
+marketValue :: InvestmentSummary c -> Maybe Decimal
+marketValue summary =
+    case summary of
+        SummaryNoHoldings -> Nothing
+        SummaryUnavailable{} -> Nothing
+        SummaryPartialUnpriced{} -> Nothing
+        SummaryPartialPricedWarned priced _ -> Just priced.marketValue
+        SummaryPartialPricedIncomplete priced -> Just priced.marketValue
+        SummaryComplete complete -> Just complete.marketValue
+
+purchaseCost :: InvestmentSummary c -> Maybe Decimal
+purchaseCost summary =
+    case summary of
+        SummaryNoHoldings -> Nothing
+        SummaryUnavailable{} -> Nothing
+        SummaryPartialUnpriced unpriced _ -> unpriced.purchaseCost
+        SummaryPartialPricedWarned priced _ -> priced.purchaseCost
+        SummaryPartialPricedIncomplete priced -> priced.purchaseCost
+        SummaryComplete complete -> complete.purchaseCost
+
+gainLoss :: InvestmentSummary c -> Maybe Decimal
+gainLoss summary =
+    case summary of
+        SummaryNoHoldings -> Nothing
+        SummaryUnavailable{} -> Nothing
+        SummaryPartialUnpriced{} -> Nothing
+        SummaryPartialPricedWarned priced _ -> priced.gainLoss
+        SummaryPartialPricedIncomplete priced -> priced.gainLoss
+        SummaryComplete complete -> Just complete.gainLoss
+
+xirr :: InvestmentSummary c -> Maybe Decimal
+xirr summary =
+    case summary of
+        SummaryNoHoldings -> Nothing
+        SummaryUnavailable{} -> Nothing
+        SummaryPartialUnpriced{} -> Nothing
+        SummaryPartialPricedWarned priced _ -> priced.xirr
+        SummaryPartialPricedIncomplete priced -> priced.xirr
+        SummaryComplete complete -> complete.xirr
+
+attributedIncome :: InvestmentSummary c -> Maybe Decimal
+attributedIncome summary =
+    case summary of
+        SummaryNoHoldings -> Nothing
+        SummaryUnavailable income _ _ -> income
+        SummaryPartialUnpriced unpriced _ -> unpriced.attributedIncome
+        SummaryPartialPricedWarned priced _ -> priced.attributedIncome
+        SummaryPartialPricedIncomplete priced -> priced.attributedIncome
+        SummaryComplete complete -> Just complete.attributedIncome
+
+realisedGain :: InvestmentSummary c -> Maybe Decimal
+realisedGain summary =
+    case summary of
+        SummaryNoHoldings -> Nothing
+        SummaryUnavailable _ realised _ -> realised
+        SummaryPartialUnpriced unpriced _ -> unpriced.realisedGain
+        SummaryPartialPricedWarned priced _ -> priced.realisedGain
+        SummaryPartialPricedIncomplete priced -> priced.realisedGain
+        SummaryComplete complete -> Just complete.realisedGain
+
+totalProfit :: InvestmentSummary c -> Maybe Decimal
+totalProfit summary =
+    case summary of
+        SummaryNoHoldings -> Nothing
+        SummaryUnavailable{} -> Nothing
+        SummaryPartialUnpriced{} -> Nothing
+        SummaryPartialPricedWarned priced _ -> priced.totalProfit
+        SummaryPartialPricedIncomplete{} -> Nothing
+        SummaryComplete complete -> Just complete.totalProfit
+
+warnings :: InvestmentSummary c -> [InvestmentWarning]
+warnings summary =
+    case summary of
+        SummaryNoHoldings -> []
+        SummaryUnavailable _ _ raised -> raised
+        SummaryPartialUnpriced _ raised -> raised
+        SummaryPartialPricedWarned _ raised -> NonEmpty.toList raised
+        SummaryPartialPricedIncomplete{} -> []
+        SummaryComplete{} -> []
+
+completeness :: InvestmentSummary c -> InvestmentCompleteness
+completeness summary =
+    case summary of
+        SummaryNoHoldings -> Complete
+        SummaryUnavailable{} -> Unavailable
+        SummaryPartialUnpriced{} -> Partial
+        SummaryPartialPricedWarned{} -> Partial
+        SummaryPartialPricedIncomplete{} -> Partial
+        SummaryComplete{} -> Complete
+
+summaryMarketValue :: SummaryResult -> Maybe Decimal
+summaryMarketValue (SummaryResult summary) = marketValue summary
+
+summaryPurchaseCost :: SummaryResult -> Maybe Decimal
+summaryPurchaseCost (SummaryResult summary) = purchaseCost summary
+
+summaryGainLoss :: SummaryResult -> Maybe Decimal
+summaryGainLoss (SummaryResult summary) = gainLoss summary
+
+summaryXirr :: SummaryResult -> Maybe Decimal
+summaryXirr (SummaryResult summary) = xirr summary
+
+summaryAttributedIncome :: SummaryResult -> Maybe Decimal
+summaryAttributedIncome (SummaryResult summary) = attributedIncome summary
+
+summaryRealisedGain :: SummaryResult -> Maybe Decimal
+summaryRealisedGain (SummaryResult summary) = realisedGain summary
+
+summaryTotalProfit :: SummaryResult -> Maybe Decimal
+summaryTotalProfit (SummaryResult summary) = totalProfit summary
+
+summaryWarnings :: SummaryResult -> [InvestmentWarning]
+summaryWarnings (SummaryResult summary) = warnings summary
+
+summaryCompleteness :: SummaryResult -> InvestmentCompleteness
+summaryCompleteness (SummaryResult summary) = completeness summary
 
 {- | Journal- and configuration-derived state shared by every summary in one
 investment report. Building this once is important: price-oracle construction
@@ -317,93 +507,133 @@ summaryFromHoldings ::
     ScopeScan ->
     SummaryResult
 summaryFromHoldings context scope day holdings costHoldings scopeScan =
-    let commodity = context.commodity
-        costRaw = HledgerAmount.mixedAmountCost costHoldings
-        valueRaw = context.valueAt day holdings
-        costValued = context.valueAt day costRaw
-        hasHoldings = any ((>= 0.000001) . abs . (.aquantity)) (HledgerAmount.amountsRaw holdings)
-        market = completeDecimal commodity valueRaw
-        rawMissingCost =
-            Set.fromList
-                [ item.acommodity
-                | item <- HledgerAmount.amountsRaw costHoldings
-                , abs item.aquantity >= 0.000001
-                , item.acommodity /= commodity
-                , item.acost == Nothing
-                ]
-        foreignCost =
-            Set.fromList
-                [ item.acommodity
-                | item <- HledgerAmount.amountsRaw costRaw
-                , abs item.aquantity >= 0.000001
-                , item.acommodity /= commodity
-                ]
-        reportedCost =
-            if Set.null rawMissingCost && Set.null foreignCost
-                then completeDecimal commodity costValued
-                else Nothing
-        relevantAccounts = scopeScan.accounts
-        mappingComplete = scopeScan.mappingComplete
-        retained =
-            if mappingComplete
-                then scopeScan.retained
-                else Just 0
-        cost = (-) <$> reportedCost <*> retained
-        calculatedGain = (-) <$> market <*> reportedCost
-        attributed =
-            if mappingComplete
-                then scopeScan.attributed
-                else Nothing
-        income = (.income) <$> attributed
-        realised = (.realisedGain) <$> attributed
-        fees = (.fees) <$> attributed
-        total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
-        xirrResult =
-            if mappingComplete
-                then xirrFromCashFlows scopeScan.cashFlows day market
-                else Nothing
-        annualisedReturn = xirrResult >>= either (const Nothing) Just
-        unresolvedReturn = maybe False (either isNonTrivialXirrError (const False)) xirrResult
-        missingValue = missingCommodities commodity valueRaw
-        missingCost = missingCommodities commodity costValued <> rawMissingCost
-        warnings =
-            [ InvestmentWarning (MissingPrice commodity symbol) Nothing
-            | symbol <- Set.toList missingValue
+    summary
+  where
+    commodity = context.commodity
+    costRaw = HledgerAmount.mixedAmountCost costHoldings
+    valueRaw = context.valueAt day holdings
+    costValued = context.valueAt day costRaw
+    hasHoldings = any ((>= 0.000001) . abs . (.aquantity)) (HledgerAmount.amountsRaw holdings)
+    market = completeDecimal commodity valueRaw
+    rawMissingCost =
+        Set.fromList
+            [ item.acommodity
+            | item <- HledgerAmount.amountsRaw costHoldings
+            , abs item.aquantity >= 0.000001
+            , item.acommodity /= commodity
+            , item.acost == Nothing
             ]
-                <> [ InvestmentWarning (MissingCost symbol) Nothing
-                   | symbol <- Set.toList missingCost
-                   ]
-                <> [ InvestmentWarning MissingPerformanceMapping scope
-                   | not (null relevantAccounts) && not mappingComplete
-                   ]
-                <> [ InvestmentWarning (ForeignCost commodity symbol) scope
-                   | symbol <- Set.toList foreignCost
-                   ]
-                <> [InvestmentWarning UnresolvedReturn scope | unresolvedReturn]
-        complete =
-            if market == Nothing && cost == Nothing
-                then Unavailable
-                else
-                    if null warnings && total /= Nothing
-                        then Complete
-                        else Partial
-     in if not hasHoldings
-            then SummaryResult{summary = emptySummary, warnings = []}
-            else
-                SummaryResult
-                    { summary =
-                        InvestmentSummary
-                            { marketValue = market
-                            , purchaseCost = cost
-                            , gainLoss = calculatedGain
-                            , xirr = annualisedReturn
-                            , attributedIncome = income
-                            , realisedGain = realised
-                            , totalProfit = total
-                            , completeness = complete
-                            }
-                    , warnings
-                    }
+    foreignCost =
+        Set.fromList
+            [ item.acommodity
+            | item <- HledgerAmount.amountsRaw costRaw
+            , abs item.aquantity >= 0.000001
+            , item.acommodity /= commodity
+            ]
+    reportedCost =
+        if Set.null rawMissingCost && Set.null foreignCost
+            then completeDecimal commodity costValued
+            else Nothing
+    relevantAccounts = scopeScan.accounts
+    mappingComplete = scopeScan.mappingComplete
+    retained =
+        if mappingComplete
+            then scopeScan.retained
+            else Just 0
+    cost = (-) <$> reportedCost <*> retained
+    calculatedGain = (-) <$> market <*> reportedCost
+    attributed =
+        if mappingComplete
+            then scopeScan.attributed
+            else Nothing
+    income = (.income) <$> attributed
+    realised = (.realisedGain) <$> attributed
+    fees = (.fees) <$> attributed
+    total = (+) <$> calculatedGain <*> ((+) <$> ((+) <$> income <*> realised) <*> fees)
+    xirrResult =
+        if mappingComplete
+            then xirrFromCashFlows scopeScan.cashFlows day market
+            else Nothing
+    annualisedReturn = xirrResult >>= either (const Nothing) Just
+    unresolvedReturn = maybe False (either isNonTrivialXirrError (const False)) xirrResult
+    missingValue = missingCommodities commodity valueRaw
+    missingCost = missingCommodities commodity costValued <> rawMissingCost
+    raisedWarnings =
+        [ InvestmentWarning (MissingPrice commodity symbol) Nothing
+        | symbol <- Set.toList missingValue
+        ]
+            <> [ InvestmentWarning (MissingCost symbol) Nothing
+               | symbol <- Set.toList missingCost
+               ]
+            <> [ InvestmentWarning MissingPerformanceMapping scope
+               | not (null relevantAccounts) && not mappingComplete
+               ]
+            <> [ InvestmentWarning (ForeignCost commodity symbol) scope
+               | symbol <- Set.toList foreignCost
+               ]
+            <> [InvestmentWarning UnresolvedReturn scope | unresolvedReturn]
+    summary
+        | not hasHoldings = SummaryResult SummaryNoHoldings
+        | market == Nothing && cost == Nothing =
+            SummaryResult (SummaryUnavailable income realised raisedWarnings)
+        | otherwise =
+            case market of
+                Just marketValue' ->
+                    if null raisedWarnings
+                        then case (calculatedGain, income, realised, total) of
+                            ( Just gainValue
+                                , Just incomeValue
+                                , Just realisedValue
+                                , Just totalValue
+                                ) ->
+                                    SummaryResult
+                                        ( SummaryComplete
+                                            CompleteSummary
+                                                { marketValue = marketValue'
+                                                , purchaseCost = cost
+                                                , gainLoss = gainValue
+                                                , xirr = annualisedReturn
+                                                , attributedIncome = incomeValue
+                                                , realisedGain = realisedValue
+                                                , totalProfit = totalValue
+                                                }
+                                        )
+                            _ ->
+                                SummaryResult
+                                    ( SummaryPartialPricedIncomplete
+                                        PricedPartialNoTotal
+                                            { marketValue = marketValue'
+                                            , purchaseCost = cost
+                                            , gainLoss = calculatedGain
+                                            , xirr = annualisedReturn
+                                            , attributedIncome = income
+                                            , realisedGain = realised
+                                            }
+                                    )
+                        else
+                            SummaryResult
+                                ( SummaryPartialPricedWarned
+                                    PricedPartial
+                                        { marketValue = marketValue'
+                                        , purchaseCost = cost
+                                        , gainLoss = calculatedGain
+                                        , xirr = annualisedReturn
+                                        , attributedIncome = income
+                                        , realisedGain = realised
+                                        , totalProfit = total
+                                        }
+                                    (NonEmpty.fromList raisedWarnings)
+                                )
+                Nothing ->
+                    SummaryResult
+                        ( SummaryPartialUnpriced
+                            UnpricedPartial
+                                { purchaseCost = cost
+                                , attributedIncome = income
+                                , realisedGain = realised
+                                }
+                            raisedWarnings
+                        )
 
 -- | Running totals threaded through 'scopeScansAt''s chronological sweep.
 data Accumulator = Accumulator
@@ -646,9 +876,9 @@ investmentSummaryAt ::
     Text ->
     Maybe Text ->
     Day ->
-    InvestmentSummary
+    SummaryResult
 investmentSummaryAt snapshot assetClasses mappings commodity scope day =
-    (summaryAt snapshot assetClasses mappings commodity scope day).summary
+    summaryAt snapshot assetClasses mappings commodity scope day
 
 holdingsAt :: Snapshot -> Investment.AssetClassMappings -> Maybe Text -> Day -> Hledger.MixedAmount
 holdingsAt snapshot = holdingsAtWithJournal snapshot.journal
@@ -1213,16 +1443,3 @@ scopeText :: Text -> Maybe Text
 scopeText value
     | Text.null (Text.strip value) = Nothing
     | otherwise = Just (Text.strip value)
-
-emptySummary :: InvestmentSummary
-emptySummary =
-    InvestmentSummary
-        { marketValue = Nothing
-        , purchaseCost = Nothing
-        , gainLoss = Nothing
-        , xirr = Nothing
-        , attributedIncome = Nothing
-        , realisedGain = Nothing
-        , totalProfit = Nothing
-        , completeness = Complete
-        }

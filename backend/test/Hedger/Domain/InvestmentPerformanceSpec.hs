@@ -2,7 +2,6 @@ module Hedger.Domain.InvestmentPerformanceSpec (
     investmentsSpec,
 ) where
 
-import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Decimal (Decimal)
 import Data.List qualified as List
@@ -49,9 +48,8 @@ import Hedger.Domain.Investment (
     mkInvestmentMappings,
  )
 import Hedger.Domain.InvestmentPerformance (
-    InvestmentCompleteness (Complete, Partial, Unavailable),
-    InvestmentSummary (..),
-    SummaryResult (..),
+    InvestmentCompleteness (Complete),
+    SummaryResult,
     externalCashFlowsAt,
     investmentAccountsAt,
     investmentDataTransactions,
@@ -61,6 +59,15 @@ import Hedger.Domain.InvestmentPerformance (
     summariesAtScopesPrepared,
     summaryAt,
     summaryAtPrepared,
+    summaryAttributedIncome,
+    summaryCompleteness,
+    summaryGainLoss,
+    summaryMarketValue,
+    summaryPurchaseCost,
+    summaryRealisedGain,
+    summaryTotalProfit,
+    summaryWarnings,
+    summaryXirr,
  )
 import Hedger.Domain.Period (Granularity (Monthly, Yearly))
 import Hedger.Domain.Snapshot (Snapshot (..))
@@ -91,7 +98,7 @@ investmentsSpec =
             externalCashFlows
         , testCase
             "investment summary reports annualised XIRR instead of absolute return"
-            summaryXirr
+            summaryXirrAnnualised
         , testCase "an ambiguous XIRR is surfaced rather than silently swallowed" ambiguousXirr
         , testCase
             "asset-class configuration is the investment portfolio allowlist"
@@ -120,13 +127,13 @@ retainedFdInterest = do
                         "INR"
                         (Just "assets:investments:fd:hdfc")
                         (fromGregorian 2026 3 31)
-            assertEqual "market value" (Just 107000) summary.marketValue
-            assertEqual "interest income" (Just 7000) summary.attributedIncome
-            assertEqual "principal cost" (Just 100000) summary.purchaseCost
-            assertEqual "unrealised gain" (Just 0) summary.gainLoss
-            assertEqual "total profit" (Just 7000) summary.totalProfit
-            assertAnnualRate "XIRR" summary.xirr 0.07 0.071
-            assertEqual "completeness" Complete summary.completeness
+            assertEqual "market value" (Just 107000) (summaryMarketValue summary)
+            assertEqual "interest income" (Just 7000) (summaryAttributedIncome summary)
+            assertEqual "principal cost" (Just 100000) (summaryPurchaseCost summary)
+            assertEqual "unrealised gain" (Just 0) (summaryGainLoss summary)
+            assertEqual "total profit" (Just 7000) (summaryTotalProfit summary)
+            assertAnnualRate "XIRR" (summaryXirr summary) 0.07 0.071
+            assertEqual "completeness" Complete (summaryCompleteness summary)
 
 fdMapping :: InvestmentMapping
 fdMapping =
@@ -165,12 +172,12 @@ descendantFdInterest = do
                         "INR"
                         (Just "assets:investments:fd:hdfc")
                         (fromGregorian 2026 3 31)
-            assertEqual "market value" (Just 107000) summary.marketValue
-            assertEqual "selected interest income" (Just 7000) summary.attributedIncome
-            assertEqual "principal cost" (Just 100000) summary.purchaseCost
-            assertEqual "total profit" (Just 7000) summary.totalProfit
-            assertAnnualRate "XIRR" summary.xirr 0.07 0.071
-            assertEqual "completeness" Complete summary.completeness
+            assertEqual "market value" (Just 107000) (summaryMarketValue summary)
+            assertEqual "selected interest income" (Just 7000) (summaryAttributedIncome summary)
+            assertEqual "principal cost" (Just 100000) (summaryPurchaseCost summary)
+            assertEqual "total profit" (Just 7000) (summaryTotalProfit summary)
+            assertAnnualRate "XIRR" (summaryXirr summary) 0.07 0.071
+            assertEqual "completeness" Complete (summaryCompleteness summary)
 
 parentFdMapping :: InvestmentMapping
 parentFdMapping =
@@ -206,11 +213,11 @@ partialDisposal = do
                         "INR"
                         (Just "assets:investments:equity:xyz")
                         (fromGregorian 2026 3 31)
-            assertEqual "remaining market value" (Just 900) summary.marketValue
-            assertEqual "remaining cost" (Just 600) summary.purchaseCost
-            assertEqual "unrealised gain" (Just 300) summary.gainLoss
-            assertEqual "realised gain" (Just 200) summary.realisedGain
-            assertEqual "total profit" (Just 500) summary.totalProfit
+            assertEqual "remaining market value" (Just 900) (summaryMarketValue summary)
+            assertEqual "remaining cost" (Just 600) (summaryPurchaseCost summary)
+            assertEqual "unrealised gain" (Just 300) (summaryGainLoss summary)
+            assertEqual "realised gain" (Just 200) (summaryRealisedGain summary)
+            assertEqual "total profit" (Just 500) (summaryTotalProfit summary)
             assertEqual
                 "XIRR uses actual purchase and sale cash"
                 (Just [-1000, 600])
@@ -234,11 +241,11 @@ foreignAcquisitionCost = do
                         "INR"
                         (Just "assets:investments:equity:foreign")
                         (fromGregorian 2026 3 31)
-            assertEqual "market value" (Just 12750) summary.marketValue
-            assertEqual "historical INR cost" (Just 8000) summary.purchaseCost
-            assertEqual "unrealised gain" (Just 4750) summary.gainLoss
-            assertEqual "total profit" (Just 4750) summary.totalProfit
-            assertEqual "completeness inherited from parent" Complete summary.completeness
+            assertEqual "market value" (Just 12750) (summaryMarketValue summary)
+            assertEqual "historical INR cost" (Just 8000) (summaryPurchaseCost summary)
+            assertEqual "unrealised gain" (Just 4750) (summaryGainLoss summary)
+            assertEqual "total profit" (Just 4750) (summaryTotalProfit summary)
+            assertEqual "completeness inherited from parent" Complete (summaryCompleteness summary)
 
 foreignCashHistoricalCost :: IO ()
 foreignCashHistoricalCost = do
@@ -261,10 +268,13 @@ foreignCashHistoricalCost = do
             assertEqual
                 "market value uses the latest monthly FX price"
                 (Just 8200)
-                summary.marketValue
-            assertEqual "historical cost uses acquisition-date FX" (Just 8000) summary.purchaseCost
-            assertEqual "foreign cash gain" (Just 200) summary.gainLoss
-            assertEqual "completeness" Complete summary.completeness
+                (summaryMarketValue summary)
+            assertEqual
+                "historical cost uses acquisition-date FX"
+                (Just 8000)
+                (summaryPurchaseCost summary)
+            assertEqual "foreign cash gain" (Just 200) (summaryGainLoss summary)
+            assertEqual "completeness" Complete (summaryCompleteness summary)
 
 externalCashFlows :: IO ()
 externalCashFlows = do
@@ -293,8 +303,8 @@ externalCashFlows = do
                 (Just (fromGregorian 2025 1 1))
                 (fmap (fmap cashFlowDate) flows >>= safeHead)
 
-summaryXirr :: IO ()
-summaryXirr = do
+summaryXirrAnnualised :: IO ()
+summaryXirrAnnualised = do
     snapshotResult <- loadSnapshot "test/fixtures/investment-xirr.journal"
     mappings <-
         case mkInvestmentMappings [xirrMapping] of
@@ -311,7 +321,7 @@ summaryXirr = do
                         "INR"
                         (Just "assets:investments:fund")
                         (fromGregorian 2025 6 1)
-            assertAnnualRate "summary XIRR" summary.xirr 0.2 0.3
+            assertAnnualRate "summary XIRR" (summaryXirr summary) 0.2 0.3
 
 ambiguousXirr :: IO ()
 ambiguousXirr = do
@@ -331,10 +341,10 @@ ambiguousXirr = do
                         "INR"
                         (Just "assets:investments:ambiguous")
                         (fromGregorian 2026 1 1)
-            assertEqual "ambiguous XIRR yields no rate" Nothing result.summary.xirr
+            assertEqual "ambiguous XIRR yields no rate" Nothing (summaryXirr result)
             assertBool
                 "an ambiguous XIRR must surface a warning or leave the summary incomplete"
-                (not (null result.warnings) || result.summary.completeness /= Complete)
+                (not (null (summaryWarnings result)) || summaryCompleteness result /= Complete)
 
 ambiguousMapping :: InvestmentMapping
 ambiguousMapping =
@@ -370,11 +380,11 @@ assetClassAllowlist = do
             assertEqual
                 "only the configured account contributes market value"
                 (Just 900)
-                summary.marketValue
+                (summaryMarketValue summary)
             assertEqual
                 "only the configured account contributes purchase cost"
                 (Just 600)
-                summary.purchaseCost
+                (summaryPurchaseCost summary)
 
 settledAccount :: IO ()
 settledAccount = do
@@ -385,14 +395,16 @@ settledAccount = do
             assertEqual
                 "settled account completeness"
                 Complete
-                ( investmentSummaryAt
-                    snapshot
-                    testAssetClasses
-                    emptyInvestmentMappings
-                    "INR"
-                    (Just "assets:investments:equity:xyz")
-                    (fromGregorian 2026 4 1)
-                ).completeness
+                ( summaryCompleteness
+                    ( investmentSummaryAt
+                        snapshot
+                        testAssetClasses
+                        emptyInvestmentMappings
+                        "INR"
+                        (Just "assets:investments:equity:xyz")
+                        (fromGregorian 2026 4 1)
+                    )
+                )
 
 xirrMapping :: InvestmentMapping
 xirrMapping =
@@ -647,19 +659,43 @@ assertDaySummariesMatch days expected actual = do
 
 assertSummaryResultEqual :: String -> SummaryResult -> SummaryResult -> IO ()
 assertSummaryResultEqual label expected actual = do
-    assertSummaryEqual label expected.summary actual.summary
-    assertEqual (label <> " warnings") expected.warnings actual.warnings
+    assertSummaryEqual label expected actual
+    assertEqual (label <> " warnings") (summaryWarnings expected) (summaryWarnings actual)
 
-assertSummaryEqual :: String -> InvestmentSummary -> InvestmentSummary -> IO ()
+assertSummaryEqual :: String -> SummaryResult -> SummaryResult -> IO ()
 assertSummaryEqual label expected actual = do
-    assertEqual (label <> " marketValue") expected.marketValue actual.marketValue
-    assertEqual (label <> " purchaseCost") expected.purchaseCost actual.purchaseCost
-    assertEqual (label <> " gainLoss") expected.gainLoss actual.gainLoss
-    assertEqual (label <> " xirr") expected.xirr actual.xirr
-    assertEqual (label <> " attributedIncome") expected.attributedIncome actual.attributedIncome
-    assertEqual (label <> " realisedGain") expected.realisedGain actual.realisedGain
-    assertEqual (label <> " totalProfit") expected.totalProfit actual.totalProfit
-    assertEqual (label <> " completeness") expected.completeness actual.completeness
+    assertEqual
+        (label <> " marketValue")
+        (summaryMarketValue expected)
+        (summaryMarketValue actual)
+    assertEqual
+        (label <> " purchaseCost")
+        (summaryPurchaseCost expected)
+        (summaryPurchaseCost actual)
+    assertEqual
+        (label <> " gainLoss")
+        (summaryGainLoss expected)
+        (summaryGainLoss actual)
+    assertEqual
+        (label <> " xirr")
+        (summaryXirr expected)
+        (summaryXirr actual)
+    assertEqual
+        (label <> " attributedIncome")
+        (summaryAttributedIncome expected)
+        (summaryAttributedIncome actual)
+    assertEqual
+        (label <> " realisedGain")
+        (summaryRealisedGain expected)
+        (summaryRealisedGain actual)
+    assertEqual
+        (label <> " totalProfit")
+        (summaryTotalProfit expected)
+        (summaryTotalProfit actual)
+    assertEqual
+        (label <> " completeness")
+        (summaryCompleteness expected)
+        (summaryCompleteness actual)
 
 {- | A scenario pairs one fixture and its configured asset classes and investment
 mappings with one of that fixture's configured scopes. The fixture-matrix label
@@ -671,8 +707,8 @@ genSummaryScenario = do
     scope <- Gen.element scopes
     pure (path, assetClasses, mappings, scope)
 
-{- | The summary's own decomposition and completeness implications, sampled over
-the existing fixture matrix rather than a hand-picked case list.
+{- | The summary's own decomposition, sampled over the existing fixture matrix
+rather than a hand-picked case list.
 -}
 investmentSummaryInvariantsTests :: TestTree
 investmentSummaryInvariantsTests =
@@ -709,10 +745,8 @@ investmentSummaryDecomposition =
                     scope
                     day
         footnote ("fixture " <> Text.unpack path <> " scope " <> show scope)
-        assertTotalProfitDecomposition result.summary attribution
-        assertCompletenessImplications result
-        assertMarketValueGatesXirr result.summary
-        assertMarketCostRetainedIdentity result.summary effectiveRetained
+        assertTotalProfitDecomposition result attribution
+        assertMarketCostRetainedIdentity result effectiveRetained
 
 {- | Reclassifying an account from Equity to Debt (or Cash to Other) keeps the
 same account prefixes, so attribution and valuation must not change. Only the
@@ -757,9 +791,13 @@ fees. The attribution record is withheld when the mapping is incomplete, so a
 missing record leaves this guard unsatisfied.
 -}
 assertTotalProfitDecomposition ::
-    InvestmentSummary -> Maybe Attribution -> PropertyT IO ()
+    SummaryResult -> Maybe Attribution -> PropertyT IO ()
 assertTotalProfitDecomposition summary attribution =
-    case (summary.totalProfit, summary.gainLoss, summary.attributedIncome, summary.realisedGain) of
+    case ( summaryTotalProfit summary
+         , summaryGainLoss summary
+         , summaryAttributedIncome summary
+         , summaryRealisedGain summary
+         ) of
         (Just total, Just gain, Just income, Just realised) ->
             total === gain + income + realised + fees
         _ -> pure ()
@@ -774,31 +812,16 @@ income into the cost basis, while 'retainedPerformanceAtWith' would still report
 it. Asserting the identity against the unforced retained only holds for complete
 mappings.
 -}
-assertMarketCostRetainedIdentity :: InvestmentSummary -> Maybe Decimal -> PropertyT IO ()
+assertMarketCostRetainedIdentity :: SummaryResult -> Maybe Decimal -> PropertyT IO ()
 assertMarketCostRetainedIdentity summary retained =
-    case (summary.marketValue, summary.purchaseCost, summary.gainLoss, retained) of
+    case ( summaryMarketValue summary
+         , summaryPurchaseCost summary
+         , summaryGainLoss summary
+         , retained
+         ) of
         (Just market, Just cost, Just gain, Just retainedIncome) ->
             market - cost === gain + retainedIncome
         _ -> pure ()
-
-{- | Completeness is a claim about the summary's own evidence: 'Complete' has no
-warnings, 'Unavailable' has neither market value nor cost, and 'Partial' must
-either warn or withhold the total profit.
--}
-assertCompletenessImplications :: SummaryResult -> PropertyT IO ()
-assertCompletenessImplications result = do
-    when (result.summary.completeness == Complete) $
-        assert (null result.warnings)
-    when (result.summary.completeness == Unavailable) $
-        assert (result.summary.marketValue == Nothing && result.summary.purchaseCost == Nothing)
-    when (result.summary.completeness == Partial) $
-        assert (not (null result.warnings) || result.summary.totalProfit == Nothing)
-
--- | Without a market value there is no terminal cash flow, so XIRR is undefined.
-assertMarketValueGatesXirr :: InvestmentSummary -> PropertyT IO ()
-assertMarketValueGatesXirr summary =
-    when (summary.marketValue == Nothing) $
-        assert (summary.xirr == Nothing)
 
 {- | Asset classes for generated ledgers. 'genSnapshot' builds single-commodity
 transactions against @assets:cash@, @assets:investments@, and @assets:property@,
