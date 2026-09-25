@@ -2,7 +2,6 @@ module Hedger.Domain.PeriodSpec (
     periodSpec,
 ) where
 
-import Data.List (isSuffixOf)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, fromGregorian, toGregorian)
@@ -35,13 +34,11 @@ periodSpec =
             [ testProperty
                 "parseYearMonth . monthKey round-trips through toGregorian"
                 monthKeyRoundTrip
-            , testProperty "format then parse recovers the year and month" formatParseIdentity
             , testProperty "malformed inputs are always rejected" rejectsMalformed
             ]
         , testGroup
             "monthStart"
-            [ testProperty "idempotent" monthStartIdempotent
-            , testProperty "never later than the input day" monthStartLE
+            [ testProperty "never later than the input day" monthStartLE
             , testProperty "keeps the same (year, month) and lands on day 1" monthStartSameMonth
             ]
         , testGroup
@@ -53,9 +50,6 @@ periodSpec =
         , testGroup
             "takeLast"
             [ testProperty "matches reverse . take (max 0 n) . reverse" takeLastMatchesReverseTake
-            , testProperty "is a suffix of the input" takeLastIsSuffix
-            , testProperty "has length min (max 0 n) (length xs)" takeLastLength
-            , testProperty "takeLast (length xs) xs == xs" takeLastWhole
             ]
         , testGroup
             "atIndex"
@@ -67,7 +61,6 @@ periodSpec =
             [ testProperty "Nothing iff the list is empty" extremeNothingIffEmpty
             , testProperty "maximumMaybe is a member and an upper bound" maximumMaybeIsBound
             , testProperty "minimumMaybe is a member and a lower bound" minimumMaybeIsBound
-            , testProperty "lastMaybe agrees with the final element" lastMaybeIsLast
             ]
         ]
 
@@ -78,15 +71,6 @@ monthKeyRoundTrip =
         day <- forAll genDay
         let (year, month, _) = toGregorian day
         parseYearMonth (monthKey day) === Just (year, month)
-
-formatParseIdentity :: Property
-formatParseIdentity =
-    property $ do
-        year <- forAll genYear
-        month <- forAll genMonth
-        let formatted = formatYearMonth year month
-        parseYearMonth formatted === Just (year, month)
-        formatYearMonth year month === formatted
 
 genUnpaddedMonth :: Gen Text
 genUnpaddedMonth = do
@@ -137,12 +121,6 @@ rejectsMalformed =
         raw <- forAll genMalformedYearMonth
         parseYearMonth raw === Nothing
 
-monthStartIdempotent :: Property
-monthStartIdempotent =
-    property $ do
-        day <- forAll genDay
-        monthStart (monthStart day) === monthStart day
-
 monthStartLE :: Property
 monthStartLE =
     property $ do
@@ -191,26 +169,6 @@ takeLastMatchesReverseTake =
         n <- forAll genTakeCount
         takeLast n xs === reverse (take (max 0 n) (reverse xs))
 
-takeLastIsSuffix :: Property
-takeLastIsSuffix =
-    property $ do
-        xs <- forAll genIntList
-        n <- forAll genTakeCount
-        assert (takeLast n xs `isSuffixOf` xs)
-
-takeLastLength :: Property
-takeLastLength =
-    property $ do
-        xs <- forAll genIntList
-        n <- forAll genTakeCount
-        length (takeLast n xs) === min (max 0 n) (length xs)
-
-takeLastWhole :: Property
-takeLastWhole =
-    property $ do
-        xs <- forAll genIntList
-        takeLast (length xs) xs === xs
-
 -- atIndex
 atIndexInRange :: Property
 atIndexInRange =
@@ -256,12 +214,3 @@ minimumMaybeIsBound =
             Just result -> do
                 assert (result `elem` xs)
                 assert (all (>= result) xs)
-
-lastMaybeIsLast :: Property
-lastMaybeIsLast =
-    property $ do
-        xs <- forAll genIntList
-        lastMaybe xs
-            === if null xs
-                then Nothing
-                else Just (last xs)

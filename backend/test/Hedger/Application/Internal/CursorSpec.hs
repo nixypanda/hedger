@@ -1,4 +1,4 @@
-module Hedger.Infrastructure.Internal.CursorSpec (
+module Hedger.Application.Internal.CursorSpec (
     cursorSpec,
 ) where
 

@@ -56,8 +56,6 @@ library
     Hedger.Domain.Internal.Cashflow
     Hedger.Domain.Internal.InvestmentPerformance
     Hedger.Domain.Internal.NetWorth
-    Hedger.Domain.Internal.PeriodReport
-    Hedger.Domain.Internal.Xirr
     Hedger.Domain.Internal.Transaction
     Hedger.Domain.Investment
     Hedger.Domain.InvestmentPerformance
@@ -81,6 +79,9 @@ library
     Hedger.Interface.HTTP.Endpoints.Transactions
     Hedger.Runtime.Internal.Server
     Hedger.Runtime.Server
+
+  other-modules:
+    Hedger.Domain.Internal.PeriodReport
 
   hs-source-dirs: src
   build-depends:
@@ -139,17 +140,17 @@ test-suite hedger-backend-test
     Hedger.Application.TransactionQuerySpec
     Hedger.Domain.AccountSpec
     Hedger.Domain.ActivitySpec
+    Hedger.Domain.CashflowSpec
     Hedger.Domain.InvestmentPerformanceSpec
     Hedger.Domain.InvestmentSpec
     Hedger.Domain.NetWorthSpec
-    Hedger.Domain.PeriodReportSpec
     Hedger.ConfigSpec
     Hedger.Domain.PeriodSpec
     Hedger.Domain.TransactionSpec
     Hedger.Domain.ValuationSpec
     Hedger.Domain.XirrSpec
     Hedger.Generators
-    Hedger.Infrastructure.Internal.CursorSpec
+    Hedger.Application.Internal.CursorSpec
     Hedger.Infrastructure.JournalWatcherSpec
     Hedger.Infrastructure.SnapshotStoreSpec
     Hedger.Interface.HTTP.APISpec

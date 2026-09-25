@@ -4,6 +4,10 @@ module Hedger.Domain.ActivitySpec (
 
 import Data.Decimal (Decimal)
 import Data.Either (isLeft)
+import Data.Foldable (for_)
+import Data.Map.Strict qualified as Map
+import Data.Maybe (isJust, mapMaybe)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (Day, addDays, addGregorianMonthsClip, fromGregorian)
@@ -30,8 +34,10 @@ import Hedger.Domain.Activity (
     parseActivityPeriod,
  )
 import Hedger.Domain.Period (ReportPeriod (..), monthKey)
-import Hedger.Generators (formatYearMonth, genMonth, genYear)
+import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Generators (displayCommodity, formatYearMonth, genMonth, genSnapshot, genYear)
 import Hedger.SyntheticTransactions (mkSnapshot)
+import Hedger.TestHelpers (sumQuantities)
 
 activitySpec :: TestTree
 activitySpec =
@@ -61,6 +67,15 @@ activitySpec =
                 "expense activity includes purchases funded by liabilities"
                 liabilityFundedExpense
             , testCase "income activity includes gains from asset disposals" disposalGainIncome
+            ]
+        , testGroup
+            "activity conservation"
+            [ testProperty
+                "each bucket totals its increase, decrease and reallocation"
+                bucketTotalIdentity
+            , testProperty
+                "category magnitudes are invariant under display depth"
+                categoryDepthInvariance
             ]
         ]
 
@@ -245,3 +260,82 @@ fiscalYearMalformed =
         fiscalStart <- forAll genFiscalStart
         raw <- forAll genMalformedYearMonth
         assert (isLeft (parseActivityPeriod fiscalStart FiscalYearActivity raw))
+
+-- Conservation properties
+
+activityDepths :: [Int]
+activityDepths = [1, 2, 3, 4]
+
+activityKinds :: [ActivityKind]
+activityKinds = [ExpenseActivity, IncomeActivity, AssetActivity, LiabilityActivity]
+
+{- | Activity kinds whose bucket total is the sum of its direction components.
+Income and expense flows carry a signed @total@ with no direction split, so the
+total identity below does not apply to them.
+-}
+directionKinds :: [ActivityKind]
+directionKinds = [AssetActivity, LiabilityActivity]
+
+bucketTotalIdentity :: Property
+bucketTotalIdentity =
+    property $ do
+        snapshot <- forAll (Gen.filter (isJust . firstDirectionActivity) genSnapshot)
+        case firstDirectionActivity snapshot of
+            Nothing -> footnote "generated snapshot has no asset or liability activity" >> failure
+            Just (kind, period) ->
+                for_ (activityFiguresFor snapshot kind period 1) $ \bucket ->
+                    bucket.total === bucket.increase + bucket.decrease + bucket.reallocated
+
+categoryDepthInvariance :: Property
+categoryDepthInvariance =
+    property $ do
+        snapshot <- forAll (Gen.filter (isJust . firstActivityWithBuckets) genSnapshot)
+        case firstActivityWithBuckets snapshot of
+            Nothing -> footnote "generated snapshot has no activity buckets" >> failure
+            Just (kind, period) -> do
+                let totalsAt depth =
+                        Map.fromList
+                            [ (bucket.key, sumQuantities bucket.categoryItems)
+                            | bucket <- activityFiguresFor snapshot kind period depth
+                            ]
+                for_ activityDepths $ \depth -> do
+                    footnote ("display depth " <> show depth)
+                    totalsAt depth === totalsAt 1
+
+-- The month of each transaction, earliest first, as activity periods.
+transactionMonths :: Snapshot -> [ReportPeriod]
+transactionMonths snapshot =
+    mapMaybe
+        (either (const Nothing) Just . parseActivityPeriod 1 MonthActivity)
+        (Set.toAscList (Set.fromList (fmap (monthKey . (.tdate)) snapshot.transactions)))
+
+{- | The first month, and kind, that produce at least one activity bucket. The
+depth-invariance property uses it so it never exercises an empty month.
+-}
+firstActivityWithBuckets :: Snapshot -> Maybe (ActivityKind, ReportPeriod)
+firstActivityWithBuckets = firstActivityWithBucketsOver activityKinds
+
+firstDirectionActivity :: Snapshot -> Maybe (ActivityKind, ReportPeriod)
+firstDirectionActivity = firstActivityWithBucketsOver directionKinds
+
+firstActivityWithBucketsOver :: [ActivityKind] -> Snapshot -> Maybe (ActivityKind, ReportPeriod)
+firstActivityWithBucketsOver kinds snapshot =
+    case [ (kind, period)
+         | period <- transactionMonths snapshot
+         , kind <- kinds
+         , not (null (activityFiguresFor snapshot kind period 1))
+         ] of
+        sample : _ -> Just sample
+        [] -> Nothing
+
+activityFiguresFor :: Snapshot -> ActivityKind -> ReportPeriod -> Int -> [ActivityBucketFigures]
+activityFiguresFor snapshot kind period depth =
+    ( computeActivity
+        snapshot
+        snapshot.transactions
+        displayCommodity
+        kind
+        MonthActivity
+        depth
+        period
+    ).buckets

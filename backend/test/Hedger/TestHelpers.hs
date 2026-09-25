@@ -3,11 +3,13 @@ module Hedger.TestHelpers (
     loadedStore,
     getJson,
     postJson,
+    sumQuantities,
 ) where
 
 import Data.Aeson (Value, decode)
 import Data.ByteString qualified as ByteString
 import Data.ByteString.Lazy qualified as LazyByteString
+import Data.Decimal (Decimal)
 import Data.Either (isRight)
 import Network.HTTP.Types (hContentType, methodGet, methodPost)
 import Network.Wai qualified as Wai
@@ -31,6 +33,7 @@ import Hedger.Domain.Investment (
     emptyInvestmentMappings,
     mkAssetClassMappings,
  )
+import Hedger.Domain.NetWorth (BreakdownItem (..))
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 
 configuration :: Config
@@ -80,3 +83,10 @@ postJson path body app = do
                 }
     response <- runSession (srequest (SRequest requestValue body)) app
     pure (decode response.simpleBody, response)
+
+{- | The summed magnitude of a depth-collapsed breakdown, used by the
+conservation properties to check that regrouping by display depth does not
+change the total.
+-}
+sumQuantities :: [BreakdownItem] -> Decimal
+sumQuantities = sum . fmap (.quantity)

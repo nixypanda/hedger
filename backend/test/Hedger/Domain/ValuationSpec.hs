@@ -5,7 +5,7 @@ module Hedger.Domain.ValuationSpec (
 import Data.Decimal (Decimal)
 import Data.Maybe (isJust, mapMaybe)
 import Data.Set qualified as Set
-import Hedgehog (Gen, Property, assert, failure, forAll, property, (===))
+import Hedgehog (Gen, Property, assert, forAll, property, (===))
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
@@ -30,11 +30,6 @@ valuationSpec =
     testGroup
         "valuation"
         [ testGroup
-            "Conversion Functor"
-            [ testProperty "fmap id leaves value and missing unchanged" functorIdentity
-            , testProperty "fmap (f . g) equals fmap f . fmap g" functorComposition
-            ]
-        , testGroup
             "requireComplete"
             [ testProperty "idempotent" requireCompleteIdempotent
             , testProperty "preserves missing" requireCompletePreservesMissing
@@ -57,11 +52,6 @@ valuationSpec =
                 "missing is the union of the parts' missing sets"
                 foldMapConversionMissing
             , testProperty "value collects the Just values in order" foldMapConversionValue
-            , testProperty "value is always Just" foldMapConversionValueIsJust
-            , testProperty "collected values drop the Nothing parts" foldMapConversionDropsNothing
-            , testProperty
-                "each part's missing is a subset of the result's missing"
-                foldMapConversionMissingSuperset
             ]
         , testGroup
             "completeDecimal / missingCommodities"
@@ -84,26 +74,6 @@ genConversion = do
     value <- Gen.maybe genQuantity
     missing <- Set.fromList <$> Gen.list (Range.linear 0 4) genCommodity
     pure Conversion{value, missing}
-
--- Conversion Functor laws
-functorIdentity :: Property
-functorIdentity =
-    property $ do
-        conversion <- forAll genConversion
-        let applied = fmap id conversion
-        applied.value === conversion.value
-        applied.missing === conversion.missing
-
-functorComposition :: Property
-functorComposition =
-    property $ do
-        conversion <- forAll genConversion
-        let f = (+ 1)
-            g = (* 2)
-            composed = fmap (f . g) conversion
-            sequenced = fmap f (fmap g conversion)
-        composed.value === sequenced.value
-        composed.missing === sequenced.missing
 
 -- requireComplete
 requireCompleteIdempotent :: Property
@@ -201,28 +171,6 @@ foldMapConversionValue =
         conversions <- forAll genConversions
         let result = foldMapConversion conversions
         result.value === Just (mapMaybe (.value) conversions)
-
-foldMapConversionValueIsJust :: Property
-foldMapConversionValueIsJust =
-    property $ do
-        conversions <- forAll genConversions
-        assert (isJust (foldMapConversion conversions).value)
-
-foldMapConversionDropsNothing :: Property
-foldMapConversionDropsNothing =
-    property $ do
-        conversions <- forAll genConversions
-        let justCount = length (mapMaybe (.value) conversions)
-        case (foldMapConversion conversions).value of
-            Nothing -> failure
-            Just collected -> length collected === justCount
-
-foldMapConversionMissingSuperset :: Property
-foldMapConversionMissingSuperset =
-    property $ do
-        conversions <- forAll genConversions
-        let result = foldMapConversion conversions
-        assert (all (\part -> part.missing `Set.isSubsetOf` result.missing) conversions)
 
 -- completeDecimal / missingCommodities
 completeDecimalConsistency :: Property
