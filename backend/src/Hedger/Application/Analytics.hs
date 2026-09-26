@@ -15,6 +15,11 @@ module Hedger.Application.Analytics (
     NetWorthReport (..),
     CashflowReport (..),
     ActivityBucket (..),
+    ActivityEvent (..),
+    AssetMovement (..),
+    LiabilityMovement (..),
+    FlowChange (..),
+    ActivityIssue (..),
     ActivityDirection (..),
     DirectionBreakdown (..),
     ActivityReport (..),
@@ -50,11 +55,20 @@ import Hedger.Application.TransactionQuery (parseHledgerQuery)
 import Hedger.Config (Config (..), monthOfYearValue)
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Activity (
-    ActivityBucketFigures (..),
+    ActivityBuckets (..),
     ActivityDirection (..),
+    ActivityEvent (..),
     ActivityFigures (..),
+    ActivityIssue (..),
     ActivityKind (..),
     ActivityRange (..),
+    AssetBucketFigures (..),
+    AssetMovement (..),
+    ExpenseBucketFigures (..),
+    FlowChange (..),
+    IncomeBucketFigures (..),
+    LiabilityBucketFigures (..),
+    LiabilityMovement (..),
     computeActivity,
     parseActivityPeriod,
  )
@@ -143,6 +157,11 @@ data ActivityBucket = ActivityBucket
     , reallocated :: Decimal
     , categories :: [BreakdownItem]
     , directions :: [DirectionBreakdown]
+    , posted :: Decimal
+    , reversed :: Decimal
+    , forgiven :: Decimal
+    , borrowingReversed :: Decimal
+    , events :: [ActivityEvent]
     , transactions :: [Hledger.Transaction]
     }
 
@@ -160,6 +179,7 @@ data ActivityReport = ActivityReport
     , fiscalYearStartMonth :: Int
     , buckets :: [ActivityBucket]
     , warnings :: [ConversionWarning]
+    , issues :: [ActivityIssue]
     , classifyAccount :: AccountTypeClassifier
     }
 
@@ -246,12 +266,7 @@ activity request = do
     fiscalStart <- asks (.config.fiscalYearStartMonth)
     let snapshot = snapshotContext.snapshot
         responseMetadata = metadataFor snapshotContext
-    filtered <-
-        case request.kind of
-            IncomeActivity -> parseTransactions snapshot request.query
-            ExpenseActivity -> parseTransactions snapshot request.query
-            AssetActivity -> pure snapshot.transactions
-            LiabilityActivity -> pure snapshot.transactions
+    filtered <- parseTransactions snapshot request.query
     activityPeriod <-
         either
             throwError
@@ -274,8 +289,9 @@ activity request = do
             , range = request.range
             , period = reportPeriodKey activityPeriod
             , fiscalYearStartMonth = monthOfYearValue fiscalStart
-            , buckets = fmap toActivityBucket figures.buckets
+            , buckets = toActivityBuckets figures.buckets
             , warnings = conversionWarnings figures.missing
+            , issues = Set.toAscList figures.issues
             , classifyAccount = accountTypeClassifier snapshot.journal
             }
 
@@ -376,22 +392,95 @@ groupOther items =
             then (named <> [BreakdownItem{account = "Other", quantity = other}], others)
             else (named, [])
 
-toActivityBucket :: ActivityBucketFigures -> ActivityBucket
-toActivityBucket figures =
+toActivityBuckets :: ActivityBuckets -> [ActivityBucket]
+toActivityBuckets typed =
+    case typed of
+        AssetBuckets buckets -> fmap assetBucket buckets
+        LiabilityBuckets buckets -> fmap liabilityBucket buckets
+        IncomeBuckets buckets -> fmap incomeBucket buckets
+        ExpenseBuckets buckets -> fmap expenseBucket buckets
+
+assetBucket :: AssetBucketFigures -> ActivityBucket
+assetBucket figures =
     ActivityBucket
         { key = figures.key
         , startDate = figures.startDate
-        , total = figures.total
-        , increase = figures.increase
-        , decrease = figures.decrease
-        , reallocated = figures.reallocated
+        , total = figures.acquired + figures.disposed + figures.transferred
+        , increase = figures.acquired
+        , decrease = figures.disposed
+        , reallocated = figures.transferred
         , categories = fst (groupOther figures.categoryItems)
-        , directions =
-            [ DirectionBreakdown{direction, categories = fst (groupOther items)}
-            | (direction, items) <- figures.directionItems
-            ]
+        , directions = directionBreakdowns figures.directionItems
+        , posted = 0
+        , reversed = 0
+        , forgiven = 0
+        , borrowingReversed = 0
+        , events = fmap AssetEvent figures.movements
         , transactions = figures.transactions
         }
+
+liabilityBucket :: LiabilityBucketFigures -> ActivityBucket
+liabilityBucket figures =
+    ActivityBucket
+        { key = figures.key
+        , startDate = figures.startDate
+        , total = figures.borrowed + figures.repaid + figures.forgiven + figures.borrowingReversed
+        , increase = figures.borrowed
+        , decrease = figures.repaid + figures.forgiven + figures.borrowingReversed
+        , reallocated = 0
+        , categories = fst (groupOther figures.categoryItems)
+        , directions = directionBreakdowns figures.directionItems
+        , posted = 0
+        , reversed = 0
+        , forgiven = figures.forgiven
+        , borrowingReversed = figures.borrowingReversed
+        , events = fmap LiabilityEvent figures.movements
+        , transactions = figures.transactions
+        }
+
+incomeBucket :: IncomeBucketFigures -> ActivityBucket
+incomeBucket figures =
+    ActivityBucket
+        { key = figures.key
+        , startDate = figures.startDate
+        , total = figures.posted - figures.reversed
+        , increase = 0
+        , decrease = 0
+        , reallocated = 0
+        , categories = fst (groupOther figures.categoryItems)
+        , directions = []
+        , posted = figures.posted
+        , reversed = figures.reversed
+        , forgiven = 0
+        , borrowingReversed = 0
+        , events = [IncomeEvent account change | (account, change) <- figures.changes]
+        , transactions = figures.transactions
+        }
+
+expenseBucket :: ExpenseBucketFigures -> ActivityBucket
+expenseBucket figures =
+    ActivityBucket
+        { key = figures.key
+        , startDate = figures.startDate
+        , total = figures.posted - figures.reversed
+        , increase = 0
+        , decrease = 0
+        , reallocated = 0
+        , categories = fst (groupOther figures.categoryItems)
+        , directions = []
+        , posted = figures.posted
+        , reversed = figures.reversed
+        , forgiven = 0
+        , borrowingReversed = 0
+        , events = [ExpenseEvent account change | (account, change) <- figures.changes]
+        , transactions = figures.transactions
+        }
+
+directionBreakdowns :: [(ActivityDirection, [BreakdownItem])] -> [DirectionBreakdown]
+directionBreakdowns items =
+    [ DirectionBreakdown{direction, categories = fst (groupOther categories)}
+    | (direction, categories) <- items
+    ]
 
 conversionWarnings :: Set Text -> [ConversionWarning]
 conversionWarnings missing

@@ -36,6 +36,9 @@ apiSpec =
             , testCase "cashflow rejects an invalid shared transaction query" $ do
                 app <- getApp
                 invalidCashflowQuery app
+            , testCase "asset activity applies the shared transaction query" $ do
+                app <- getApp
+                assetActivityQuery app
             , testCase "explicitly costed investments do not require performance mappings" $ do
                 app <- getApp
                 investmentsProjection app
@@ -158,6 +161,33 @@ activityProjection app = do
     (Just response, raw) <- postJson "/api/v1/activity/query" (Aeson.encode requestBody) app
     assertEqual "activity status" status200 raw.simpleStatus
     assertObjectFields ["period", "buckets", "fiscalYearStartMonth"] response
+    case field "buckets" response of
+        Just (Array buckets)
+            | not (Vector.null buckets) -> do
+                assertObjectFields
+                    ["posted", "reversed", "events", "transactions"]
+                    (Vector.head buckets)
+                assertEqual
+                    "expense activity has no debt movement"
+                    (Just (String "0"))
+                    (field "netDebtMovement" (Vector.head buckets))
+        _ -> assertFailure "expected expense activity buckets"
+
+assetActivityQuery :: Wai.Application -> IO ()
+assetActivityQuery app = do
+    let requestBody =
+            object
+                [ "kind" .= ("asset" :: String)
+                , "range" .= ("month" :: String)
+                , "period" .= ("2024-04" :: String)
+                , "query" .= ("acct:expenses" :: String)
+                ]
+    (Just response, raw) <- postJson "/api/v1/activity/query" (Aeson.encode requestBody) app
+    assertEqual "asset query status" status200 raw.simpleStatus
+    assertEqual
+        "expense-matched transactions have no asset movement"
+        (Just (Array Vector.empty))
+        (field "buckets" response)
 
 invalidCashflowQuery :: Wai.Application -> IO ()
 invalidCashflowQuery app = do

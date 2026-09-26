@@ -1,6 +1,6 @@
 # Activity event model and product behavior plan
 
-_Planning branch: `plan/activity-event-model` · 2026-09-27 · Status: proposal; no implementation in this branch yet_
+_Branch: `plan/activity-event-model` · 2026-09-27 · Status: backend implemented; Elm migration remains a separate step_
 
 ## Outcome
 

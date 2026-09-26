@@ -4,6 +4,7 @@ module Hedger.Interface.HTTP.Endpoints.Analytics (
 ) where
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Decimal (Decimal)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -15,6 +16,13 @@ import Hedger.Application.Analytics qualified as Analytics
 import Hedger.Application.AppM (Env)
 import Hedger.Application.Common (AccountTypeClassifier)
 import Hedger.Domain.Account (DisplayDepth (..), parseDisplayDepth)
+import Hedger.Domain.ActivityEvent (
+    assetAccountName,
+    expenseAccountName,
+    incomeAccountName,
+    liabilityAccountName,
+    positiveAmountValue,
+ )
 import Hedger.Domain.Cashflow (magnitudeValue)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Interface.HTTP.Core.Common (
@@ -140,8 +148,16 @@ data ActivityBucketDto = ActivityBucketDto
     , increase :: Text
     , decrease :: Text
     , reallocated :: Text
+    , posted :: Text
+    , reversed :: Text
+    , borrowed :: Text
+    , repaid :: Text
+    , forgiven :: Text
+    , borrowingReversed :: Text
+    , netDebtMovement :: Text
     , categories :: [BreakdownItemDto]
     , directions :: [DirectionBreakdownDto]
+    , events :: [ActivityEventDto]
     , transactions :: [TransactionDto]
     }
     deriving stock (Eq, Show, Generic)
@@ -150,6 +166,18 @@ data ActivityBucketDto = ActivityBucketDto
 data DirectionBreakdownDto = DirectionBreakdownDto
     { direction :: Text
     , categories :: [BreakdownItemDto]
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (ToJSON)
+
+data ActivityEventDto = ActivityEventDto
+    { effect :: Text
+    , account :: Maybe Text
+    , source :: Maybe Text
+    , destination :: Maybe Text
+    , amount :: Maybe Text
+    , sourceAmount :: Maybe Text
+    , destinationAmount :: Maybe Text
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON)
@@ -295,8 +323,8 @@ toActivity report =
         , range = activityRangeText report.range
         , period = report.period
         , fiscalYearStartMonth = report.fiscalYearStartMonth
-        , buckets = fmap (toActivityBucket report.classifyAccount) report.buckets
-        , warnings = fmap renderWarning report.warnings
+        , buckets = fmap (toActivityBucket report.kind report.classifyAccount) report.buckets
+        , warnings = fmap renderWarning report.warnings <> fmap renderActivityIssue report.issues
         }
 
 toKpi :: Analytics.Kpi -> KpiDto
@@ -350,8 +378,12 @@ toPerformance value =
         , gainLoss = decimalText value.gainLoss
         }
 
-toActivityBucket :: AccountTypeClassifier -> Analytics.ActivityBucket -> ActivityBucketDto
-toActivityBucket classify value =
+toActivityBucket ::
+    Analytics.ActivityKind ->
+    AccountTypeClassifier ->
+    Analytics.ActivityBucket ->
+    ActivityBucketDto
+toActivityBucket kind classify value =
     ActivityBucketDto
         { key = value.key
         , startDate = value.startDate
@@ -359,10 +391,105 @@ toActivityBucket classify value =
         , increase = decimalText value.increase
         , decrease = decimalText value.decrease
         , reallocated = decimalText value.reallocated
+        , posted = decimalText value.posted
+        , reversed = decimalText value.reversed
+        , borrowed = debtAmount value.increase
+        , repaid = debtAmount (value.decrease - value.forgiven - value.borrowingReversed)
+        , forgiven = decimalText value.forgiven
+        , borrowingReversed = decimalText value.borrowingReversed
+        , netDebtMovement = debtAmount (value.increase - value.decrease)
         , categories = fmap (toBreakdownItem classify) value.categories
         , directions = fmap (toDirectionBreakdown classify) value.directions
+        , events = fmap toActivityEvent value.events
         , transactions = fmap (toTransactionDto classify) value.transactions
         }
+  where
+    debtAmount amount =
+        decimalText $ case kind of
+            Analytics.LiabilityActivity -> amount
+            _ -> 0
+
+toActivityEvent :: Analytics.ActivityEvent -> ActivityEventDto
+toActivityEvent event =
+    case event of
+        Analytics.AssetEvent movement ->
+            case movement of
+                Analytics.Acquired account quantity ->
+                    simpleEvent "acquired" (assetAccountName account) (positiveAmountValue quantity)
+                Analytics.Disposed account quantity ->
+                    simpleEvent "disposed" (assetAccountName account) (positiveAmountValue quantity)
+                Analytics.Transferred from outgoing to incoming ->
+                    linkedEvent
+                        "transferred"
+                        (assetAccountName from)
+                        (positiveAmountValue outgoing)
+                        (assetAccountName to)
+                        (positiveAmountValue incoming)
+        Analytics.LiabilityEvent movement ->
+            case movement of
+                Analytics.Borrowed account quantity ->
+                    simpleEvent
+                        "borrowed"
+                        (liabilityAccountName account)
+                        (positiveAmountValue quantity)
+                Analytics.Repaid account quantity ->
+                    simpleEvent
+                        "repaid"
+                        (liabilityAccountName account)
+                        (positiveAmountValue quantity)
+                Analytics.Refinanced old repaid new borrowed ->
+                    linkedEvent
+                        "refinanced"
+                        (liabilityAccountName old)
+                        (positiveAmountValue repaid)
+                        (liabilityAccountName new)
+                        (positiveAmountValue borrowed)
+                Analytics.Forgiven account quantity ->
+                    simpleEvent
+                        "forgiven"
+                        (liabilityAccountName account)
+                        (positiveAmountValue quantity)
+                Analytics.BorrowingReversed account quantity ->
+                    simpleEvent
+                        "borrowing_reversed"
+                        (liabilityAccountName account)
+                        (positiveAmountValue quantity)
+        Analytics.IncomeEvent account change ->
+            flowEvent "income" (incomeAccountName account) change
+        Analytics.ExpenseEvent account change ->
+            flowEvent "expense" (expenseAccountName account) change
+
+simpleEvent :: Text -> Text -> Decimal -> ActivityEventDto
+simpleEvent effect account quantity =
+    ActivityEventDto
+        { effect
+        , account = Just account
+        , source = Nothing
+        , destination = Nothing
+        , amount = Just (decimalText quantity)
+        , sourceAmount = Nothing
+        , destinationAmount = Nothing
+        }
+
+linkedEvent :: Text -> Text -> Decimal -> Text -> Decimal -> ActivityEventDto
+linkedEvent effect from outgoing to incoming =
+    ActivityEventDto
+        { effect
+        , account = Nothing
+        , source = Just from
+        , destination = Just to
+        , amount = Nothing
+        , sourceAmount = Just (decimalText outgoing)
+        , destinationAmount = Just (decimalText incoming)
+        }
+
+flowEvent :: Text -> Text -> Analytics.FlowChange -> ActivityEventDto
+flowEvent kind account change =
+    case change of
+        Analytics.Posted quantity ->
+            simpleEvent (kind <> "_posted") account (positiveAmountValue quantity)
+        Analytics.Reversed quantity ->
+            simpleEvent (kind <> "_reversed") account (positiveAmountValue quantity)
 
 toDirectionBreakdown ::
     AccountTypeClassifier -> Analytics.DirectionBreakdown -> DirectionBreakdownDto
@@ -397,3 +524,13 @@ renderWarning :: Analytics.ConversionWarning -> Text
 renderWarning (Analytics.MissingConversion missing) =
     "Missing dated conversion to the display commodity for: "
         <> Text.intercalate ", " (Set.toAscList missing)
+
+renderActivityIssue :: Analytics.ActivityIssue -> Text
+renderActivityIssue issue =
+    case issue of
+        Analytics.AmbiguousAssetMovement ->
+            "Some asset movements could not be paired unambiguously."
+        Analytics.AmbiguousLiabilityMovement ->
+            "Some debt movements could not be paired unambiguously."
+        Analytics.UnsupportedAssetMovement -> "Some asset movements could not be classified."
+        Analytics.UnsupportedLiabilityMovement -> "Some debt reductions could not be classified."

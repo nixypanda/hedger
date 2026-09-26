@@ -26,6 +26,7 @@ import Hedger.Application.AppM (Env)
 import Hedger.Application.Common (AccountTypeClassifier)
 import Hedger.Application.TransactionQuery (TransactionPageRequest (..))
 import Hedger.Application.Transactions (TransactionList (..), transactionList)
+import Hedger.Domain.ActivityEvent qualified as ActivityEvent
 import Hedger.Domain.Transaction qualified as Domain
 import Hedger.Interface.HTTP.Core.Common (
     ResponseMetadata (..),
@@ -73,6 +74,7 @@ data PostingDto = PostingDto
 
 data TransactionPresentationDto = TransactionPresentationDto
     { classification :: Text
+    , effects :: [Text]
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (ToJSON, FromJSON)
@@ -141,7 +143,7 @@ toTransactionDto classify transaction =
         , comment = nonEmpty transaction.tcomment
         , tags = projectTags transaction.ttags
         , postings = projectPosting classify <$> transaction.tpostings
-        , presentation = presentationDto (Domain.presentationFor transaction)
+        , presentation = presentationDto transaction
         }
 
 projectPosting :: AccountTypeClassifier -> Hledger.Posting -> PostingDto
@@ -192,9 +194,12 @@ nonEmpty value
     | Text.null value = Nothing
     | otherwise = Just value
 
-presentationDto :: Domain.TransactionPresentation -> TransactionPresentationDto
-presentationDto presentation =
-    TransactionPresentationDto{classification = classificationText presentation.classification}
+presentationDto :: Hledger.Transaction -> TransactionPresentationDto
+presentationDto transaction =
+    TransactionPresentationDto
+        { classification = classificationText (Domain.classificationFor transaction)
+        , effects = ActivityEvent.activityLabelsFor transaction
+        }
 
 classificationText :: Domain.TransactionClassification -> Text
 classificationText classification =
