@@ -16,7 +16,7 @@ import Hedgehog (Gen, Property, assert, failure, footnote, forAll, property, (==
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (Assertion, assertEqual, testCase)
+import Test.Tasty.HUnit (Assertion, assertBool, assertEqual, assertFailure, testCase)
 import Test.Tasty.Hedgehog (testProperty)
 
 import Hledger.Data.Amount (mixed, num)
@@ -42,7 +42,14 @@ import Hedger.Domain.Activity (
     computeActivity,
     parseActivityPeriod,
  )
-import Hedger.Domain.ActivityEvent (activityLabelsFor)
+import Hedger.Domain.ActivityEvent (
+    ActivityEvent (..),
+    AssetMovement (..),
+    EventGroup (..),
+    activityLabelsFor,
+    assetAccountName,
+    classifyTransactionFor,
+ )
 import Hedger.Domain.ActivityEvent qualified as ActivityEvent
 import Hedger.Domain.Period (
     ReportPeriod,
@@ -54,6 +61,7 @@ import Hedger.Domain.Period (
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Transaction qualified as Transaction
 import Hedger.Generators (displayCommodity, formatYearMonth, genMonth, genSnapshot, genYear)
+import Hedger.Infrastructure.SnapshotStore (loadSnapshot)
 import Hedger.SyntheticTransactions (mkSnapshot)
 import Hedger.TestHelpers (sumQuantities)
 
@@ -91,6 +99,11 @@ activitySpec =
             "posting-level activity"
             [ testCase "a cash transfer is one asset transfer" cashTransfer
             , testCase "a financed asset appears in both relevant views" financedAcquisition
+            , testCase "multiple financed assets are separate acquisitions" multiFinancedAcquisition
+            , testCase
+                "the supplied multi-fund journal produces three acquisitions"
+                multiFundJournal
+            , testCase "priced transfer and single purchase still classify" pricedExistingPatterns
             , testCase "refinancing links repayment and borrowing" refinancing
             , testCase "forgiveness is distinct from repayment" debtForgiveness
             , testCase "a credit-card refund reverses debt and expense" cardRefund
@@ -165,6 +178,95 @@ financedAcquisition = do
         "borrowed"
         [100]
         [bucket.testIncrease | bucket <- activityFigures LiabilityActivity [purchase]]
+
+multiFinancedAcquisition :: Assertion
+multiFinancedAcquisition = do
+    let purchase =
+            transactionOn
+                [ posting "assets:equity:one" 60
+                , posting "assets:equity:two" 40
+                , posting "liabilities:loan" (-100)
+                ]
+    assertEqual "one label per kind" ["asset_acquisition", "borrowing"] (activityLabelsFor purchase)
+    case activityFigures AssetActivity [purchase] of
+        [bucket] -> do
+            assertEqual "both acquisitions contribute" 100 bucket.testIncrease
+            assertEqual "two events" 2 bucket.testEventCount
+            assertEqual "one drill-down transaction" 1 bucket.testTransactionCount
+        _ -> assertFailure "expected one asset bucket"
+
+multiFundJournal :: Assertion
+multiFundJournal = do
+    result <- loadSnapshot "test/fixtures/activity-multi-asset.journal"
+    case result of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot ->
+            case List.find ((== "Investments India") . (.tdescription)) snapshot.transactions of
+                Nothing -> assertFailure "India investment transaction missing"
+                Just purchase -> checkMultiFundPurchase snapshot purchase
+
+pricedExistingPatterns :: Assertion
+pricedExistingPatterns = do
+    result <- loadSnapshot "test/fixtures/activity-multi-asset.journal"
+    case result of
+        Left loadError -> assertFailure (show loadError)
+        Right snapshot -> do
+            checkPricedPattern snapshot "Exchange INR to USD" "INR" isTransfer
+            checkPricedPattern snapshot "Investments US" "USD" isAcquisition
+
+checkPricedPattern :: Snapshot -> Text -> Text -> (ActivityEvent -> Bool) -> Assertion
+checkPricedPattern snapshot description commodity matches =
+    case List.find ((== description) . (.tdescription)) snapshot.transactions of
+        Nothing -> assertFailure "priced transaction missing"
+        Just transaction -> do
+            let (events, missing, issues) =
+                    classifyTransactionFor AssetGroup snapshot commodity transaction
+            assertEqual "one expected event" 1 (length (filter matches events))
+            assertEqual "no missing conversion" Set.empty missing
+            assertEqual "no classification issue" Set.empty issues
+
+isTransfer :: ActivityEvent -> Bool
+isTransfer (AssetEvent (Transferred _ _ _ _)) = True
+isTransfer _ = False
+
+isAcquisition :: ActivityEvent -> Bool
+isAcquisition (AssetEvent (Acquired _ _)) = True
+isAcquisition _ = False
+
+checkMultiFundPurchase :: Snapshot -> Hledger.Transaction -> Assertion
+checkMultiFundPurchase snapshot purchase = do
+    assertEqual
+        "one acquisition label"
+        ["expense", "asset_acquisition"]
+        (activityLabelsFor purchase)
+    let (events, missing, issues) = classifyTransactionFor AssetGroup snapshot "INR" purchase
+        accounts =
+            [ assetAccountName account
+            | AssetEvent (Acquired account _) <- events
+            ]
+    assertEqual "no conversion missing" Set.empty missing
+    assertEqual "no classification issue" Set.empty issues
+    assertEqual "three distinct acquisitions" 3 (length accounts)
+    case parseActivityPeriod 1 MonthActivity "2026-09" of
+        Left err -> assertFailure (show err)
+        Right period ->
+            case ( computeActivity
+                    snapshot
+                    [purchase]
+                    "INR"
+                    AssetActivity
+                    MonthActivity
+                    Depth4
+                    period
+                 ).buckets of
+                AssetBuckets [bucket] -> do
+                    assertEqual "three valued events" 3 (length bucket.movements)
+                    assertEqual "one drill-down transaction" 1 (length bucket.transactions)
+                    assertBool
+                        "acquisition value is near the 400k outflow"
+                        (bucket.acquired > 399900)
+                    assertBool "brokerage remains outside acquisitions" (bucket.acquired < 400000)
+                _ -> assertFailure "expected one asset day bucket"
 
 refinancing :: Assertion
 refinancing = do

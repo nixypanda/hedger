@@ -171,6 +171,7 @@ analysisConfig =
     { timelineSectionTitle = "Balance over time"
     , timelineTitle = "Assets and liabilities"
     , netLabel = "Net worth"
+    , showCalendarDisplayControl = False
     , positive =
         { label = "Assets"
         , monthActivityTitle = "Asset activity"

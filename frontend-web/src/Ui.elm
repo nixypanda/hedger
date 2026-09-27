@@ -544,7 +544,8 @@ segmentedOption :
     -> Element msg
 segmentedOption theme config =
     Input.button
-        [ Font.color
+        [ touchTargetHeight
+        , Font.color
             (if config.selected then
                 theme.primary
 

@@ -6,11 +6,13 @@ import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
 import Data.Freshness exposing (Freshness(..))
 import Data.Granularity exposing (Granularity(..))
+import Data.Status exposing (Status(..))
+import Data.Transaction exposing (Transaction)
 import Expect
 import Fuzz
 import Page.Shared.Analysis as Analysis exposing (Timeline(..))
-import Test exposing (Test, describe, fuzz)
-import View.Analytics exposing (ActivityTone(..), Palette(..))
+import Test exposing (Test, describe, fuzz, test)
+import View.Analytics exposing (ActivityTone(..), CalendarDisplay(..), Palette(..))
 
 
 {-| Two domain rules of the analysis views: an out-of-date report or activity
@@ -23,7 +25,89 @@ suite =
     describe "calendar period selection"
         [ fuzz reportFuzzer "stale responses cannot overwrite newer requests" staleResponseHolds
         , fuzz periodFuzzer "period selection follows the fiscal calendar" periodSelectionHolds
+        , test "calendar defaults to category and movement switch survives granularity changes" <|
+            \_ ->
+                let
+                    initialDisplay =
+                        Analysis.calendarDisplay Analysis.init
+
+                    ( movementMode, effects ) =
+                        Analysis.update context
+                            (Analysis.CalendarDisplaySelected ByMovement)
+                            Analysis.init
+
+                    ( yearly, _ ) =
+                        Analysis.update context (Analysis.GranularitySelected Yearly) movementMode
+                in
+                { initial = initialDisplay
+                , switched = Analysis.calendarDisplay movementMode
+                , effects = List.length effects
+                , yearly = Analysis.calendarDisplay yearly
+                }
+                    |> Expect.equal
+                        { initial = ByCategory
+                        , switched = ByMovement
+                        , effects = 0
+                        , yearly = ByMovement
+                        }
+        , test "yearly ring transaction opens detail and returns to the calendar" <|
+            \_ ->
+                let
+                    bucket =
+                        selectedYearBucket
+
+                    chosenTransaction =
+                        selectedTransaction
+
+                    yearly =
+                        applyGranularity Yearly Analysis.init
+
+                    ( selected, _ ) =
+                        Analysis.update context
+                            (Analysis.YearBucketSelected Analysis.Positive bucket)
+                            yearly
+
+                    ( opened, _ ) =
+                        Analysis.update context
+                            (Analysis.TransactionSelected
+                                Analysis.Positive
+                                bucket
+                                chosenTransaction
+                            )
+                            selected
+
+                    ( returned, _ ) =
+                        Analysis.update context Analysis.Back opened
+                in
+                ( Analysis.transaction opened, Analysis.transaction returned )
+                    |> Expect.equal ( Just chosenTransaction, Nothing )
         ]
+
+
+selectedYearBucket : Analytics.ActivityBucket
+selectedYearBucket =
+    { key = "2026-09"
+    , startDate = Date { year = 2026, month = 9, day = 1 }
+    , total = Decimal.zero
+    , categories = []
+    , movement =
+        Analytics.IncomeMovements { posted = Decimal.zero, reversed = Decimal.zero, events = [] }
+    , transactions = [ selectedTransaction ]
+    }
+
+
+selectedTransaction : Transaction
+selectedTransaction =
+    { primaryDate = Date { year = 2026, month = 9, day = 1 }
+    , secondaryDate = Nothing
+    , status = Unmarked
+    , code = Nothing
+    , description = "Selected transaction"
+    , comment = Nothing
+    , tags = []
+    , postings = []
+    , presentation = { classification = "income", effects = [ "income" ] }
+    }
 
 
 
@@ -284,6 +368,7 @@ context =
         { timelineSectionTitle = "Timeline"
         , timelineTitle = "Activity"
         , netLabel = "Net"
+        , showCalendarDisplayControl = True
         , positive = sideConfig Analytics.IncomeActivity PositivePalette IncomeTone
         , negative = sideConfig Analytics.ExpenseActivity NegativePalette ExpenseTone
         }

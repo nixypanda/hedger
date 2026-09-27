@@ -24,6 +24,7 @@ module Hedger.Domain.ActivityEvent (
 ) where
 
 import Data.Decimal (Decimal)
+import Data.List qualified as List
 import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -169,9 +170,15 @@ rawEvents transaction
                 | isCash outgoing && not (isCash incoming) -> ([RawAcquired incoming], Set.empty)
                 | isCash incoming && not (isCash outgoing) -> ([RawDisposed outgoing], Set.empty)
                 | otherwise -> ([RawTransferred outgoing incoming], Set.empty)
+            (incoming@(_ : _ : _), [outgoing])
+                | isCash outgoing && all (not . isCash) incoming ->
+                    (fmap RawAcquired incoming, Set.empty)
             ([incoming], [])
                 | not (isCash incoming) && not (null debtIn) ->
                     ([RawAcquired incoming], Set.empty)
+            (incoming@(_ : _ : _), [])
+                | all (not . isCash) incoming && not (null debtIn) ->
+                    (fmap RawAcquired incoming, Set.empty)
             ([], []) -> ([], Set.empty)
             ([incoming], []) ->
                 ([], if isCash incoming then Set.empty else Set.singleton UnsupportedAssetMovement)
@@ -251,7 +258,15 @@ classifyTransactionWith include includeIssue snapshot commodity transaction =
     (raw, allIssues) = rawEvents transaction
     issues = Set.filter includeIssue allIssues
     results = fmap value (filter include raw)
-    convert posting = convertMixedAt snapshot commodity transaction.tdate posting.pamount
+    -- Activity records the value exchanged in this transaction. An explicit
+    -- @/@@ posting price is therefore the first valuation step, before any
+    -- conversion from the price commodity to the requested display commodity.
+    convert posting =
+        convertMixedAt
+            snapshot
+            commodity
+            transaction.tdate
+            (HledgerAmount.mixedAmountCost posting.pamount)
     missing (_, missingCommodities) = missingCommodities
     valued (event, _) = event
     single constructor posting =
@@ -314,7 +329,7 @@ classifyTransactionWith include includeIssue snapshot commodity transaction =
 
 -- | Stable labels for the transaction API; no display conversion is needed.
 activityLabelsFor :: Hledger.Transaction -> [Text]
-activityLabelsFor transaction = fmap label events
+activityLabelsFor transaction = List.nub (fmap label events)
   where
     (events, _) = rawEvents transaction
     label = \case
