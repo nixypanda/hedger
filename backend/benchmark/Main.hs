@@ -385,7 +385,7 @@ queryWeight snapshot query =
                 (toTransactions (accountTypeClassifier snapshot.journal) page.transactions)
 
 -- * Investments
-investmentSummary :: Snapshot -> Day -> Performance.SummaryResult
+investmentSummary :: Snapshot -> Day -> Performance.InvestmentSummary
 investmentSummary snapshot day =
     Performance.investmentSummaryAt
         snapshot
@@ -395,7 +395,7 @@ investmentSummary snapshot day =
         Nothing
         day
 
-investmentSummaries :: Snapshot -> [Day] -> [Performance.SummaryResult]
+investmentSummaries :: Snapshot -> [Day] -> [Performance.InvestmentSummary]
 investmentSummaries snapshot days =
     let context =
             Performance.prepareInvestmentPerformance
@@ -405,7 +405,7 @@ investmentSummaries snapshot days =
                 "INR"
      in Performance.summariesAtPrepared context Nothing Monthly days
 
-investmentDrillDown :: Snapshot -> Day -> [Performance.SummaryResult]
+investmentDrillDown :: Snapshot -> Day -> [Performance.InvestmentSummary]
 investmentDrillDown snapshot day =
     snd
         <$> Performance.summariesAtScopesPrepared
@@ -415,7 +415,7 @@ investmentDrillDown snapshot day =
   where
     context = prepareContext snapshot
 
-investmentDrillDownSingular :: Snapshot -> Day -> [Performance.SummaryResult]
+investmentDrillDownSingular :: Snapshot -> Day -> [Performance.InvestmentSummary]
 investmentDrillDownSingular snapshot day =
     fmap
         (\scope -> Performance.summaryAtPrepared context scope day)
@@ -541,7 +541,7 @@ timelineHoldingsCost context =
         Nothing
         Monthly
 
-summaryWeight :: Performance.SummaryResult -> Int
+summaryWeight :: Performance.InvestmentSummary -> Int
 summaryWeight summary =
     sum
         [ length (show (Performance.summaryMarketValue summary))
@@ -598,8 +598,7 @@ investmentsReportWeight report =
 metadataWeight :: SnapshotMetadata -> Int
 metadataWeight responseMetadata =
     Text.length responseMetadata.revision
-        + Text.length responseMetadata.freshness
-        + sum (Text.length <$> responseMetadata.warnings)
+        + length (show responseMetadata.freshness)
 
 investmentPointWeight :: Investments.InvestmentPoint -> Int
 investmentPointWeight point =

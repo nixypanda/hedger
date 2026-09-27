@@ -153,7 +153,7 @@ toResponse report =
         , warnings = fmap toWarning report.warnings
         }
 
-toSummary :: Performance.SummaryResult -> InvestmentSummaryDto
+toSummary :: Performance.InvestmentSummary -> InvestmentSummaryDto
 toSummary value =
     InvestmentSummaryDto
         { marketValue = decimalText <$> Performance.summaryMarketValue value
