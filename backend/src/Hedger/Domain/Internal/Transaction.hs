@@ -89,14 +89,16 @@ accountGroup = groupFromLabel . accountLabel
             other -> OtherGroup other
 
 -- | A fraction in the closed interval [0, 1]. The constructor is not exported.
-newtype Fraction = Fraction Double
+newtype Fraction = Fraction Rational
     deriving stock (Eq, Ord, Show)
 
--- | Build a fraction by clamping into [0, 1]; this keeps the invariant total.
-fraction :: Double -> Fraction
-fraction value = Fraction (max 0 (min 1 value))
+-- | Reject values outside [0, 1]. Rational values are always finite.
+fraction :: Rational -> Maybe Fraction
+fraction value
+    | value >= 0 && value <= 1 = Just (Fraction value)
+    | otherwise = Nothing
 
-fractionValue :: Fraction -> Double
+fractionValue :: Fraction -> Rational
 fractionValue (Fraction value) = value
 
 data DominantMovement
@@ -109,7 +111,7 @@ newestFirst = List.sortOn (\transaction -> (Down transaction.tdate, Down transac
 
 -- * Domain queries
 classificationThreshold :: Fraction
-classificationThreshold = fraction 0.8
+classificationThreshold = Fraction 0.8
 
 classificationFor :: Hledger.Transaction -> TransactionClassification
 classificationFor tx
@@ -160,14 +162,14 @@ isOpening tx =
 dominantMovement :: Hledger.Transaction -> DominantMovement
 dominantMovement tx
     | Map.null groupAmounts = NoDebits
-    | otherwise = Dominant dominantGroup (fraction (dominantAmount / totalDebit))
+    | otherwise = Dominant dominantGroup (Fraction (dominantAmount / totalDebit))
   where
     debitPs = debitsFor tx.tpostings
     groupAmounts =
         Map.fromListWith
             (+)
             [ ( accountGroup (accountInfo p.paccount)
-              , abs (fromRational (toRational amount.aquantity))
+              , abs (toRational amount.aquantity)
               )
             | p <- debitPs
             , amount <- Hledger.amountsRaw p.pamount

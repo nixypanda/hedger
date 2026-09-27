@@ -27,6 +27,7 @@ import Hedger.Domain.Internal.Transaction (
     accountGroup,
     dominantMovement,
     fraction,
+    fractionValue,
  )
 import Hedger.Domain.Transaction (
     TransactionClassification (..),
@@ -63,6 +64,7 @@ transactionSpec =
         , testGroup
             "dominantMovement"
             [ testCase "two groups exact tie uses alphabetical order" dominantTwoGroupsTie
+            , testCase "fractions reject values outside the unit interval" fractionBounds
             , testGroup
                 "properties"
                 [ testProperty "no debit postings yields NoDebits" dominantEmptyDebits
@@ -130,8 +132,18 @@ dominantTwoGroupsTie :: Assertion
 dominantTwoGroupsTie =
     assertEqual
         "assets 50 vs expenses 50"
-        (Dominant Assets (fraction 0.5))
-        (dominantMovement tieTransaction)
+        (fraction 0.5)
+        ( case dominantMovement tieTransaction of
+            Dominant Assets pct -> Just pct
+            _ -> Nothing
+        )
+
+fractionBounds :: Assertion
+fractionBounds = do
+    assertEqual "zero is valid" (Just 0) (fractionValue <$> fraction 0)
+    assertEqual "one is valid" (Just 1) (fractionValue <$> fraction 1)
+    assertEqual "negative value is invalid" Nothing (fraction (-0.01))
+    assertEqual "value above one is invalid" Nothing (fraction 1.01)
 
 -- Sorting tests
 syntheticTransactions :: [Hledger.Transaction]
@@ -346,8 +358,8 @@ structuralLaws tx = do
         movement = dominantMovement tx
         dominantPct =
             case movement of
-                Dominant _ pct -> pct
-                NoDebits -> fraction 0
+                Dominant _ pct -> fractionValue pct
+                NoDebits -> 0
         credits = creditPostings tx
         debits = debitPostings tx
 
@@ -386,7 +398,7 @@ structuralLaws tx = do
         assert (anyPostingAccount isRevenue credits)
 
     footnote "below the threshold and not opening implies Unclassified"
-    when (not (isOpening tx) && dominantPct < fraction 0.8) (classification === Unclassified)
+    when (not (isOpening tx) && dominantPct < 0.8) (classification === Unclassified)
 
 isDominant :: AccountGroup -> DominantMovement -> Bool
 isDominant group (Dominant actual _) = actual == group
