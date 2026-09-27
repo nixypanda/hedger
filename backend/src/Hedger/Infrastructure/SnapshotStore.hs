@@ -12,7 +12,6 @@ module Hedger.Infrastructure.SnapshotStore (
     reloadSnapshot,
 ) where
 
-import Control.Applicative ((<|>))
 import Control.Concurrent.STM (
     TVar,
     atomically,
@@ -38,11 +37,10 @@ import Data.Word (Word8)
 import Numeric (showHex)
 import System.Directory qualified as Directory
 
-import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Read qualified as Hledger
 
-import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Snapshot (Snapshot (..), mkSnapshot)
 
 -- Store model
 newtype SnapshotLoadError
@@ -137,18 +135,7 @@ loadSnapshot configuredPath = do
         journalResult <-
             either (Left . JournalReadFailed . Text.pack . displayException) Right readResult
         loadedJournal <- either (Left . JournalReadFailed . Text.pack) Right journalResult
-        let records = loadedJournal.jtxns
-            postings = concatMap Hledger.tpostings records
-        pure
-            Snapshot
-                { journal = loadedJournal
-                , transactions = records
-                , accountTree = HledgerAccount.accountFromPostings postingDate postings
-                , latestJournalDate = maximumMaybe (Hledger.tdate <$> records)
-                , revision = journalRevision loadedJournal
-                }
-  where
-    postingDate posting = posting.pdate <|> (Hledger.tdate <$> posting.ptransaction)
+        pure (mkSnapshot loadedJournal (journalRevision loadedJournal))
 
 readJournal :: Text -> IO (Either SomeException (Either String Hledger.Journal))
 readJournal configuredPath =
@@ -161,10 +148,6 @@ synchronousException exception =
     case fromException exception :: Maybe SomeAsyncException of
         Just _ -> Nothing
         Nothing -> Just exception
-
-maximumMaybe :: (Ord value) => [value] -> Maybe value
-maximumMaybe [] = Nothing
-maximumMaybe values = Just (maximum values)
 
 -- Revision hashing
 journalRevision :: Hledger.Journal -> Text

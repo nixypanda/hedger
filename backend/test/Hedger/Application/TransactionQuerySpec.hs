@@ -33,6 +33,7 @@ import Hedger.Application.TransactionQuery (
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Period (epoch)
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Snapshot qualified as Snapshot
 import Hedger.Domain.Transaction (newestFirst)
 import Hedger.Generators (genSnapshot, genTransactions)
 import Hedger.SyntheticTransactions (mkSnapshot)
@@ -143,7 +144,7 @@ bindsCursorsCorrectly = do
                         "should reject cursor for different revision"
                         ( isInvalidCursor
                             ( transactionPage
-                                syntheticSnapshot{revision = "md5:different"}
+                                (Snapshot.mkSnapshot syntheticSnapshot.journal "md5:different")
                                 TransactionPageRequest
                                     { query = Just "date:thisyear"
                                     , limit = onePageLimit
@@ -155,7 +156,11 @@ bindsCursorsCorrectly = do
                         "should reject cursor for different date"
                         ( isInvalidCursor
                             ( transactionPage
-                                syntheticSnapshot{latestJournalDate = Just (fromGregorian 2025 4 2)}
+                                ( mkSnapshot
+                                    ( syntheticSnapshot.transactions
+                                        <> [nulltransaction{Hledger.tdate = fromGregorian 2025 4 2}]
+                                    )
+                                )
                                 TransactionPageRequest
                                     { query = Just "date:thisyear"
                                     , limit = onePageLimit

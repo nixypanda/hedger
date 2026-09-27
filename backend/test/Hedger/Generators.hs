@@ -33,7 +33,6 @@ module Hedger.Generators (
 ) where
 
 import Data.Decimal (Decimal, realFracToDecimal)
-import Data.List qualified as List
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -42,7 +41,6 @@ import Hedgehog (Gen)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
-import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Amount (mixed, num)
 import Hledger.Data.Journal (nulljournal)
 import Hledger.Data.Posting (nullposting)
@@ -58,7 +56,7 @@ import Hedger.Domain.Investment (
     mkAccountName,
     mkAssetAccount,
  )
-import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Snapshot (Snapshot, mkSnapshot)
 
 genTransaction :: Gen Hledger.Transaction
 genTransaction = do
@@ -209,22 +207,7 @@ genSnapshot :: Gen Snapshot
 genSnapshot = do
     intents <- Gen.list (Range.linear 1 24) (Gen.element [minBound .. maxBound])
     transactions <- traverse genIntentTransaction intents
-    pure
-        Snapshot
-            { journal = nulljournal{Hledger.jtxns = transactions}
-            , transactions = transactions
-            , accountTree =
-                HledgerAccount.accountFromPostings
-                    (const Nothing)
-                    (concatMap Hledger.tpostings transactions)
-            , latestJournalDate = maximumMaybe (Hledger.tdate <$> transactions)
-            , revision = "md5:synthetic"
-            }
-
--- | Total maximum, unlike the partial 'maximum'.
-maximumMaybe :: (Ord value) => [value] -> Maybe value
-maximumMaybe [] = Nothing
-maximumMaybe (value : values) = Just (List.foldl' max value values)
+    pure (mkSnapshot nulljournal{Hledger.jtxns = transactions} "md5:synthetic")
 
 {- | A price directive stating that one unit of @symbol@ is worth @price@ units
 of the display commodity.
