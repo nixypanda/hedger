@@ -1,6 +1,7 @@
 module Hedger.Application.AppM (
     AppM,
     Env (..),
+    SnapshotFreshness (..),
     SnapshotContext (..),
     runAppM,
     requireSnapshot,
@@ -30,8 +31,13 @@ type AppM = ReaderT Env (ExceptT AppError IO)
 
 data SnapshotContext = SnapshotContext
     { snapshot :: Snapshot
-    , reloadError :: Maybe SnapshotLoadError
+    , freshness :: SnapshotFreshness
     }
+
+data SnapshotFreshness
+    = Fresh
+    | Stale SnapshotLoadError
+    deriving stock (Eq, Show)
 
 runAppM :: Env -> AppM value -> IO (Either AppError value)
 runAppM environment action = do
@@ -54,6 +60,6 @@ requireSnapshot = do
     case storeRead of
         SnapshotNotLoaded -> throwError JournalUnavailable
         SnapshotLoadFailed _ -> throwError JournalUnavailable
-        SnapshotFresh snapshot -> pure SnapshotContext{snapshot, reloadError = Nothing}
+        SnapshotFresh snapshot -> pure SnapshotContext{snapshot, freshness = Fresh}
         SnapshotStale snapshot loadError ->
-            pure SnapshotContext{snapshot, reloadError = Just loadError}
+            pure SnapshotContext{snapshot, freshness = Stale loadError}

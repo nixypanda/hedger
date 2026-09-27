@@ -34,6 +34,7 @@ import Control.Monad.Except (throwError)
 import Control.Monad.Reader (asks)
 import Data.Decimal (Decimal)
 import Data.List qualified as List
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -483,6 +484,5 @@ directionBreakdowns items =
     ]
 
 conversionWarnings :: Set Text -> [ConversionWarning]
-conversionWarnings missing
-    | Set.null missing = []
-    | otherwise = [MissingConversion missing]
+conversionWarnings missing =
+    maybe [] (pure . MissingConversion) (NonEmpty.nonEmpty (Set.toAscList missing))

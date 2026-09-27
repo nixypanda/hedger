@@ -36,7 +36,7 @@ import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AppM (AppM, Env, runAppM)
-import Hedger.Application.Common (SnapshotMetadata (..))
+import Hedger.Application.Common (SnapshotFreshness (..), SnapshotMetadata (..))
 import Hedger.Application.PageRequest (
     PageLimit,
     defaultPageLimit,
@@ -153,8 +153,12 @@ toResponseMetadata :: SnapshotMetadata -> ResponseMetadata
 toResponseMetadata value =
     ResponseMetadata
         { revision = value.revision
-        , freshness = value.freshness
-        , warnings = value.warnings
+        , freshness = case value.freshness of
+            Fresh -> "fresh"
+            Stale _ -> "stale"
+        , warnings = case value.freshness of
+            Fresh -> []
+            Stale _ -> ["The latest journal reload failed; the last usable snapshot is shown."]
         }
 
 accountTypeText :: Hledger.AccountType -> Text
