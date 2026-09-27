@@ -1,5 +1,6 @@
 module Hedger.Application.Common (
     SnapshotMetadata (..),
+    SnapshotFreshness (..),
     metadataFor,
     AccountTypeClassifier,
     accountTypeClassifier,
@@ -10,7 +11,7 @@ import Data.Text (Text)
 import Hledger.Data.AccountName qualified as HledgerAccountName
 import Hledger.Data.Types qualified as Hledger
 
-import Hedger.Application.AppM (SnapshotContext (..))
+import Hedger.Application.AppM (SnapshotContext (..), SnapshotFreshness (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 
 {- | Classify an account name into its hledger 'Hledger.AccountType', honouring
@@ -25,18 +26,12 @@ accountTypeClassifier journal = HledgerAccountName.accountNameType journal.jacco
 
 data SnapshotMetadata = SnapshotMetadata
     { revision :: Text
-    , freshness :: Text
-    , warnings :: [Text]
+    , freshness :: SnapshotFreshness
     }
 
 metadataFor :: SnapshotContext -> SnapshotMetadata
 metadataFor context =
     SnapshotMetadata
         { revision = context.snapshot.revision
-        , freshness = maybe "fresh" (const "stale") context.reloadError
-        , warnings =
-            maybe
-                []
-                (const ["The latest journal reload failed; the last usable snapshot is shown."])
-                context.reloadError
+        , freshness = context.freshness
         }

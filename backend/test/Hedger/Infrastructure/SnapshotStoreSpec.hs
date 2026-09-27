@@ -17,8 +17,6 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
-    SnapshotLoadError (..),
-    SnapshotStore (..),
     SnapshotStoreRead (..),
     currentRevision,
     loadSnapshot,
@@ -28,7 +26,7 @@ import Hedger.Infrastructure.SnapshotStore (
     readSnapshotStore,
     reloadSnapshot,
  )
-import Hedger.TestHelpers (loadedStore)
+import Hedger.TestHelpers (loadedStore, withTemporaryJournal)
 import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Types qualified as Hledger
 
@@ -100,10 +98,12 @@ parsesSharedJournal = do
                 (take 4 (Hledger.aname <$> HledgerAccount.flattenAccounts snapshot.accountTree))
 
 keepsSnapshotOnFailedReload :: IO ()
-keepsSnapshotOnFailedReload = do
-    store <- loadedStore
+keepsSnapshotOnFailedReload = withTemporaryJournal $ \path -> do
+    store <- newSnapshotStore path
+    _ <- reloadSnapshot store
     snapshotBefore <- readCurrentSnapshot store
-    reloadResult <- reloadWith store "test/fixtures/does-not-exist.journal"
+    Directory.removeFile (Text.unpack path)
+    reloadResult <- reloadSnapshot store
     assertBool "reload should fail" (isLeft reloadResult)
     snapshotAfter <- readCurrentSnapshot store
     assertEqual
@@ -114,20 +114,15 @@ keepsSnapshotOnFailedReload = do
     assertBool "should have a reload error" (isJust reloadError)
 
 readsCoherentStoreView :: IO ()
-readsCoherentStoreView = do
-    store <- loadedStore
-    _ <- reloadWith store "test/fixtures/does-not-exist.journal"
+readsCoherentStoreView = withTemporaryJournal $ \path -> do
+    store <- newSnapshotStore path
+    _ <- reloadSnapshot store
+    Directory.removeFile (Text.unpack path)
+    _ <- reloadSnapshot store
     storeRead <- readSnapshotStore store
     case storeRead of
         SnapshotStale _ _ -> pure ()
         _ -> assertFailure "expected a stale snapshot with its reload error"
-
-{- | Reload a store with a different journal path by creating a temporary store
-with the new path and copying its TVar.
--}
-reloadWith :: SnapshotStore -> FilePath -> IO (Either SnapshotLoadError Snapshot)
-reloadWith store path =
-    reloadSnapshot SnapshotStore{storeState = store.storeState, journalPath = Text.pack path}
 
 -- Stress-tests the invariant that the revision published via `currentRevision`
 -- always agrees with the revision of the snapshot `readCurrentSnapshot` returns.

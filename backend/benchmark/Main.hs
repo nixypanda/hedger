@@ -28,12 +28,13 @@ import Hedger.Application.Common (
     accountTypeClassifier,
  )
 import Hedger.Application.Investments qualified as Investments
+import Hedger.Application.PageRequest (allDates, defaultPageLimit)
 import Hedger.Application.TransactionQuery (
     TransactionPage (transactions),
     TransactionPageRequest (..),
     transactionPage,
  )
-import Hedger.Config (Config (..), mkMonthOfYear, mkPort)
+import Hedger.Config (Config, mkConfig, mkPort)
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Activity (
@@ -78,7 +79,13 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..), fiscalYearPeriod, monthPeriod)
+import Hedger.Domain.Period (
+    Granularity (..),
+    MonthOfYear,
+    fiscalYearPeriod,
+    mkMonthOfYear,
+    monthPeriod,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion, conversionMissing, conversionValue)
 import Hedger.Domain.Xirr qualified as Xirr
@@ -215,7 +222,7 @@ fixtureBenchmarks (name, path) =
                                     FiscalYearActivity
                                     Depth2
                             )
-                            (fiscalYearPeriod 1 input.latest)
+                            (fiscalYearPeriod january input.latest)
                     ]
                 , bgroup
                     "cashflow-parts"
@@ -342,15 +349,18 @@ loadFixtureInput path = do
 
 benchmarkConfig :: Text.Text -> Config
 benchmarkConfig path =
-    Config
-        { journalPath = path
-        , listenAddress = "127.0.0.1"
-        , listenPort = either (error . Text.unpack) id (mkPort 8080)
-        , defaultDisplayCommodity = "INR"
-        , fiscalYearStartMonth = either (error . Text.unpack) id (mkMonthOfYear 4)
-        , investmentMappings = benchmarkMappings
-        , assetClassMappings = benchmarkAssetClassMappings
-        }
+    either (error . Text.unpack) id $
+        mkConfig
+            path
+            "127.0.0.1"
+            (either (error . Text.unpack) id (mkPort 8080))
+            "INR"
+            (maybe (error "invalid fiscal month") id (mkMonthOfYear 4))
+            benchmarkMappings
+            benchmarkAssetClassMappings
+
+january :: MonthOfYear
+january = maybe (error "invalid fiscal month") id (mkMonthOfYear 1)
 
 loadAndForce :: Text.Text -> IO Int
 loadAndForce path = do
@@ -366,7 +376,7 @@ queryWeight snapshot query =
         snapshot
         TransactionPageRequest
             { query = Just query
-            , limit = 50
+            , limit = defaultPageLimit
             , cursor = Nothing
             } of
         Left _ -> 0
@@ -898,9 +908,8 @@ registerWeight snapshot account =
         RegisterPageRequest
             { account
             , commodity = Just "INR"
-            , start = Nothing
-            , end = Nothing
-            , limit = 50
+            , dateRange = allDates
+            , limit = defaultPageLimit
             , cursor = Nothing
             }
 

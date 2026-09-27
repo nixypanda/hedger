@@ -9,15 +9,19 @@ import Data.Text (Text)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
-import Hedger.Config (Config (..), monthOfYearValue, parseConfig, portValue)
+import Hedger.Config (Config (..), mkConfig, parseConfig, portValue)
 import Hedger.Domain.Investment (AssetClass (..), InvestmentMapping (..), PerformanceAccount (..))
 import Hedger.Domain.Investment qualified as Investment
+import Hedger.Domain.Period (monthOfYearValue)
 
 configSpec :: TestTree
 configSpec =
     testGroup
         "configuration"
         [ testCase "requires a journal runtime path" requiresJournalPath
+        , testCase
+            "the resolved-config builder validates the journal path"
+            builderValidatesJournalPath
         , testCase "loads supported settings from YAML" loadsYaml
         , testCase "lets CLI scalar settings override YAML" cliOverridesYaml
         , testCase "loads gain mappings only from YAML" loadsGainMappings
@@ -39,6 +43,22 @@ configSpec =
 requiresJournalPath :: IO ()
 requiresJournalPath =
     assertEqual "" (Left "A non-empty journal path is required.") (parseConfig Nothing [])
+
+builderValidatesJournalPath :: IO ()
+builderValidatesJournalPath = do
+    config <- requireConfig (parseConfig Nothing ["--journal", "fixture.journal"])
+    assertEqual
+        ""
+        (Left "A non-empty journal path is required.")
+        ( mkConfig
+            "  "
+            config.listenAddress
+            config.listenPort
+            config.defaultDisplayCommodity
+            config.fiscalYearStartMonth
+            config.investmentMappings
+            config.assetClassMappings
+        )
 
 loadsYaml :: IO ()
 loadsYaml = do

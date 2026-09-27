@@ -55,11 +55,13 @@ import Hedger.Domain.ActivityEvent (
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Internal.PeriodReport (BreakdownItem (..))
 import Hedger.Domain.Period (
+    MonthOfYear,
     ReportPeriod,
     dayKey,
     epoch,
     fiscalYearPeriod,
     monthKey,
+    monthOfYearValue,
     monthPeriod,
     parseYearMonth,
     reportPeriodEnd,
@@ -464,7 +466,7 @@ activityBucketKey :: ActivityRange -> Day -> Text
 activityBucketKey MonthActivity = dayKey
 activityBucketKey FiscalYearActivity = monthKey
 
-parseActivityPeriod :: Int -> ActivityRange -> Text -> Either AppError ReportPeriod
+parseActivityPeriod :: MonthOfYear -> ActivityRange -> Text -> Either AppError ReportPeriod
 parseActivityPeriod fiscalStart activityRange raw =
     case activityRange of
         MonthActivity ->
@@ -474,7 +476,7 @@ parseActivityPeriod fiscalStart activityRange raw =
         FiscalYearActivity ->
             case parseYearMonth raw of
                 Just yearMonth
-                    | yearMonthMonth yearMonth == fiscalStart ->
+                    | yearMonthMonth yearMonth == monthOfYearValue fiscalStart ->
                         Right (fiscalYearPeriod fiscalStart (yearMonthStart yearMonth))
                 _ ->
                     Left

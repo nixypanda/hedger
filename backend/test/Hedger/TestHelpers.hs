@@ -1,17 +1,20 @@
 module Hedger.TestHelpers (
     configuration,
     loadedStore,
+    withTemporaryJournal,
     getJson,
     postJson,
     sumQuantities,
 ) where
 
+import Control.Exception (bracket)
 import Data.Aeson (Value, decode)
 import Data.ByteString qualified as ByteString
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Decimal (Decimal)
 import Data.Either (isRight)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Network.HTTP.Types (hContentType, methodGet, methodPost)
 import Network.Wai qualified as Wai
@@ -24,9 +27,11 @@ import Network.Wai.Test (
     setPath,
     srequest,
  )
+import System.Directory qualified as Directory
+import System.IO (hClose, openTempFile)
 import Test.Tasty.HUnit (assertBool)
 
-import Hedger.Config (Config (..), mkMonthOfYear, mkPort)
+import Hedger.Config (Config, mkConfig, mkPort)
 import Hedger.Domain.Investment (
     AssetClass (Equity),
     AssetClassMapping (..),
@@ -37,19 +42,20 @@ import Hedger.Domain.Investment (
     mkAssetClassMappings,
  )
 import Hedger.Domain.NetWorth (BreakdownItem (..))
+import Hedger.Domain.Period (mkMonthOfYear)
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 
 configuration :: Config
 configuration =
-    Config
-        { journalPath = "test/fixtures/shared.journal"
-        , listenAddress = "127.0.0.1"
-        , listenPort = either (error . Text.unpack) id (mkPort 8080)
-        , defaultDisplayCommodity = "INR"
-        , fiscalYearStartMonth = either (error . Text.unpack) id (mkMonthOfYear 4)
-        , investmentMappings = emptyInvestmentMappings
-        , assetClassMappings = configuredAssetClasses
-        }
+    either (error . Text.unpack) id $
+        mkConfig
+            "test/fixtures/shared.journal"
+            "127.0.0.1"
+            (either (error . Text.unpack) id (mkPort 8080))
+            "INR"
+            (maybe (error "invalid fiscal month") id (mkMonthOfYear 4))
+            emptyInvestmentMappings
+            configuredAssetClasses
 
 configuredAssetClasses :: AssetClassMappings
 configuredAssetClasses =
@@ -70,6 +76,22 @@ loadedStore = do
     result <- reloadSnapshot store
     assertBool "snapshot load failed" (isRight result)
     pure store
+
+withTemporaryJournal :: (Text -> IO a) -> IO a
+withTemporaryJournal action = do
+    temporaryDirectory <- Directory.getTemporaryDirectory
+    bracket
+        (openTempFile temporaryDirectory "hedger-test-XXXXXX.journal")
+        ( \(path, _) -> do
+            exists <- Directory.doesFileExist path
+            if exists then Directory.removeFile path else pure ()
+        )
+        ( \(path, handle) -> do
+            hClose handle
+            contents <- ByteString.readFile "test/fixtures/shared.journal"
+            ByteString.writeFile path contents
+            action (Text.pack path)
+        )
 
 getJson :: ByteString.ByteString -> Wai.Application -> IO (Maybe Value, SResponse)
 getJson path app = do

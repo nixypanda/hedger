@@ -21,6 +21,7 @@ import Hedger.Application.Accounts (
     accountsTree,
  )
 import Hedger.Application.AppM (Env)
+import Hedger.Application.PageRequest (mkDateRange)
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError)
 import Hedger.Interface.HTTP.Core.Common (
@@ -35,7 +36,6 @@ import Hedger.Interface.HTTP.Core.Common (
     runAction,
     servantError,
     toResponseMetadata,
-    validateDateRange,
     valuationCompletenessText,
  )
 
@@ -152,14 +152,13 @@ mkRegisterPageRequest account commodity from to limit cursor = do
     accountPath <- parseCanonicalAccountPath account
     start <- parseDay from
     end <- parseDay to
-    _ <- validateDateRange start end
+    dateRange <- mkDateRange start end
     limitValue <- parseLimit limit
     pure $
         RegisterPageRequest
             { account = accountPath
             , commodity
-            , start
-            , end
+            , dateRange
             , limit = limitValue
             , cursor
             }

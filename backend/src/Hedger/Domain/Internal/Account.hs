@@ -1,5 +1,5 @@
 module Hedger.Domain.Internal.Account (
-    AccountInfo (..),
+    AccountInfo (aname, atype),
     DisplayDepth (..),
     accountInfo,
     accountLabel,

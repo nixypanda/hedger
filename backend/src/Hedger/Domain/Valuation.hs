@@ -168,7 +168,7 @@ negligibleQuantity = 0.000001
 incomplete for these commodities. Rendering to prose is a boundary concern.
 -}
 newtype ConversionWarning
-    = MissingConversion (Set Text)
+    = MissingConversion (NonEmpty Text)
     deriving stock (Eq, Show)
 
 -- | The non-negligible commodities in an amount other than the display commodity.

@@ -18,6 +18,12 @@ import Hledger.Data.Transaction (nulltransaction)
 import Hledger.Data.Types qualified as Hledger
 import Hledger.Query qualified as HledgerQuery
 
+import Hedger.Application.PageRequest (
+    PageLimit,
+    defaultPageLimit,
+    maximumPageLimit,
+    mkPageLimit,
+ )
 import Hedger.Application.TransactionQuery (
     TransactionPage (..),
     TransactionPageRequest (..),
@@ -27,6 +33,7 @@ import Hedger.Application.TransactionQuery (
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Period (epoch)
 import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Snapshot qualified as Snapshot
 import Hedger.Domain.Transaction (newestFirst)
 import Hedger.Generators (genSnapshot, genTransactions)
 import Hedger.SyntheticTransactions (mkSnapshot)
@@ -71,7 +78,11 @@ matchesPayeeAndNote = do
             (length . (.transactions))
             ( transactionPage
                 snapshot
-                TransactionPageRequest{query = Just "payee:Corner", limit = 50, cursor = Nothing}
+                TransactionPageRequest
+                    { query = Just "payee:Corner"
+                    , limit = defaultPageLimit
+                    , cursor = Nothing
+                    }
             )
         )
     assertEqual
@@ -81,7 +92,11 @@ matchesPayeeAndNote = do
             (length . (.transactions))
             ( transactionPage
                 snapshot
-                TransactionPageRequest{query = Just "note:Weekly", limit = 50, cursor = Nothing}
+                TransactionPageRequest
+                    { query = Just "note:Weekly"
+                    , limit = defaultPageLimit
+                    , cursor = Nothing
+                    }
             )
         )
 
@@ -89,7 +104,11 @@ bindsCursorsCorrectly :: IO ()
 bindsCursorsCorrectly = do
     case transactionPage
         syntheticSnapshot
-        TransactionPageRequest{query = Just "date:thisyear", limit = 1, cursor = Nothing} of
+        TransactionPageRequest
+            { query = Just "date:thisyear"
+            , limit = onePageLimit
+            , cursor = Nothing
+            } of
         Left pageError -> assertFailure (show pageError)
         Right first ->
             case first.nextCursor of
@@ -104,7 +123,7 @@ bindsCursorsCorrectly = do
                                 syntheticSnapshot
                                 TransactionPageRequest
                                     { query = Just "date:thisyear"
-                                    , limit = 1
+                                    , limit = onePageLimit
                                     , cursor = Just cursor
                                     }
                             )
@@ -116,7 +135,7 @@ bindsCursorsCorrectly = do
                                 syntheticSnapshot
                                 TransactionPageRequest
                                     { query = Just "desc:Salary"
-                                    , limit = 1
+                                    , limit = onePageLimit
                                     , cursor = Just cursor
                                     }
                             )
@@ -125,10 +144,10 @@ bindsCursorsCorrectly = do
                         "should reject cursor for different revision"
                         ( isInvalidCursor
                             ( transactionPage
-                                syntheticSnapshot{revision = "md5:different"}
+                                (Snapshot.mkSnapshot syntheticSnapshot.journal "md5:different")
                                 TransactionPageRequest
                                     { query = Just "date:thisyear"
-                                    , limit = 1
+                                    , limit = onePageLimit
                                     , cursor = Just cursor
                                     }
                             )
@@ -137,10 +156,14 @@ bindsCursorsCorrectly = do
                         "should reject cursor for different date"
                         ( isInvalidCursor
                             ( transactionPage
-                                syntheticSnapshot{latestJournalDate = Just (fromGregorian 2025 4 2)}
+                                ( mkSnapshot
+                                    ( syntheticSnapshot.transactions
+                                        <> [nulltransaction{Hledger.tdate = fromGregorian 2025 4 2}]
+                                    )
+                                )
                                 TransactionPageRequest
                                     { query = Just "date:thisyear"
-                                    , limit = 1
+                                    , limit = onePageLimit
                                     , cursor = Just cursor
                                     }
                             )
@@ -152,7 +175,7 @@ bindsCursorsCorrectly = do
                                 syntheticSnapshot
                                 TransactionPageRequest
                                     { query = Just "date:thisyear"
-                                    , limit = 1
+                                    , limit = onePageLimit
                                     , cursor = Just (cursor <> "tampered")
                                     }
                             )
@@ -170,7 +193,11 @@ paginationProperty =
 
 collectPages :: Snapshot -> Int -> Maybe Text.Text -> Either AppError [Hledger.Transaction]
 collectPages snapshot limit cursor = do
-    page <- transactionPage snapshot TransactionPageRequest{query = Nothing, limit, cursor}
+    parsedLimit <- mkPageLimit limit
+    page <-
+        transactionPage
+            snapshot
+            TransactionPageRequest{query = Nothing, limit = parsedLimit, cursor}
     rest <- maybe (Right []) (collectPages snapshot limit . Just) page.nextCursor
     pure (page.transactions <> rest)
 
@@ -291,8 +318,11 @@ isSameTransactionBag left right =
         && null (List.foldl' (flip List.delete) left right)
 
 -- | The page size used to request an unpaginated view of a generated snapshot.
-fullViewLimit :: Int
-fullViewLimit = 100000
+fullViewLimit :: PageLimit
+fullViewLimit = maximumPageLimit
+
+onePageLimit :: PageLimit
+onePageLimit = either (error . show) id (mkPageLimit 1)
 
 syntheticSnapshot :: Snapshot
 syntheticSnapshot =

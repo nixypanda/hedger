@@ -5,6 +5,7 @@ module Hedger.Interface.HTTP.Endpoints.Analytics (
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Decimal (Decimal)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -523,7 +524,7 @@ activityRangeText range =
 renderWarning :: Analytics.ConversionWarning -> Text
 renderWarning (Analytics.MissingConversion missing) =
     "Missing dated conversion to the display commodity for: "
-        <> Text.intercalate ", " (Set.toAscList missing)
+        <> Text.intercalate ", " (NonEmpty.toList missing)
 
 renderActivityIssue :: Analytics.ActivityIssue -> Text
 renderActivityIssue issue =

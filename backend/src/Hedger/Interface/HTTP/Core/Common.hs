@@ -18,7 +18,6 @@ module Hedger.Interface.HTTP.Core.Common (
     parseLimit,
     parseDay,
     parseCanonicalAccountPath,
-    validateDateRange,
 ) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -37,7 +36,14 @@ import Hledger.Data.Amount qualified as HledgerAmount
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Application.AppM (AppM, Env, runAppM)
-import Hedger.Application.Common (SnapshotMetadata (..))
+import Hedger.Application.Common (SnapshotFreshness (..), SnapshotMetadata (..))
+import Hedger.Application.PageRequest (
+    PageLimit,
+    defaultPageLimit,
+    maximumPageLimit,
+    mkPageLimit,
+    pageLimitValue,
+ )
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.InvestmentPerformance qualified as Performance
@@ -61,19 +67,13 @@ servantError requestId appError =
 effectiveRequestId :: Maybe Text -> Text
 effectiveRequestId = maybe "request-id-missing" id
 
-defaultPageLimit :: Int
-defaultPageLimit = 50
-
-maximumPageLimit :: Int
-maximumPageLimit = 200
-
-parseLimit :: Maybe Text -> Either AppError Int
+parseLimit :: Maybe Text -> Either AppError PageLimit
 parseLimit Nothing = Right defaultPageLimit
 parseLimit (Just raw) =
     case readMaybe (Text.unpack raw) of
-        Just value
-            | value >= 1 && value <= maximumPageLimit -> Right value
-        _ -> Left (InvalidLimit defaultPageLimit maximumPageLimit)
+        Just value -> mkPageLimit value
+        Nothing ->
+            Left (InvalidLimit (pageLimitValue defaultPageLimit) (pageLimitValue maximumPageLimit))
 
 parseDay :: Maybe Text -> Either AppError (Maybe Day)
 parseDay Nothing = Right Nothing
@@ -89,11 +89,6 @@ parseCanonicalAccountPath raw =
      in if Text.null path
             then Left (InvalidRequest "An account path is required.")
             else Right path
-
-validateDateRange :: Maybe Day -> Maybe Day -> Either AppError ()
-validateDateRange (Just start) (Just end)
-    | start > end = Left InvalidDateRange
-validateDateRange _ _ = Right ()
 
 data ResponseMetadata = ResponseMetadata
     { revision :: Text
@@ -158,8 +153,12 @@ toResponseMetadata :: SnapshotMetadata -> ResponseMetadata
 toResponseMetadata value =
     ResponseMetadata
         { revision = value.revision
-        , freshness = value.freshness
-        , warnings = value.warnings
+        , freshness = case value.freshness of
+            Fresh -> "fresh"
+            Stale _ -> "stale"
+        , warnings = case value.freshness of
+            Fresh -> []
+            Stale _ -> ["The latest journal reload failed; the last usable snapshot is shown."]
         }
 
 accountTypeText :: Hledger.AccountType -> Text

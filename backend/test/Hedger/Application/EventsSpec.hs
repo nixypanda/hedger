@@ -2,7 +2,9 @@ module Hedger.Application.EventsSpec (
     eventsSpec,
 ) where
 
+import Data.ByteString qualified as ByteString
 import Data.Maybe (isJust)
+import Data.Text qualified as Text
 import System.Timeout (timeout)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
@@ -10,8 +12,8 @@ import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 import Hedger.Application.AppM (Env (..))
 import Hedger.Application.Events (awaitNextRevision, subscribeToRevisions)
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.SnapshotStore (SnapshotStore (..), newSnapshotStore, reloadSnapshot)
-import Hedger.TestHelpers (configuration)
+import Hedger.Infrastructure.SnapshotStore (newSnapshotStore, reloadSnapshot)
+import Hedger.TestHelpers (configuration, withTemporaryJournal)
 
 eventsSpec :: TestTree
 eventsSpec =
@@ -20,16 +22,13 @@ eventsSpec =
         [testCase "emits the next revision published after subscribing" emitsNextRevision]
 
 emitsNextRevision :: IO ()
-emitsNextRevision = do
-    store <- newSnapshotStore "test/fixtures/shared.journal"
+emitsNextRevision = withTemporaryJournal $ \path -> do
+    store <- newSnapshotStore path
     _ <- reloadSnapshot store
     subscription <- subscribeToRevisions Env{config = configuration, snapshotStore = store}
-    let altStore =
-            SnapshotStore
-                { storeState = store.storeState
-                , journalPath = "test/fixtures/investments.journal"
-                }
-    reloadResult <- reloadSnapshot altStore
+    replacement <- ByteString.readFile "test/fixtures/investments.journal"
+    ByteString.writeFile (Text.unpack path) replacement
+    reloadResult <- reloadSnapshot store
     expectedRevision <-
         case reloadResult of
             Left _ -> fail "replacement snapshot load failed"

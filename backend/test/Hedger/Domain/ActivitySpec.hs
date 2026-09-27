@@ -52,8 +52,11 @@ import Hedger.Domain.ActivityEvent (
  )
 import Hedger.Domain.ActivityEvent qualified as ActivityEvent
 import Hedger.Domain.Period (
+    MonthOfYear,
     ReportPeriod,
+    mkMonthOfYear,
     monthKey,
+    monthOfYearValue,
     reportPeriodEnd,
     reportPeriodKey,
     reportPeriodStart,
@@ -247,7 +250,7 @@ checkMultiFundPurchase snapshot purchase = do
     assertEqual "no conversion missing" Set.empty missing
     assertEqual "no classification issue" Set.empty issues
     assertEqual "three distinct acquisitions" 3 (length accounts)
-    case parseActivityPeriod 1 MonthActivity "2026-09" of
+    case parseActivityPeriod january MonthActivity "2026-09" of
         Left err -> assertFailure (show err)
         Right period ->
             case ( computeActivity
@@ -345,7 +348,7 @@ unpricedTransfer = do
                 }
         transfer = transactionOn [source, destination]
         snapshot = mkSnapshot [transfer]
-    case parseActivityPeriod 1 MonthActivity "2024-05" of
+    case parseActivityPeriod january MonthActivity "2024-05" of
         Left err -> assertEqual "valid period" "" (show err)
         Right period -> do
             let figures =
@@ -371,7 +374,7 @@ ambiguousTransfer = do
                 , posting "assets:bank:c" 40
                 ]
         snapshot = mkSnapshot [transfer]
-    case parseActivityPeriod 1 MonthActivity "2024-05" of
+    case parseActivityPeriod january MonthActivity "2024-05" of
         Left err -> assertEqual "valid period" "" (show err)
         Right period -> do
             let figures =
@@ -543,7 +546,7 @@ expenseTestBucket bucket =
 
 activityFigures :: ActivityKind -> [Hledger.Transaction] -> [TestBucket]
 activityFigures kind transactions =
-    case parseActivityPeriod 1 MonthActivity "2024-05" of
+    case parseActivityPeriod january MonthActivity "2024-05" of
         Left _ -> []
         Right activityPeriod ->
             toTestBuckets
@@ -560,8 +563,16 @@ activityFigures kind transactions =
 summariseDirection :: (ActivityDirection, [BreakdownItem]) -> (ActivityDirection, [(Text, Decimal)])
 summariseDirection (direction, items) = (direction, [(item.account, item.quantity) | item <- items])
 
-genFiscalStart :: Gen Int
-genFiscalStart = Gen.integral (Range.linear 1 12)
+genFiscalStart :: Gen MonthOfYear
+genFiscalStart = do
+    month <- Gen.integral (Range.linear 1 12)
+    pure (validMonth month)
+
+validMonth :: Int -> MonthOfYear
+validMonth month = maybe (error "expected a valid calendar month") id (mkMonthOfYear month)
+
+january :: MonthOfYear
+january = validMonth 1
 
 monthActivityValid :: Property
 monthActivityValid =
@@ -612,7 +623,7 @@ fiscalYearValid =
     property $ do
         fiscalStart <- forAll genFiscalStart
         year <- forAll genYear
-        let raw = formatYearMonth year fiscalStart
+        let raw = formatYearMonth year (monthOfYearValue fiscalStart)
         case parseActivityPeriod fiscalStart FiscalYearActivity raw of
             Left err -> footnote (show err) >> failure
             Right period -> do
@@ -623,7 +634,7 @@ fiscalYearMismatch :: Property
 fiscalYearMismatch =
     property $ do
         fiscalStart <- forAll genFiscalStart
-        month <- forAll (Gen.filter (/= fiscalStart) genMonth)
+        month <- forAll (Gen.filter (/= monthOfYearValue fiscalStart) genMonth)
         year <- forAll genYear
         let raw = formatYearMonth year month
         assert (isLeft (parseActivityPeriod fiscalStart FiscalYearActivity raw))
@@ -851,7 +862,7 @@ categoryDepthInvariance =
 transactionMonths :: Snapshot -> [ReportPeriod]
 transactionMonths snapshot =
     mapMaybe
-        (either (const Nothing) Just . parseActivityPeriod 1 MonthActivity)
+        (either (const Nothing) Just . parseActivityPeriod january MonthActivity)
         (Set.toAscList (Set.fromList (fmap (monthKey . (.tdate)) snapshot.transactions)))
 
 {- | The first month, and kind, that produce at least one activity bucket. The

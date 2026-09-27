@@ -2,23 +2,12 @@ module Hedger.SyntheticTransactions (
     mkSnapshot,
 ) where
 
-import Hledger.Data.Account qualified as HledgerAccount
 import Hledger.Data.Journal (nulljournal)
 import Hledger.Data.Types qualified as Hledger
 
-import Hedger.Domain.Snapshot (Snapshot (..))
+import Hedger.Domain.Snapshot (Snapshot)
+import Hedger.Domain.Snapshot qualified as Snapshot
 
 mkSnapshot :: [Hledger.Transaction] -> Snapshot
 mkSnapshot txns =
-    Snapshot
-        { journal = nulljournal
-        , transactions = txns
-        , accountTree =
-            HledgerAccount.accountFromPostings (const Nothing) (concatMap Hledger.tpostings txns)
-        , latestJournalDate = maximumMaybe (Hledger.tdate <$> txns)
-        , revision = "md5:synthetic"
-        }
-
-maximumMaybe :: (Ord a) => [a] -> Maybe a
-maximumMaybe [] = Nothing
-maximumMaybe xs = Just (maximum xs)
+    Snapshot.mkSnapshot nulljournal{Hledger.jtxns = txns} "md5:synthetic"

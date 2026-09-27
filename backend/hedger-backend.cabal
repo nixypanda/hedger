@@ -37,6 +37,7 @@ library
   import: language-settings
   exposed-modules:
     Hedger.Application.AccountRegisterQuery
+    Hedger.Application.PageRequest
     Hedger.Application.Analytics
     Hedger.Application.Accounts
     Hedger.Application.AppM

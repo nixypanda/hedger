@@ -16,6 +16,9 @@ import Network.Wai.Test (SResponse (simpleStatus))
 import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
+import Hedger.Application.Common (SnapshotFreshness (..), SnapshotMetadata (..))
+import Hedger.Infrastructure.SnapshotStore (SnapshotLoadError (..))
+import Hedger.Interface.HTTP.Core.Common (toResponseMetadata)
 import Hedger.Runtime.Internal.Server (makeApplication)
 import Hedger.TestHelpers (configuration, getJson, loadedStore, postJson)
 
@@ -42,7 +45,22 @@ apiSpec =
             , testCase "explicitly costed investments do not require performance mappings" $ do
                 app <- getApp
                 investmentsProjection app
+            , testCase "renders fresh and stale metadata" metadataRendering
             ]
+
+metadataRendering :: IO ()
+metadataRendering = do
+    let render = Aeson.toJSON . toResponseMetadata . SnapshotMetadata "revision"
+        fresh = render Fresh
+        stale = render (Stale (JournalReadFailed "bad file"))
+        warning = "The latest journal reload failed; the last usable snapshot is shown."
+    assertEqual "fresh status" (Just (String "fresh")) (field "freshness" fresh)
+    assertEqual "fresh warnings" (Just (Aeson.toJSON ([] :: [Text]))) (field "warnings" fresh)
+    assertEqual "stale status" (Just (String "stale")) (field "freshness" stale)
+    assertEqual
+        "stale warning"
+        (Just (Aeson.toJSON ([warning] :: [Text])))
+        (field "warnings" stale)
 
 setup :: IO Wai.Application
 setup = do

@@ -15,6 +15,7 @@ import Data.Word (Word8)
 import Numeric (showHex)
 import Text.Read (readMaybe)
 
+import Hedger.Application.PageRequest (DateRange, dateRangeBounds)
 import Hedger.Domain.Error (AppError (..))
 
 -- Transaction
@@ -69,8 +70,8 @@ ordering :: Text
 ordering = "transaction-date-and-source-position-desc-v1"
 
 -- Register
-encodeRegisterCursor :: Text -> Text -> Text -> Maybe Day -> Maybe Day -> Int -> Text
-encodeRegisterCursor revision account commodity start end offset =
+encodeRegisterCursor :: Text -> Text -> Text -> DateRange -> Int -> Text
+encodeRegisterCursor revision account commodity dateRange offset =
     payload <> "." <> fingerprint ("register-cursor-check-v1:" <> payload)
   where
     payload =
@@ -85,10 +86,11 @@ encodeRegisterCursor revision account commodity start end offset =
             , fingerprint (canonicalDay end)
             , fingerprint registerOrdering
             ]
+    (start, end) = dateRangeBounds dateRange
 
 decodeRegisterCursor ::
-    Text -> Text -> Text -> Maybe Day -> Maybe Day -> Text -> Either AppError Int
-decodeRegisterCursor revision account commodity start end cursor =
+    Text -> Text -> Text -> DateRange -> Text -> Either AppError Int
+decodeRegisterCursor revision account commodity dateRange cursor =
     case Text.splitOn "." cursor of
         [ version
             , offsetText
@@ -134,6 +136,7 @@ decodeRegisterCursor revision account commodity start end cursor =
                         ]
         _ -> invalid "The cursor is malformed."
   where
+    (start, end) = dateRangeBounds dateRange
     validateOffset offset
         | offset >= 0 = Right offset
         | otherwise = invalid "The cursor position is malformed."
