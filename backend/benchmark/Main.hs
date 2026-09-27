@@ -34,7 +34,7 @@ import Hedger.Application.TransactionQuery (
     TransactionPageRequest (..),
     transactionPage,
  )
-import Hedger.Config (Config (..), mkMonthOfYear, mkPort)
+import Hedger.Config (Config, mkConfig, mkMonthOfYear, mkPort)
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Activity (
@@ -343,15 +343,15 @@ loadFixtureInput path = do
 
 benchmarkConfig :: Text.Text -> Config
 benchmarkConfig path =
-    Config
-        { journalPath = path
-        , listenAddress = "127.0.0.1"
-        , listenPort = either (error . Text.unpack) id (mkPort 8080)
-        , defaultDisplayCommodity = "INR"
-        , fiscalYearStartMonth = either (error . Text.unpack) id (mkMonthOfYear 4)
-        , investmentMappings = benchmarkMappings
-        , assetClassMappings = benchmarkAssetClassMappings
-        }
+    either (error . Text.unpack) id $
+        mkConfig
+            path
+            "127.0.0.1"
+            (either (error . Text.unpack) id (mkPort 8080))
+            "INR"
+            (either (error . Text.unpack) id (mkMonthOfYear 4))
+            benchmarkMappings
+            benchmarkAssetClassMappings
 
 loadAndForce :: Text.Text -> IO Int
 loadAndForce path = do

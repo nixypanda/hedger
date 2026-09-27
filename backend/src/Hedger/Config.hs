@@ -1,5 +1,14 @@
 module Hedger.Config (
-    Config (..),
+    Config (
+        journalPath,
+        listenAddress,
+        listenPort,
+        defaultDisplayCommodity,
+        fiscalYearStartMonth,
+        investmentMappings,
+        assetClassMappings
+    ),
+    mkConfig,
     Port,
     mkPort,
     portValue,
@@ -38,6 +47,25 @@ data Config = Config
     , assetClassMappings :: Investment.AssetClassMappings
     }
     deriving stock (Eq, Show)
+
+mkConfig ::
+    Text ->
+    Text ->
+    Port ->
+    Text ->
+    MonthOfYear ->
+    Investment.InvestmentMappings ->
+    Investment.AssetClassMappings ->
+    Either Text Config
+mkConfig
+    journalPath
+    listenAddress
+    listenPort
+    defaultDisplayCommodity
+    fiscalYearStartMonth
+    investmentMappings
+    assetClassMappings =
+        validate Config{..}
 
 -- | A TCP port in the valid range.
 newtype Port = Port Int
@@ -220,20 +248,16 @@ resolveConfig fileConfig cli = do
             ( (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
                 `orDefault` 4
             )
-    validate
-        Config
-            { journalPath = (cli.cliJournalPath <|> ((.path) <$> fileConfig.journal)) `orDefault` ""
-            , listenAddress =
-                (cli.cliListenAddress <|> (fileConfig.server >>= (.listenAddress)))
-                    `orDefault` "127.0.0.1"
-            , listenPort = listenPort
-            , defaultDisplayCommodity =
-                (cli.cliDisplayCommodity <|> (fileConfig.display >>= (.commodity)))
-                    `orDefault` "INR"
-            , fiscalYearStartMonth = fiscalYearStartMonth
-            , investmentMappings = mappings
-            , assetClassMappings = assetClasses
-            }
+    mkConfig
+        ((cli.cliJournalPath <|> ((.path) <$> fileConfig.journal)) `orDefault` "")
+        ( (cli.cliListenAddress <|> (fileConfig.server >>= (.listenAddress)))
+            `orDefault` "127.0.0.1"
+        )
+        listenPort
+        ((cli.cliDisplayCommodity <|> (fileConfig.display >>= (.commodity))) `orDefault` "INR")
+        fiscalYearStartMonth
+        mappings
+        assetClasses
 
 investmentMappingsFrom :: Maybe InvestmentsFileConfig -> Either Text Investment.InvestmentMappings
 investmentMappingsFrom Nothing = Right Investment.emptyInvestmentMappings

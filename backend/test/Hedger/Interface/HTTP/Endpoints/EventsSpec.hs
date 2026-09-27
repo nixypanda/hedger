@@ -6,6 +6,7 @@ import Control.Concurrent (threadDelay)
 import Control.Exception (bracket)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
 import Network.Socket (Family (AF_INET), SockAddr (SockAddrInet), Socket, SocketType (Stream))
 import Network.Socket qualified as Socket
@@ -17,12 +18,12 @@ import Test.Tasty.HUnit (assertBool, assertFailure, testCase)
 
 import Hedger.Application.AppM (Env (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Infrastructure.SnapshotStore (SnapshotStore (..), reloadSnapshot)
+import Hedger.Infrastructure.SnapshotStore (newSnapshotStore, reloadSnapshot)
 import Hedger.Interface.HTTP.Endpoints.Events (
     HeartbeatInterval (..),
     eventsApplicationWithHeartbeat,
  )
-import Hedger.TestHelpers (configuration, loadedStore)
+import Hedger.TestHelpers (configuration, loadedStore, withTemporaryJournal)
 
 httpEventsSpec :: TestTree
 httpEventsSpec =
@@ -44,8 +45,9 @@ sendsIdleHeartbeat =
                 (":heartbeat" `ByteString.isInfixOf` response)
 
 reconnectsAfterDisconnect :: IO ()
-reconnectsAfterDisconnect = do
-    store <- loadedStore
+reconnectsAfterDisconnect = withTemporaryJournal $ \path -> do
+    store <- newSnapshotStore path
+    _ <- reloadSnapshot store
     let environment = Env{config = configuration, snapshotStore = store}
         application = eventsApplicationWithHeartbeat testHeartbeat environment
     testWithApplication (pure application) $ \port -> do
@@ -53,12 +55,9 @@ reconnectsAfterDisconnect = do
         threadDelay 50000
         withClient port $ \client -> do
             _ <- receiveContaining "heartbeat" client
-            let altStore =
-                    SnapshotStore
-                        { storeState = store.storeState
-                        , journalPath = "test/fixtures/investments.journal"
-                        }
-            reloadResult <- reloadSnapshot altStore
+            replacement <- ByteString.readFile "test/fixtures/investments.journal"
+            ByteString.writeFile (Text.unpack path) replacement
+            reloadResult <- reloadSnapshot store
             case reloadResult of
                 Left _ -> assertFailure "replacement snapshot load failed"
                 Right snapshot -> do

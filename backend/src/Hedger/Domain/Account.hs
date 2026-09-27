@@ -1,9 +1,9 @@
 module Hedger.Domain.Account (
-    AccountInfo (..),
+    AccountInfo (aname, atype),
     DisplayDepth (..),
     ValuationContext,
     ValuationCompleteness (..),
-    ValuedBalances (..),
+    ValuedBalances (directBalance, subtreeBalance, completeness),
     accountInfo,
     accountLabel,
     atDepth,

@@ -1,7 +1,8 @@
 module Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
     SnapshotStoreRead (..),
-    SnapshotStore (..),
+    SnapshotStore,
+    snapshotJournalPath,
     awaitRevisionChange,
     currentRevision,
     loadSnapshot,
@@ -64,6 +65,9 @@ data SnapshotStore = SnapshotStore
 -- Store operations
 newSnapshotStore :: Text -> IO SnapshotStore
 newSnapshotStore path = SnapshotStore <$> newTVarIO SnapshotNotLoaded <*> pure path
+
+snapshotJournalPath :: SnapshotStore -> Text
+snapshotJournalPath = (.journalPath)
 
 readCurrentSnapshot :: SnapshotStore -> IO (Maybe Snapshot)
 readCurrentSnapshot SnapshotStore{..} = do

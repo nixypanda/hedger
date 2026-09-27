@@ -57,9 +57,10 @@ import System.FilePath (takeDirectory)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
-    SnapshotStore (..),
+    SnapshotStore,
     readCurrentSnapshot,
     reloadSnapshot,
+    snapshotJournalPath,
  )
 
 import Hledger.Data.Types qualified as Hledger
@@ -168,10 +169,10 @@ handleEvent ws requestReload event = do
 -- The root path is always included so a journal that currently fails to parse
 -- is still watched and picked up once it parses again.
 watchTargets :: SnapshotStore -> IO [FilePath]
-watchTargets SnapshotStore{..} = do
-    snapshot <- readCurrentSnapshot SnapshotStore{..}
+watchTargets store = do
+    snapshot <- readCurrentSnapshot store
     let included = maybe [] (fmap fst . (.jfiles) . (.journal)) snapshot
-    root <- canonicalize (Text.unpack journalPath)
+    root <- canonicalize (Text.unpack (snapshotJournalPath store))
     absoluteIncluded <- traverse canonicalize included
     pure (nub (root : absoluteIncluded))
 
