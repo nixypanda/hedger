@@ -6,7 +6,7 @@ module Hedger.Application.AccountRegisterQuery (
 ) where
 
 import Data.Text (Text)
-import Data.Time (Day, addDays, fromGregorian)
+import Data.Time (addDays, fromGregorian)
 
 import Hledger.Data.AccountName qualified as HledgerAccountName
 import Hledger.Data.Types qualified as Hledger
@@ -15,15 +15,15 @@ import Hledger.Reports.AccountTransactionsReport qualified as AccountReport
 import Hledger.Reports.ReportOptions qualified as ReportOptions
 
 import Hedger.Application.Internal.Cursor (decodeRegisterCursor, encodeRegisterCursor)
+import Hedger.Application.PageRequest (DateRange, PageLimit, dateRangeBounds, pageLimitValue)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 
 data RegisterPageRequest = RegisterPageRequest
     { account :: Text
     , commodity :: Maybe Text
-    , start :: Maybe Day
-    , end :: Maybe Day
-    , limit :: Int
+    , dateRange :: DateRange
+    , limit :: PageLimit
     , cursor :: Maybe Text
     }
 
@@ -41,15 +41,18 @@ data RegisterPage = RegisterPage
 registerPage :: Snapshot -> Text -> RegisterPageRequest -> Either AppError RegisterPage
 registerPage snapshot resolvedCommodity request = do
     let canonicalAccount = request.account
-        start = request.start
-        end = request.end
     offset <-
         maybe
             (Right 0)
-            (decodeRegisterCursor snapshot.revision canonicalAccount resolvedCommodity start end)
+            ( decodeRegisterCursor
+                snapshot.revision
+                canonicalAccount
+                resolvedCommodity
+                request.dateRange
+            )
             request.cursor
     let accountQuery = accountQueryFor canonicalAccount
-        reportSpec = reportSpecFor snapshot start end
+        reportSpec = reportSpecFor snapshot request.dateRange
         rawReport = AccountReport.accountTransactionsReport reportSpec snapshot.journal accountQuery
         valuedReport =
             AccountReport.accountTransactionsReport
@@ -61,18 +64,17 @@ registerPage snapshot resolvedCommodity request = do
         then Left (InvalidCursor "The cursor position is no longer valid.")
         else do
             let remaining = drop offset paired
-                page = take request.limit remaining
+                page = take (pageLimitValue request.limit) remaining
                 followingOffset = offset + length page
                 cursor =
-                    if length remaining > request.limit
+                    if length remaining > pageLimitValue request.limit
                         then
                             Just
                                 ( encodeRegisterCursor
                                     snapshot.revision
                                     canonicalAccount
                                     resolvedCommodity
-                                    start
-                                    end
+                                    request.dateRange
                                     followingOffset
                                 )
                         else Nothing
@@ -81,11 +83,11 @@ registerPage snapshot resolvedCommodity request = do
 accountQueryFor :: Text -> HledgerQuery.Query
 accountQueryFor = HledgerQuery.Acct . HledgerAccountName.accountNameToAccountRegex
 
-reportSpecFor :: Snapshot -> Maybe Day -> Maybe Day -> ReportOptions.ReportSpec
-reportSpecFor snapshot start end =
+reportSpecFor :: Snapshot -> DateRange -> ReportOptions.ReportSpec
+reportSpecFor snapshot dateRange =
     ReportOptions.defreportspec
         { ReportOptions._rsDay = maybe (fromGregorian 1970 1 1) id snapshot.latestJournalDate
-        , ReportOptions._rsQuery = dateQuery start end
+        , ReportOptions._rsQuery = dateQuery dateRange
         }
 
 valuedReportSpec :: Text -> ReportOptions.ReportSpec -> ReportOptions.ReportSpec
@@ -95,11 +97,13 @@ valuedReportSpec commodity spec =
             spec._rsReportOpts{ReportOptions.value_ = Just (ReportOptions.AtThen (Just commodity))}
         }
 
-dateQuery :: Maybe Day -> Maybe Day -> HledgerQuery.Query
-dateQuery Nothing Nothing = HledgerQuery.Any
-dateQuery start end =
-    HledgerQuery.Date
-        (Hledger.DateSpan (Hledger.Exact <$> start) (Hledger.Exact . addDays 1 <$> end))
+dateQuery :: DateRange -> HledgerQuery.Query
+dateQuery dateRange =
+    case dateRangeBounds dateRange of
+        (Nothing, Nothing) -> HledgerQuery.Any
+        (start, end) ->
+            HledgerQuery.Date
+                (Hledger.DateSpan (Hledger.Exact <$> start) (Hledger.Exact . addDays 1 <$> end))
 
 pairReports ::
     HledgerQuery.Query ->

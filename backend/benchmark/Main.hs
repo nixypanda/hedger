@@ -28,6 +28,7 @@ import Hedger.Application.Common (
     accountTypeClassifier,
  )
 import Hedger.Application.Investments qualified as Investments
+import Hedger.Application.PageRequest (allDates, defaultPageLimit)
 import Hedger.Application.TransactionQuery (
     TransactionPage (transactions),
     TransactionPageRequest (..),
@@ -366,7 +367,7 @@ queryWeight snapshot query =
         snapshot
         TransactionPageRequest
             { query = Just query
-            , limit = 50
+            , limit = defaultPageLimit
             , cursor = Nothing
             } of
         Left _ -> 0
@@ -898,9 +899,8 @@ registerWeight snapshot account =
         RegisterPageRequest
             { account
             , commodity = Just "INR"
-            , start = Nothing
-            , end = Nothing
-            , limit = 50
+            , dateRange = allDates
+            , limit = defaultPageLimit
             , cursor = Nothing
             }
 

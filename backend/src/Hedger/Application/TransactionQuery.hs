@@ -20,12 +20,13 @@ import Hledger.Reports.EntriesReport qualified as HledgerEntries
 import Hledger.Reports.ReportOptions qualified as HledgerReportOptions
 
 import Hedger.Application.Internal.Cursor (decodeTransactionCursor, encodeTransactionCursor)
+import Hedger.Application.PageRequest (PageLimit, pageLimitValue)
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Snapshot (Snapshot (..))
 
 data TransactionPageRequest = TransactionPageRequest
     { query :: Maybe Text
-    , limit :: Int
+    , limit :: PageLimit
     , cursor :: Maybe Text
     }
 
@@ -60,10 +61,10 @@ transactionPage snapshot request = do
         then Left (InvalidCursor "The cursor position is no longer valid.")
         else do
             let remaining = drop offset matching
-                page = take request.limit remaining
+                page = take (pageLimitValue request.limit) remaining
                 followingOffset = offset + length page
                 cursor =
-                    if length remaining > request.limit
+                    if length remaining > pageLimitValue request.limit
                         then
                             Just
                                 ( encodeTransactionCursor

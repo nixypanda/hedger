@@ -17,6 +17,7 @@ import Hedger.Application.Internal.Cursor (
     encodeRegisterCursor,
     encodeTransactionCursor,
  )
+import Hedger.Application.PageRequest (DateRange, mkDateRange)
 import Hedger.Domain.Error (AppError (..))
 
 cursorSpec :: TestTree
@@ -81,10 +82,9 @@ registerRoundtrip =
         revision <- forAll genText
         account <- forAll genText
         commodity <- forAll genText
-        start <- forAll genOptionalDay
-        end <- forAll genOptionalDay
-        let cursor = encodeRegisterCursor revision account commodity start end offset
-        decodeRegisterCursor revision account commodity start end cursor === Right offset
+        dateRange <- forAll genDateRange
+        let cursor = encodeRegisterCursor revision account commodity dateRange offset
+        decodeRegisterCursor revision account commodity dateRange cursor === Right offset
 
 registerRejectsTamperedChecksum :: Property
 registerRejectsTamperedChecksum =
@@ -93,11 +93,10 @@ registerRejectsTamperedChecksum =
         revision <- forAll genText
         account <- forAll genText
         commodity <- forAll genText
-        start <- forAll genOptionalDay
-        end <- forAll genOptionalDay
-        let cursor = encodeRegisterCursor revision account commodity start end offset
+        dateRange <- forAll genDateRange
+        let cursor = encodeRegisterCursor revision account commodity dateRange offset
             tampered = cursor <> "x"
-        case decodeRegisterCursor revision account commodity start end tampered of
+        case decodeRegisterCursor revision account commodity dateRange tampered of
             Left (InvalidCursor _) -> return ()
             other -> fail $ "expected InvalidCursor, got: " <> show other
 
@@ -107,10 +106,9 @@ registerRejectsMalformedCursors =
         revision <- forAll genText
         account <- forAll genText
         commodity <- forAll genText
-        start <- forAll genOptionalDay
-        end <- forAll genOptionalDay
+        dateRange <- forAll genDateRange
         malformed <- forAll genMalformedRegisterCursor
-        case decodeRegisterCursor revision account commodity start end malformed of
+        case decodeRegisterCursor revision account commodity dateRange malformed of
             Left (InvalidCursor _) -> return ()
             other -> fail $ "expected InvalidCursor, got: " <> show other
 
@@ -127,6 +125,17 @@ genReferenceDate = ModifiedJulianDay <$> Gen.integral (Range.linear 40000 80000)
 genOptionalDay :: Gen (Maybe Day)
 genOptionalDay =
     Gen.choice [pure Nothing, Just . ModifiedJulianDay <$> Gen.integral (Range.linear 40000 80000)]
+
+genDateRange :: Gen DateRange
+genDateRange = do
+    start <- genOptionalDay
+    end <- genOptionalDay
+    case mkDateRange start end of
+        Right dateRange -> pure dateRange
+        Left _ ->
+            case mkDateRange end start of
+                Right dateRange -> pure dateRange
+                Left _ -> fail "Expected ordered dates after swapping bounds"
 
 genMalformedCursor :: Gen Text
 genMalformedCursor =
