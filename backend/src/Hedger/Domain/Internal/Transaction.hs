@@ -1,14 +1,12 @@
 module Hedger.Domain.Internal.Transaction (
     -- * Types
     TransactionClassification (..),
-    TransactionPresentation (..),
     AccountGroup (..),
     DominantMovement (..),
     Fraction,
 
     -- * Core API
     newestFirst,
-    presentationFor,
 
     -- * Domain queries
     classificationFor,
@@ -40,11 +38,6 @@ data TransactionClassification
     | TransactionExpense
     | TransactionTransfer
     | Unclassified
-    deriving stock (Eq, Show)
-
-data TransactionPresentation = TransactionPresentation
-    { classification :: TransactionClassification
-    }
     deriving stock (Eq, Show)
 
 {- | A top-level account group, as produced by 'accountLabel'. Unknown groups
@@ -185,10 +178,6 @@ dominantMovement tx
             )
             (Map.findMin groupAmounts)
             groupAmounts
-
--- * Core API
-presentationFor :: Hledger.Transaction -> TransactionPresentation
-presentationFor tx = TransactionPresentation{classification = classificationFor tx}
 
 -- * Internal (shared between domain functions)
 postingAccountInfos :: [Hledger.Posting] -> [AccountInfo]
