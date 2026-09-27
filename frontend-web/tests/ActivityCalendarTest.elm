@@ -1,12 +1,12 @@
 module ActivityCalendarTest exposing (suite)
 
 import Data.ActivityCalendar as ActivityCalendar
-import Data.Analytics exposing (ActivityBucket)
+import Data.Analytics exposing (ActivityBucket, ActivityKind(..), ActivityMovement(..))
 import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
 import Expect
 import Fuzz
-import Test exposing (Test, describe, fuzz)
+import Test exposing (Test, describe, fuzz, test)
 
 
 {-| The year activity view must present a contiguous month series from the
@@ -23,10 +23,46 @@ suite =
                     buckets =
                         List.map (bucketAt input) input.offsets
                 in
-                ActivityCalendar.yearBuckets (startKey input) buckets
+                ActivityCalendar.yearBuckets IncomeActivity (startKey input) buckets
                     |> List.map (\item -> ( item.key, Decimal.toString item.total ))
                     |> Expect.equal (expectedBuckets input)
+        , test "fills gaps with the requested movement kind" <|
+            \_ ->
+                [ AssetActivity, LiabilityActivity, IncomeActivity, ExpenseActivity ]
+                    |> List.map
+                        (\kind ->
+                            ActivityCalendar.yearBuckets kind "2024-04" [ bucketAt sampleInput 1 ]
+                                |> List.head
+                                |> Maybe.map (.movement >> movementKind)
+                        )
+                    |> Expect.equal
+                        [ Just AssetActivity
+                        , Just LiabilityActivity
+                        , Just IncomeActivity
+                        , Just ExpenseActivity
+                        ]
         ]
+
+
+sampleInput : Input
+sampleInput =
+    { year = 2024, month = 4, offsets = [ 1 ] }
+
+
+movementKind : ActivityMovement -> ActivityKind
+movementKind movement =
+    case movement of
+        AssetMovements _ ->
+            AssetActivity
+
+        LiabilityMovements _ ->
+            LiabilityActivity
+
+        IncomeMovements _ ->
+            IncomeActivity
+
+        ExpenseMovements _ ->
+            ExpenseActivity
 
 
 type alias Input =
@@ -83,11 +119,9 @@ bucketAt input offset =
     , total =
         Decimal.fromString (String.fromInt (totalFor offset))
             |> Result.withDefault Decimal.zero
-    , increase = Decimal.zero
-    , decrease = Decimal.zero
-    , reallocated = Decimal.zero
     , categories = []
-    , directions = []
+    , movement =
+        IncomeMovements { posted = Decimal.zero, reversed = Decimal.zero, events = [] }
     , transactions = []
     }
 

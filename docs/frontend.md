@@ -183,6 +183,9 @@ Default dashboard. Fetches `POST /api/v1/net-worth/query`.
 - Assets and liabilities breakdown with category depth 1-4 and `Other`
   grouping.
 - Asset and liability activity calendars.
+- Typed asset movements (acquire, dispose, transfer) and liability movements
+  (borrow, repay, refinance, forgiveness, borrowing reversal) with linked
+  source/destination details. Transfers count once in calendar rings.
 - Day selection with transaction detail drill-down from complete DTOs.
 - Incomplete period warnings.
 - Skeleton loading states.
@@ -195,6 +198,8 @@ Income/expense analytics. Fetches `POST /api/v1/cashflow/query`.
 - Monthly/yearly timeline with selected-period synchronization.
 - Separate Income and Expense category breakdowns.
 - Separate Income and Expense activity calendars.
+- Posted, reversed, and signed net amounts remain distinct, including
+  zero-net periods with activity.
 - Calendar day to transaction detail drill-down.
 - Filtered count display.
 - Conversion-unavailable and empty states.
@@ -243,6 +248,8 @@ Global transaction list. Fetches `GET /api/v1/transactions`.
 - Month-grouped transaction rows with posting previews.
 - Full transaction detail with every posting, commodity, and cost.
 - Transaction classification labels (income, expense, transfer, etc.).
+- Multiple effect badges on mixed transactions, with all effects in the
+  transaction detail view.
 - Wide list/detail and narrow replace-list-with-detail layouts.
 - Loading, success, empty, stale, refreshing, and failed states.
 

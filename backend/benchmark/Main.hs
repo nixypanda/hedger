@@ -36,6 +36,27 @@ import Hedger.Application.TransactionQuery (
 import Hedger.Config (Config (..), mkMonthOfYear, mkPort)
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Account qualified as Account
+import Hedger.Domain.Activity (
+    ActivityBuckets (..),
+    ActivityFigures (..),
+    ActivityKind (..),
+    ActivityRange (..),
+    AssetBucketFigures (..),
+    ExpenseBucketFigures (..),
+    IncomeBucketFigures (..),
+    LiabilityBucketFigures (..),
+    computeActivity,
+ )
+import Hedger.Domain.ActivityEvent (
+    AssetMovement (..),
+    FlowChange (..),
+    LiabilityMovement (..),
+    assetAccountName,
+    expenseAccountName,
+    incomeAccountName,
+    liabilityAccountName,
+    positiveAmountValue,
+ )
 import Hedger.Domain.Cashflow (CashflowFigures (..), computeCashflow)
 import Hedger.Domain.Internal.Cashflow qualified as Cashflow
 import Hedger.Domain.Internal.InvestmentPerformance qualified as Performance
@@ -57,7 +78,7 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..))
+import Hedger.Domain.Period (Granularity (..), fiscalYearPeriod, monthPeriod)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion, conversionMissing, conversionValue)
 import Hedger.Domain.Xirr qualified as Xirr
@@ -171,6 +192,30 @@ fixtureBenchmarks (name, path) =
                     "analytics"
                     [ bench "networth" $ nf netWorthWeight snapshot
                     , bench "cashflow" $ nf cashflowWeight snapshot
+                    , bench "asset-activity-month" $
+                        nf
+                            ( activityWeight
+                                . computeActivity
+                                    snapshot
+                                    snapshot.transactions
+                                    "INR"
+                                    AssetActivity
+                                    MonthActivity
+                                    Depth2
+                            )
+                            (monthPeriod input.latest)
+                    , bench "liability-activity-year" $
+                        nf
+                            ( activityWeight
+                                . computeActivity
+                                    snapshot
+                                    snapshot.transactions
+                                    "INR"
+                                    LiabilityActivity
+                                    FiscalYearActivity
+                                    Depth2
+                            )
+                            (fiscalYearPeriod 1 input.latest)
                     ]
                 , bgroup
                     "cashflow-parts"
@@ -663,6 +708,95 @@ cashflowWeight snapshot =
             + Text.length figures.incomeBreakdownPeriod
             + Text.length figures.expenseBreakdownPeriod
             + Set.size figures.missing
+
+activityWeight :: ActivityFigures -> Int
+activityWeight figures =
+    Set.size figures.missing
+        + Set.size figures.issues
+        + case figures.buckets of
+            AssetBuckets buckets -> sum (fmap assetBucketWeight buckets)
+            LiabilityBuckets buckets -> sum (fmap liabilityBucketWeight buckets)
+            IncomeBuckets buckets -> sum (fmap incomeBucketWeight buckets)
+            ExpenseBuckets buckets -> sum (fmap expenseBucketWeight buckets)
+
+assetBucketWeight :: AssetBucketFigures -> Int
+assetBucketWeight bucket =
+    Text.length bucket.key
+        + decimalWeight (Just bucket.acquired)
+        + decimalWeight (Just bucket.disposed)
+        + decimalWeight (Just bucket.transferred)
+        + sum (fmap breakdownWeight bucket.categoryItems)
+        + sum (fmap assetMovementWeight bucket.movements)
+        + length bucket.transactions
+
+liabilityBucketWeight :: LiabilityBucketFigures -> Int
+liabilityBucketWeight bucket =
+    Text.length bucket.key
+        + decimalWeight (Just bucket.borrowed)
+        + decimalWeight (Just bucket.repaid)
+        + decimalWeight (Just bucket.forgiven)
+        + decimalWeight (Just bucket.borrowingReversed)
+        + sum (fmap breakdownWeight bucket.categoryItems)
+        + sum (fmap liabilityMovementWeight bucket.movements)
+        + length bucket.transactions
+
+incomeBucketWeight :: IncomeBucketFigures -> Int
+incomeBucketWeight bucket =
+    Text.length bucket.key
+        + decimalWeight (Just bucket.posted)
+        + decimalWeight (Just bucket.reversed)
+        + sum (fmap breakdownWeight bucket.categoryItems)
+        + sum
+            [ Text.length (incomeAccountName account) + flowWeight change
+            | (account, change) <- bucket.changes
+            ]
+        + length bucket.transactions
+
+expenseBucketWeight :: ExpenseBucketFigures -> Int
+expenseBucketWeight bucket =
+    Text.length bucket.key
+        + decimalWeight (Just bucket.posted)
+        + decimalWeight (Just bucket.reversed)
+        + sum (fmap breakdownWeight bucket.categoryItems)
+        + sum
+            [ Text.length (expenseAccountName account) + flowWeight change
+            | (account, change) <- bucket.changes
+            ]
+        + length bucket.transactions
+
+assetMovementWeight :: AssetMovement -> Int
+assetMovementWeight movement =
+    case movement of
+        Acquired account amount ->
+            Text.length (assetAccountName account)
+                + decimalWeight (Just (positiveAmountValue amount))
+        Disposed account amount ->
+            Text.length (assetAccountName account)
+                + decimalWeight (Just (positiveAmountValue amount))
+        Transferred source outgoing destination incoming ->
+            Text.length (assetAccountName source)
+                + Text.length (assetAccountName destination)
+                + decimalWeight (Just (positiveAmountValue outgoing))
+                + decimalWeight (Just (positiveAmountValue incoming))
+
+liabilityMovementWeight :: LiabilityMovement -> Int
+liabilityMovementWeight movement =
+    case movement of
+        Borrowed account amount -> single account amount
+        Repaid account amount -> single account amount
+        Forgiven account amount -> single account amount
+        BorrowingReversed account amount -> single account amount
+        Refinanced old repaid new borrowed -> single old repaid + single new borrowed
+  where
+    single account amount =
+        Text.length (liabilityAccountName account)
+            + decimalWeight (Just (positiveAmountValue amount))
+
+flowWeight :: FlowChange -> Int
+flowWeight change =
+    case change of
+        Posted amount -> decimalWeight (Just (positiveAmountValue amount))
+        Reversed amount -> decimalWeight (Just (positiveAmountValue amount))
 
 timelineWeight :: (Show side) => TimelinePoint side -> Int
 timelineWeight point =

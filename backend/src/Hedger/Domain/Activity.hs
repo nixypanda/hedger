@@ -1,21 +1,28 @@
-{- | Activity quantifies movements into accounts, bucketed over a period. Income
-and expense activity follows the corresponding postings because a transaction
-can contain a flow alongside an asset or liability movement. Asset and liability
-activity uses 'Hedger.Domain.Transaction' classification to determine direction.
+{- | Activity quantifies posting-level effects, bucketed over a period. A
+transaction can contribute to more than one activity kind.
 -}
 module Hedger.Domain.Activity (
     ActivityKind (..),
     ActivityDirection (..),
     ActivityRange (..),
     BreakdownItem (..),
-    ActivityBucketFigures (..),
+    AssetBucketFigures (..),
+    LiabilityBucketFigures (..),
+    IncomeBucketFigures (..),
+    ExpenseBucketFigures (..),
+    ActivityBuckets (..),
     ActivityFigures (..),
+    ActivityEvent (..),
+    AssetMovement (..),
+    LiabilityMovement (..),
+    PositiveAmount,
+    FlowChange (..),
+    ActivityIssue (..),
     computeActivity,
     parseActivityPeriod,
 ) where
 
 import Data.Decimal (Decimal)
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set (Set)
@@ -28,6 +35,23 @@ import Text.Read (readMaybe)
 import Hledger.Data.Types qualified as Hledger
 
 import Hedger.Domain.Account qualified as Account
+import Hedger.Domain.ActivityEvent (
+    ActivityEvent (..),
+    ActivityIssue (..),
+    AssetMovement (..),
+    EventGroup (..),
+    ExpenseAccount,
+    FlowChange (..),
+    IncomeAccount,
+    LiabilityMovement (..),
+    PositiveAmount,
+    assetAccountName,
+    classifyTransactionFor,
+    expenseAccountName,
+    incomeAccountName,
+    liabilityAccountName,
+    positiveAmountValue,
+ )
 import Hedger.Domain.Error (AppError (..))
 import Hedger.Domain.Internal.PeriodReport (BreakdownItem (..))
 import Hedger.Domain.Period (
@@ -44,15 +68,6 @@ import Hedger.Domain.Period (
     yearMonthStart,
  )
 import Hedger.Domain.Snapshot (Snapshot (..))
-import Hedger.Domain.Transaction qualified as Transaction
-import Hedger.Domain.Valuation (
-    Conversion (..),
-    conversionMissing,
-    conversionValue,
-    convertMixedAt,
-    foldMapConversion,
-    notApplicable,
- )
 
 data ActivityKind
     = IncomeActivity
@@ -73,12 +88,11 @@ data ActivityRange
     deriving stock (Eq, Show)
 
 data Movement = Movement
-    { date :: Day
-    , account :: Text
+    { account :: Text
     , quantity :: Decimal
     }
 
-data ActivityBucketFigures = ActivityBucketFigures
+data BucketProjection = BucketProjection
     { key :: Text
     , startDate :: Day
     , total :: Decimal
@@ -87,13 +101,70 @@ data ActivityBucketFigures = ActivityBucketFigures
     , reallocated :: Decimal
     , categoryItems :: [BreakdownItem]
     , directionItems :: [(ActivityDirection, [BreakdownItem])]
+    , posted :: Decimal
+    , reversed :: Decimal
+    , forgiven :: Decimal
+    , borrowingReversed :: Decimal
+    , events :: [ActivityEvent]
     , transactions :: [Hledger.Transaction]
     }
 
 data ActivityFigures = ActivityFigures
-    { buckets :: [ActivityBucketFigures]
+    { buckets :: ActivityBuckets
     , missing :: Set Text
+    , issues :: Set ActivityIssue
     }
+
+data AssetBucketFigures = AssetBucketFigures
+    { key :: Text
+    , startDate :: Day
+    , acquired :: Decimal
+    , disposed :: Decimal
+    , transferred :: Decimal
+    , categoryItems :: [BreakdownItem]
+    , directionItems :: [(ActivityDirection, [BreakdownItem])]
+    , movements :: [AssetMovement]
+    , transactions :: [Hledger.Transaction]
+    }
+
+data LiabilityBucketFigures = LiabilityBucketFigures
+    { key :: Text
+    , startDate :: Day
+    , borrowed :: Decimal
+    , repaid :: Decimal
+    , forgiven :: Decimal
+    , borrowingReversed :: Decimal
+    , categoryItems :: [BreakdownItem]
+    , directionItems :: [(ActivityDirection, [BreakdownItem])]
+    , movements :: [LiabilityMovement]
+    , transactions :: [Hledger.Transaction]
+    }
+
+data IncomeBucketFigures = IncomeBucketFigures
+    { key :: Text
+    , startDate :: Day
+    , posted :: Decimal
+    , reversed :: Decimal
+    , categoryItems :: [BreakdownItem]
+    , changes :: [(IncomeAccount, FlowChange)]
+    , transactions :: [Hledger.Transaction]
+    }
+
+data ExpenseBucketFigures = ExpenseBucketFigures
+    { key :: Text
+    , startDate :: Day
+    , posted :: Decimal
+    , reversed :: Decimal
+    , categoryItems :: [BreakdownItem]
+    , changes :: [(ExpenseAccount, FlowChange)]
+    , transactions :: [Hledger.Transaction]
+    }
+
+data ActivityBuckets
+    = AssetBuckets [AssetBucketFigures]
+    | LiabilityBuckets [LiabilityBucketFigures]
+    | IncomeBuckets [IncomeBucketFigures]
+    | ExpenseBuckets [ExpenseBucketFigures]
 
 computeActivity ::
     Snapshot ->
@@ -106,8 +177,9 @@ computeActivity ::
     ActivityFigures
 computeActivity snapshot filtered commodity activityKind activityRange depth activityPeriod =
     ActivityFigures
-        { buckets = fmap (toBucketFigures depth activityRange) (Map.toAscList bucketed)
-        , missing = Set.unions (fmap conversionMissing results)
+        { buckets = typedBuckets activityKind projections
+        , missing = Set.unions [missingCommodities | (_, missingCommodities, _) <- results]
+        , issues = Set.unions [problems | (_, _, problems) <- results]
         }
   where
     inRange =
@@ -118,21 +190,83 @@ computeActivity snapshot filtered commodity activityKind activityRange depth act
             )
             filtered
     results = fmap (activityContribution snapshot commodity activityKind) inRange
-    contributions = mapMaybe conversionValue results
+    contributions = mapMaybe (\(contribution, _, _) -> contribution) results
     bucketed =
         Map.fromListWith
             (<>)
             [ (activityBucketKey activityRange contribution.date, [contribution])
             | contribution <- contributions
             ]
+    projections = fmap (toBucketFigures depth activityRange) (Map.toAscList bucketed)
+
+typedBuckets :: ActivityKind -> [BucketProjection] -> ActivityBuckets
+typedBuckets kind projections =
+    case kind of
+        AssetActivity -> AssetBuckets (fmap assetBucket projections)
+        LiabilityActivity -> LiabilityBuckets (fmap liabilityBucket projections)
+        IncomeActivity -> IncomeBuckets (fmap incomeBucket projections)
+        ExpenseActivity -> ExpenseBuckets (fmap expenseBucket projections)
+
+assetBucket :: BucketProjection -> AssetBucketFigures
+assetBucket projection =
+    AssetBucketFigures
+        { key = projection.key
+        , startDate = projection.startDate
+        , acquired = projection.increase
+        , disposed = projection.decrease
+        , transferred = projection.reallocated
+        , categoryItems = projection.categoryItems
+        , directionItems = projection.directionItems
+        , movements = [movement | AssetEvent movement <- projection.events]
+        , transactions = projection.transactions
+        }
+
+liabilityBucket :: BucketProjection -> LiabilityBucketFigures
+liabilityBucket projection =
+    LiabilityBucketFigures
+        { key = projection.key
+        , startDate = projection.startDate
+        , borrowed = projection.increase
+        , repaid = projection.decrease - projection.forgiven - projection.borrowingReversed
+        , forgiven = projection.forgiven
+        , borrowingReversed = projection.borrowingReversed
+        , categoryItems = projection.categoryItems
+        , directionItems = projection.directionItems
+        , movements = [movement | LiabilityEvent movement <- projection.events]
+        , transactions = projection.transactions
+        }
+
+incomeBucket :: BucketProjection -> IncomeBucketFigures
+incomeBucket projection =
+    IncomeBucketFigures
+        { key = projection.key
+        , startDate = projection.startDate
+        , posted = projection.posted
+        , reversed = projection.reversed
+        , categoryItems = projection.categoryItems
+        , changes = [(account, change) | IncomeEvent account change <- projection.events]
+        , transactions = projection.transactions
+        }
+
+expenseBucket :: BucketProjection -> ExpenseBucketFigures
+expenseBucket projection =
+    ExpenseBucketFigures
+        { key = projection.key
+        , startDate = projection.startDate
+        , posted = projection.posted
+        , reversed = projection.reversed
+        , categoryItems = projection.categoryItems
+        , changes = [(account, change) | ExpenseEvent account change <- projection.events]
+        , transactions = projection.transactions
+        }
 
 toBucketFigures ::
     Account.DisplayDepth ->
     ActivityRange ->
     (Text, [ActivityContribution]) ->
-    ActivityBucketFigures
+    BucketProjection
 toBucketFigures depth activityRange (key, contributions) =
-    ActivityBucketFigures
+    BucketProjection
         { key
         , startDate
         , total = sum (fmap (.total) contributions)
@@ -141,6 +275,11 @@ toBucketFigures depth activityRange (key, contributions) =
         , reallocated = sum (fmap (.reallocated) contributions)
         , categoryItems = itemsFrom movements
         , directionItems = directionItems
+        , posted = sum (fmap (.posted) contributions)
+        , reversed = sum (fmap (.reversed) contributions)
+        , forgiven = sum (fmap (.forgiven) contributions)
+        , borrowingReversed = sum (fmap (.borrowingReversed) contributions)
+        , events = concatMap (.events) contributions
         , transactions = fmap (.transaction) contributions
         }
   where
@@ -159,29 +298,11 @@ toBucketFigures depth activityRange (key, contributions) =
     directionItems =
         [ (direction, items)
         | direction <- [minBound .. maxBound]
-        , let items = itemsFrom (concatMap (.categories) (contributionsFor direction))
+        , let items = itemsFrom (concatMap (categoriesFor direction) contributions)
         , not (null items)
         ]
-    contributionsFor direction = filter ((== Just direction) . (.direction)) contributions
-
-belongsTo :: Text -> Hledger.Posting -> Bool
-belongsTo category posting = Account.accountLabel (Account.accountInfo posting.paccount) == category
-
-categoryPostingMovements ::
-    Snapshot ->
-    Text ->
-    Text ->
-    Hledger.Transaction ->
-    (Decimal -> Decimal) ->
-    Conversion [Movement]
-categoryPostingMovements snapshot commodity category transaction change =
-    foldMapConversion
-        [ fmap
-            (Movement transaction.tdate posting.paccount . change)
-            (convertMixedAt snapshot commodity transaction.tdate posting.pamount)
-        | posting <- transaction.tpostings
-        , belongsTo category posting
-        ]
+    categoriesFor direction contribution =
+        Map.findWithDefault [] direction contribution.directionCategories
 
 data ActivityContribution = ActivityContribution
     { date :: Day
@@ -189,182 +310,155 @@ data ActivityContribution = ActivityContribution
     , increase :: Decimal
     , decrease :: Decimal
     , reallocated :: Decimal
-    , direction :: Maybe ActivityDirection
+    , posted :: Decimal
+    , reversed :: Decimal
+    , forgiven :: Decimal
+    , borrowingReversed :: Decimal
     , categories :: [Movement]
+    , directionCategories :: Map.Map ActivityDirection [Movement]
+    , events :: [ActivityEvent]
     , transaction :: Hledger.Transaction
     }
 
-directionFor :: Transaction.TransactionClassification -> Maybe ActivityDirection
-directionFor classification =
-    case classification of
-        Transaction.AssetAcquisition -> Just Increase
-        Transaction.Borrowing -> Just Increase
-        Transaction.AssetReallocation -> Just Reallocate
-        Transaction.AssetDisposal -> Just Decrease
-        Transaction.Repayment -> Just Decrease
-        _ -> Nothing
-
 activityContribution ::
-    Snapshot -> Text -> ActivityKind -> Hledger.Transaction -> Conversion ActivityContribution
+    Snapshot ->
+    Text ->
+    ActivityKind ->
+    Hledger.Transaction ->
+    (Maybe ActivityContribution, Set Text, Set ActivityIssue)
 activityContribution snapshot commodity activityKind transaction =
-    case activityKind of
-        IncomeActivity -> flowActivity snapshot commodity "income" negate transaction
-        ExpenseActivity -> flowActivity snapshot commodity "expenses" id transaction
-        AssetActivity ->
-            case classification of
-                Transaction.AssetAcquisition ->
-                    assetActivity snapshot commodity classification transaction
-                Transaction.AssetDisposal ->
-                    assetActivity snapshot commodity classification transaction
-                Transaction.AssetReallocation ->
-                    assetActivity snapshot commodity classification transaction
-                _ -> notApplicable
-        LiabilityActivity ->
-            case classification of
-                Transaction.Borrowing ->
-                    liabilityActivity snapshot commodity classification transaction
-                Transaction.Repayment ->
-                    liabilityActivity snapshot commodity classification transaction
-                _ -> notApplicable
+    ( if null relevant || not (Set.null missingCommodities)
+        then Nothing
+        else Just contribution
+    , missingCommodities
+    , problems
+    )
   where
-    classification = Transaction.classificationFor transaction
+    (relevant, missingCommodities, problems) =
+        classifyTransactionFor (eventGroup activityKind) snapshot commodity transaction
+    parts = fmap eventPart relevant
+    contribution =
+        ActivityContribution
+            { date = transaction.tdate
+            , total = sum (fmap (.partTotal) parts)
+            , increase = sum (fmap (.partIncrease) parts)
+            , decrease = sum (fmap (.partDecrease) parts)
+            , reallocated = sum (fmap (.partReallocated) parts)
+            , posted = sum (fmap (.partPosted) parts)
+            , reversed = sum (fmap (.partReversed) parts)
+            , forgiven = sum (fmap (.partForgiven) parts)
+            , borrowingReversed = sum (fmap (.partBorrowingReversed) parts)
+            , categories = concatMap (.partCategories) parts
+            , directionCategories = Map.unionsWith (<>) (fmap (.partDirectionCategories) parts)
+            , events = relevant
+            , transaction
+            }
 
-flowActivity ::
-    Snapshot ->
-    Text ->
-    Text ->
-    (Decimal -> Decimal) ->
-    Hledger.Transaction ->
-    Conversion ActivityContribution
-flowActivity snapshot commodity category change transaction =
-    let movementsResult = categoryPostingMovements snapshot commodity category transaction change
-        contribution = do
-            movements <- conversionValue movementsResult
-            let total = sum (fmap (.quantity) movements)
-            if abs total < 0.000001
-                then Nothing
-                else
-                    Just
-                        ActivityContribution
-                            { date = transaction.tdate
-                            , total
-                            , increase = 0
-                            , decrease = 0
-                            , reallocated = 0
-                            , direction = Nothing
-                            , categories = movements
-                            , transaction
+eventGroup :: ActivityKind -> EventGroup
+eventGroup kind =
+    case kind of
+        AssetActivity -> AssetGroup
+        LiabilityActivity -> LiabilityGroup
+        IncomeActivity -> IncomeGroup
+        ExpenseActivity -> ExpenseGroup
+
+data EventPart = EventPart
+    { partTotal :: Decimal
+    , partIncrease :: Decimal
+    , partDecrease :: Decimal
+    , partReallocated :: Decimal
+    , partPosted :: Decimal
+    , partReversed :: Decimal
+    , partForgiven :: Decimal
+    , partBorrowingReversed :: Decimal
+    , partCategories :: [Movement]
+    , partDirectionCategories :: Map.Map ActivityDirection [Movement]
+    }
+
+eventPart :: ActivityEvent -> EventPart
+eventPart event =
+    case event of
+        AssetEvent movement ->
+            case movement of
+                Acquired account amount -> directional Increase (assetAccountName account) amount
+                Disposed account amount -> directional Decrease (assetAccountName account) amount
+                Transferred source outgoing destination incoming ->
+                    let sourceMovement =
+                            Movement (assetAccountName source) (positiveAmountValue outgoing)
+                        destinationMovement =
+                            Movement (assetAccountName destination) (positiveAmountValue incoming)
+                     in (emptyPart (positiveAmountValue outgoing))
+                            { partReallocated = positiveAmountValue outgoing
+                            , partCategories = [sourceMovement, destinationMovement]
+                            , partDirectionCategories =
+                                Map.singleton Reallocate [sourceMovement, destinationMovement]
                             }
-     in case NonEmpty.nonEmpty (Set.toList (conversionMissing movementsResult)) of
-            Just unconverted -> Unconverted unconverted
-            Nothing -> maybe NotApplicable Converted contribution
+        LiabilityEvent movement ->
+            case movement of
+                Borrowed account amount ->
+                    directional Increase (liabilityAccountName account) amount
+                Repaid account amount -> directional Decrease (liabilityAccountName account) amount
+                Refinanced old repaid new borrowed ->
+                    let oldMovement =
+                            Movement (liabilityAccountName old) (positiveAmountValue repaid)
+                        newMovement =
+                            Movement (liabilityAccountName new) (positiveAmountValue borrowed)
+                     in (emptyPart (positiveAmountValue repaid + positiveAmountValue borrowed))
+                            { partIncrease = positiveAmountValue borrowed
+                            , partDecrease = positiveAmountValue repaid
+                            , partCategories = [oldMovement, newMovement]
+                            , partDirectionCategories =
+                                Map.fromList [(Increase, [newMovement]), (Decrease, [oldMovement])]
+                            }
+                Forgiven account amount ->
+                    (directional Decrease (liabilityAccountName account) amount)
+                        { partForgiven = positiveAmountValue amount
+                        }
+                BorrowingReversed account amount ->
+                    (directional Decrease (liabilityAccountName account) amount)
+                        { partBorrowingReversed = positiveAmountValue amount
+                        }
+        IncomeEvent account change -> flowPart (incomeAccountName account) change
+        ExpenseEvent account change -> flowPart (expenseAccountName account) change
+  where
+    directional :: ActivityDirection -> Text -> PositiveAmount -> EventPart
+    directional direction account amount =
+        let quantity = positiveAmountValue amount
+            movement = Movement account quantity
+         in (emptyPart quantity)
+                { partIncrease = if direction == Increase then quantity else 0
+                , partDecrease = if direction == Decrease then quantity else 0
+                , partCategories = [movement]
+                , partDirectionCategories = Map.singleton direction [movement]
+                }
+    flowPart :: Text -> FlowChange -> EventPart
+    flowPart account change =
+        case change of
+            Posted amount ->
+                (emptyPart (positiveAmountValue amount))
+                    { partPosted = positiveAmountValue amount
+                    , partCategories = [Movement account (positiveAmountValue amount)]
+                    }
+            Reversed amount ->
+                (emptyPart (negate (positiveAmountValue amount)))
+                    { partReversed = positiveAmountValue amount
+                    , partCategories = [Movement account (negate (positiveAmountValue amount))]
+                    }
 
-assetActivity ::
-    Snapshot ->
-    Text ->
-    Transaction.TransactionClassification ->
-    Hledger.Transaction ->
-    Conversion ActivityContribution
-assetActivity snapshot commodity classification transaction =
-    let results =
-            [ fmap
-                (\amount -> (posting, amount))
-                (convertMixedAt snapshot commodity transaction.tdate posting.pamount)
-            | posting <- transaction.tpostings
-            , belongsTo "assets" posting
-            ]
-        missing = Set.unions (fmap conversionMissing results)
-        postings = mapMaybe conversionValue results
-        cash posting =
-            Account.isCashOnly (Account.accountInfo posting.paccount)
-                || inferredCashName posting.paccount
-        totalWhere predicate =
-            sum [abs amount | (posting, amount) <- postings, predicate posting amount]
-        otherIn = totalWhere (\posting amount -> not (cash posting) && amount > 0)
-        otherOut = totalWhere (\posting amount -> not (cash posting) && amount < 0)
-        (acquired, disposed, realloc) =
-            case classification of
-                Transaction.AssetAcquisition -> (otherIn, 0, 0)
-                Transaction.AssetDisposal -> (0, otherOut, 0)
-                Transaction.AssetReallocation -> (0, 0, min otherIn otherOut)
-                _ -> (0, 0, 0)
-        categoryValues =
-            [ Movement transaction.tdate posting.paccount (abs amount)
-            | (posting, amount) <- postings
-            , not (cash posting)
-            , abs amount >= 0.000001
-            ]
-        relevant = acquired > 0 || disposed > 0 || realloc > 0
-     in case NonEmpty.nonEmpty (Set.toList missing) of
-            Just unconverted -> Unconverted unconverted
-            Nothing ->
-                if relevant
-                    then
-                        Converted
-                            ActivityContribution
-                                { date = transaction.tdate
-                                , total = acquired + disposed + realloc
-                                , increase = acquired
-                                , decrease = disposed
-                                , reallocated = realloc
-                                , direction = directionFor classification
-                                , categories = categoryValues
-                                , transaction
-                                }
-                    else NotApplicable
-
-liabilityActivity ::
-    Snapshot ->
-    Text ->
-    Transaction.TransactionClassification ->
-    Hledger.Transaction ->
-    Conversion ActivityContribution
-liabilityActivity snapshot commodity classification transaction =
-    let results =
-            [ fmap
-                (Movement transaction.tdate posting.paccount)
-                (convertMixedAt snapshot commodity transaction.tdate posting.pamount)
-            | posting <- transaction.tpostings
-            , belongsTo "liabilities" posting
-            ]
-        missing = Set.unions (fmap conversionMissing results)
-        movements = mapMaybe conversionValue results
-        borrowed =
-            if classification == Transaction.Borrowing
-                then sum [abs movement.quantity | movement <- movements, movement.quantity < 0]
-                else 0
-        repaid =
-            if classification == Transaction.Repayment
-                then sum [movement.quantity | movement <- movements, movement.quantity > 0]
-                else 0
-        relevant = borrowed > 0 || repaid > 0
-     in case NonEmpty.nonEmpty (Set.toList missing) of
-            Just unconverted -> Unconverted unconverted
-            Nothing ->
-                if relevant
-                    then
-                        Converted
-                            ActivityContribution
-                                { date = transaction.tdate
-                                , total = borrowed + repaid
-                                , increase = borrowed
-                                , decrease = repaid
-                                , reallocated = 0
-                                , direction = directionFor classification
-                                , categories = fmap absoluteMovement movements
-                                , transaction
-                                }
-                    else NotApplicable
-
-inferredCashName :: Text -> Bool
-inferredCashName account =
-    any
-        (`elem` ["bank", "cash", "checking", "current", "deposit", "savings", "wallet"])
-        (fmap Text.toLower (Text.splitOn ":" account))
-
-absoluteMovement :: Movement -> Movement
-absoluteMovement movement =
-    Movement{date = movement.date, account = movement.account, quantity = abs movement.quantity}
+emptyPart :: Decimal -> EventPart
+emptyPart total =
+    EventPart
+        { partTotal = total
+        , partIncrease = 0
+        , partDecrease = 0
+        , partReallocated = 0
+        , partPosted = 0
+        , partReversed = 0
+        , partForgiven = 0
+        , partBorrowingReversed = 0
+        , partCategories = []
+        , partDirectionCategories = Map.empty
+        }
 
 activityBucketKey :: ActivityRange -> Day -> Text
 activityBucketKey MonthActivity = dayKey

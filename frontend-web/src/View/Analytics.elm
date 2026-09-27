@@ -1,5 +1,6 @@
 module View.Analytics exposing
     ( ActivityTone(..)
+    , CalendarDisplay(..)
     , LegendState(..)
     , Palette(..)
     , activityMonth
@@ -7,6 +8,7 @@ module View.Analytics exposing
     , activityYear
     , categoryCard
     , depthControl
+    , flowMovementColors
     , kpiCard
     , netWorthPerformanceChart
     , positiveNegativeTimelineChart
@@ -19,6 +21,7 @@ import Data.Analytics
     exposing
         ( ActivityBucket
         , ActivityDirection(..)
+        , ActivityMovement(..)
         , ActivityResponse
         , BreakdownItem
         , CategoryBreakdown
@@ -66,6 +69,11 @@ type ActivityTone
     | ExpenseTone
     | AssetTone
     | LiabilityTone
+
+
+type CalendarDisplay
+    = ByMovement
+    | ByCategory
 
 
 type LegendState
@@ -699,10 +707,11 @@ activityMonth :
         , period : String
         , commodity : String
         , tone : ActivityTone
+        , calendarDisplay : CalendarDisplay
         , response : Maybe ActivityResponse
         , selectedBucket : Maybe ActivityBucket
         , onSelect : ActivityBucket -> msg
-        , onTransaction : Transaction -> msg
+        , onTransaction : ActivityBucket -> Transaction -> msg
         , legendState : LegendState
         , onLegendToggle : msg
         , highlightedCategory : Maybe Int
@@ -741,6 +750,7 @@ activityMonth theme config =
                             { attributes = attributes
                             , theme = theme
                             , tone = config.tone
+                            , calendarDisplay = config.calendarDisplay
                             , commodity = config.commodity
                             , categories = categories
                             , highlightedCategory = config.highlightedCategory
@@ -762,6 +772,7 @@ activityMonth theme config =
         [ Typography.subsectionTitle theme config.title
         , calendar
         , activityLegend theme
+            config.calendarDisplay
             config.maxVisible
             config.tone
             categories
@@ -781,7 +792,10 @@ activityMonth theme config =
                 activityTransactionList theme
                     ("Transactions · " ++ bucket.key)
                     bucket.transactions
-                    config.onTransaction
+                    (config.onTransaction bucket)
+        , config.response
+            |> Maybe.map (.warnings >> warningList theme)
+            |> Maybe.withDefault Element.none
         ]
 
 
@@ -794,6 +808,7 @@ type alias DayCellConfig msg =
     { attributes : List (Element.Attribute msg)
     , theme : Theme
     , tone : ActivityTone
+    , calendarDisplay : CalendarDisplay
     , commodity : String
     , categories : List BreakdownItem
     , highlightedCategory : Maybe Int
@@ -815,6 +830,9 @@ dayCell config =
 
         tone =
             config.tone
+
+        calendarDisplay =
+            config.calendarDisplay
 
         commodity =
             config.commodity
@@ -848,6 +866,7 @@ dayCell config =
                     (activityDayRing
                         theme
                         tone
+                        calendarDisplay
                         categories
                         highlightedCategory
                         selected
@@ -877,7 +896,11 @@ dayCell config =
 
         Just bucket ->
             Input.button
-                (Border.rounded Tokens.radiusSmall :: attributes)
+                (Border.rounded Tokens.radiusSmall
+                    :: Element.htmlAttribute
+                        (Attr.attribute "aria-label" (activityAccessibleLabel commodity bucket))
+                    :: attributes
+                )
                 { onPress = Just (onSelect bucket), label = label }
 
 
@@ -1009,13 +1032,14 @@ activityCategoryLegend config =
 activityDayRing :
     Theme
     -> ActivityTone
+    -> CalendarDisplay
     -> List BreakdownItem
     -> Maybe Int
     -> Bool
     -> Int
     -> Maybe ActivityBucket
     -> Element msg
-activityDayRing theme tone categories highlightedCategory selected day maybeBucket =
+activityDayRing theme tone display categories highlightedCategory selected day maybeBucket =
     let
         size =
             34
@@ -1023,7 +1047,7 @@ activityDayRing theme tone categories highlightedCategory selected day maybeBuck
         segments =
             maybeBucket
                 |> Maybe.map
-                    (activityRingSegments theme tone categories highlightedCategory)
+                    (activityRingSegments theme tone display categories highlightedCategory)
                 |> Maybe.withDefault []
 
         emptyColor =
@@ -1032,11 +1056,7 @@ activityDayRing theme tone categories highlightedCategory selected day maybeBuck
                     theme.transparent
 
                 Just bucket ->
-                    if isEmptyActivityBucket bucket then
-                        theme.stale
-
-                    else
-                        ringAccent theme tone bucket
+                    ringEmptyColor theme tone bucket segments
     in
     Ring.view
         { size = Ring.Pixels size
@@ -1063,16 +1083,20 @@ activityMonthRing :
     Theme
     -> String
     -> ActivityTone
+    -> CalendarDisplay
     -> List BreakdownItem
     -> Maybe Int
     -> Bool
     -> ActivityBucket
     -> (ActivityBucket -> msg)
     -> Element msg
-activityMonthRing theme commodity tone categories highlightedCategory selected bucket onSelect =
+activityMonthRing theme commodity tone display categories highlight selected bucket onSelect =
     let
         isEmpty =
             isEmptyActivityBucket bucket
+
+        segments =
+            activityRingSegments theme tone display categories highlight bucket
 
         monthLabel =
             String.left 3 (periodName bucket.key)
@@ -1082,13 +1106,8 @@ activityMonthRing theme commodity tone categories highlightedCategory selected b
         , radius = 45
         , thickness = 12
         , gap = 2
-        , segments = activityRingSegments theme tone categories highlightedCategory bucket
-        , emptyColor =
-            if isEmpty then
-                theme.stale
-
-            else
-                ringAccent theme tone bucket
+        , segments = segments
+        , emptyColor = ringEmptyColor theme tone bucket segments
         , centerColor =
             if selected then
                 theme.selectedBg
@@ -1097,7 +1116,7 @@ activityMonthRing theme commodity tone categories highlightedCategory selected b
                 theme.cardBg
         , selected = selected
         , onPress = Just (onSelect bucket)
-        , label = Just (periodName bucket.key ++ " " ++ money commodity bucket.total)
+        , label = Just (activityAccessibleLabel commodity bucket)
         , center =
             Chart.ringMonthCenter theme
                 monthLabel
@@ -1108,60 +1127,107 @@ activityMonthRing theme commodity tone categories highlightedCategory selected b
 activityRingSegments :
     Theme
     -> ActivityTone
+    -> CalendarDisplay
     -> List BreakdownItem
     -> Maybe Int
     -> ActivityBucket
     -> List Ring.Segment
-activityRingSegments theme tone categories highlightedCategory bucket =
-    case directionSpecsFor theme tone of
-        Just specs ->
-            directionSegments specs highlightedCategory bucket
+activityRingSegments theme tone display categories highlightedCategory bucket =
+    case bucket.movement of
+        AssetMovements _ ->
+            directionSegments
+                (Maybe.withDefault [] (directionSpecsFor theme tone))
+                highlightedCategory
+                bucket
 
-        Nothing ->
-            bucket.categories
-                |> List.map
-                    (\category ->
-                        let
-                            index =
-                                categoryIndex category.account categories
+        LiabilityMovements figures ->
+            [ { color = theme.borrowingFg, value = decimalFloat figures.borrowed }
+            , { color = theme.repaymentFg, value = decimalFloat figures.repaid }
+            , { color = theme.warningFg, value = decimalFloat figures.forgiven }
+            , { color = theme.textMuted, value = decimalFloat figures.borrowingReversed }
+            ]
 
-                            baseColor =
-                                if category.account == "Other" then
-                                    otherColor theme
+        IncomeMovements figures ->
+            case display of
+                ByMovement ->
+                    flowRingSegments theme tone figures
 
-                                else
-                                    activityCategoryColor theme tone index
+                ByCategory ->
+                    categoryRingSegments theme tone categories highlightedCategory bucket
 
-                            color =
-                                case highlightedCategory of
-                                    Nothing ->
-                                        baseColor
+        ExpenseMovements figures ->
+            case display of
+                ByMovement ->
+                    flowRingSegments theme tone figures
 
-                                    Just highlightedIndex ->
-                                        if highlightedIndex == index then
-                                            baseColor
-
-                                        else
-                                            withAlpha 0.14 baseColor
-                        in
-                        { color = color
-                        , value = abs (decimalFloat category.quantity)
-                        }
-                    )
+                ByCategory ->
+                    categoryRingSegments theme tone categories highlightedCategory bucket
 
 
-isEmptyActivityBucket : ActivityBucket -> Bool
-isEmptyActivityBucket bucket =
-    List.isEmpty bucket.categories && List.isEmpty bucket.transactions
-
-
-withAlpha : Float -> Element.Color -> Element.Color
-withAlpha alpha color =
+flowRingSegments : Theme -> ActivityTone -> Data.Analytics.FlowFigures -> List Ring.Segment
+flowRingSegments theme tone figures =
     let
-        rgb =
-            Element.toRgb color
+        ( postedColor, reversedColor ) =
+            flowMovementColors theme tone
     in
-    Element.rgba rgb.red rgb.green rgb.blue alpha
+    [ { color = postedColor, value = decimalFloat figures.posted }
+    , { color = reversedColor, value = decimalFloat figures.reversed }
+    ]
+
+
+flowMovementColors : Theme -> ActivityTone -> ( Element.Color, Element.Color )
+flowMovementColors theme tone =
+    case tone of
+        ExpenseTone ->
+            ( theme.negative, theme.positive )
+
+        _ ->
+            ( theme.positive, theme.negative )
+
+
+categoryRingSegments :
+    Theme
+    -> ActivityTone
+    -> List BreakdownItem
+    -> Maybe Int
+    -> ActivityBucket
+    -> List Ring.Segment
+categoryRingSegments theme tone categories highlighted bucket =
+    bucket.categories
+        |> List.map
+            (\category ->
+                let
+                    index =
+                        categoryIndex category.account categories
+
+                    baseColor =
+                        if category.account == "Other" then
+                            otherColor theme
+
+                        else
+                            activityCategoryColor theme tone index
+                in
+                { color =
+                    if highlighted == Nothing || highlighted == Just index then
+                        baseColor
+
+                    else
+                        withAlpha 0.14 baseColor
+                , value = abs (decimalFloat category.quantity)
+                }
+            )
+
+
+ringEmptyColor : Theme -> ActivityTone -> ActivityBucket -> List Ring.Segment -> Element.Color
+ringEmptyColor theme tone bucket segments =
+    if isEmptyActivityBucket bucket then
+        theme.stale
+
+    else if List.all (\segment -> segment.value <= 0) segments then
+        theme.primary
+
+    else
+        ringAccent theme tone bucket
 
 
 categoryIndex : String -> List BreakdownItem -> Int
@@ -1172,6 +1238,31 @@ categoryIndex account categories =
         |> List.head
         |> Maybe.map Tuple.first
         |> Maybe.withDefault 0
+
+
+isEmptyActivityBucket : ActivityBucket -> Bool
+isEmptyActivityBucket bucket =
+    case bucket.movement of
+        AssetMovements figures ->
+            List.isEmpty figures.events
+
+        LiabilityMovements figures ->
+            List.isEmpty figures.events
+
+        IncomeMovements figures ->
+            List.isEmpty figures.events
+
+        ExpenseMovements figures ->
+            List.isEmpty figures.events
+
+
+withAlpha : Float -> Element.Color -> Element.Color
+withAlpha alpha color =
+    let
+        rgb =
+            Element.toRgb color
+    in
+    Element.rgba rgb.red rgb.green rgb.blue alpha
 
 
 activityCategoryColor : Theme -> ActivityTone -> Int -> Element.Color
@@ -1237,9 +1328,11 @@ activityYear :
         { title : String
         , commodity : String
         , tone : ActivityTone
+        , calendarDisplay : CalendarDisplay
         , response : Maybe ActivityResponse
         , selectedBucket : Maybe ActivityBucket
         , onSelect : ActivityBucket -> msg
+        , onTransaction : ActivityBucket -> Transaction -> msg
         , columns : Int
         , legendState : LegendState
         , onLegendToggle : msg
@@ -1269,7 +1362,7 @@ activityYear theme config =
                         config.selectedBucket
 
                     displayBuckets =
-                        ActivityCalendar.yearBuckets response.period response.buckets
+                        ActivityCalendar.yearBuckets response.kind response.period response.buckets
 
                     slots =
                         displayBuckets
@@ -1301,6 +1394,7 @@ activityYear theme config =
                                                             (activityMonthRing theme
                                                                 config.commodity
                                                                 config.tone
+                                                                config.calendarDisplay
                                                                 categories
                                                                 config.highlightedCategory
                                                                 (Maybe.map .key selected
@@ -1327,6 +1421,7 @@ activityYear theme config =
                                 )
                         )
                     , activityLegend theme
+                        config.calendarDisplay
                         config.maxVisible
                         config.tone
                         categories
@@ -1343,143 +1438,12 @@ activityYear theme config =
                                 (Typography.mutedCaption theme "Select a month to see details")
 
                         Just bucket ->
-                            activityYearLegend theme
-                                config.commodity
-                                config.tone
-                                categories
-                                bucket
+                            activityTransactionList theme
+                                ("Transactions · " ++ bucket.key)
+                                bucket.transactions
+                                (config.onTransaction bucket)
+                    , warningList theme response.warnings
                     ]
-        ]
-
-
-activityYearLegend :
-    Theme
-    -> String
-    -> ActivityTone
-    -> List BreakdownItem
-    -> ActivityBucket
-    -> Element msg
-activityYearLegend theme commodity tone categories bucket =
-    case directionSpecsFor theme tone of
-        Just specs ->
-            activityDirectionYearLegend theme commodity specs bucket
-
-        Nothing ->
-            activityCategoryYearLegend theme commodity tone bucket
-
-
-activityDirectionYearLegend : Theme -> String -> List DirectionSpec -> ActivityBucket -> Element msg
-activityDirectionYearLegend theme commodity specs bucket =
-    let
-        section ( spec, amount ) =
-            let
-                base =
-                    scaleColor spec.scale 0
-
-                accounts =
-                    categoriesForDirection spec.direction bucket
-                        |> List.sortBy (.quantity >> decimalFloat >> abs >> negate)
-            in
-            Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
-                (Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                    [ Ui.accentDot base
-                    , Element.el [ Element.width Element.fill, Font.semiBold ]
-                        (Element.text spec.label)
-                    , Element.el [ Font.color base, Font.semiBold, Typography.financeNumber ]
-                        (Element.text (money commodity amount))
-                    ]
-                    :: List.map accountRow accounts
-                )
-
-        accountRow item =
-            Element.row
-                [ Element.width Element.fill
-                , Element.spacing Tokens.space8
-                , Element.paddingEach
-                    { top = Tokens.space0
-                    , bottom = Tokens.space0
-                    , left = Tokens.space18
-                    , right = Tokens.space0
-                    }
-                ]
-                [ Element.el [ Element.width Element.fill, Typography.minWidthZero ]
-                    (Typography.mutedCaption theme (categoryLabel item.account))
-                , Element.el [ Font.color theme.textMuted, Typography.financeNumber ]
-                    (Element.text (money commodity item.quantity))
-                ]
-    in
-    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        (Element.el
-            [ Element.paddingXY Tokens.space0 Tokens.space8 ]
-            (Typography.mutedBody theme (periodName bucket.key))
-            :: List.map section (presentDirections specs bucket)
-        )
-
-
-activityCategoryYearLegend : Theme -> String -> ActivityTone -> ActivityBucket -> Element msg
-activityCategoryYearLegend theme commodity tone bucket =
-    let
-        total =
-            bucket.categories
-                |> List.map (.quantity >> decimalFloat >> abs)
-                |> List.sum
-
-        items =
-            bucket.categories
-                |> List.sortBy (.quantity >> decimalFloat >> abs >> negate)
-
-        totalColor =
-            ringAccent theme tone bucket
-    in
-    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-        [ Element.row
-            [ Element.width Element.fill
-            , Element.spacing Tokens.space8
-            , Element.paddingXY Tokens.space0 Tokens.space8
-            ]
-            [ Typography.mutedBody theme (periodName bucket.key ++ " · ")
-            , Element.el [ Font.color totalColor, Font.semiBold, Typography.financeNumber ]
-                (Element.text (money commodity bucket.total))
-            ]
-        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
-            (List.indexedMap
-                (\index item ->
-                    let
-                        share =
-                            if total <= 0 then
-                                0
-
-                            else
-                                (decimalFloat item.quantity / total) * 100
-                    in
-                    Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                        [ Icon.view
-                            { icon =
-                                AccountPresentation.iconForAccount
-                                    item.accountType
-                                    item.account
-                            , size = Tokens.iconSizeSmallGlyph
-                            , color =
-                                if item.account == "Other" then
-                                    otherColor theme
-
-                                else
-                                    activityCategoryColor theme tone index
-                            }
-                        , Element.el [ Element.width Element.fill, Typography.minWidthZero ]
-                            (Element.text (categoryLabel item.account))
-                        , Element.el [ Font.color theme.textMuted, Typography.financeNumber ]
-                            (Element.text
-                                (money commodity item.quantity
-                                    ++ " ("
-                                    ++ Formatting.roundedString share 0
-                                    ++ "%)"
-                                )
-                            )
-                        ]
-                )
-                items
-            )
         ]
 
 
@@ -1587,15 +1551,12 @@ directionSpecsFor theme tone =
         AssetTone ->
             Just
                 [ { direction = Increase, label = "Acquire", scale = theme.acquireScale }
-                , { direction = Reallocate, label = "Rebalance", scale = theme.rebalanceScale }
+                , { direction = Reallocate, label = "Transfer", scale = theme.rebalanceScale }
                 , { direction = Decrease, label = "Dispose", scale = theme.disposeScale }
                 ]
 
         LiabilityTone ->
-            Just
-                [ { direction = Increase, label = "Borrow", scale = theme.disposeScale }
-                , { direction = Decrease, label = "Pay-off", scale = theme.acquireScale }
-                ]
+            Nothing
 
         _ ->
             Nothing
@@ -1603,11 +1564,24 @@ directionSpecsFor theme tone =
 
 categoriesForDirection : ActivityDirection -> ActivityBucket -> List BreakdownItem
 categoriesForDirection direction bucket =
-    bucket.directions
+    activityDirections bucket.movement
         |> List.filter (.direction >> (==) direction)
         |> List.head
         |> Maybe.map .categories
         |> Maybe.withDefault []
+
+
+activityDirections : ActivityMovement -> List Data.Analytics.DirectionBreakdown
+activityDirections movement =
+    case movement of
+        AssetMovements figures ->
+            figures.directions
+
+        LiabilityMovements figures ->
+            figures.directions
+
+        _ ->
+            []
 
 
 scaleColor : List Element.Color -> Int -> Element.Color
@@ -1628,24 +1602,19 @@ directionSegments specs highlighted bucket =
     specs
         |> List.indexedMap
             (\specIndex spec ->
-                categoriesForDirection spec.direction bucket
-                    |> List.indexedMap
-                        (\accountIndex item ->
-                            let
-                                baseColor =
-                                    scaleColor spec.scale accountIndex
-                            in
-                            { color =
-                                if highlighted == Nothing || highlighted == Just specIndex then
-                                    baseColor
+                let
+                    baseColor =
+                        scaleColor spec.scale 0
+                in
+                { color =
+                    if highlighted == Nothing || highlighted == Just specIndex then
+                        baseColor
 
-                                else
-                                    withAlpha 0.14 baseColor
-                            , value = abs (decimalFloat item.quantity)
-                            }
-                        )
+                    else
+                        withAlpha 0.14 baseColor
+                , value = decimalFloat (directionAmount spec.direction bucket)
+                }
             )
-        |> List.concat
 
 
 ringAccent : Theme -> ActivityTone -> ActivityBucket -> Element.Color
@@ -1656,17 +1625,11 @@ ringAccent theme tone bucket =
 
         Just specs ->
             specs
-                |> List.filterMap
+                |> List.map
                     (\spec ->
-                        case categoriesForDirection spec.direction bucket of
-                            [] ->
-                                Nothing
-
-                            items ->
-                                Just
-                                    ( List.sum (List.map (.quantity >> decimalFloat >> abs) items)
-                                    , scaleColor spec.scale 0
-                                    )
+                        ( decimalFloat (directionAmount spec.direction bucket)
+                        , scaleColor spec.scale 0
+                        )
                     )
                 |> List.sortBy (Tuple.first >> negate)
                 |> List.head
@@ -1676,15 +1639,31 @@ ringAccent theme tone bucket =
 
 directionAmount : ActivityDirection -> ActivityBucket -> Decimal
 directionAmount direction bucket =
-    case direction of
-        Increase ->
-            bucket.increase
+    case bucket.movement of
+        AssetMovements figures ->
+            case direction of
+                Increase ->
+                    figures.acquired
 
-        Reallocate ->
-            bucket.reallocated
+                Reallocate ->
+                    figures.transferred
 
-        Decrease ->
-            bucket.decrease
+                Decrease ->
+                    figures.disposed
+
+        LiabilityMovements figures ->
+            case direction of
+                Increase ->
+                    figures.borrowed
+
+                Decrease ->
+                    figures.repaid
+
+                Reallocate ->
+                    Decimal.zero
+
+        _ ->
+            Decimal.zero
 
 
 presentDirections : List DirectionSpec -> ActivityBucket -> List ( DirectionSpec, Decimal )
@@ -1734,6 +1713,7 @@ directionValueText commodity ( spec, amount ) =
 
 activityLegend :
     Theme
+    -> CalendarDisplay
     -> Int
     -> ActivityTone
     -> List BreakdownItem
@@ -1742,22 +1722,96 @@ activityLegend :
     -> Maybe Int
     -> (Int -> msg)
     -> Element msg
-activityLegend theme maxVisible tone categories legendState onToggle highlighted onHighlight =
+activityLegend theme display limit tone categories state onToggle highlighted onHighlight =
     case directionSpecsFor theme tone of
         Just specs ->
             activityDirectionLegend theme specs highlighted onHighlight
 
         Nothing ->
-            activityCategoryLegend
-                { theme = theme
-                , tone = tone
-                , categories = categories
-                , maxVisible = maxVisible
-                , legendState = legendState
-                , onToggle = onToggle
-                , highlightedCategory = highlighted
-                , onCategoryHighlight = onHighlight
-                }
+            if display == ByCategory && (tone == IncomeTone || tone == ExpenseTone) then
+                activityCategoryLegend
+                    { theme = theme
+                    , tone = tone
+                    , categories = categories
+                    , maxVisible = limit
+                    , legendState = state
+                    , onToggle = onToggle
+                    , highlightedCategory = highlighted
+                    , onCategoryHighlight = onHighlight
+                    }
+
+            else
+                activityMeaningLegend theme tone
+
+
+activityMeaningLegend : Theme -> ActivityTone -> Element msg
+activityMeaningLegend theme tone =
+    let
+        meanings =
+            case tone of
+                LiabilityTone ->
+                    [ ( "Borrowed", theme.borrowingFg )
+                    , ( "Repaid", theme.repaymentFg )
+                    , ( "Forgiven", theme.warningFg )
+                    , ( "Borrowing reversed", theme.textMuted )
+                    ]
+
+                _ ->
+                    let
+                        ( postedColor, reversedColor ) =
+                            flowMovementColors theme tone
+                    in
+                    [ ( "Posted", postedColor ), ( "Reversed", reversedColor ) ]
+    in
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+        (List.map
+            (\( label, color ) ->
+                Element.row [ Element.spacing Tokens.space5 ]
+                    [ Ui.accentDot color, Typography.mutedCaption theme label ]
+            )
+            meanings
+        )
+
+
+movementSummary : ActivityBucket -> List ( String, Decimal )
+movementSummary bucket =
+    case bucket.movement of
+        AssetMovements figures ->
+            [ ( "Acquired", figures.acquired )
+            , ( "Disposed", figures.disposed )
+            , ( "Transferred", figures.transferred )
+            ]
+
+        LiabilityMovements figures ->
+            [ ( "Borrowed", figures.borrowed )
+            , ( "Repaid", figures.repaid )
+            , ( "Forgiven", figures.forgiven )
+            , ( "Borrowing reversed", figures.borrowingReversed )
+            , ( "Net debt movement", figures.netDebtMovement )
+            ]
+
+        IncomeMovements figures ->
+            [ ( "Posted", figures.posted )
+            , ( "Reversed", figures.reversed )
+            , ( "Net income", bucket.total )
+            ]
+
+        ExpenseMovements figures ->
+            [ ( "Posted", figures.posted )
+            , ( "Reversed", figures.reversed )
+            , ( "Net expense", bucket.total )
+            ]
+
+
+activityAccessibleLabel : String -> ActivityBucket -> String
+activityAccessibleLabel commodity bucket =
+    bucket.key
+        ++ " · "
+        ++ (movementSummary bucket
+                |> List.map
+                    (\( label, amount ) -> label ++ " " ++ money commodity amount)
+                |> String.join ", "
+           )
 
 
 activityDirectionLegend : Theme -> List DirectionSpec -> Maybe Int -> (Int -> msg) -> Element msg

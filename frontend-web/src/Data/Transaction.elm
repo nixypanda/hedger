@@ -38,6 +38,7 @@ type alias Posting =
 
 type alias Presentation =
     { classification : String
+    , effects : List String
     }
 
 

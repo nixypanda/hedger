@@ -1,0 +1,20 @@
+2026-09-01 Exchange INR to USD
+    ; Recurring: Exchange
+    assets:cash:us:wallet                                         1030.99 USD @ 96.82 INR
+    assets:cash:bank:hdfc                                                  -100000.00 INR
+    expenses:tax
+
+2026-09-01 Investments US
+    ; Recurring: Investments US
+    assets:equity:index:us:etf:spy                          1.343031627 SPY @ 765.358 USD
+    assets:cash:us:wallet                                                    -1030.98 USD
+    expenses:financial:brokerage:us
+
+2026-09-01 Investments India
+    ; Recurring: Investments India
+    ; TODO
+    assets:equity:index:india:mutual:uti            1180.717 UtiNiftyFiftyDG @ 169.38 INR
+    assets:equity:mid:india:mutual:motilal             830.195 MotilalMidcap @ 120.45 INR
+    assets:equity:small:india:mutual:bandhan         1749.296 BandhanSmallCap @ 57.16 INR
+    assets:cash:bank:hdfc                                                  -400000.00 INR
+    expenses:financial:brokerage:india

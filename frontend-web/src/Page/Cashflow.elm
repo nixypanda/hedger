@@ -179,6 +179,7 @@ analysisConfig =
     { timelineSectionTitle = "Cash flow over time"
     , timelineTitle = "Income and expenses"
     , netLabel = "Net"
+    , showCalendarDisplayControl = True
     , positive =
         { label = "Income"
         , monthActivityTitle = "Income calendar"

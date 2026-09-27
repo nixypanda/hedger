@@ -928,18 +928,24 @@ phonePrimaryRow theme transaction =
 
 trailingSummary : Theme -> Transaction -> Element msg
 trailingSummary theme transaction =
-    case transaction.presentation.classification of
-        "unclassified" ->
-            Element.none
+    let
+        effects =
+            if List.isEmpty transaction.presentation.effects then
+                [ transaction.presentation.classification ]
 
-        _ ->
-            Element.column [ Element.alignRight, Element.spacing Tokens.space2 ]
-                [ Element.el [ Element.alignRight ]
-                    (Ui.financialBadge theme
-                        (TransactionView.classificationTone transaction.presentation.classification)
-                        (TransactionView.classificationLabel transaction)
-                    )
-                ]
+            else
+                transaction.presentation.effects
+    in
+    Element.wrappedRow [ Element.alignRight, Element.spacing Tokens.space2 ]
+        (effects
+            |> List.filter ((/=) "unclassified")
+            |> List.map
+                (\effect ->
+                    Ui.financialBadge theme
+                        (TransactionView.classificationTone effect)
+                        (TransactionView.effectLabel effect)
+                )
+        )
 
 
 postingPreviewRow : Theme -> Posting -> Element msg

@@ -50,6 +50,7 @@ library
     Hedger.Config
     Hedger.Domain.Account
     Hedger.Domain.Activity
+    Hedger.Domain.ActivityEvent
     Hedger.Domain.Cashflow
     Hedger.Domain.Error
     Hedger.Domain.Internal.Account

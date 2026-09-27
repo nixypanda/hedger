@@ -67,8 +67,9 @@ transactionDecoder =
 
 presentationDecoder : Decoder Presentation
 presentationDecoder =
-    Decode.map Presentation
+    Decode.map2 Presentation
         (Decode.field "classification" Decode.string)
+        (Decode.field "effects" (Decode.list Decode.string))
 
 
 postingDecoder : Decoder Posting

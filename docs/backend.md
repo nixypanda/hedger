@@ -178,8 +178,9 @@ layer — hledger *is* the domain vocabulary.
 - `NetWorth` — period-by-period net worth, assets, liabilities, KPI
   comparisons, trend points, performance decomposition.
 - `Cashflow` — income/expense period reports with category breakdowns.
-- `Activity` — quantified activity calendars for income, expense, asset, and
-  liability categories.
+- `Activity` and `ActivityEvent` — posting-level effects and quantified
+  calendars for income, expense, asset, and liability categories. A transaction
+  can contribute to multiple views; the domain returns kind-specific buckets.
 - `Valuation` — display-commodity conversion using dated market prices. Missing
   prices produce `Conversion` with `value = Nothing` and populated `missing`
   set, plus `ConversionWarning`.
@@ -266,6 +267,16 @@ POST /api/v1/activity/query    -> ActivityResponse
 
 Request bodies are JSON. See [api-decisions.md](api-decisions.md) for field
 details.
+
+The Activity response retains the legacy `total`, `increase`, `decrease`,
+`reallocated`, `categories`, and `directions` fields while the Elm frontend is
+being migrated. Buckets additionally expose `events` with explicit movement
+names and linked source/destination amounts, flow `posted`/`reversed` totals,
+and debt `borrowed`/`repaid`/`forgiven`/`borrowingReversed` totals. `warnings`
+includes conversion gaps and unpaired or unsupported movements. Transaction
+presentation also exposes an additive `effects` list alongside the legacy
+single `classification` label. All four Activity kinds apply the supplied
+transaction query.
 
 ### Investments
 

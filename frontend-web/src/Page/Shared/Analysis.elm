@@ -9,6 +9,7 @@ module Page.Shared.Analysis exposing
     , SideConfig
     , Timeline(..)
     , activityResponse
+    , calendarDisplay
     , controlsView
     , init
     , queryChanged
@@ -55,6 +56,7 @@ type Model
 type alias ModelData =
     { granularity : Granularity
     , depth : Depth
+    , calendarDisplay : AnalyticsView.CalendarDisplay
     , period : Maybe Period
     , calendarMonth : Maybe Month
     , timeline : List TimelinePoint
@@ -122,6 +124,7 @@ type alias Config =
     { timelineSectionTitle : String
     , timelineTitle : String
     , netLabel : String
+    , showCalendarDisplayControl : Bool
     , positive : SideConfig
     , negative : SideConfig
     }
@@ -142,6 +145,7 @@ init =
     Model
         { granularity = Monthly
         , depth = Depth 2
+        , calendarDisplay = AnalyticsView.ByCategory
         , period = Nothing
         , calendarMonth = Nothing
         , timeline = []
@@ -174,6 +178,7 @@ type Msg
     | TimelineSelected String
     | PeriodChanged Int
     | DepthSelected Int
+    | CalendarDisplaySelected AnalyticsView.CalendarDisplay
     | OtherToggled Side
     | LegendToggled Side
     | LegendCategoryHighlighted Side Int
@@ -181,7 +186,7 @@ type Msg
     | ActivityLoaded Side Int (Result ApiError Analytics.ActivityResponse)
     | BucketSelected Side Analytics.ActivityBucket
     | YearBucketSelected Side Analytics.ActivityBucket
-    | TransactionSelected Transaction
+    | TransactionSelected Side Analytics.ActivityBucket Transaction
     | Back
 
 
@@ -271,6 +276,16 @@ update context msg (Model data) =
 
                 Just depth ->
                     withReportAndActivities context { data | depth = depth }
+
+        CalendarDisplaySelected display ->
+            ( Model
+                { data
+                    | calendarDisplay = display
+                    , positive = clearCalendarHighlight data.positive
+                    , negative = clearCalendarHighlight data.negative
+                }
+            , []
+            )
 
         OtherToggled side ->
             let
@@ -406,13 +421,13 @@ update context msg (Model data) =
             in
             ( Model (setSide side { sideState | selectedYearBucket = nextBucket } data), [] )
 
-        TransactionSelected selectedTransaction ->
-            case selectionFor data.mode of
-                Nothing ->
-                    ( Model data, [] )
-
-                Just selection ->
-                    ( Model { data | mode = ViewingTransaction selection selectedTransaction }, [] )
+        TransactionSelected side bucket selectedTransaction ->
+            ( Model
+                { data
+                    | mode = ViewingTransaction (Selection side bucket) selectedTransaction
+                }
+            , []
+            )
 
         Back ->
             ( Model { data | mode = Exploring (selectionFor data.mode) }, [] )
@@ -787,25 +802,51 @@ activityViews theme layout columns config report data =
         maxLegendItems =
             legendCapacity layout
     in
-    responsiveGrid layout
-        [ activityView
-            theme
-            columns
-            maxLegendItems
-            data.granularity
-            config.positive
-            Positive
-            report.displayCommodity
-            data
-        , activityView
-            theme
-            columns
-            maxLegendItems
-            data.granularity
-            config.negative
-            Negative
-            report.displayCommodity
-            data
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+        [ if config.showCalendarDisplayControl then
+            calendarDisplayControl theme data.calendarDisplay
+
+          else
+            Element.none
+        , responsiveGrid layout
+            [ activityView
+                theme
+                columns
+                maxLegendItems
+                data.granularity
+                config.positive
+                Positive
+                report.displayCommodity
+                data
+            , activityView
+                theme
+                columns
+                maxLegendItems
+                data.granularity
+                config.negative
+                Negative
+                report.displayCommodity
+                data
+            ]
+        ]
+
+
+calendarDisplayControl : Theme -> AnalyticsView.CalendarDisplay -> Element Msg
+calendarDisplayControl theme selected =
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+        [ Typography.mutedBody theme "Show calendar by"
+        , Ui.segmentedControl theme
+            [ Ui.segmentedOption theme
+                { label = "Category"
+                , selected = selected == AnalyticsView.ByCategory
+                , onPress = CalendarDisplaySelected AnalyticsView.ByCategory
+                }
+            , Ui.segmentedOption theme
+                { label = "Movement"
+                , selected = selected == AnalyticsView.ByMovement
+                , onPress = CalendarDisplaySelected AnalyticsView.ByMovement
+                }
+            ]
         ]
 
 
@@ -849,10 +890,11 @@ activityView theme columns maxLegendItems granularity config side commodity data
                 , period = month
                 , commodity = commodity
                 , tone = config.tone
+                , calendarDisplay = data.calendarDisplay
                 , response = activityValue sideState.activity
                 , selectedBucket = selectedBucketFor side data.mode
                 , onSelect = BucketSelected side
-                , onTransaction = TransactionSelected
+                , onTransaction = TransactionSelected side
                 , legendState = sideState.legendState
                 , onLegendToggle = LegendToggled side
                 , highlightedCategory = sideState.calendarHighlight
@@ -865,9 +907,11 @@ activityView theme columns maxLegendItems granularity config side commodity data
                 { title = config.yearActivityTitle
                 , commodity = commodity
                 , tone = config.tone
+                , calendarDisplay = data.calendarDisplay
                 , response = activityValue sideState.activity
                 , selectedBucket = sideState.selectedYearBucket
                 , onSelect = YearBucketSelected side
+                , onTransaction = TransactionSelected side
                 , columns = columns
                 , legendState = sideState.legendState
                 , onLegendToggle = LegendToggled side
@@ -892,6 +936,11 @@ activityResponse side (Model data) =
     activityValue (sideFor side data).activity
 
 
+calendarDisplay : Model -> AnalyticsView.CalendarDisplay
+calendarDisplay (Model data) =
+    data.calendarDisplay
+
+
 beginSideLoading : SideState -> SideState
 beginSideLoading sideState =
     { sideState
@@ -901,6 +950,11 @@ beginSideLoading sideState =
         , donutHighlight = Nothing
         , calendarHighlight = Nothing
     }
+
+
+clearCalendarHighlight : SideState -> SideState
+clearCalendarHighlight sideState =
+    { sideState | calendarHighlight = Nothing, legendState = LegendCollapsed }
 
 
 selectPeriod : Period -> Maybe Month -> ModelData -> ModelData
