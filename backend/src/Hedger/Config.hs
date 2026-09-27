@@ -12,9 +12,6 @@ module Hedger.Config (
     Port,
     mkPort,
     portValue,
-    MonthOfYear,
-    mkMonthOfYear,
-    monthOfYearValue,
     loadConfig,
     parseConfig,
 ) where
@@ -35,6 +32,7 @@ import GHC.Generics (Generic)
 import Options.Applicative qualified as Options
 
 import Hedger.Domain.Investment qualified as Investment
+import Hedger.Domain.Period (MonthOfYear, mkMonthOfYear)
 
 -- * Resolved configuration
 data Config = Config
@@ -78,18 +76,6 @@ mkPort value
 
 portValue :: Port -> Int
 portValue (Port value) = value
-
--- | A calendar month in @[1, 12]@.
-newtype MonthOfYear = MonthOfYear Int
-    deriving stock (Eq, Show)
-
-mkMonthOfYear :: Int -> Either Text MonthOfYear
-mkMonthOfYear value
-    | value >= 1 && value <= 12 = Right (MonthOfYear value)
-    | otherwise = Left "Fiscal-year start must be between 1 and 12."
-
-monthOfYearValue :: MonthOfYear -> Int
-monthOfYearValue (MonthOfYear value) = value
 
 -- * Boundary configuration types
 data FileConfig = FileConfig
@@ -244,10 +230,11 @@ resolveConfig fileConfig cli = do
     assetClasses <- assetClassMappingsFrom fileConfig.investments
     listenPort <- mkPort ((cli.cliListenPort <|> (fileConfig.server >>= (.port))) `orDefault` 8080)
     fiscalYearStartMonth <-
-        mkMonthOfYear
-            ( (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
-                `orDefault` 4
-            )
+        maybe (Left "Fiscal-year start must be between 1 and 12.") Right $
+            mkMonthOfYear
+                ( (cli.cliFiscalYearStartMonth <|> (fileConfig.display >>= (.fiscalYearStartMonth)))
+                    `orDefault` 4
+                )
     mkConfig
         ((cli.cliJournalPath <|> ((.path) <$> fileConfig.journal)) `orDefault` "")
         ( (cli.cliListenAddress <|> (fileConfig.server >>= (.listenAddress)))

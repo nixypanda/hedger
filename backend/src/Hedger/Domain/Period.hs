@@ -1,6 +1,9 @@
 module Hedger.Domain.Period (
     -- * Types
     Granularity (..),
+    MonthOfYear,
+    mkMonthOfYear,
+    monthOfYearValue,
     ReportPeriod,
     reportPeriodKey,
     reportPeriodStart,
@@ -46,6 +49,18 @@ data Granularity
     | Yearly
     deriving stock (Eq, Show)
 
+-- | A calendar month in @[1, 12]@.
+newtype MonthOfYear = MonthOfYear Int
+    deriving stock (Eq, Show)
+
+mkMonthOfYear :: Int -> Maybe MonthOfYear
+mkMonthOfYear value
+    | value >= 1 && value <= 12 = Just (MonthOfYear value)
+    | otherwise = Nothing
+
+monthOfYearValue :: MonthOfYear -> Int
+monthOfYearValue (MonthOfYear value) = value
+
 -- | An inclusive reporting window identified by a stable textual key.
 data ReportPeriod = ReportPeriod
     { key :: Text
@@ -86,8 +101,9 @@ dayKey = Text.pack . show
 monthPeriod :: Day -> ReportPeriod
 monthPeriod = periodContaining (Hledger.Months 1) monthKey
 
-fiscalYearPeriod :: Int -> Day -> ReportPeriod
-fiscalYearPeriod startMonth = periodContaining (Hledger.MonthAndDay startMonth 1) monthKey
+fiscalYearPeriod :: MonthOfYear -> Day -> ReportPeriod
+fiscalYearPeriod startMonth =
+    periodContaining (Hledger.MonthAndDay (monthOfYearValue startMonth) 1) monthKey
 
 periodsFromDateSpan :: Granularity -> Hledger.DateSpan -> [ReportPeriod]
 periodsFromDateSpan granularity dateSpan =

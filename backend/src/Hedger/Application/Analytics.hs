@@ -52,7 +52,7 @@ import Hedger.Application.Common (
     metadataFor,
  )
 import Hedger.Application.TransactionQuery (parseHledgerQuery)
-import Hedger.Config (Config (..), monthOfYearValue)
+import Hedger.Config (Config (..))
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Activity (
     ActivityBuckets (..),
@@ -80,7 +80,7 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..), atIndex, epoch, reportPeriodKey)
+import Hedger.Domain.Period (Granularity (..), atIndex, epoch, monthOfYearValue, reportPeriodKey)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (ConversionWarning (..))
 
@@ -271,7 +271,7 @@ activity request = do
         either
             throwError
             pure
-            (parseActivityPeriod (monthOfYearValue fiscalStart) request.range request.period)
+            (parseActivityPeriod fiscalStart request.range request.period)
     let figures =
             computeActivity
                 snapshot

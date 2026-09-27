@@ -31,7 +31,7 @@ import System.Directory qualified as Directory
 import System.IO (hClose, openTempFile)
 import Test.Tasty.HUnit (assertBool)
 
-import Hedger.Config (Config, mkConfig, mkMonthOfYear, mkPort)
+import Hedger.Config (Config, mkConfig, mkPort)
 import Hedger.Domain.Investment (
     AssetClass (Equity),
     AssetClassMapping (..),
@@ -42,6 +42,7 @@ import Hedger.Domain.Investment (
     mkAssetClassMappings,
  )
 import Hedger.Domain.NetWorth (BreakdownItem (..))
+import Hedger.Domain.Period (mkMonthOfYear)
 import Hedger.Infrastructure.SnapshotStore (SnapshotStore, newSnapshotStore, reloadSnapshot)
 
 configuration :: Config
@@ -52,7 +53,7 @@ configuration =
             "127.0.0.1"
             (either (error . Text.unpack) id (mkPort 8080))
             "INR"
-            (either (error . Text.unpack) id (mkMonthOfYear 4))
+            (maybe (error "invalid fiscal month") id (mkMonthOfYear 4))
             emptyInvestmentMappings
             configuredAssetClasses
 

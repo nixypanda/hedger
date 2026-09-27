@@ -10,7 +10,8 @@ import Data.Text (Text)
 
 import Hedger.Application.AppM (AppM, Env (..), requireSnapshot)
 import Hedger.Application.Common (SnapshotMetadata, metadataFor)
-import Hedger.Config (Config (..), monthOfYearValue)
+import Hedger.Config (Config (..))
+import Hedger.Domain.Period (monthOfYearValue)
 
 data BootstrapInfo = BootstrapInfo
     { apiVersion :: Text

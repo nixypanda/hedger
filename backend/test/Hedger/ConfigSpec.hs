@@ -9,9 +9,10 @@ import Data.Text (Text)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
-import Hedger.Config (Config (..), mkConfig, monthOfYearValue, parseConfig, portValue)
+import Hedger.Config (Config (..), mkConfig, parseConfig, portValue)
 import Hedger.Domain.Investment (AssetClass (..), InvestmentMapping (..), PerformanceAccount (..))
 import Hedger.Domain.Investment qualified as Investment
+import Hedger.Domain.Period (monthOfYearValue)
 
 configSpec :: TestTree
 configSpec =

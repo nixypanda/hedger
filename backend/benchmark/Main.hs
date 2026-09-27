@@ -34,7 +34,7 @@ import Hedger.Application.TransactionQuery (
     TransactionPageRequest (..),
     transactionPage,
  )
-import Hedger.Config (Config, mkConfig, mkMonthOfYear, mkPort)
+import Hedger.Config (Config, mkConfig, mkPort)
 import Hedger.Domain.Account (DisplayDepth (..))
 import Hedger.Domain.Account qualified as Account
 import Hedger.Domain.Activity (
@@ -79,7 +79,13 @@ import Hedger.Domain.NetWorth (
     TimelinePoint (..),
     computeNetWorth,
  )
-import Hedger.Domain.Period (Granularity (..), fiscalYearPeriod, monthPeriod)
+import Hedger.Domain.Period (
+    Granularity (..),
+    MonthOfYear,
+    fiscalYearPeriod,
+    mkMonthOfYear,
+    monthPeriod,
+ )
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Domain.Valuation (Conversion, conversionMissing, conversionValue)
 import Hedger.Domain.Xirr qualified as Xirr
@@ -216,7 +222,7 @@ fixtureBenchmarks (name, path) =
                                     FiscalYearActivity
                                     Depth2
                             )
-                            (fiscalYearPeriod 1 input.latest)
+                            (fiscalYearPeriod january input.latest)
                     ]
                 , bgroup
                     "cashflow-parts"
@@ -349,9 +355,12 @@ benchmarkConfig path =
             "127.0.0.1"
             (either (error . Text.unpack) id (mkPort 8080))
             "INR"
-            (either (error . Text.unpack) id (mkMonthOfYear 4))
+            (maybe (error "invalid fiscal month") id (mkMonthOfYear 4))
             benchmarkMappings
             benchmarkAssetClassMappings
+
+january :: MonthOfYear
+january = maybe (error "invalid fiscal month") id (mkMonthOfYear 1)
 
 loadAndForce :: Text.Text -> IO Int
 loadAndForce path = do
