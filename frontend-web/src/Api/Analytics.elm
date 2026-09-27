@@ -17,20 +17,27 @@ import Data.Analytics as AnalyticsData
         ( ActivityBucket
         , ActivityDirection
         , ActivityKind(..)
+        , ActivityMovement(..)
         , ActivityRange(..)
         , ActivityResponse
+        , AssetEvent(..)
+        , AssetFigures
         , BreakdownItem
         , CashflowResponse
         , CategoryBreakdown
         , DirectionBreakdown
+        , FlowEvent(..)
+        , FlowFigures
         , Kpi
+        , LiabilityEvent(..)
+        , LiabilityFigures
         , NetWorthResponse
         , PerformancePoint
         , TimelinePoint
         )
 import Data.Completeness as Completeness
 import Data.Date as Date
-import Data.Decimal as Decimal
+import Data.Decimal as Decimal exposing (Decimal)
 import Data.Granularity as Granularity exposing (Granularity)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
@@ -142,15 +149,28 @@ cashflowDecoder =
 
 activityDecoder : Decoder ActivityResponse
 activityDecoder =
-    Decode.succeed ActivityResponse
-        |> required "metadata" Metadata.decoder
-        |> required "displayCommodity" Decode.string
-        |> required "kind" activityKindDecoder
-        |> required "range" activityRangeDecoder
-        |> required "period" Decode.string
-        |> required "fiscalYearStartMonth" Decode.int
-        |> required "buckets" (Decode.list activityBucketDecoder)
-        |> required "warnings" (Decode.list Decode.string)
+    Decode.field "kind" activityKindDecoder
+        |> Decode.andThen
+            (\kind ->
+                Decode.succeed
+                    (\metadata commodity range period fiscal buckets warnings ->
+                        ActivityResponse metadata
+                            commodity
+                            kind
+                            range
+                            period
+                            fiscal
+                            buckets
+                            warnings
+                    )
+                    |> required "metadata" Metadata.decoder
+                    |> required "displayCommodity" Decode.string
+                    |> required "range" activityRangeDecoder
+                    |> required "period" Decode.string
+                    |> required "fiscalYearStartMonth" Decode.int
+                    |> required "buckets" (Decode.list (activityBucketDecoder kind))
+                    |> required "warnings" (Decode.list Decode.string)
+            )
 
 
 kpiDecoder : Decoder Kpi
@@ -201,29 +221,178 @@ performanceDecoder =
         |> required "gainLoss" Decimal.decoder
 
 
-activityBucketDecoder : Decoder ActivityBucket
-activityBucketDecoder =
-    Decode.succeed AnalyticsData.ActivityBucket
-        |> required "key" Decode.string
-        |> required "startDate" Date.decoder
-        |> required "total" Decimal.decoder
+activityBucketDecoder : ActivityKind -> Decoder ActivityBucket
+activityBucketDecoder kind =
+    Decode.map2 (\movement partial -> partial movement)
+        (movementDecoder kind)
+        (Decode.succeed
+            (\key startDate total categories transactions movement ->
+                AnalyticsData.ActivityBucket key startDate total categories movement transactions
+            )
+            |> required "key" Decode.string
+            |> required "startDate" Date.decoder
+            |> required "total" Decimal.decoder
+            |> required "categories" (Decode.list breakdownDecoder)
+            |> required "transactions" (Decode.list Transaction.transactionDecoder)
+        )
+
+
+movementDecoder : ActivityKind -> Decoder ActivityMovement
+movementDecoder kind =
+    case kind of
+        AssetActivity ->
+            Decode.map AssetMovements assetFiguresDecoder
+
+        LiabilityActivity ->
+            Decode.map LiabilityMovements liabilityFiguresDecoder
+
+        IncomeActivity ->
+            Decode.map IncomeMovements (flowFiguresDecoder "income")
+
+        ExpenseActivity ->
+            Decode.map ExpenseMovements (flowFiguresDecoder "expense")
+
+
+assetFiguresDecoder : Decoder AssetFigures
+assetFiguresDecoder =
+    Decode.succeed AnalyticsData.AssetFigures
         |> required "increase" Decimal.decoder
         |> required "decrease" Decimal.decoder
         |> required "reallocated" Decimal.decoder
-        |> required "categories" (Decode.list breakdownDecoder)
-        |> required "directions" (Decode.list directionBreakdownDecoder)
-        |> required "transactions" (Decode.list Transaction.transactionDecoder)
+        |> required "directions" (Decode.list (directionBreakdownDecoder AssetActivity))
+        |> required "events" (Decode.list assetEventDecoder)
 
 
-directionBreakdownDecoder : Decoder DirectionBreakdown
-directionBreakdownDecoder =
+liabilityFiguresDecoder : Decoder LiabilityFigures
+liabilityFiguresDecoder =
+    Decode.succeed AnalyticsData.LiabilityFigures
+        |> required "borrowed" Decimal.decoder
+        |> required "repaid" Decimal.decoder
+        |> required "forgiven" Decimal.decoder
+        |> required "borrowingReversed" Decimal.decoder
+        |> required "netDebtMovement" Decimal.decoder
+        |> required "directions" (Decode.list (directionBreakdownDecoder LiabilityActivity))
+        |> required "events" (Decode.list liabilityEventDecoder)
+
+
+flowFiguresDecoder : String -> Decoder FlowFigures
+flowFiguresDecoder kind =
+    Decode.succeed AnalyticsData.FlowFigures
+        |> required "posted" Decimal.decoder
+        |> required "reversed" Decimal.decoder
+        |> required "events" (Decode.list (flowEventDecoder kind))
+
+
+assetEventDecoder : Decoder AssetEvent
+assetEventDecoder =
+    Decode.field "effect" Decode.string
+        |> Decode.andThen
+            (\effect ->
+                case effect of
+                    "acquired" ->
+                        simpleEvent Acquired
+
+                    "disposed" ->
+                        simpleEvent Disposed
+
+                    "transferred" ->
+                        linkedEvent Transferred
+
+                    _ ->
+                        Decode.fail ("Unexpected asset effect: " ++ effect)
+            )
+
+
+liabilityEventDecoder : Decoder LiabilityEvent
+liabilityEventDecoder =
+    Decode.field "effect" Decode.string
+        |> Decode.andThen
+            (\effect ->
+                case effect of
+                    "borrowed" ->
+                        simpleEvent Borrowed
+
+                    "repaid" ->
+                        simpleEvent Repaid
+
+                    "refinanced" ->
+                        linkedEvent Refinanced
+
+                    "forgiven" ->
+                        simpleEvent Forgiven
+
+                    "borrowing_reversed" ->
+                        simpleEvent BorrowingReversed
+
+                    _ ->
+                        Decode.fail ("Unexpected liability effect: " ++ effect)
+            )
+
+
+flowEventDecoder : String -> Decoder FlowEvent
+flowEventDecoder kind =
+    Decode.field "effect" Decode.string
+        |> Decode.andThen
+            (\effect ->
+                case effect of
+                    "income_posted" ->
+                        if kind == "income" then
+                            simpleEvent FlowPosted
+
+                        else
+                            Decode.fail "Income effect in expense activity"
+
+                    "income_reversed" ->
+                        if kind == "income" then
+                            simpleEvent FlowReversed
+
+                        else
+                            Decode.fail "Income effect in expense activity"
+
+                    "expense_posted" ->
+                        if kind == "expense" then
+                            simpleEvent FlowPosted
+
+                        else
+                            Decode.fail "Expense effect in income activity"
+
+                    "expense_reversed" ->
+                        if kind == "expense" then
+                            simpleEvent FlowReversed
+
+                        else
+                            Decode.fail "Expense effect in income activity"
+
+                    _ ->
+                        Decode.fail ("Unexpected flow effect: " ++ effect)
+            )
+
+
+simpleEvent : (String -> Decimal -> event) -> Decoder event
+simpleEvent constructor =
+    Decode.map2 constructor
+        (Decode.field "account" Decode.string)
+        (Decode.field "amount" Decimal.decoder)
+
+
+linkedEvent : (String -> Decimal -> String -> Decimal -> event) -> Decoder event
+linkedEvent constructor =
+    Decode.map4 constructor
+        (Decode.field "source" Decode.string)
+        (Decode.field "sourceAmount" Decimal.decoder)
+        (Decode.field "destination" Decode.string)
+        (Decode.field "destinationAmount" Decimal.decoder)
+
+
+directionBreakdownDecoder : ActivityKind -> Decoder DirectionBreakdown
+directionBreakdownDecoder kind =
     Decode.succeed AnalyticsData.DirectionBreakdown
-        |> required "direction" activityDirectionDecoder
+        |> required "direction" (activityDirectionDecoder kind)
         |> required "categories" (Decode.list breakdownDecoder)
 
 
-activityDirectionDecoder : Decoder ActivityDirection
-activityDirectionDecoder =
+activityDirectionDecoder : ActivityKind -> Decoder ActivityDirection
+activityDirectionDecoder kind =
     Decode.string
         |> Decode.andThen
             (\value ->
@@ -232,7 +401,11 @@ activityDirectionDecoder =
                         Decode.succeed AnalyticsData.Increase
 
                     "reallocate" ->
-                        Decode.succeed AnalyticsData.Reallocate
+                        if kind == AssetActivity then
+                            Decode.succeed AnalyticsData.Reallocate
+
+                        else
+                            Decode.fail "Reallocation in non-asset activity"
 
                     "decrease" ->
                         Decode.succeed AnalyticsData.Decrease

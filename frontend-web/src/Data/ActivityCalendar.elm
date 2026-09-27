@@ -1,21 +1,21 @@
 module Data.ActivityCalendar exposing (yearBuckets)
 
-import Data.Analytics exposing (ActivityBucket)
+import Data.Analytics exposing (ActivityBucket, ActivityKind(..), ActivityMovement(..))
 import Data.Calendar as Calendar
 import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
 import Data.Time as Time exposing (Month(..))
 
 
-yearBuckets : String -> List ActivityBucket -> List ActivityBucket
-yearBuckets period buckets =
+yearBuckets : ActivityKind -> String -> List ActivityBucket -> List ActivityBucket
+yearBuckets kind period buckets =
     case latestBucket buckets of
         Nothing ->
             []
 
         Just finalBucket ->
             monthKeysThrough period finalBucket.key
-                |> List.map (bucketFor buckets)
+                |> List.map (bucketFor kind buckets)
 
 
 latestBucket : List ActivityBucket -> Maybe ActivityBucket
@@ -48,26 +48,53 @@ validMonthKeysThrough current final =
         current :: validMonthKeysThrough (Calendar.shiftMonth 1 current) final
 
 
-bucketFor : List ActivityBucket -> String -> ActivityBucket
-bucketFor buckets key =
+bucketFor : ActivityKind -> List ActivityBucket -> String -> ActivityBucket
+bucketFor kind buckets key =
     buckets
         |> List.filter (.key >> (==) key)
         |> List.head
-        |> Maybe.withDefault (emptyBucket key)
+        |> Maybe.withDefault (emptyBucket kind key)
 
 
-emptyBucket : String -> ActivityBucket
-emptyBucket key =
+emptyBucket : ActivityKind -> String -> ActivityBucket
+emptyBucket kind key =
     { key = key
     , startDate = monthStart key
     , total = Decimal.zero
-    , increase = Decimal.zero
-    , decrease = Decimal.zero
-    , reallocated = Decimal.zero
     , categories = []
-    , directions = []
+    , movement = emptyMovement kind
     , transactions = []
     }
+
+
+emptyMovement : ActivityKind -> ActivityMovement
+emptyMovement kind =
+    case kind of
+        AssetActivity ->
+            AssetMovements
+                { acquired = Decimal.zero
+                , disposed = Decimal.zero
+                , transferred = Decimal.zero
+                , directions = []
+                , events = []
+                }
+
+        LiabilityActivity ->
+            LiabilityMovements
+                { borrowed = Decimal.zero
+                , repaid = Decimal.zero
+                , forgiven = Decimal.zero
+                , borrowingReversed = Decimal.zero
+                , netDebtMovement = Decimal.zero
+                , directions = []
+                , events = []
+                }
+
+        IncomeActivity ->
+            IncomeMovements { posted = Decimal.zero, reversed = Decimal.zero, events = [] }
+
+        ExpenseActivity ->
+            ExpenseMovements { posted = Decimal.zero, reversed = Decimal.zero, events = [] }
 
 
 monthStart : String -> Date

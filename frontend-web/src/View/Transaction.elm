@@ -2,6 +2,7 @@ module View.Transaction exposing
     ( amountsText
     , classificationLabel
     , classificationTone
+    , effectLabel
     , transactionDetail
     )
 
@@ -46,13 +47,36 @@ classificationTone classification =
         "asset_reallocation" ->
             Ui.FinancialAsset
 
+        "asset_transfer" ->
+            Ui.FinancialAsset
+
+        "refinancing" ->
+            Ui.FinancialBorrowing
+
+        "debt_forgiveness" ->
+            Ui.FinancialRepayment
+
+        "borrowing_reversal" ->
+            Ui.FinancialRepayment
+
+        "income_reversal" ->
+            Ui.FinancialIncome
+
+        "expense_reversal" ->
+            Ui.FinancialExpense
+
         _ ->
             Ui.FinancialNeutral
 
 
 classificationLabel : Transaction -> String
 classificationLabel transaction =
-    case transaction.presentation.classification of
+    effectLabel transaction.presentation.classification
+
+
+effectLabel : String -> String
+effectLabel classification =
+    case classification of
         "income" ->
             "Income"
 
@@ -77,6 +101,24 @@ classificationLabel transaction =
         "asset_reallocation" ->
             "Asset reallocation"
 
+        "asset_transfer" ->
+            "Asset transfer"
+
+        "refinancing" ->
+            "Refinancing"
+
+        "debt_forgiveness" ->
+            "Debt forgiven"
+
+        "borrowing_reversal" ->
+            "Borrowing reversed"
+
+        "income_reversal" ->
+            "Income reversed"
+
+        "expense_reversal" ->
+            "Expense reversed"
+
         "unclassified" ->
             "Unclassified"
 
@@ -97,6 +139,7 @@ transactionDetail theme transaction =
                 , [ detailRow theme "Status" (Status.toString transaction.status) ]
                 , maybeDetailRow theme "Code" transaction.code
                 , [ detailRow theme "Description" transaction.description ]
+                , [ detailRow theme "Effects" (effectSummary transaction) ]
                 , maybeDetailRow theme "Comment" transaction.comment
                 , if List.isEmpty transaction.tags then
                     []
@@ -117,6 +160,16 @@ transactionDetail theme transaction =
             , footer = Nothing
             }
         ]
+
+
+effectSummary : Transaction -> String
+effectSummary transaction =
+    case transaction.presentation.effects of
+        [] ->
+            classificationLabel transaction
+
+        effects ->
+            effects |> List.map effectLabel |> String.join ", "
 
 
 detailRow : Theme -> String -> String -> Element msg

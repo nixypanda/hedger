@@ -2,13 +2,20 @@ module Data.Analytics exposing
     ( ActivityBucket
     , ActivityDirection(..)
     , ActivityKind(..)
+    , ActivityMovement(..)
     , ActivityRange(..)
     , ActivityResponse
+    , AssetEvent(..)
+    , AssetFigures
     , BreakdownItem
     , CashflowResponse
     , CategoryBreakdown
     , DirectionBreakdown
+    , FlowEvent(..)
+    , FlowFigures
     , Kpi
+    , LiabilityEvent(..)
+    , LiabilityFigures
     , NetWorthResponse
     , PerformancePoint
     , TimelinePoint
@@ -58,13 +65,63 @@ type alias ActivityBucket =
     { key : String
     , startDate : Date
     , total : Decimal
-    , increase : Decimal
-    , decrease : Decimal
-    , reallocated : Decimal
     , categories : List BreakdownItem
-    , directions : List DirectionBreakdown
+    , movement : ActivityMovement
     , transactions : List Transaction
     }
+
+
+type ActivityMovement
+    = AssetMovements AssetFigures
+    | LiabilityMovements LiabilityFigures
+    | IncomeMovements FlowFigures
+    | ExpenseMovements FlowFigures
+
+
+type alias AssetFigures =
+    { acquired : Decimal
+    , disposed : Decimal
+    , transferred : Decimal
+    , directions : List DirectionBreakdown
+    , events : List AssetEvent
+    }
+
+
+type AssetEvent
+    = Acquired String Decimal
+    | Disposed String Decimal
+    | Transferred String Decimal String Decimal
+
+
+type alias LiabilityFigures =
+    { borrowed : Decimal
+    , repaid : Decimal
+    , forgiven : Decimal
+    , borrowingReversed : Decimal
+    , netDebtMovement : Decimal
+    , directions : List DirectionBreakdown
+    , events : List LiabilityEvent
+    }
+
+
+type LiabilityEvent
+    = Borrowed String Decimal
+    | Repaid String Decimal
+    | Refinanced String Decimal String Decimal
+    | Forgiven String Decimal
+    | BorrowingReversed String Decimal
+
+
+type alias FlowFigures =
+    { posted : Decimal
+    , reversed : Decimal
+    , events : List FlowEvent
+    }
+
+
+type FlowEvent
+    = FlowPosted String Decimal
+    | FlowReversed String Decimal
 
 
 type alias Kpi =

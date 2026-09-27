@@ -1,6 +1,6 @@
 # Activity event model and product behavior plan
 
-_Branch: `plan/activity-event-model` · 2026-09-27 · Status: backend implemented; Elm migration remains a separate step_
+_Branch: `plan/activity-event-model` · 2026-09-27 · Status: backend and Elm migration implemented against the additive API; strict kind-specific HTTP payload deferred_
 
 ## Outcome
 
