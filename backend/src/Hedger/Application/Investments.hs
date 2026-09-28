@@ -28,8 +28,8 @@ import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (InternalError))
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.InvestmentPerformance (
+    InvestmentSummary,
     InvestmentWarning,
-    SummaryResult,
     childrenOf,
     investmentAccountsAt,
     investmentDataTransactions,
@@ -54,7 +54,7 @@ data InvestmentsRequest = InvestmentsRequest
 data InvestmentPoint = InvestmentPoint
     { period :: Text
     , startDate :: Day
-    , summary :: SummaryResult
+    , summary :: InvestmentSummary
     }
 
 data InvestmentBreadcrumb = InvestmentBreadcrumb
@@ -65,7 +65,7 @@ data InvestmentBreadcrumb = InvestmentBreadcrumb
 data InvestmentChild = InvestmentChild
     { account :: Text
     , label :: Text
-    , summary :: SummaryResult
+    , summary :: InvestmentSummary
     , hasChildren :: Bool
     , assetClass :: Investment.AssetClass
     , allocationPercentage :: Maybe Decimal
@@ -83,7 +83,7 @@ data InvestmentsReport = InvestmentsReport
     , displayCommodity :: Text
     , granularity :: Granularity
     , accountPrefix :: Maybe Text
-    , summary :: SummaryResult
+    , summary :: InvestmentSummary
     , timeline :: [InvestmentPoint]
     , breadcrumbs :: [InvestmentBreadcrumb]
     , children :: [InvestmentChild]
@@ -195,7 +195,7 @@ investments request = do
             }
 
 assetClassAllocations ::
-    (Maybe Text -> Maybe SummaryResult) ->
+    (Maybe Text -> Maybe InvestmentSummary) ->
     Maybe Decimal ->
     Investment.AssetClassMappings ->
     [AssetClassAllocation]

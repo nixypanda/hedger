@@ -1,12 +1,7 @@
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE GADTs #-}
-
 module Hedger.Domain.Internal.InvestmentPerformance (
     -- * Value objects
     InvestmentCompleteness (..),
     InvestmentSummary,
-    Completeness,
-    SummaryResult,
     summaryMarketValue,
     summaryPurchaseCost,
     summaryGainLoss,
@@ -140,41 +135,22 @@ data Attribution = Attribution
     }
     deriving stock (Eq, Show)
 
--- | The completeness index of an 'InvestmentSummary'.
-data Completeness
-    = SummaryNoHoldingsK
-    | SummaryUnavailableK
-    | SummaryPartialK
-    | SummaryCompleteK
-    deriving stock (Eq, Show)
-
 {- | An investment summary whose constructors encode how complete its evidence
 is. 'SummaryComplete' carries no warnings; 'SummaryUnavailable' carries neither a
 market value nor a purchase cost; each partial constructor either raised a
 warning or withholds the total profit, so the completeness invariants are facts
 of the type rather than runtime checks.
 -}
-data InvestmentSummary (c :: Completeness) where
-    SummaryNoHoldings :: InvestmentSummary 'SummaryNoHoldingsK
-    SummaryUnavailable ::
-        Maybe Decimal -> -- attributed income
-        Maybe Decimal -> -- realised gain
-        [InvestmentWarning] ->
-        InvestmentSummary 'SummaryUnavailableK
-    SummaryPartialUnpriced ::
-        UnpricedPartial ->
-        [InvestmentWarning] ->
-        InvestmentSummary 'SummaryPartialK
-    SummaryPartialPricedWarned ::
-        PricedPartial ->
-        NonEmpty InvestmentWarning ->
-        InvestmentSummary 'SummaryPartialK
-    SummaryPartialPricedIncomplete ::
-        PricedPartialNoTotal ->
-        InvestmentSummary 'SummaryPartialK
-    SummaryComplete ::
-        CompleteSummary ->
-        InvestmentSummary 'SummaryCompleteK
+data InvestmentSummary
+    = SummaryNoHoldings
+    | SummaryUnavailable
+        (Maybe Decimal) -- attributed income
+        (Maybe Decimal) -- realised gain
+        [InvestmentWarning]
+    | SummaryPartialUnpriced UnpricedPartial [InvestmentWarning]
+    | SummaryPartialPricedWarned PricedPartial (NonEmpty InvestmentWarning)
+    | SummaryPartialPricedIncomplete PricedPartialNoTotal
+    | SummaryComplete CompleteSummary
 
 data UnpricedPartial = UnpricedPartial
     { purchaseCost :: Maybe Decimal
@@ -235,13 +211,8 @@ data WarningKind
       UnresolvedReturn
     deriving stock (Eq, Show)
 
-{- | An existentially packed summary, so the various entry points can return one
-regardless of the completeness index.
--}
-data SummaryResult = forall c. SummaryResult (InvestmentSummary c)
-
-marketValue :: InvestmentSummary c -> Maybe Decimal
-marketValue summary =
+summaryMarketValue :: InvestmentSummary -> Maybe Decimal
+summaryMarketValue summary =
     case summary of
         SummaryNoHoldings -> Nothing
         SummaryUnavailable{} -> Nothing
@@ -250,8 +221,8 @@ marketValue summary =
         SummaryPartialPricedIncomplete priced -> Just priced.marketValue
         SummaryComplete complete -> Just complete.marketValue
 
-purchaseCost :: InvestmentSummary c -> Maybe Decimal
-purchaseCost summary =
+summaryPurchaseCost :: InvestmentSummary -> Maybe Decimal
+summaryPurchaseCost summary =
     case summary of
         SummaryNoHoldings -> Nothing
         SummaryUnavailable{} -> Nothing
@@ -260,8 +231,8 @@ purchaseCost summary =
         SummaryPartialPricedIncomplete priced -> priced.purchaseCost
         SummaryComplete complete -> complete.purchaseCost
 
-gainLoss :: InvestmentSummary c -> Maybe Decimal
-gainLoss summary =
+summaryGainLoss :: InvestmentSummary -> Maybe Decimal
+summaryGainLoss summary =
     case summary of
         SummaryNoHoldings -> Nothing
         SummaryUnavailable{} -> Nothing
@@ -270,8 +241,8 @@ gainLoss summary =
         SummaryPartialPricedIncomplete priced -> priced.gainLoss
         SummaryComplete complete -> Just complete.gainLoss
 
-xirr :: InvestmentSummary c -> Maybe Decimal
-xirr summary =
+summaryXirr :: InvestmentSummary -> Maybe Decimal
+summaryXirr summary =
     case summary of
         SummaryNoHoldings -> Nothing
         SummaryUnavailable{} -> Nothing
@@ -280,8 +251,8 @@ xirr summary =
         SummaryPartialPricedIncomplete priced -> priced.xirr
         SummaryComplete complete -> complete.xirr
 
-attributedIncome :: InvestmentSummary c -> Maybe Decimal
-attributedIncome summary =
+summaryAttributedIncome :: InvestmentSummary -> Maybe Decimal
+summaryAttributedIncome summary =
     case summary of
         SummaryNoHoldings -> Nothing
         SummaryUnavailable income _ _ -> income
@@ -290,8 +261,8 @@ attributedIncome summary =
         SummaryPartialPricedIncomplete priced -> priced.attributedIncome
         SummaryComplete complete -> Just complete.attributedIncome
 
-realisedGain :: InvestmentSummary c -> Maybe Decimal
-realisedGain summary =
+summaryRealisedGain :: InvestmentSummary -> Maybe Decimal
+summaryRealisedGain summary =
     case summary of
         SummaryNoHoldings -> Nothing
         SummaryUnavailable _ realised _ -> realised
@@ -300,8 +271,8 @@ realisedGain summary =
         SummaryPartialPricedIncomplete priced -> priced.realisedGain
         SummaryComplete complete -> Just complete.realisedGain
 
-totalProfit :: InvestmentSummary c -> Maybe Decimal
-totalProfit summary =
+summaryTotalProfit :: InvestmentSummary -> Maybe Decimal
+summaryTotalProfit summary =
     case summary of
         SummaryNoHoldings -> Nothing
         SummaryUnavailable{} -> Nothing
@@ -310,8 +281,8 @@ totalProfit summary =
         SummaryPartialPricedIncomplete{} -> Nothing
         SummaryComplete complete -> Just complete.totalProfit
 
-warnings :: InvestmentSummary c -> [InvestmentWarning]
-warnings summary =
+summaryWarnings :: InvestmentSummary -> [InvestmentWarning]
+summaryWarnings summary =
     case summary of
         SummaryNoHoldings -> []
         SummaryUnavailable _ _ raised -> raised
@@ -320,8 +291,8 @@ warnings summary =
         SummaryPartialPricedIncomplete{} -> []
         SummaryComplete{} -> []
 
-completeness :: InvestmentSummary c -> InvestmentCompleteness
-completeness summary =
+summaryCompleteness :: InvestmentSummary -> InvestmentCompleteness
+summaryCompleteness summary =
     case summary of
         SummaryNoHoldings -> Complete
         SummaryUnavailable{} -> Unavailable
@@ -329,33 +300,6 @@ completeness summary =
         SummaryPartialPricedWarned{} -> Partial
         SummaryPartialPricedIncomplete{} -> Partial
         SummaryComplete{} -> Complete
-
-summaryMarketValue :: SummaryResult -> Maybe Decimal
-summaryMarketValue (SummaryResult summary) = marketValue summary
-
-summaryPurchaseCost :: SummaryResult -> Maybe Decimal
-summaryPurchaseCost (SummaryResult summary) = purchaseCost summary
-
-summaryGainLoss :: SummaryResult -> Maybe Decimal
-summaryGainLoss (SummaryResult summary) = gainLoss summary
-
-summaryXirr :: SummaryResult -> Maybe Decimal
-summaryXirr (SummaryResult summary) = xirr summary
-
-summaryAttributedIncome :: SummaryResult -> Maybe Decimal
-summaryAttributedIncome (SummaryResult summary) = attributedIncome summary
-
-summaryRealisedGain :: SummaryResult -> Maybe Decimal
-summaryRealisedGain (SummaryResult summary) = realisedGain summary
-
-summaryTotalProfit :: SummaryResult -> Maybe Decimal
-summaryTotalProfit (SummaryResult summary) = totalProfit summary
-
-summaryWarnings :: SummaryResult -> [InvestmentWarning]
-summaryWarnings (SummaryResult summary) = warnings summary
-
-summaryCompleteness :: SummaryResult -> InvestmentCompleteness
-summaryCompleteness (SummaryResult summary) = completeness summary
 
 {- | Journal- and configuration-derived state shared by every summary in one
 investment report. Building this once is important: price-oracle construction
@@ -425,14 +369,14 @@ summaryAt ::
     Text ->
     Maybe Text ->
     Day ->
-    SummaryResult
+    InvestmentSummary
 summaryAt snapshot assetClasses mappings commodity scope day =
     summaryAtPrepared
         (prepareInvestmentPerformance snapshot assetClasses mappings commodity)
         scope
         day
 
-summaryAtPrepared :: InvestmentPerformanceContext -> Maybe Text -> Day -> SummaryResult
+summaryAtPrepared :: InvestmentPerformanceContext -> Maybe Text -> Day -> InvestmentSummary
 summaryAtPrepared context scope day =
     case scopeScansAt context scope [day] of
         [scopeScan] ->
@@ -450,7 +394,7 @@ summaryAtPrepared context scope day =
 one 'scopeScansAt' sweep instead of four journal scans per day.
 -}
 summariesAtPrepared ::
-    InvestmentPerformanceContext -> Maybe Text -> Granularity -> [Day] -> [SummaryResult]
+    InvestmentPerformanceContext -> Maybe Text -> Granularity -> [Day] -> [InvestmentSummary]
 summariesAtPrepared context scope granularity days =
     List.zipWith4
         (summaryFromHoldings context scope)
@@ -477,7 +421,7 @@ while the non-holdings inputs are accumulated for every scope in one traversal.
 Results preserve the requested scope order, including duplicates.
 -}
 summariesAtScopesPrepared ::
-    InvestmentPerformanceContext -> Day -> [Maybe Text] -> [(Maybe Text, SummaryResult)]
+    InvestmentPerformanceContext -> Day -> [Maybe Text] -> [(Maybe Text, InvestmentSummary)]
 summariesAtScopesPrepared context day scopes =
     zip
         scopes
@@ -505,7 +449,7 @@ summaryFromHoldings ::
     Hledger.MixedAmount ->
     Hledger.MixedAmount ->
     ScopeScan ->
-    SummaryResult
+    InvestmentSummary
 summaryFromHoldings context scope day holdings costHoldings scopeScan =
     summary
   where
@@ -573,9 +517,9 @@ summaryFromHoldings context scope day holdings costHoldings scopeScan =
                ]
             <> [InvestmentWarning UnresolvedReturn scope | unresolvedReturn]
     summary
-        | not hasHoldings = SummaryResult SummaryNoHoldings
+        | not hasHoldings = SummaryNoHoldings
         | market == Nothing && cost == Nothing =
-            SummaryResult (SummaryUnavailable income realised raisedWarnings)
+            SummaryUnavailable income realised raisedWarnings
         | otherwise =
             case market of
                 Just marketValue' ->
@@ -586,54 +530,46 @@ summaryFromHoldings context scope day holdings costHoldings scopeScan =
                                 , Just realisedValue
                                 , Just totalValue
                                 ) ->
-                                    SummaryResult
-                                        ( SummaryComplete
-                                            CompleteSummary
-                                                { marketValue = marketValue'
-                                                , purchaseCost = cost
-                                                , gainLoss = gainValue
-                                                , xirr = annualisedReturn
-                                                , attributedIncome = incomeValue
-                                                , realisedGain = realisedValue
-                                                , totalProfit = totalValue
-                                                }
-                                        )
-                            _ ->
-                                SummaryResult
-                                    ( SummaryPartialPricedIncomplete
-                                        PricedPartialNoTotal
+                                    SummaryComplete
+                                        CompleteSummary
                                             { marketValue = marketValue'
                                             , purchaseCost = cost
-                                            , gainLoss = calculatedGain
+                                            , gainLoss = gainValue
                                             , xirr = annualisedReturn
-                                            , attributedIncome = income
-                                            , realisedGain = realised
+                                            , attributedIncome = incomeValue
+                                            , realisedGain = realisedValue
+                                            , totalProfit = totalValue
                                             }
-                                    )
-                        else
-                            SummaryResult
-                                ( SummaryPartialPricedWarned
-                                    PricedPartial
+                            _ ->
+                                SummaryPartialPricedIncomplete
+                                    PricedPartialNoTotal
                                         { marketValue = marketValue'
                                         , purchaseCost = cost
                                         , gainLoss = calculatedGain
                                         , xirr = annualisedReturn
                                         , attributedIncome = income
                                         , realisedGain = realised
-                                        , totalProfit = total
                                         }
-                                    (NonEmpty.fromList raisedWarnings)
-                                )
+                        else
+                            SummaryPartialPricedWarned
+                                PricedPartial
+                                    { marketValue = marketValue'
+                                    , purchaseCost = cost
+                                    , gainLoss = calculatedGain
+                                    , xirr = annualisedReturn
+                                    , attributedIncome = income
+                                    , realisedGain = realised
+                                    , totalProfit = total
+                                    }
+                                (NonEmpty.fromList raisedWarnings)
                 Nothing ->
-                    SummaryResult
-                        ( SummaryPartialUnpriced
-                            UnpricedPartial
-                                { purchaseCost = cost
-                                , attributedIncome = income
-                                , realisedGain = realised
-                                }
-                            raisedWarnings
-                        )
+                    SummaryPartialUnpriced
+                        UnpricedPartial
+                            { purchaseCost = cost
+                            , attributedIncome = income
+                            , realisedGain = realised
+                            }
+                        raisedWarnings
 
 -- | Running totals threaded through 'scopeScansAt''s chronological sweep.
 data Accumulator = Accumulator
@@ -876,7 +812,7 @@ investmentSummaryAt ::
     Text ->
     Maybe Text ->
     Day ->
-    SummaryResult
+    InvestmentSummary
 investmentSummaryAt snapshot assetClasses mappings commodity scope day =
     summaryAt snapshot assetClasses mappings commodity scope day
 

@@ -49,7 +49,7 @@ import Hedger.Domain.Investment (
  )
 import Hedger.Domain.InvestmentPerformance (
     InvestmentCompleteness (Complete),
-    SummaryResult,
+    InvestmentSummary,
     externalCashFlowsAt,
     investmentAccountsAt,
     investmentDataTransactions,
@@ -649,20 +649,20 @@ sortCashFlows :: [CashFlow] -> [(Day, Decimal)]
 sortCashFlows = List.sort . fmap (\flow -> (cashFlowDate flow, cashFlowAmount flow))
 
 -- | Compares a per-day reference list with the bulk timeline, day by day.
-assertDaySummariesMatch :: [Day] -> [SummaryResult] -> [SummaryResult] -> IO ()
+assertDaySummariesMatch :: [Day] -> [InvestmentSummary] -> [InvestmentSummary] -> IO ()
 assertDaySummariesMatch days expected actual = do
     assertEqual "same number of results" (length expected) (length actual)
     sequence_
-        [ assertSummaryResultEqual ("day " <> show day) perDay bulk
+        [ assertSummaryWithWarningsEqual ("day " <> show day) perDay bulk
         | (day, perDay, bulk) <- zip3 days expected actual
         ]
 
-assertSummaryResultEqual :: String -> SummaryResult -> SummaryResult -> IO ()
-assertSummaryResultEqual label expected actual = do
+assertSummaryWithWarningsEqual :: String -> InvestmentSummary -> InvestmentSummary -> IO ()
+assertSummaryWithWarningsEqual label expected actual = do
     assertSummaryEqual label expected actual
     assertEqual (label <> " warnings") (summaryWarnings expected) (summaryWarnings actual)
 
-assertSummaryEqual :: String -> SummaryResult -> SummaryResult -> IO ()
+assertSummaryEqual :: String -> InvestmentSummary -> InvestmentSummary -> IO ()
 assertSummaryEqual label expected actual = do
     assertEqual
         (label <> " marketValue")
@@ -772,7 +772,7 @@ assetClassLabelsDoNotAffectSummary =
                     displayCommodity
         footnote ("scope " <> show scope <> ", latest " <> show day)
         liftIO $
-            assertSummaryResultEqual
+            assertSummaryWithWarningsEqual
                 "same prefixes, different asset-class label"
                 (summaryAtPrepared labelled scope day)
                 (summaryAtPrepared relabelled scope day)
@@ -791,7 +791,7 @@ fees. The attribution record is withheld when the mapping is incomplete, so a
 missing record leaves this guard unsatisfied.
 -}
 assertTotalProfitDecomposition ::
-    SummaryResult -> Maybe Attribution -> PropertyT IO ()
+    InvestmentSummary -> Maybe Attribution -> PropertyT IO ()
 assertTotalProfitDecomposition summary attribution =
     case ( summaryTotalProfit summary
          , summaryGainLoss summary
@@ -812,7 +812,7 @@ income into the cost basis, while 'retainedPerformanceAtWith' would still report
 it. Asserting the identity against the unforced retained only holds for complete
 mappings.
 -}
-assertMarketCostRetainedIdentity :: SummaryResult -> Maybe Decimal -> PropertyT IO ()
+assertMarketCostRetainedIdentity :: InvestmentSummary -> Maybe Decimal -> PropertyT IO ()
 assertMarketCostRetainedIdentity summary retained =
     case ( summaryMarketValue summary
          , summaryPurchaseCost summary
@@ -964,7 +964,7 @@ generatedScopesSummariesMatch =
         assert (null (summariesAtScopesPrepared context latest []))
         liftIO $
             sequence_
-                [ assertSummaryResultEqual ("scope " <> show scope) expected actual
+                [ assertSummaryWithWarningsEqual ("scope " <> show scope) expected actual
                 | (scope, expected, (_, actual)) <- zip3 scopes singular bulk
                 ]
 

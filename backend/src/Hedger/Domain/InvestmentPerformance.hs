@@ -2,8 +2,6 @@ module Hedger.Domain.InvestmentPerformance (
     -- * Value objects
     InvestmentCompleteness (..),
     InvestmentSummary,
-    Completeness,
-    SummaryResult,
     summaryMarketValue,
     summaryPurchaseCost,
     summaryGainLoss,
