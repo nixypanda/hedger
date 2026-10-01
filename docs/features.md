@@ -1,196 +1,138 @@
 # Features
 
-## Summary
+Hedger is a read-only personal finance viewer for a single
+[hledger](https://hledger.org/) journal. It answers questions about net worth,
+cashflow, investments, accounts, and transactions without ever modifying the
+ledger.
 
-Hedger is a read-only personal finance viewer that displays data from an
-hledger journal. It provides six screens: Net Worth, Cashflow, Investments,
-Accounts, Transactions, and Settings.
+The stories below describe the intended experience. They are deliberately at
+the level of what the user wants, not how it is implemented.
 
-```text
-hledger journal -> parse into snapshot -> query/calculate -> display per screen
-```
+## Net worth
 
-The backend owns all calculations (valuation, cost basis, classification,
-aggregation). The frontend owns rendering and interaction state.
+- As a ledger owner, I want to see my current net worth, assets, and
+  liabilities at a glance, so that I can judge my financial position.
+- As a ledger owner, I want to see how net worth, assets, and liabilities
+  changed over time, so that I can spot trends.
+- As a ledger owner, I want to compare the latest period with the previous one,
+  so that I can tell whether I am improving.
+- As a ledger owner, I want net worth broken down by account and category, so
+  that I can see what drives it.
+- As a ledger owner, I want to pick a day and see the transactions behind it, so
+  that I can understand a movement.
+- As a ledger owner, I want to know when values could not be converted to my
+  display commodity, so that I do not trust an incomplete number.
 
-Current implementation covers all six screens with full backend support. The
-product goal is a faithful read-only replica of eLedger, not a ledger editor
-or analytics platform.
+## Cashflow
 
-## Implemented Features
+- As a ledger owner, I want to see income and expenses over time, so that I
+  understand where my money goes.
+- As a ledger owner, I want income and expenses broken down by category, so that
+  I can see spending patterns.
+- As a ledger owner, I want to see daily activity on calendars, so that I can
+  spot unusual days.
+- As a ledger owner, I want to filter the view with an hledger query, so that I
+  can focus on a subset.
+- As a ledger owner, I want to drill from a period or day into its transactions,
+  so that I can verify the totals.
+- As a ledger owner, I want reversals and refunds shown separately from posted
+  amounts, so that net figures are honest.
 
-### Net Worth
+## Investments
 
-- [x] Net Worth, Assets, and Liabilities KPI cards with absolute and
-      percentage changes.
-- [x] Sparkline trends on KPI cards.
-- [x] Period-by-period timeline chart (Net Investment vs Net Worth).
-- [x] Monthly and yearly granularity.
-- [x] Assets breakdown with category depth 1-4 and `Other` grouping.
-- [x] Liabilities breakdown with the same depth controls.
-- [x] Asset allocation activity calendar (month and year views).
-- [x] Liability activity calendar.
-- [x] Day selection with transaction detail drill-down from complete DTOs.
-- [x] Incomplete period warnings.
-- [x] Skeleton loading, stale/refreshing, empty, and failed states.
+- As an investor, I want to see portfolio value, cost, gain/loss, total profit,
+  and return, so that I can judge performance.
+- As an investor, I want value and cost over time, so that I can see how the
+  portfolio evolved.
+- As an investor, I want my allocation compared with targets, so that I can
+  rebalance.
+- As an investor, I want to drill into an account and its children, so that I
+  can find what is driving a result.
+- As an investor, I want performance split into attributed income, realised
+  gain, and unrealised gain, so that I understand where it came from.
+- As an investor, I want warnings for missing prices, costs, or performance
+  mappings, so that I know why a number is partial.
 
-### Cashflow
+## Accounts
 
-- [x] Free-text hledger query with draft/apply/clear behavior.
-- [x] Query help text and examples.
-- [x] Parser error display next to the input field.
-- [x] Period-by-period income and expense timeline.
-- [x] Monthly and yearly granularity.
-- [x] Separate Income category breakdown with depth controls.
-- [x] Separate Expense category breakdown with depth controls.
-- [x] Income activity calendar (month and year views).
-- [x] Expense activity calendar.
-- [x] Calendar day to transaction detail drill-down.
-- [x] Filtered count display.
-- [x] Conversion-unavailable and empty states.
+- As a ledger owner, I want a hierarchy of accounts with balances, so that I can
+  browse my chart of accounts.
+- As a ledger owner, I want direct and subtree balances, so that I can tell an
+  account apart from its descendants.
+- As a ledger owner, I want balances valued in a chosen commodity using dated
+  prices, so that figures are comparable.
+- As a ledger owner, I want to jump from an account to its register, so that I
+  can review its postings.
 
-### Investments
+## Account register
 
-- [x] Portfolio KPI cards: market value, purchase cost, gain/loss, total
-      profit.
-- [x] Performance chart (market value and purchase cost over time).
-- [x] Monthly and yearly granularity.
-- [x] Period selection with synchronized detail view.
-- [x] Account-prefix drilldown with breadcrumb navigation.
-- [x] Child holdings list with `hasChildren` affordance.
-- [x] Performance breakdown: attributed income, realised gain, unrealised gain.
-- [x] Completeness badges (complete/partial/unavailable).
-- [x] Structured warnings for missing prices, costs, and performance mappings.
-- [x] Skeleton loading, empty, and failed states.
+- As a ledger owner, I want the postings for an account and its descendants over
+  a date range, so that I can audit it.
+- As a ledger owner, I want the register grouped by month with a running
+  balance, so that I can follow it over time.
+- As a ledger owner, I want to load older entries, so that I can page through
+  history.
 
-### Accounts
+## Transactions
 
-- [x] Hierarchical account tree with expand/collapse.
-- [x] Account type labels and icons where inferred.
-- [x] Direct (exclusive) balances per account.
-- [x] Subtree (inclusive) balances per account.
-- [x] Display-commodity valuation with dated market prices.
-- [x] Valuation completeness status (complete/partial/unavailable).
-- [x] Optional commodity parameter for valuation projection.
-- [x] Navigation to account register.
-- [x] Wide list/detail and narrow layouts.
-- [x] Loading, stale/refreshing, empty, and failed states.
+- As a ledger owner, I want to browse all transactions, so that I can look up
+  any event.
+- As a ledger owner, I want to filter with hledger query syntax, so that I can
+  find exactly what I need.
+- As a ledger owner, I want to see every posting, commodity, cost, and tag, so
+  that nothing is hidden.
+- As a ledger owner, I want each transaction labelled with its effects, so that
+  I can understand what happened — income, expense, transfer, borrowing, an
+  asset acquisition, and so on.
+- As a ledger owner, I want to page through results, so that large journals stay
+  responsive.
 
-### Account Register
+## Settings
 
-- [x] Exact-account register with postings for the account and descendants.
-- [x] Date range filtering (from/to).
-- [x] Cursor-based pagination with Load More.
-- [x] Month-grouped register entries.
-- [x] Running balance per entry.
-- [x] Transaction detail expansion with full posting details.
-- [x] Display-commodity valuation per entry.
-- [x] Wide list/detail and narrow layouts.
-- [x] Loading, stale/refreshing, empty, and failed states.
+- As a ledger owner, I want to choose a light or dark theme, so that the
+  dashboard is comfortable to read.
 
-### Transactions
+## System and operations
 
-- [x] Free-text hledger query with draft/apply/clear behavior.
-- [x] Query help text and examples.
-- [x] Parser error display next to the input field.
-- [x] Cursor-based pagination with bounded page window (5 pages).
-- [x] Month-grouped transaction rows with posting previews.
-- [x] Full transaction detail with every posting, commodity, and cost.
-- [x] Transaction classification labels (income, expense, transfer,
-      opening_balance, borrowing, repayment, asset_acquisition,
-      asset_disposal, asset_reallocation, unclassified).
-- [x] Wide list/detail and narrow replace-list-with-detail layouts.
-- [x] No-matches recovery with Clear action.
-- [x] Loading, success, empty, stale, refreshing, and failed states.
+- As an operator, I want the dashboard to refresh automatically when the journal
+  changes on disk, so that I always see current data.
+- As an operator, I want the app to keep serving the last good journal if a
+  reload fails, so that a broken edit does not take the site down.
+- As an operator, I want health endpoints, so that I can monitor the service.
+- As an operator, I want to install the app to my home screen and load its
+  shell offline, so that it feels like a native app.
 
-### Settings
+## Data freshness
 
-- [x] Light/dark theme toggle with immediate visual change.
-- [x] Theme persistence in browser localStorage.
-
-### System
-
-- [x] Health endpoints (`/health/live`, `/health/ready`).
-- [x] Bootstrap endpoint returning API version, app name, fiscal year start
-      month, and response metadata.
-- [x] Response metadata on every response: journal revision, freshness,
-      warnings.
-- [x] Journal reload via SIGHUP with atomic snapshot replacement.
-- [x] Last successful snapshot retained on reload failure.
-
-### PWA
-
-- [x] Service worker with app-shell caching of static assets.
-- [x] SPA fallback for navigation routes.
-- [x] `/api/*` bypass (never cached by service worker).
-- [x] Standalone display mode with Hedger identity.
-- [x] Responsive phone and desktop layouts.
-- [x] Bottom navigation bar on phone, sidebar on desktop.
-
-## Data Freshness States
-
-Every screen handles these states:
+Every screen distinguishes the same states:
 
 | State | Meaning |
 |-------|---------|
 | Fresh | Data is from the current journal revision. |
 | Refreshing | Data is from a previous revision; a refresh is in progress. |
-| Stale | Data is from a previous revision; no refresh in progress. |
-| Partial | Some categories could not be converted to the display commodity. |
+| Stale | Data is from a previous revision; no refresh is in progress. |
+| Partial | Some amounts could not be converted to the display commodity. |
 | Unavailable | No data could be converted; charts are hidden. |
-| Failed | Request failed; error message shown. |
-| Empty | Successful fetch returned no data. |
+| Empty | A successful fetch returned no data. |
+| Failed | The request failed; an error is shown. |
 
-The frontend preserves stale content during refresh instead of replacing it
-with a loading spinner.
+The frontend keeps stale content visible during a refresh instead of replacing
+it with a loading spinner.
 
-## Query System
+## Roadmap
 
-Transactions and Cashflow share the same hledger query parser:
+Hedger needs no feature beyond these at present.
 
-- Free-text input with hledger query-language syntax.
-- Account, description, payee, note, code, date, status, commodity, amount,
-  tag, negation, and boolean expressions.
-- `expr:`, `any:`, and `all:` semantics.
-- Query text capped at 2048 characters.
-- Unsupported options (`inacct:`, `inacctonly:`, `interval:`) are rejected
-  with stable validation errors.
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Authentication | Planned | Access control is currently delegated to the reverse proxy and deployment. |
+| Automatic journal reload via file watcher | Done | `fsnotify` watches the root journal and its includes, debounced; SIGHUP also reloads. |
+| Live updates over Server-Sent Events | Done | `/api/v1/events` streams revision changes and connected clients refresh automatically. |
+| Response caching for large journals | Planned | Tracked in issue [#17](https://github.com/nixypanda/hedger/issues/17); needed to keep very large journals interactive. |
 
-## Investment Performance Model
+## Out of scope
 
-Investment calculations support:
-
-- Market value from dated period-end prices.
-- Purchase cost with transfer-preserved basis.
-- Unit and total cost handling.
-- Gain/loss decomposition: attributed income, realised gain, unrealised gain.
-- Return percentage only for positive, complete cost basis.
-- Account-prefix drilldown with breadcrumb navigation.
-- `investments.assetClasses` is the portfolio allowlist; configured account
-  prefixes and their descendants participate without requiring gain mappings.
-- Asset accounts omitted from `investments.assetClasses` are ignored.
-- Structured warnings for missing prices, missing costs, missing performance
-  mappings, and foreign costs.
-
-## Deferred Features (Release 1 Scope)
-
-These are explicitly out of scope for Release 1:
-
-- [ ] Ledger editing, transaction creation, or imports.
-- [ ] Multi-ledger selection or multi-tenancy.
-- [ ] Global search.
-- [ ] Recurring/forecast screens.
-- [ ] Generic report builders.
-- [ ] Dashboard/home projections beyond Net Worth as default.
-- [ ] Authentication (deployment concern at reverse proxy).
-- [ ] Server-side preferences or multi-device sync.
-- [ ] File watcher (fsnotify) for automatic reload.
-- [ ] ETags or `If-None-Match` for simple reads.
-- [ ] Server-Sent Events for push updates.
-- [ ] API response caching in the PWA.
-- [ ] Display-commodity selection in Settings.
-- [ ] Cash-account configuration modes in Settings.
-- [ ] Journal diagnostics and manual refresh in Settings.
-- [ ] Backend status display in Settings.
-- [ ] SQLite or any database.
-- [ ] Effect system or capability typeclasses.
+Hedger is a viewer, not a ledger editor. It intentionally does not edit or import
+transactions, serve multiple ledgers or tenants from one deployment, provide
+budgets, forecasting, or recurring-transaction screens, offer a generic report
+builder or global search, or sync preferences to a server.

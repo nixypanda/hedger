@@ -2,60 +2,72 @@
 
 ## Overview
 
-The backend is a Haskell service built with Servant, Warp, and hledger-lib.
-The code is organized by architectural layer:
+The backend is a Haskell service built with Servant, Warp, and hledger-lib. It
+reads an hledger journal into an immutable in-memory snapshot, reloads it
+automatically when the files change, and serves JSON under `/api/v1`. It never
+writes to the journal.
 
 ```text
 backend/src/Hedger/
   Config.hs                  # CLI + YAML configuration
   Domain/
     Account.hs               # account tree, balances, valuation
-    Transaction.hs           # transaction classification and presentation
-    Investment.hs            # investment account mappings
-    InvestmentPerformance.hs # cost basis, return calculation
-    NetWorth.hs              # balance-sheet stock and return decomposition
+    Activity.hs              # kind-specific activity reports
+    ActivityEvent.hs         # typed movements (asset, liability, income, expense)
     Cashflow.hs              # income/expense period reports
-    Activity.hs              # quantified transaction classification
-    Valuation.hs             # display-commodity projection, warnings
+    Error.hs                 # domain error types
+    Investment.hs            # investment and asset-class mappings
+    InvestmentPerformance.hs # cost basis, return, gain attribution
+    NetWorth.hs              # balance-sheet stock and return decomposition
     Period.hs                # granularity and period math
     Snapshot.hs              # the immutable snapshot record
-    Error.hs                 # domain error types
+    Transaction.hs           # transaction classification and presentation
+    Valuation.hs             # display-commodity projection, warnings
+    Xirr.hs                  # XIRR solver
     Internal/
-      PeriodReport.hs        # period report internals
       Account.hs             # account tree internals
+      Cashflow.hs            # cashflow report internals
       InvestmentPerformance.hs
+      NetWorth.hs
+      PeriodReport.hs
+      Transaction.hs
   Application/
     AppM.hs                  # ReaderT Env (ExceptT AppError IO)
-    Analytics.hs             # net-worth/cashflow/activity facade
-    Investments.hs           # investment query orchestration
-    Transactions.hs          # transaction listing
-    TransactionQuery.hs      # hledger query parsing and pagination
-    Accounts.hs              # account tree and register
     AccountRegisterQuery.hs  # register query logic
+    Accounts.hs              # account tree and register
+    Analytics.hs             # net-worth/cashflow/activity facade
+    Common.hs                # shared application helpers, metadata
+    Events.hs                # revision subscription for SSE
+    Investments.hs           # investment query orchestration
+    PageRequest.hs           # shared pagination/date-range parsing
     System.hs                # health, bootstrap, status
-    Common.hs                # shared application helpers
+    TransactionQuery.hs      # hledger query parsing and pagination
+    Transactions.hs          # transaction listing
     Internal/
       Cursor.hs              # cursor encoding/decoding
   Interface/
     HTTP/
       API.hs                 # combined Servant type
-      Accounts.hs            # account endpoints
-      Transactions.hs        # transaction endpoints
-      Analytics.hs           # analytics endpoints
-      Investments.hs         # investment endpoints
-      System.hs              # system endpoints
-      Common.hs              # shared DTOs, ResponseMetadata
-      Errors.hs              # error envelope
-      Middleware.hs          # request context, error normalization
+      Core/
+        Common.hs            # shared DTOs, ResponseMetadata, parsing helpers
+        Errors.hs            # error envelope
+        Middleware.hs        # request context, error normalization
+      Endpoints/
+        Accounts.hs
+        Analytics.hs
+        Events.hs            # Server-Sent Events
+        Investments.hs
+        System.hs
+        Transactions.hs
   Infrastructure/
-    SnapshotStore.hs         # journal loading, IORef snapshot publication
+    JournalWatcher.hs        # fsnotify-based automatic reload
+    SnapshotStore.hs         # journal loading, STM snapshot publication
   Runtime/
-    Server.hs                # Warp server, signal handlers, middleware
+    Server.hs                # public re-export
+    Internal/Server.hs       # Warp server, signal handlers, middleware
 ```
 
-## DDD Layering
-
-The backend follows a functional-core / imperative-shell design:
+## Layering
 
 ```text
 Interface.HTTP -> Application -> Domain
@@ -63,36 +75,34 @@ Runtime -> Application
 Infrastructure -> Domain (snapshot boundary only)
 ```
 
-The Domain layer has no `AppM` dependency. It operates on plain `Snapshot`
+The Domain layer has no `AppM` dependency and operates on plain `Snapshot`
 values. The Application layer threads `AppM` for snapshot access and
 configuration. The Interface layer translates HTTP to application calls.
 Infrastructure handles I/O.
 
-## The AppM Monad Stack
+## The AppM monad stack
 
 ```haskell
 type AppM = ReaderT Env (ExceptT AppError IO)
 
 data Env = Env
-    { config     :: Config
-    , store      :: SnapshotStore
+    { config        :: Config
+    , snapshotStore :: SnapshotStore
     }
-
-data AppError
-    = BadRequest Text
-    | NotFound Text
-    | ServerError Text
-    | ...
 ```
 
-`Env` carries the parsed configuration and the snapshot store. Handlers run
-in `AppM` via `Interface.HTTP.Common.runAction`, which converts `AppError`
-into the JSON error envelope.
+`requireSnapshot` reads the store and returns a `SnapshotContext` carrying the
+snapshot and its freshness (`Fresh` or `Stale error`). Handlers run in `AppM`
+via `Interface.HTTP.Core.Common.runAction`, which converts `AppError` into the
+JSON error envelope. `runAppM` catches synchronous exceptions and maps them to
+`InternalError`, rethrowing asynchronous exceptions.
 
 ## Configuration
 
 Configuration is parsed once at startup from CLI flags and an optional YAML
-file. CLI flags override YAML values.
+file. CLI flags override YAML values. Types are parsed into valid values at the
+boundary: the port becomes `Port` (1–65535) and the fiscal-year start becomes a
+`MonthOfYear` (1–12).
 
 ### YAML format
 
@@ -130,40 +140,43 @@ investments:
 
 ### Defaults
 
-| Field                    | CLI flag                | YAML path                     | Default   |
-|--------------------------|-------------------------|-------------------------------|-----------|
-| `journalPath`            | `--journal PATH`        | `journal.path`                | required  |
-| `listenAddress`          | `--listen-address ADDR` | `server.listenAddress`        | `127.0.0.1` |
-| `listenPort`             | `--port PORT`           | `server.port`                 | `8080`    |
-| `defaultDisplayCommodity`| `--display-commodity C` | `display.commodity`           | `INR`     |
-| `fiscalYearStartMonth`   | `--fiscal-year-start M` | `display.fiscalYearStartMonth`| `4`       |
-| `investmentMappings`     | (none)                  | `investments.gainMappings`    | empty     |
-| `assetClassMappings`     | (none)                  | `investments.assetClasses`    | empty portfolio |
+| Field                     | CLI flag                | YAML path                      | Default    |
+|---------------------------|-------------------------|--------------------------------|------------|
+| `journalPath`             | `--journal PATH`        | `journal.path`                 | required   |
+| `listenAddress`           | `--listen-address ADDR` | `server.listenAddress`         | `127.0.0.1`|
+| `listenPort`              | `--port PORT`           | `server.port`                  | `8080`     |
+| `defaultDisplayCommodity` | `--display-commodity C` | `display.commodity`            | `INR`      |
+| `fiscalYearStartMonth`    | `--fiscal-year-start M` | `display.fiscalYearStartMonth` | `4`        |
+| `investmentMappings`      | (none)                  | `investments.gainMappings`     | empty      |
+| `assetClassMappings`      | (none)                  | `investments.assetClasses`     | empty      |
+
+`--config PATH` selects the YAML file.
 
 ### Validation
 
 - Journal path must be non-blank.
-- Listen address and display commodity must be non-blank, non-space tokens.
+- Listen address and display commodity must be non-blank, whitespace-free
+  tokens.
 - Port must be 1..65535.
-- Fiscal year start month must be 1..12.
+- Fiscal-year start month must be 1..12.
 - An empty `gainAccounts` list explicitly gives an asset account no gain
-  accounts. Because the most specific asset-account mapping wins, this can opt
-  a child account out of a broader parent mapping.
+  accounts. Because the most specific asset-account mapping wins, this can opt a
+  child account out of a broader parent mapping.
 - Asset-class mappings use `equity`, `debt`, `cash`, `gold`, `hybrid`,
   `property`, or `other`.
 - Asset-class account prefixes form the Investments portfolio allowlist.
   Configured prefixes include all descendants; omitted asset accounts do not
-  contribute to investment holdings, performance, allocation, or drilldown.
-  An empty list therefore produces an empty Investments view.
+  contribute to holdings, performance, allocation, or drill-down. An empty list
+  produces an empty Investments view.
 - Every asset-class mapping requires a qualified `assets:` account prefix.
   Duplicate and component-prefix-overlapping mappings are rejected.
-- `targetPercent` is optional. When any asset-class targets are configured,
-  their percentages must each be between 0 and 100 and must total 100.
+- `targetPercent` is optional. When any targets are configured, each must be
+  between 0 and 100 and they must total 100.
 
-## Domain Modules
+## Domain modules
 
-The domain layer uses hledger types directly. There is no anti-corruption
-layer — hledger *is* the domain vocabulary.
+The domain layer uses hledger types directly. There is no anti-corruption layer —
+hledger *is* the domain vocabulary.
 
 - `Snapshot` — the immutable record containing the journal, transaction list,
   account tree, latest journal date, and revision.
@@ -172,53 +185,106 @@ layer — hledger *is* the domain vocabulary.
 - `Transaction` — transaction classification (`income`, `expense`, `transfer`,
   `opening_balance`, `borrowing`, `repayment`, `asset_acquisition`,
   `asset_disposal`, `asset_reallocation`, `unclassified`) and presentation.
-- `Investment` — investment account mappings from configuration.
-- `InvestmentPerformance` — cost basis calculation, return percentage, gain
-  attribution (attributed income, realised gain, unrealised gain).
+- `Investment` — investment and asset-class mappings parsed from configuration.
+- `InvestmentPerformance` — cost basis, return percentage, gain attribution
+  (attributed income, realised gain, unrealised gain).
 - `NetWorth` — period-by-period net worth, assets, liabilities, KPI
-  comparisons, trend points, performance decomposition.
+  comparisons, trend points, and performance decomposition.
 - `Cashflow` — income/expense period reports with category breakdowns.
-- `Activity` and `ActivityEvent` — posting-level effects and quantified
-  calendars for income, expense, asset, and liability categories. A transaction
-  can contribute to multiple views; the domain returns kind-specific buckets.
+- `Activity` and `ActivityEvent` — posting-level movements and quantified
+  calendars (see below).
 - `Valuation` — display-commodity conversion using dated market prices. Missing
-  prices produce `Conversion` with `value = Nothing` and populated `missing`
-  set, plus `ConversionWarning`.
-- `Period` — granularity (monthly/yearly), period window math, fiscal year
-  support.
+  prices produce a `Conversion` with `value = Nothing` and a populated `missing`
+  set, plus a `ConversionWarning`.
+- `Period` — granularity (monthly/yearly), period-window math, fiscal years.
+- `Xirr` — the XIRR solver over dated cash flows.
 - `Error` — domain error types.
 
-## Application Modules
+### Activity model
+
+Activity is a set of four projections over posting-level effects. A transaction
+can contribute to several views; each view has its own typed payload.
+
+| View | Movement | Meaning |
+|------|----------|---------|
+| Assets | `Acquired` | A non-cash asset increased. |
+| Assets | `Disposed` | A non-cash asset decreased. |
+| Assets | `Transferred` | Value moved between asset accounts; counted once, with source and destination. |
+| Liabilities | `Borrowed` | Debt increased. |
+| Liabilities | `Repaid` | Debt decreased through repayment. |
+| Liabilities | `Refinanced` | One debt replaced another; linked legs, not an additive third total. |
+| Liabilities | `Forgiven` | Debt decreased without repayment. |
+| Liabilities | `BorrowingReversed` | A borrowing was corrected or reversed. |
+| Income | `Posted` / `Reversed` | Income recognised / corrected. |
+| Expense | `Posted` / `Reversed` | Expense recognised / corrected (for example a refund). |
+
+Opening balances, equity-only movements, valuation changes without postings, and
+unrecognised or ambiguous transactions are outside Activity; they remain visible
+through balance, performance, or transaction views. Unknown movements are not
+silently labelled transfers. Income and expense retain posted and reversed legs
+separately rather than netting them before projection.
+
+## Application modules
 
 Thin use cases in `AppM`. No ledger calculations live here.
 
-- `Analytics` — facade that bundles net-worth, cashflow, and activity report
-  endpoints. Resolves request inputs, reads the snapshot, calls the domain,
-  attaches `ResponseMetadata`.
-- `Investments` — investment query orchestration with account-prefix
-  drilldown.
+- `Analytics` — a facade that bundles the net-worth, cashflow, and activity
+  report endpoints. It resolves request inputs, reads the snapshot, calls the
+  domain, and attaches `SnapshotMetadata`.
+- `Investments` — investment query orchestration with account-prefix drill-down.
 - `Transactions` / `TransactionQuery` — hledger query parsing, cursor
-  pagination, transaction page construction. Rejects unsupported query options
-  (`inacct:`, `inacctonly:`, `interval:`). Caps query length at 2048 chars.
-- `Accounts` / `AccountRegisterQuery` — account tree construction and
-  register query with date range filtering.
-- `System` — health probes and bootstrap response.
-- `Internal.Cursor` — cursor encoding (revision + query fingerprint +
-  reference date + ordering string).
+  pagination, and transaction-page construction. Unsupported query options
+  (`inacct:`, `inacctonly:`, `interval:`) are rejected; query text is capped at
+  2048 characters.
+- `Accounts` / `AccountRegisterQuery` — account-tree construction and register
+  query with date-range filtering.
+- `PageRequest` — shared pagination limits and date-range parsing.
+- `Events` — `subscribeToRevisions` / `awaitNextRevision`, wrapping the store's
+  revision waiter for the SSE endpoint.
+- `System` — health probes and the bootstrap response.
+- `Internal.Cursor` — cursor encoding (revision + query fingerprint + reference
+  date + ordering string).
 
 ## Infrastructure
 
-- `SnapshotStore` — IORef-based mutable snapshot container.
-  - `loadSnapshot` — reads journal via hledger-lib, builds `Snapshot`.
-  - `reloadSnapshot` — atomically publishes new snapshot, retains last
-    successful on failure, exposes `readLastReloadError`.
-  - `readCurrentSnapshot` — returns the current snapshot.
-  - MD5-based `JournalRevision` from effective source content.
+### SnapshotStore
 
-There is no STM, no fsnotify file watcher, and no supervised reload worker.
-Reloading is triggered by SIGHUP (`Runtime.Server` installs a signal handler).
+- State lives in one STM `TVar`:
+  `NotLoaded | LoadFailed error | Fresh snapshot | Stale snapshot error`.
+- `loadSnapshot` reads the journal via hledger-lib and builds a `Snapshot`.
+- `reloadSnapshot` atomically publishes the result; on failure it transitions to
+  `Stale` and retains the last successful snapshot.
+- `readCurrentSnapshot`, `readLastReloadError`, and `readSnapshotStore` expose
+  state; `currentRevision` and `awaitRevisionChange` expose the revision for the
+  SSE stream.
+- `JournalRevision` is an MD5 over effective source content.
 
-## HTTP Routes
+### JournalWatcher
+
+The watcher listens for filesystem events (`fsnotify`: FSEvents on macOS,
+inotify on Linux) on every file that made up the current snapshot — the root
+journal plus any `include`s — and asks the store to reload when one changes. It
+is event-driven, so an idle server does no work.
+
+- `fsnotify` watches directories, not files, so each distinct parent directory is
+  watched and events are filtered down to the exact journal-file set.
+- A save that emits several events is coalesced by a 100 ms debounce.
+- After every reload the watch set is re-derived from the fresh snapshot, so new
+  includes start being watched and removed ones stop.
+- `guardReloaderStep` logs synchronous exceptions and keeps the reloader loop
+  alive while letting asynchronous exceptions (such as `ThreadKilled`) through.
+
+## Runtime
+
+`Runtime.Internal.Server`:
+
+- Creates the `SnapshotStore` and performs an initial `reloadSnapshot`.
+- Installs a `SIGHUP` handler that reloads the store.
+- Configures Warp (host, port, graceful-shutdown timeout, `SIGTERM` shutdown
+  handler).
+- Runs the server inside `withJournalWatcher`, which owns the watcher thread.
+
+## HTTP routes
 
 All routes are under `/api/v1`. Every request optionally carries an
 `X-Request-ID` header.
@@ -241,8 +307,8 @@ GET /api/v1/accounts/{account}/register?commodity=&from=&to=&limit=&cursor=
     -> AccountRegisterResponse { metadata, displayCommodity, entries, nextCursor }
 ```
 
-`account` is a URL-captured account path (percent-encoded). The register
-returns postings for the account and all its descendants.
+`account` is a URL-captured, percent-encoded account path. The register returns
+postings for the account and all its descendants.
 
 ### Transactions
 
@@ -251,11 +317,11 @@ GET /api/v1/transactions?query=&limit=&cursor=
     -> TransactionsResponse { metadata, transactions, nextCursor }
 ```
 
-- `query` is an hledger query-language text value. Absent or empty matches all.
+- `query` is an hledger query-language text value; absent or empty matches all.
 - `limit` defaults to 50, min 1, max 200.
 - `cursor` is an opaque continuation token.
-- Query text capped at 2048 characters.
-- Complete transaction DTOs with every posting in every page.
+- Query text is capped at 2048 characters.
+- Every page contains complete transaction DTOs with all postings.
 
 ### Analytics
 
@@ -265,18 +331,20 @@ POST /api/v1/cashflow/query    -> CashflowResponse
 POST /api/v1/activity/query    -> ActivityResponse
 ```
 
-Request bodies are JSON. See [api-decisions.md](api-decisions.md) for field
-details.
+Request bodies are JSON. Net worth and cashflow share an
+`AnalyticsRequestDto` (`query`, `granularity`, `displayCommodity`,
+`positivePeriod`, `negativePeriod`, `positiveDepth`, `negativeDepth`). Activity
+uses `ActivityRequestDto` (`kind`, `range`, `period`, `query`,
+`displayCommodity`, `depth`).
 
-The Activity response retains the legacy `total`, `increase`, `decrease`,
-`reallocated`, `categories`, and `directions` fields while the Elm frontend is
-being migrated. Buckets additionally expose `events` with explicit movement
-names and linked source/destination amounts, flow `posted`/`reversed` totals,
-and debt `borrowed`/`repaid`/`forgiven`/`borrowingReversed` totals. `warnings`
-includes conversion gaps and unpaired or unsupported movements. Transaction
-presentation also exposes an additive `effects` list alongside the legacy
-single `classification` label. All four Activity kinds apply the supplied
-transaction query.
+The Activity response selects its bucket shape by the requested `kind` and
+carries typed `events` (the movements listed under "Activity model"). It also
+retains the earlier additive `total`, `increase`, `decrease`, `reallocated`,
+`borrowed`, `repaid`, `forgiven`, `borrowingReversed`, `posted`, `reversed`,
+`categories`, and `directions` fields. Warnings include conversion gaps and
+unpaired or unsupported movements. All four kinds apply the supplied transaction
+query. Transaction presentation exposes an additive `effects` list alongside the
+legacy single `classification` label.
 
 ### Investments
 
@@ -284,11 +352,21 @@ transaction query.
 POST /api/v1/investments/query -> InvestmentsResponse
 ```
 
-Supports account-prefix drilldown, monthly/yearly granularity, and breadcrumb
+Supports account-prefix drill-down, monthly/yearly granularity, and breadcrumb
 navigation within the account prefixes configured under
 `investments.assetClasses`.
 
-## Error Shape
+### Events
+
+```text
+GET /api/v1/events -> text/event-stream
+```
+
+A Server-Sent Events stream. It emits a `revision` event when the journal
+revision changes and a heartbeat comment every 15 seconds otherwise. See
+[architecture.md](architecture.md) for the client side.
+
+## Error shape
 
 HTTP errors use a nested envelope:
 
@@ -309,6 +387,19 @@ HTTP errors use a nested envelope:
 The `requestId` is generated per request and included in the envelope. The
 `query` parameter is never echoed in error responses.
 
+## Known open issues
+
+- **Lazy exceptions can escape the error envelope.** `runAppM` forces only weak
+  head normal form around `evaluate`, so an exception thrown later during JSON
+  serialization can bypass the `InternalError` envelope.
+- **Performance-account roles are not configurable.** Every account in a YAML
+  `gainAccounts` list is treated as `OtherIncome`, so the domain's interest,
+  dividend, realised-gain, and fee roles cannot be selected from configuration.
+- **`gainLoss` versus `purchaseCost` identity is unresolved.** `gainLoss` uses
+  the unadjusted reported cost while `purchaseCost` subtracts retained
+  performance, so `gainLoss` is not generally `marketValue - purchaseCost`. The
+  intended semantic should be named explicitly or reconciled.
+
 ## Testing
 
 Tests use `tasty`, `tasty-hedgehog`, `tasty-hunit`, and `hedgehog`.
@@ -317,29 +408,34 @@ Tests use `tasty`, `tasty-hedgehog`, `tasty-hunit`, and `hedgehog`.
 backend/test/
   Hedger/
     ConfigSpec.hs
+    Generators.hs
+    SyntheticTransactions.hs
+    TestHelpers.hs
     Domain/
       AccountSpec.hs
-      TransactionSpec.hs
-      InvestmentPerformanceSpec.hs
-      NetWorthSpec.hs
-      CashflowSpec.hs
       ActivitySpec.hs
-      ValuationSpec.hs
+      CashflowSpec.hs
+      InvestmentPerformanceSpec.hs
+      InvestmentSpec.hs
+      NetWorthSpec.hs
       PeriodSpec.hs
+      TransactionSpec.hs
+      ValuationSpec.hs
+      XirrSpec.hs
     Application/
+      AppMSpec.hs
+      EventsSpec.hs
       TransactionQuerySpec.hs
-      AccountRegisterQuerySpec.hs
-      AnalyticsSpec.hs
-      InvestmentsSpec.hs
+      Internal/CursorSpec.hs
     Infrastructure/
+      JournalWatcherSpec.hs
       SnapshotStoreSpec.hs
     Interface/HTTP/
-      AccountsSpec.hs
-      TransactionsSpec.hs
-      AnalyticsSpec.hs
-      InvestmentsSpec.hs
-      SystemSpec.hs
-    Generator.hs              # Hedgehog generators for domain types
+      APISpec.hs
+      Core/CommonSpec.hs
+      Endpoints/EventsSpec.hs
+    Runtime/
+      ServerSpec.hs
 ```
 
 Run tests:
@@ -350,49 +446,27 @@ just test-backend
 cd backend && cabal test --offline all
 ```
 
-### Property tests
+Hedgehog properties cover account traversal and balance aggregation,
+transaction classification, cursor round-trips, period-report generation, and
+investment performance with generated transactions.
 
-Hedgehog properties cover:
-
-- Account tree traversal and balance aggregation.
-- Transaction classification correctness.
-- Cursor round-trip (encode/decode preserves semantics).
-- Period report generation with generated inputs.
-- Investment performance calculation with generated transactions.
-
-### Fixtures
-
-Shared fixture journals live in `backend/test/fixtures/`:
-
-- `shared.journal` — 13 transactions, 27 postings, multiple commodities,
-  dated prices, unit/total costs, parent/child accounts.
-- `investments.journal`, `investment-descendant.journal`,
-  `investment-foreign-cash.journal` — investment-specific fixtures.
-- `malformed.journal` — for error handling tests.
+Shared fixtures live in `backend/test/fixtures/` and include `shared.journal`
+(multiple commodities, dated prices, unit/total costs, parent/child accounts),
+investment and activity fixtures, boundary fixtures (future prices, gapped
+prices, ambiguous XIRR), and `malformed.journal` for error handling.
 
 ## Benchmarks
 
-Benchmarks use `tasty-bench` in `backend/benchmark/Main.hs`.
+Performance-sensitive operations are benchmarked with `tasty-bench` in
+`backend/benchmark/Main.hs` (Cabal suite `snapshot-bench`). See
+[performance.md](performance.md) for the case list, methodology, results, and
+the approaches that were measured and rejected.
 
 ```bash
 cd backend && cabal bench all
 ```
 
-Benchmarked operations:
-
-- `snapshot/parse-shared-13` — journal parse time.
-- `query/shared-13` and `query/large-50000` — account and boolean query
-  matching with pagination.
-- `investments/shared-13` and `investments/large-50000` — investment
-  performance calculation.
-- `transactions/project/shared-13` and `project/scaled-1300` — DTO
-  projection.
-- `transactions/encode/shared-13` and `encode/scaled-1300` — JSON encoding.
-
-Large-journal benchmarks use a 50,000-transaction fixture at
-`examples/performance/india-us-portfolio-large-50000.journal`.
-
-## Naming Conventions
+## Naming conventions
 
 ### Type suffixes
 
@@ -402,8 +476,8 @@ Large-journal benchmarks use a 50,000-transaction fixture at
 
 ### Module organization
 
-- Domain modules are pure and total. No `IO`, no `AppM`.
+- Domain modules are pure and total: no `IO`, no `AppM`.
 - Application modules are thin orchestrators in `AppM`.
 - Interface modules handle HTTP translation only.
-- `Internal.*` modules contain implementation details re-exported by thin
-  public modules.
+- `Internal.*` modules contain implementation details re-exported by thin public
+  modules.
