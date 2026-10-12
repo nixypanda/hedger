@@ -6,6 +6,7 @@ description: Backend application for the Hedger read-only ledger UI.
 category: Finance
 maintainer: Hedger contributors
 license: AGPL-3.0-or-later
+license-file: ../LICENSE
 build-type: Simple
 
 common language-settings

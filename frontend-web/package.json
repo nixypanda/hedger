@@ -1,6 +1,7 @@
 {
   "name": "hedger-frontend-web",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "build": "vite build",

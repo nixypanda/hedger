@@ -58,3 +58,9 @@ light/dark themes, automatic journal reloads, and live frontend refresh.
 The [configuration example](hedger.example.yaml) shows every supported option.
 
 Agent and contributor instructions live in [AGENTS.md](AGENTS.md).
+
+## License
+
+Hedger is free software, licensed under the
+[GNU Affero General Public License v3.0 or later](LICENSE)
+(AGPL-3.0-or-later).
