@@ -22,7 +22,16 @@
         # Haddock outputs removes the recorded GHC/toolchain and documentation
         # references that otherwise bloat the deployed closure by gigabytes.
         pkgs.haskell.lib.justStaticExecutables (
-          pkgs.haskellPackages.callCabal2nix "hedger-backend" ./backend { }
+          pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callCabal2nix "hedger-backend" ./backend { })
+            (drv: {
+              # The .cabal file declares `license-file: ../LICENSE`, which points
+              # at the repository root. Only ./backend is copied into the build,
+              # so place the licence one directory above the package sources where
+              # Cabal's install phase expects to find it.
+              postUnpack = ''
+                cp ${./LICENSE} "$sourceRoot/../LICENSE"
+              '';
+            })
         );
       frontendFor =
         system:
