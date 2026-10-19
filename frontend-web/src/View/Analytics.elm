@@ -738,6 +738,11 @@ activityMonth theme config =
                 |> Maybe.map activityCategories
                 |> Maybe.withDefault []
 
+        maxTotal =
+            config.response
+                |> Maybe.map (.buckets >> maximumActivityTotal)
+                |> Maybe.withDefault 0
+
         calendar =
             MonthCalendar.view
                 { period = config.period
@@ -759,6 +764,7 @@ activityMonth theme config =
                                     == Just (dayKey config.period day)
                             , day = day
                             , maybeBucket = bucketFor day
+                            , maxTotal = maxTotal
                             , onSelect = config.onSelect
                             }
                 }
@@ -815,6 +821,7 @@ type alias DayCellConfig msg =
     , selected : Bool
     , day : Int
     , maybeBucket : Maybe ActivityBucket
+    , maxTotal : Float
     , onSelect : ActivityBucket -> msg
     }
 
@@ -852,6 +859,9 @@ dayCell config =
         maybeBucket =
             config.maybeBucket
 
+        maxTotal =
+            config.maxTotal
+
         onSelect =
             config.onSelect
 
@@ -880,7 +890,12 @@ dayCell config =
                                 [ Element.centerX
                                 , Typography.caption
                                 , Font.semiBold
-                                , Font.color (ringAccent theme tone bucket)
+                                , Font.color
+                                    (amountTextColor theme
+                                        (ringAccent theme tone bucket)
+                                        maxTotal
+                                        bucket.total
+                                    )
                                 , Typography.financeNumber
                                 ]
                                 (Element.text (money commodity bucket.total))
@@ -911,6 +926,49 @@ activityCategories response =
         |> List.foldl addCategoryTotal []
         |> List.sortBy (Tuple.first >> negate)
         |> List.map Tuple.second
+
+
+maximumActivityTotal : List ActivityBucket -> Float
+maximumActivityTotal buckets =
+    buckets
+        |> List.map (.total >> decimalFloat >> abs)
+        |> List.maximum
+        |> Maybe.withDefault 0
+
+
+amountTextColor : Theme -> Element.Color -> Float -> Decimal -> Element.Color
+amountTextColor theme strongColor maximum amount =
+    if maximum <= 0 then
+        theme.textMuted
+
+    else
+        let
+            ratio =
+                clamp 0 1 (abs (decimalFloat amount) / maximum)
+        in
+        blendColors theme.textMuted strongColor (sqrt ratio)
+
+
+blendColors : Element.Color -> Element.Color -> Float -> Element.Color
+blendColors start finish ratio =
+    let
+        from =
+            Element.toRgb start
+
+        to =
+            Element.toRgb finish
+
+        amount =
+            clamp 0 1 ratio
+
+        mix first second =
+            first + (second - first) * amount
+    in
+    Element.rgba
+        (mix from.red to.red)
+        (mix from.green to.green)
+        (mix from.blue to.blue)
+        (mix from.alpha to.alpha)
 
 
 addCategoryTotal : BreakdownItem -> List ( Float, BreakdownItem ) -> List ( Float, BreakdownItem )
@@ -1087,16 +1145,17 @@ activityMonthRing :
     -> List BreakdownItem
     -> Maybe Int
     -> Bool
+    -> Float
     -> ActivityBucket
     -> (ActivityBucket -> msg)
     -> Element msg
-activityMonthRing theme commodity tone display categories highlight selected bucket onSelect =
+activityMonthRing theme commodity tone display groups highlight selected maxTotal bucket onSelect =
     let
         isEmpty =
             isEmptyActivityBucket bucket
 
         segments =
-            activityRingSegments theme tone display categories highlight bucket
+            activityRingSegments theme tone display groups highlight bucket
 
         monthLabel =
             String.left 3 (periodName bucket.key)
@@ -1120,7 +1179,7 @@ activityMonthRing theme commodity tone display categories highlight selected buc
         , center =
             Chart.ringMonthCenter theme
                 monthLabel
-                (monthRingCenter theme tone commodity isEmpty bucket)
+                (monthRingCenter theme tone commodity isEmpty maxTotal bucket)
         }
 
 
@@ -1364,6 +1423,9 @@ activityYear theme config =
                     displayBuckets =
                         ActivityCalendar.yearBuckets response.kind response.period response.buckets
 
+                    maxTotal =
+                        maximumActivityTotal displayBuckets
+
                     slots =
                         displayBuckets
                             |> List.map Just
@@ -1400,6 +1462,7 @@ activityYear theme config =
                                                                 (Maybe.map .key selected
                                                                     == Just bucket.key
                                                                 )
+                                                                maxTotal
                                                                 bucket
                                                                 config.onSelect
                                                             )
@@ -1683,8 +1746,15 @@ presentDirections specs bucket =
             )
 
 
-monthRingCenter : Theme -> ActivityTone -> String -> Bool -> ActivityBucket -> List (Html msg)
-monthRingCenter theme tone commodity isEmpty bucket =
+monthRingCenter :
+    Theme
+    -> ActivityTone
+    -> String
+    -> Bool
+    -> Float
+    -> ActivityBucket
+    -> List (Html msg)
+monthRingCenter theme tone commodity isEmpty maxTotal bucket =
     case directionSpecsFor theme tone of
         Just specs ->
             case presentDirections specs bucket of
@@ -1692,7 +1762,7 @@ monthRingCenter theme tone commodity isEmpty bucket =
                     [ Chart.ringValueText theme.textMuted (money commodity bucket.total) ]
 
                 present ->
-                    List.map (directionValueText commodity) present
+                    List.map (directionValueText theme maxTotal commodity) present
 
         Nothing ->
             [ Chart.ringValueText
@@ -1700,15 +1770,20 @@ monthRingCenter theme tone commodity isEmpty bucket =
                     theme.textMuted
 
                  else
-                    ringAccent theme tone bucket
+                    amountTextColor theme
+                        (ringAccent theme tone bucket)
+                        maxTotal
+                        bucket.total
                 )
                 (money commodity bucket.total)
             ]
 
 
-directionValueText : String -> ( DirectionSpec, Decimal ) -> Html msg
-directionValueText commodity ( spec, amount ) =
-    Chart.ringValueText (scaleColor spec.scale 0) (money commodity amount)
+directionValueText : Theme -> Float -> String -> ( DirectionSpec, Decimal ) -> Html msg
+directionValueText theme maxTotal commodity ( spec, amount ) =
+    Chart.ringValueText
+        (amountTextColor theme (scaleColor spec.scale 0) maxTotal amount)
+        (money commodity amount)
 
 
 activityLegend :
