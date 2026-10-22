@@ -540,19 +540,13 @@ listPage :
     -> Model
     -> Element Msg
 listPage theme compact model =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Common.uiClass "page-scroll transactions-page"
-        ]
-        [ transactionsHeader theme
-        , Page.pageContainer
+    Page.scaffold theme
+        { header = transactionsHeaderConfig theme
+        , body =
             [ queryPanel theme compact model
             , remoteContent theme compact model
             ]
-        ]
+        }
 
 
 wideLayout :
@@ -600,15 +594,19 @@ wideLayout theme model response selected =
 transactionsHeader : Theme -> Element Msg
 transactionsHeader theme =
     Page.pageHeaderBand theme <|
-        Page.pageHeader theme
-            { leading = Nothing
-            , title = Typography.pageTitle theme "Transactions"
-            , subtitle = Just "Browse your ledger activity"
-            , actions =
-                [ Button.iconButton theme
-                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
-                ]
-            }
+        Page.pageHeader theme (transactionsHeaderConfig theme)
+
+
+transactionsHeaderConfig : Theme -> Page.Header Msg
+transactionsHeaderConfig theme =
+    { leading = Nothing
+    , title = Typography.pageTitle theme "Transactions"
+    , subtitle = Just "Browse your ledger activity"
+    , actions =
+        [ Button.iconButton theme
+            { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+        ]
+    }
 
 
 queryPanel : Theme -> Bool -> Model -> Element Msg
@@ -989,26 +987,23 @@ postingPreviewRow theme posting =
 
 detailPage : Theme -> Maybe Msg -> Transaction -> Element Msg
 detailPage theme onBack transaction =
-    Element.column
+    Element.el
         [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Common.uiClass "page-scroll transaction-detail-page"
         , Element.htmlAttribute (Html.Attributes.id "transaction-detail")
         ]
-        [ Page.pageHeaderBand theme <|
-            Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                [ case onBack of
-                    Just message ->
-                        Button.backButton theme { onPress = message }
-
-                    Nothing ->
-                        Element.none
-                , Typography.sectionTitle theme "Transaction Detail"
-                ]
-        , Page.pageContainer [ TransactionView.transactionDetail theme transaction ]
-        ]
+        (Page.scaffold theme
+            { header =
+                { leading =
+                    Maybe.map
+                        (\message -> Button.backButton theme { onPress = message })
+                        onBack
+                , title = Typography.sectionTitle theme "Transaction Detail"
+                , subtitle = Nothing
+                , actions = []
+                }
+            , body = [ TransactionView.transactionDetail theme transaction ]
+            }
+        )
 
 
 transactionsSkeleton : Theme -> Element Msg

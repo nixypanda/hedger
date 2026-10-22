@@ -1,7 +1,6 @@
 module Page.Settings exposing (Model, Msg(..), OutMsg(..), init, update, view)
 
 import Element exposing (Element)
-import Ui.Common as Common
 import Ui.Env exposing (Env)
 import Ui.Input
 import Ui.Page as Page
@@ -55,21 +54,15 @@ view env model =
         theme =
             env.theme
     in
-    Element.column
-        [ Element.width Element.fill
-        , Common.uiClass "page-scroll"
-        ]
-        [ Page.pageHeaderBand theme <|
-            Page.pageHeader theme
-                { leading = Nothing
-                , title = Typography.pageTitle theme "Settings"
-                , subtitle = Nothing
-                , actions = []
-                }
-        , Page.pageContainer
-            [ appearanceSection theme model
-            ]
-        ]
+    Page.scaffold theme
+        { header =
+            { leading = Nothing
+            , title = Typography.pageTitle theme "Settings"
+            , subtitle = Nothing
+            , actions = []
+            }
+        , body = [ appearanceSection theme model ]
+        }
 
 
 appearanceSection : Theme -> Model -> Element Msg

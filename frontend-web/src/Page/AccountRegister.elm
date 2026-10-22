@@ -770,19 +770,14 @@ fullDisplayValue commodity value =
 
 detailPage : Theme -> Msg -> String -> Entry -> Element Msg
 detailPage theme onClose commodity entry =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Element.scrollbarY
-        , Background.color theme.pageBg
-        , Common.uiClass "page-scroll register-detail-page"
-        ]
-        [ Page.pageHeaderBand theme <|
-            Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                [ Button.backButton theme { onPress = onClose }
-                , Typography.sectionTitle theme "Details"
-                ]
-        , Page.pageContainer
+    Page.scaffold theme
+        { header =
+            { leading = Just (Button.backButton theme { onPress = onClose })
+            , title = Typography.sectionTitle theme "Details"
+            , subtitle = Nothing
+            , actions = []
+            }
+        , body =
             [ Surface.card theme
                 [ Typography.sectionTitle theme entry.description
                 , Element.text (Date.toString entry.date ++ " · " ++ entry.account)
@@ -792,7 +787,7 @@ detailPage theme onClose commodity entry =
                 , valueDetails theme commodity "Balance" entry.balance
                 ]
             ]
-        ]
+        }
 
 
 valueDetails : Theme -> String -> String -> Value -> Element msg

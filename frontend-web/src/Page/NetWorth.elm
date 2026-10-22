@@ -5,13 +5,11 @@ import Api.Error as ApiError exposing (ApiError)
 import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
-import Element.Background as Background
 import Element.Font as Font
 import Page.Shared.Analysis as Analysis
 import RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
 import Ui.Chip as Chip
-import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
@@ -251,25 +249,19 @@ view env (Model data) =
 
 transactionView : Theme -> Transaction -> Element Msg
 transactionView theme transaction =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        ]
-        [ Page.pageHeaderBand theme <|
-            Page.pageHeader theme
-                { leading =
-                    Just
-                        (Button.backButton theme
-                            { onPress = AnalysisMsg Analysis.Back }
-                        )
-                , title = Typography.pageTitle theme "Transaction Detail"
-                , subtitle = Nothing
-                , actions = []
-                }
-        , Page.pageContainer [ TransactionView.transactionDetail theme transaction ]
-        ]
+    Page.scaffold theme
+        { header =
+            { leading =
+                Just
+                    (Button.backButton theme
+                        { onPress = AnalysisMsg Analysis.Back }
+                    )
+            , title = Typography.pageTitle theme "Transaction Detail"
+            , subtitle = Nothing
+            , actions = []
+            }
+        , body = [ TransactionView.transactionDetail theme transaction ]
+        }
 
 
 dashboard : Env -> ModelData -> Element Msg
@@ -278,27 +270,19 @@ dashboard env data =
         theme =
             env.theme
     in
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Common.uiClass "page-scroll analytics-page"
-        ]
-        [ Page.pageHeaderBand theme <|
-            Page.pageHeader theme
-                { leading = Nothing
-                , title = Typography.pageTitle theme "Net Worth"
-                , subtitle = Just "Assets, liabilities, performance, and activity"
-                , actions =
-                    [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                    , Button.iconButton theme
-                        { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
-                    ]
-                }
-        , Page.pageContainer
-            (dashboardContent env data)
-        ]
+    Page.scaffold theme
+        { header =
+            { leading = Nothing
+            , title = Typography.pageTitle theme "Net Worth"
+            , subtitle = Just "Assets, liabilities, performance, and activity"
+            , actions =
+                [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
+                , Button.iconButton theme
+                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                ]
+            }
+        , body = dashboardContent env data
+        }
 
 
 dashboardContent : Env -> ModelData -> List (Element Msg)

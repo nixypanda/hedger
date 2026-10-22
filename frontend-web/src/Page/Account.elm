@@ -281,20 +281,15 @@ view env (Model model) =
             env.viewport
 
         page =
-            Element.column
-                [ Element.width Element.fill
-                , Element.spacing Tokens.space16
-                , Common.uiClass "page-scroll"
-                ]
-                [ Page.pageHeaderBand theme <|
-                    Page.pageHeader theme
-                        { leading = Nothing
-                        , title = Typography.pageTitle theme "Accounts"
-                        , subtitle = Nothing
-                        , actions = []
-                        }
-                , Page.pageContainer [ content theme model ]
-                ]
+            Page.scaffold theme
+                { header =
+                    { leading = Nothing
+                    , title = Typography.pageTitle theme "Accounts"
+                    , subtitle = Nothing
+                    , actions = []
+                    }
+                , body = [ content theme model ]
+                }
 
         wideSelected =
             Viewport.usesMasterDetail viewport && detailAccount model.detail /= Nothing
@@ -596,46 +591,31 @@ valueView env path (Model model) =
             detailForPath theme path response
 
         _ ->
-            Element.column
-                [ Element.width Element.fill
-                , Element.height Element.fill
-                , Background.color theme.pageBg
-                , Element.scrollbarY
-                , Common.uiClass "page-scroll account-detail-page"
-                ]
-                [ Page.pageHeaderBand theme <|
-                    accountDetailHeader theme (Just BackToAccounts)
-                , Page.pageContainer
+            Page.scaffold theme
+                { header = accountDetailHeader theme (Just BackToAccounts)
+                , body =
                     [ Surface.card theme [ Feedback.loading theme "Loading account value…" ] ]
-                ]
+                }
 
 
 accountDetailPage : Theme -> Maybe Msg -> AccountNode -> Element Msg
 accountDetailPage theme onBack account =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Common.uiClass "page-scroll account-detail-page"
-        ]
-        [ Page.pageHeaderBand theme <|
-            accountDetailHeader theme onBack
-        , Page.pageContainer [ Surface.card theme (valuePanel theme account) ]
-        ]
+    Page.scaffold theme
+        { header = accountDetailHeader theme onBack
+        , body = [ Surface.card theme (valuePanel theme account) ]
+        }
 
 
-accountDetailHeader : Theme -> Maybe Msg -> Element Msg
+accountDetailHeader : Theme -> Maybe Msg -> Page.Header Msg
 accountDetailHeader theme onBack =
-    Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-        [ case onBack of
-            Just message ->
-                Button.backButton theme { onPress = message }
-
-            Nothing ->
-                Element.none
-        , Typography.sectionTitle theme "Account Detail"
-        ]
+    { leading =
+        Maybe.map
+            (\message -> Button.backButton theme { onPress = message })
+            onBack
+    , title = Typography.sectionTitle theme "Account Detail"
+    , subtitle = Nothing
+    , actions = []
+    }
 
 
 valuePanel : Theme -> AccountNode -> List (Element Msg)
@@ -673,22 +653,15 @@ detailForPath theme path response =
             accountDetailPage theme (Just BackToAccounts) account
 
         Nothing ->
-            Element.column
-                [ Element.width Element.fill
-                , Element.height Element.fill
-                , Background.color theme.pageBg
-                , Element.scrollbarY
-                , Common.uiClass "page-scroll account-detail-page"
-                ]
-                [ Page.pageHeaderBand theme <|
-                    accountDetailHeader theme (Just BackToAccounts)
-                , Page.pageContainer
+            Page.scaffold theme
+                { header = accountDetailHeader theme (Just BackToAccounts)
+                , body =
                     [ Surface.card theme
                         [ Feedback.errorBanner theme
                             "That account is no longer present in the current snapshot."
                         ]
                     ]
-                ]
+                }
 
 
 detailAccount : DetailState -> Maybe AccountNode
