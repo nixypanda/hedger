@@ -1,4 +1,4 @@
-module Page.Shared.Analysis exposing
+module Component.Analysis exposing
     ( Config
     , Context
     , Effect(..)

@@ -2,12 +2,12 @@ module Page.Cashflow exposing (Model, Msg(..), init, update, view)
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Component.Analysis as Analysis
 import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
-import Page.Shared.Analysis as Analysis
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Page.Shared.QueryPanel as QueryPanel
-import RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
 import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)

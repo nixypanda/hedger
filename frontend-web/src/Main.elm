@@ -10,11 +10,11 @@ import Chrome
 import Element exposing (Element)
 import Html
 import Json.Decode as Decode
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Page
 import Ports
 import Preferences exposing (Preferences)
 import Pwa
-import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import Ui.Css
 import Ui.Env exposing (Env)

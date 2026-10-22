@@ -2,12 +2,12 @@ module Page.NetWorth exposing (Model, Msg(..), init, update, view)
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Component.Analysis as Analysis
 import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Font as Font
-import Page.Shared.Analysis as Analysis
-import RemoteData exposing (RemoteData(..))
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens

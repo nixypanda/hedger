@@ -1,4 +1,4 @@
-module RemoteData exposing (RemoteData(..), beginLoading, map, value)
+module Lib.RemoteData exposing (RemoteData(..), beginLoading, map, value)
 
 
 type RemoteData error value

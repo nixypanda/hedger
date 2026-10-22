@@ -7,7 +7,7 @@ module View.States exposing
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
-import RemoteData exposing (RemoteData(..))
+import Lib.RemoteData exposing (RemoteData(..))
 import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback

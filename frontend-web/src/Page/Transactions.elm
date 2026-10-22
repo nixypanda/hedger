@@ -37,9 +37,9 @@ import Element exposing (Element)
 import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
+import Lib.RemoteData exposing (RemoteData(..))
 import Lib.Time as TimeExtra
 import Page.Shared.QueryPanel as QueryPanel
-import RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common

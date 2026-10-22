@@ -5,8 +5,8 @@ import Data.Revision as Revision
 import Expect
 import Fuzz
 import Json.Decode as Decode
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Preferences
-import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import Test exposing (Test, describe, fuzz2, test)
 import Ui.Theme exposing (Mode(..))

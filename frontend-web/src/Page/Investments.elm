@@ -24,7 +24,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
-import RemoteData exposing (RemoteData(..))
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
 import Ui.Chart.Cartesian as Cartesian
 import Ui.Chip as Chip

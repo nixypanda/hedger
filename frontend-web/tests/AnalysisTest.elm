@@ -1,5 +1,6 @@
 module AnalysisTest exposing (suite)
 
+import Component.Analysis as Analysis exposing (Timeline(..))
 import Data.Analytics as Analytics exposing (ActivityResponse, TimelinePoint)
 import Data.Completeness exposing (Completeness(..))
 import Data.Date exposing (Date(..))
@@ -10,7 +11,6 @@ import Data.Status exposing (Status(..))
 import Data.Transaction exposing (Transaction)
 import Expect
 import Fuzz
-import Page.Shared.Analysis as Analysis exposing (Timeline(..))
 import Test exposing (Test, describe, fuzz, test)
 import View.Analytics exposing (ActivityTone(..), CalendarDisplay(..), Palette(..))
 
