@@ -8,6 +8,7 @@ import Browser.Events
 import Browser.Navigation as Nav
 import Chrome
 import Element exposing (Element)
+import Html
 import Json.Decode as Decode
 import Page
 import Ports
@@ -15,6 +16,7 @@ import Preferences exposing (Preferences)
 import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
+import Ui.Css
 import Ui.Env exposing (Env)
 import Ui.Page as UiPage
 import Ui.Theme
@@ -158,7 +160,11 @@ update msg model =
                     ( { model | bootstrap = Success bootstrap }, Cmd.none )
 
                 Err error ->
-                    ( { model | bootstrap = Failure error (RemoteData.value model.bootstrap) }, Cmd.none )
+                    ( { model
+                        | bootstrap = Failure error (RemoteData.value model.bootstrap)
+                      }
+                    , Cmd.none
+                    )
 
         RefreshBootstrap ->
             ( { model | bootstrap = RemoteData.beginLoading model.bootstrap }
@@ -263,7 +269,10 @@ view model =
     in
     { title = Route.title model.route ++ " · Hedger"
     , body =
-        [ Element.layoutWith
+        [ Html.node "style"
+            []
+            [ Html.text (":root { " ++ Ui.Css.themeCssVariables env.theme ++ " }") ]
+        , Element.layoutWith
             { options =
                 [ Element.focusStyle
                     { borderColor = Nothing
