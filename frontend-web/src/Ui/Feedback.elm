@@ -2,6 +2,7 @@ module Ui.Feedback exposing
     ( emptyState
     , errorBanner
     , loading
+    , warningList
     )
 
 import Element exposing (Element)
@@ -50,3 +51,13 @@ errorBanner theme message =
         [ Icon.view { icon = Icon.AlertTriangle, size = 18, color = theme.dangerFg }
         , Element.paragraph [ Element.width Element.fill ] [ Element.text message ]
         ]
+
+
+warningList : Theme -> List String -> Element msg
+warningList theme warnings =
+    if List.isEmpty warnings then
+        Element.none
+
+    else
+        Element.column [ Element.width Element.fill, Element.spacing space8 ]
+            (List.map (errorBanner theme) warnings)

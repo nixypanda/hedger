@@ -46,6 +46,7 @@ import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
 import View.Analytics as AnalyticsView
+import View.Analytics.Activity as Activity
 import View.Analytics.Category as Category
 import View.Analytics.Timeline as Timeline
 import View.Analytics.Types as AnalyticsTypes exposing (LegendState(..))
@@ -897,7 +898,7 @@ activityView theme columns maxLegendItems granularity config side commodity data
     in
     case granularity of
         Monthly ->
-            AnalyticsView.activityMonth theme
+            Activity.activityMonth theme
                 { title = config.monthActivityTitle
                 , period = month
                 , commodity = commodity
@@ -915,7 +916,7 @@ activityView theme columns maxLegendItems granularity config side commodity data
                 }
 
         Yearly ->
-            AnalyticsView.activityYear theme
+            Activity.activityYear theme
                 { title = config.yearActivityTitle
                 , commodity = commodity
                 , tone = config.tone
