@@ -69,7 +69,6 @@ import Ui.DesignTokens
         , space8
         )
 import Ui.Icon as Icon exposing (Icon)
-import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
 import Ui.Typography
     exposing
@@ -80,6 +79,7 @@ import Ui.Typography
         , subsectionTitle
         , uiClass
         )
+import Ui.Viewport
 
 
 layout : Theme -> Element msg -> Element msg
@@ -102,7 +102,7 @@ pageContainer children =
         [ Element.centerX
         , Element.width (Element.fill |> Element.maximum 1280)
         , Element.spacing space16
-        , Element.padding Responsive.contentPadding
+        , Element.padding Ui.Viewport.contentPadding
         ]
         children
 
@@ -118,7 +118,7 @@ pageHeaderBand theme content =
         (Element.el
             [ Element.centerX
             , Element.width (Element.fill |> Element.maximum 1280)
-            , Element.padding Responsive.contentPadding
+            , Element.padding Ui.Viewport.contentPadding
             ]
             content
         )

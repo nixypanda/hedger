@@ -36,14 +36,13 @@ import Element.Font as Font
 import Element.Input as Input
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
-import State.Viewport exposing (Viewport)
 import Ui
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.Formatting as Formatting
 import View.States as States
 
@@ -330,9 +329,9 @@ view theme viewport (Model data) =
                 |> Maybe.withDefault ""
 
         compact =
-            Responsive.isCompact (Responsive.contentLayout viewport)
+            Viewport.isCompact (Viewport.contentLayout viewport)
     in
-    if Responsive.usesMasterDetail viewport then
+    if Viewport.usesMasterDetail viewport then
         case data.selection of
             NoSelection ->
                 listPage theme compact (Model data)

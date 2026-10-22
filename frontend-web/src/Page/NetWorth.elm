@@ -9,14 +9,13 @@ import Element.Background as Background
 import Element.Font as Font
 import Page.Shared.Analysis as Analysis
 import RemoteData exposing (RemoteData(..))
-import State.Viewport exposing (Viewport)
 import Ui
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.Analytics as AnalyticsView
 import View.States as States
 import View.Transaction as TransactionView
@@ -292,14 +291,14 @@ dashboardContent : Theme -> Viewport -> ModelData -> List (Element Msg)
 dashboardContent theme viewport data =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         chartWidth =
             let
                 maxContainerWidth =
-                    1280 - 2 * Responsive.contentPadding - 40
+                    1280 - 2 * Viewport.contentPadding - 40
             in
-            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport - 40))
+            min maxContainerWidth (max 320 (Viewport.usableContentWidth viewport - 40))
     in
     case RemoteData.value data.response of
         Nothing ->
@@ -377,9 +376,9 @@ dashboardContent theme viewport data =
             ]
 
 
-responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
+responsiveGrid : Viewport.ContentLayout -> List (Element msg) -> Element msg
 responsiveGrid layout items =
-    if Responsive.isCompact layout then
+    if Viewport.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
     else
@@ -390,7 +389,7 @@ netWorthSkeleton : Theme -> Viewport -> Element Msg
 netWorthSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ responsiveGrid layout

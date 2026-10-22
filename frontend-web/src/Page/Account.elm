@@ -32,15 +32,14 @@ import Element.Input as Input
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import Set exposing (Set)
-import State.Viewport exposing (Viewport)
 import String
 import Ui
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.AccountPresentation as AccountPresentation
 import View.Formatting as Formatting
 import View.States as States
@@ -149,7 +148,7 @@ update props msg (Model model) =
             ( Model model, Cmd.none, Navigate (Account (Account.accountPathToString path)) )
 
         OpenAccountValue path ->
-            if Responsive.usesMasterDetail props.viewport then
+            if Viewport.usesMasterDetail props.viewport then
                 ( selectValue path (Model model), Cmd.none, NoOutMsg )
 
             else
@@ -287,7 +286,7 @@ view theme viewport (Model model) =
                 ]
 
         wideSelected =
-            Responsive.usesMasterDetail viewport && detailAccount model.detail /= Nothing
+            Viewport.usesMasterDetail viewport && detailAccount model.detail /= Nothing
     in
     if wideSelected then
         case detailAccount model.detail of

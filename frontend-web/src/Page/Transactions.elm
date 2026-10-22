@@ -41,14 +41,13 @@ import Html.Attributes
 import Lib.Time as TimeExtra
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
-import State.Viewport exposing (Viewport)
 import Ui
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.AccountPresentation as AccountPresentation
 import View.Transaction as TransactionView
 
@@ -499,10 +498,10 @@ view theme viewport model =
             selectedTransaction model
 
         compact =
-            Responsive.isCompact (Responsive.contentLayout viewport)
+            Viewport.isCompact (Viewport.contentLayout viewport)
 
         wideSelected =
-            Responsive.usesMasterDetail viewport && currentSelection /= Nothing
+            Viewport.usesMasterDetail viewport && currentSelection /= Nothing
     in
     if wideSelected then
         case ( response, currentSelection ) of

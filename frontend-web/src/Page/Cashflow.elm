@@ -9,14 +9,13 @@ import Element.Background as Background
 import Page.Shared.Analysis as Analysis
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
-import State.Viewport exposing (Viewport)
 import Ui
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.Analytics as AnalyticsView
 import View.States as States
 import View.Transaction as TransactionView
@@ -311,7 +310,7 @@ queryPanel : Theme -> Viewport -> ModelData -> Element Msg
 queryPanel theme viewport data =
     QueryPanel.view
         { theme = theme
-        , compact = Responsive.isCompact (Responsive.contentLayout viewport)
+        , compact = Viewport.isCompact (Viewport.contentLayout viewport)
         , draftQuery = data.draftQuery
         , onDraftChanged = DraftChanged
         , onApply = ApplyQuery
@@ -381,10 +380,10 @@ cashflowSkeleton : Theme -> Viewport -> Element Msg
 cashflowSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         isCompact =
-            Responsive.isCompact layout
+            Viewport.isCompact layout
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]

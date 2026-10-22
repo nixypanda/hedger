@@ -25,15 +25,14 @@ import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
 import RemoteData exposing (RemoteData(..))
-import State.Viewport exposing (Viewport)
 import Ui
 import Ui.Chart.Cartesian as Cartesian
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
-import Ui.Responsive as Responsive
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.Formatting as Formatting
 import View.States as States
 
@@ -285,14 +284,14 @@ investmentDashboard :
 investmentDashboard theme viewport selectedMode selected response =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         chartWidth =
-            if Responsive.isCompact layout then
-                min 1200 (max 320 (Responsive.usableContentWidth viewport - 40))
+            if Viewport.isCompact layout then
+                min 1200 (max 320 (Viewport.usableContentWidth viewport - 40))
 
             else
-                min 1200 (max 320 (Responsive.usableContentWidth viewport - 376))
+                min 1200 (max 320 (Viewport.usableContentWidth viewport - 376))
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ investmentSummaryGrid layout theme response.displayCommodity response.summary
@@ -314,7 +313,7 @@ investmentDashboard theme viewport selectedMode selected response =
 
 
 assetClassAllocationCard :
-    Responsive.ContentLayout
+    Viewport.ContentLayout
     -> Theme
     -> String
     -> List Investments.AssetClassAllocation
@@ -331,7 +330,7 @@ assetClassAllocationCard layout theme commodity allocations =
 
 
 allocationGrid :
-    Responsive.ContentLayout
+    Viewport.ContentLayout
     -> Theme
     -> String
     -> List Investments.AssetClassAllocation
@@ -340,13 +339,13 @@ allocationGrid layout theme commodity allocations =
     let
         columnCount =
             case layout of
-                Responsive.Compact ->
+                Viewport.Compact ->
                     1
 
-                Responsive.Medium ->
+                Viewport.Medium ->
                     2
 
-                Responsive.Wide ->
+                Viewport.Wide ->
                     3
 
         cells =
@@ -641,7 +640,7 @@ assetClassLabel assetClass =
 
 
 investmentMasterDetail :
-    Responsive.ContentLayout
+    Viewport.ContentLayout
     -> Theme
     -> String
     -> Int
@@ -664,7 +663,7 @@ investmentMasterDetail layout theme commodity chartWidth selectedMode selected r
                 response.summary
                 response.timeline
     in
-    if Responsive.isCompact layout then
+    if Viewport.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
             [ navigator, history ]
 
@@ -900,7 +899,7 @@ investmentBreakdownMetric theme commodity label value =
 
 
 investmentSummaryGrid :
-    Responsive.ContentLayout
+    Viewport.ContentLayout
     -> Theme
     -> String
     -> Investments.Summary
@@ -925,7 +924,7 @@ investmentSummaryGrid layout theme commodity summary =
                 (investmentTone summary.totalProfit theme)
             ]
     in
-    if Responsive.isCompact layout then
+    if Viewport.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] cards
 
     else
@@ -1322,10 +1321,10 @@ investmentsSkeleton : Theme -> Viewport -> Element Msg
 investmentsSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         isCompact =
-            Responsive.isCompact layout
+            Viewport.isCompact layout
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space6 ]

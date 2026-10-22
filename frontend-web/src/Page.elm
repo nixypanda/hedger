@@ -10,8 +10,8 @@ import Page.Settings as SettingsPage
 import Page.Transactions as TransactionsPage
 import Preferences exposing (ThemeMode)
 import Route exposing (Route(..))
-import State.Viewport exposing (Viewport)
 import Ui.Theme exposing (Theme)
+import Ui.Viewport exposing (Viewport)
 
 
 

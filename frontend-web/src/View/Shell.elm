@@ -13,13 +13,12 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
-import State.Viewport exposing (Viewport)
 import Ui
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
-import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport exposing (Viewport)
 
 
 type alias Config msg =
@@ -73,13 +72,13 @@ view config =
             , Element.clipY
             , Typography.uiClass "shell-body"
             ]
-            (if Responsive.usesBottomNavigation config.viewport then
+            (if Viewport.usesBottomNavigation config.viewport then
                 [ content config.page ]
 
              else
                 [ sidebar config, content config.page ]
             )
-        , if Responsive.usesBottomNavigation config.viewport then
+        , if Viewport.usesBottomNavigation config.viewport then
             tabBar config
 
           else

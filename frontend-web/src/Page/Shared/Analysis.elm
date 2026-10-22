@@ -36,12 +36,11 @@ import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Font as Font
-import State.Viewport exposing (Viewport)
 import Ui
 import Ui.DesignTokens as Tokens
-import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.Analytics as AnalyticsView exposing (LegendState(..))
 
 
@@ -614,23 +613,23 @@ view : Theme -> Viewport -> Config -> Report -> Model -> Element Msg
 view theme viewport config report (Model data) =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         chartWidth =
             let
                 maxContainerWidth =
-                    1280 - 2 * Responsive.contentPadding - 40
+                    1280 - 2 * Viewport.contentPadding - 40
             in
-            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport - 40))
+            min maxContainerWidth (max 320 (Viewport.usableContentWidth viewport - 40))
 
         activityColumns =
             let
                 cardWidth =
-                    if Responsive.isCompact layout then
-                        Responsive.usableContentWidth viewport
+                    if Viewport.isCompact layout then
+                        Viewport.usableContentWidth viewport
 
                     else
-                        (Responsive.usableContentWidth viewport - 16) // 2
+                        (Viewport.usableContentWidth viewport - 16) // 2
             in
             if cardWidth < 360 then
                 3
@@ -651,11 +650,11 @@ view theme viewport config report (Model data) =
         ]
 
 
-compositionHeader : Theme -> Responsive.ContentLayout -> ModelData -> Element Msg
+compositionHeader : Theme -> Viewport.ContentLayout -> ModelData -> Element Msg
 compositionHeader theme layout data =
     let
         container =
-            if Responsive.isCompact layout then
+            if Viewport.isCompact layout then
                 Element.wrappedRow
 
             else
@@ -748,7 +747,7 @@ timelineView theme chartWidth config report data =
             Ui.errorBanner theme message
 
 
-breakdownsView : Theme -> Responsive.ContentLayout -> Config -> Report -> ModelData -> Element Msg
+breakdownsView : Theme -> Viewport.ContentLayout -> Config -> Report -> ModelData -> Element Msg
 breakdownsView theme layout config report data =
     responsiveGrid layout
         [ categoryView
@@ -791,7 +790,7 @@ categoryView theme config side commodity breakdown sideState =
 
 activityViews :
     Theme
-    -> Responsive.ContentLayout
+    -> Viewport.ContentLayout
     -> Int
     -> Config
     -> Report
@@ -850,16 +849,16 @@ calendarDisplayControl theme selected =
         ]
 
 
-legendCapacity : Responsive.ContentLayout -> Int
+legendCapacity : Viewport.ContentLayout -> Int
 legendCapacity layout =
     case layout of
-        Responsive.Compact ->
+        Viewport.Compact ->
             4
 
-        Responsive.Medium ->
+        Viewport.Medium ->
             2
 
-        Responsive.Wide ->
+        Viewport.Wide ->
             3
 
 
@@ -1163,9 +1162,9 @@ periodFromString granularity value =
                 Nothing
 
 
-responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
+responsiveGrid : Viewport.ContentLayout -> List (Element msg) -> Element msg
 responsiveGrid layout items =
-    if Responsive.isCompact layout then
+    if Viewport.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
     else

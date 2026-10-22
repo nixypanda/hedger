@@ -16,13 +16,13 @@ import Preferences exposing (Preferences, ThemeMode(..))
 import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
-import State.Viewport exposing (Viewport)
 import Ui
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport exposing (Viewport)
 import Url exposing (Url)
 import View.Shell as Shell
 
