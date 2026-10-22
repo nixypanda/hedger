@@ -13,6 +13,7 @@ module Ui.Skeleton exposing
 import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
+import Ui.Common exposing (uiClass)
 import Ui.DesignTokens
     exposing
         ( radiusCard
@@ -23,7 +24,6 @@ import Ui.DesignTokens
         , space8
         )
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (uiClass)
 
 
 loading : Theme -> Element msg

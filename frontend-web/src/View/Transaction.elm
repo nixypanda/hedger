@@ -12,6 +12,7 @@ import Data.Transaction exposing (Amount, Posting, Tag, Transaction)
 import Element exposing (Element)
 import Element.Font as Font
 import Ui
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
@@ -178,7 +179,7 @@ detailRow theme label value =
         [ Element.width Element.fill
         , Element.spacing Tokens.space16
         , Element.alignTop
-        , Typography.minWidthZero
+        , Common.minWidthZero
         ]
         [ Element.el
             [ Element.width (Element.px Tokens.postingAccountWidth)
@@ -193,8 +194,8 @@ detailRow theme label value =
             , Typography.detailValue
             , Font.alignRight
             , Font.color theme.textPrimary
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-wrap"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-wrap"
             ]
             [ Element.text value ]
         ]
@@ -212,13 +213,13 @@ postingDetailRow theme posting =
         , Element.spacing Tokens.space12
         , Element.paddingXY Tokens.space0 Tokens.space10
         , Element.alignTop
-        , Typography.minWidthZero
+        , Common.minWidthZero
         ]
         [ Element.row
             [ Element.width Element.fill
             , Element.spacing Tokens.space8
             , Element.alignTop
-            , Typography.minWidthZero
+            , Common.minWidthZero
             ]
             [ Icon.view
                 { icon = AccountPresentation.iconForAccount posting.accountType posting.account
@@ -263,8 +264,8 @@ postingAmountLine theme amount =
             , Font.alignRight
             , Font.semiBold
             , Font.color theme.textPrimary
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-wrap"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-wrap"
             ]
             [ Element.text (amountText amount) ]
         , case amount.cost of

@@ -1,77 +1,49 @@
-module Ui.Css exposing
-    ( htmlClass
-    , themeCssVariables
-    , toCssColor
-    )
+module Ui.Css exposing (themeCssVariables)
 
-import Element
-import Html exposing (Attribute)
-import Html.Attributes
+import Ui.Common as Common
 import Ui.Theme exposing (Theme)
-
-
-htmlClass : String -> Attribute msg
-htmlClass =
-    Html.Attributes.class
-
-
-toCssColor : Element.Color -> String
-toCssColor color =
-    let
-        { red, green, blue, alpha } =
-            Element.toRgb color
-    in
-    "rgba("
-        ++ String.fromInt (round (red * 255))
-        ++ ", "
-        ++ String.fromInt (round (green * 255))
-        ++ ", "
-        ++ String.fromInt (round (blue * 255))
-        ++ ", "
-        ++ String.fromFloat alpha
-        ++ ")"
 
 
 themeCssVariables : Theme -> String
 themeCssVariables theme =
     String.join "; "
-        [ "--ui-page-bg: " ++ toCssColor theme.pageBg
-        , "--ui-surface: " ++ toCssColor theme.surface
-        , "--ui-card-bg: " ++ toCssColor theme.cardBg
-        , "--ui-elevated-bg: " ++ toCssColor theme.elevatedBg
-        , "--ui-text-primary: " ++ toCssColor theme.textPrimary
-        , "--ui-text-medium: " ++ toCssColor theme.textMedium
-        , "--ui-text-muted: " ++ toCssColor theme.textMuted
-        , "--ui-divider: " ++ toCssColor theme.divider
-        , "--ui-input-fill: " ++ toCssColor theme.inputFill
-        , "--ui-primary: " ++ toCssColor theme.primary
-        , "--ui-primary-pressed: " ++ toCssColor theme.primaryPressed
-        , "--ui-primary-soft: " ++ toCssColor theme.primarySoft
-        , "--ui-primary-disabled: " ++ toCssColor theme.primaryDisabled
-        , "--ui-danger-bg: " ++ toCssColor theme.dangerBg
-        , "--ui-danger-fg: " ++ toCssColor theme.dangerFg
-        , "--ui-danger-solid: " ++ toCssColor theme.dangerSolid
-        , "--ui-success-bg: " ++ toCssColor theme.successBg
-        , "--ui-success-fg: " ++ toCssColor theme.successFg
-        , "--ui-success-solid: " ++ toCssColor theme.successSolid
-        , "--ui-warning-bg: " ++ toCssColor theme.warningBg
-        , "--ui-warning-fg: " ++ toCssColor theme.warningFg
-        , "--ui-selected-bg: " ++ toCssColor theme.selectedBg
-        , "--ui-hover-bg: " ++ toCssColor theme.hoverBg
-        , "--ui-focus-ring: " ++ toCssColor theme.focusRing
-        , "--ui-positive: " ++ toCssColor theme.positive
-        , "--ui-negative: " ++ toCssColor theme.negative
-        , "--ui-neutral: " ++ toCssColor theme.neutral
-        , "--ui-asset: " ++ toCssColor theme.asset
-        , "--ui-liability: " ++ toCssColor theme.liability
-        , "--ui-income: " ++ toCssColor theme.income
-        , "--ui-expense: " ++ toCssColor theme.expense
-        , "--ui-equity: " ++ toCssColor theme.equity
-        , "--ui-stale: " ++ toCssColor theme.stale
+        [ "--ui-page-bg: " ++ Common.toCssColor theme.pageBg
+        , "--ui-surface: " ++ Common.toCssColor theme.surface
+        , "--ui-card-bg: " ++ Common.toCssColor theme.cardBg
+        , "--ui-elevated-bg: " ++ Common.toCssColor theme.elevatedBg
+        , "--ui-text-primary: " ++ Common.toCssColor theme.textPrimary
+        , "--ui-text-medium: " ++ Common.toCssColor theme.textMedium
+        , "--ui-text-muted: " ++ Common.toCssColor theme.textMuted
+        , "--ui-divider: " ++ Common.toCssColor theme.divider
+        , "--ui-input-fill: " ++ Common.toCssColor theme.inputFill
+        , "--ui-primary: " ++ Common.toCssColor theme.primary
+        , "--ui-primary-pressed: " ++ Common.toCssColor theme.primaryPressed
+        , "--ui-primary-soft: " ++ Common.toCssColor theme.primarySoft
+        , "--ui-primary-disabled: " ++ Common.toCssColor theme.primaryDisabled
+        , "--ui-danger-bg: " ++ Common.toCssColor theme.dangerBg
+        , "--ui-danger-fg: " ++ Common.toCssColor theme.dangerFg
+        , "--ui-danger-solid: " ++ Common.toCssColor theme.dangerSolid
+        , "--ui-success-bg: " ++ Common.toCssColor theme.successBg
+        , "--ui-success-fg: " ++ Common.toCssColor theme.successFg
+        , "--ui-success-solid: " ++ Common.toCssColor theme.successSolid
+        , "--ui-warning-bg: " ++ Common.toCssColor theme.warningBg
+        , "--ui-warning-fg: " ++ Common.toCssColor theme.warningFg
+        , "--ui-selected-bg: " ++ Common.toCssColor theme.selectedBg
+        , "--ui-hover-bg: " ++ Common.toCssColor theme.hoverBg
+        , "--ui-focus-ring: " ++ Common.toCssColor theme.focusRing
+        , "--ui-positive: " ++ Common.toCssColor theme.positive
+        , "--ui-negative: " ++ Common.toCssColor theme.negative
+        , "--ui-neutral: " ++ Common.toCssColor theme.neutral
+        , "--ui-asset: " ++ Common.toCssColor theme.asset
+        , "--ui-liability: " ++ Common.toCssColor theme.liability
+        , "--ui-income: " ++ Common.toCssColor theme.income
+        , "--ui-expense: " ++ Common.toCssColor theme.expense
+        , "--ui-equity: " ++ Common.toCssColor theme.equity
+        , "--ui-stale: " ++ Common.toCssColor theme.stale
         , "--ui-card-shadow: " ++ theme.cardShadow
-        , "--ui-chip-bg: " ++ toCssColor theme.chipBg
-        , "--ui-chip-fg: " ++ toCssColor theme.chipFg
-        , "--ui-chip-border: " ++ toCssColor theme.chipBorder
-        , "--ui-chip-selected-bg: " ++ toCssColor theme.chipSelectedBg
-        , "--ui-chip-selected-fg: " ++ toCssColor theme.chipSelectedFg
+        , "--ui-chip-bg: " ++ Common.toCssColor theme.chipBg
+        , "--ui-chip-fg: " ++ Common.toCssColor theme.chipFg
+        , "--ui-chip-border: " ++ Common.toCssColor theme.chipBorder
+        , "--ui-chip-selected-bg: " ++ Common.toCssColor theme.chipSelectedBg
+        , "--ui-chip-selected-fg: " ++ Common.toCssColor theme.chipSelectedFg
         ]

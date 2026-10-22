@@ -8,7 +8,7 @@ import Element exposing (Element)
 import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes as Attr
-import Ui.Css as Css
+import Ui.Common as Common
 
 
 type Size
@@ -48,7 +48,7 @@ view config =
                        , Attr.style "background" (gradient config)
                        , Attr.style "display" "grid"
                        , Attr.style "place-items" "center"
-                       , Css.htmlClass "ui-chart-motion"
+                       , Attr.class "ui-chart-motion"
                        , Attr.style "transform"
                             (if config.selected then
                                 "scale(1.05)"
@@ -65,7 +65,7 @@ view config =
                     , Attr.style "height"
                         ("calc(100% - " ++ String.fromInt (config.thickness * 2) ++ "px)")
                     , Attr.style "border-radius" "50%"
-                    , Attr.style "background" (Css.toCssColor config.centerColor)
+                    , Attr.style "background" (Common.toCssColor config.centerColor)
                     , Attr.style "display" "grid"
                     , Attr.style "place-items" "center"
                     ]
@@ -120,7 +120,7 @@ gradient config =
                     next - gapHalf
 
                 color =
-                    Css.toCssColor segment.color
+                    Common.toCssColor segment.color
             in
             ( next
             , if segmentEnd > segmentStart then
@@ -141,7 +141,7 @@ gradient config =
                 |> Tuple.second
     in
     if total <= 0 || List.isEmpty stops then
-        Css.toCssColor config.emptyColor
+        Common.toCssColor config.emptyColor
 
     else
         "conic-gradient(" ++ String.join ", " stops ++ ")"

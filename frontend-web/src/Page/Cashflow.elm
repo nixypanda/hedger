@@ -10,6 +10,7 @@ import Page.Shared.Analysis as Analysis
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import Ui
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
@@ -286,7 +287,7 @@ dashboard theme viewport data =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Typography.uiClass "page-scroll analytics-page"
+        , Common.uiClass "page-scroll analytics-page"
         ]
         [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme

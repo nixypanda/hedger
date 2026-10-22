@@ -14,6 +14,7 @@ import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
 import Ui
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Theme exposing (Theme)
@@ -63,14 +64,14 @@ view config =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Background.color config.theme.pageBg
-        , Typography.uiClass "app-shell"
+        , Common.uiClass "app-shell"
         ]
         [ noticeView config.theme config.notice
         , Element.row
             [ Element.width Element.fill
             , Element.height Element.fill
             , Element.clipY
-            , Typography.uiClass "shell-body"
+            , Common.uiClass "shell-body"
             ]
             (if Viewport.usesBottomNavigation config.viewport then
                 [ content config.page ]
@@ -93,7 +94,7 @@ content page =
         , Element.height Element.fill
         , Element.clipX
         , Region.mainContent
-        , Typography.uiClass "app-content"
+        , Common.uiClass "app-content"
         ]
         page
 
@@ -229,7 +230,7 @@ navItem config destination =
             )
         , Border.rounded Tokens.radiusMedium
         , Font.color foreground
-        , Typography.uiClass "ui-motion"
+        , Common.uiClass "ui-motion"
         ]
         { onPress = Just destination.onPress
         , label =

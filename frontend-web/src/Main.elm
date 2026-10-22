@@ -17,6 +17,7 @@ import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import Ui
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Skeleton
@@ -378,7 +379,7 @@ pageView theme model =
     else
         Element.column
             [ Element.width Element.fill
-            , Typography.uiClass "page-scroll"
+            , Common.uiClass "page-scroll"
             ]
             [ Ui.pageHeaderBand theme <|
                 Ui.pageHeader theme

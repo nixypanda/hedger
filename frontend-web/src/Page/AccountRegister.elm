@@ -37,6 +37,7 @@ import Element.Input as Input
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import Ui
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
@@ -372,7 +373,7 @@ listPage theme compact model =
         , Element.height Element.fill
         , Element.scrollbarY
         , Background.color theme.pageBg
-        , Typography.uiClass "page-scroll account-register-page"
+        , Common.uiClass "page-scroll account-register-page"
         ]
         [ Ui.pageHeaderBand theme <|
             registerHeader theme compact model
@@ -390,7 +391,7 @@ registerHeader theme compact model =
         Element.column
             [ Element.width Element.fill
             , Element.spacing Tokens.space16
-            , Typography.minWidthZero
+            , Common.minWidthZero
             ]
             [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ Ui.backButton theme { onPress = BackToAccounts }
@@ -402,7 +403,7 @@ registerHeader theme compact model =
             , Element.column
                 [ Element.width Element.fill
                 , Element.spacing Tokens.space8
-                , Typography.minWidthZero
+                , Common.minWidthZero
                 ]
                 [ Typography.delimitedPageTitle theme ":" account
                 , Typography.mutedParagraph theme "Account register"
@@ -593,11 +594,11 @@ entryRow theme compact model commodity entry =
                         , Element.row
                             [ Element.width Element.fill
                             , Element.spacing Tokens.space8
-                            , Typography.minWidthZero
+                            , Common.minWidthZero
                             ]
                             [ Element.el
                                 [ Element.width Element.fill
-                                , Typography.minWidthZero
+                                , Common.minWidthZero
                                 ]
                                 description
                             , chevron
@@ -605,13 +606,13 @@ entryRow theme compact model commodity entry =
                         , Element.el
                             [ Typography.caption
                             , Font.color theme.textMuted
-                            , Typography.minWidthZero
+                            , Common.minWidthZero
                             ]
                             account
                         , Element.column
                             [ Element.width Element.fill
                             , Element.spacing Tokens.space4
-                            , Typography.minWidthZero
+                            , Common.minWidthZero
                             ]
                             [ labeledValue theme "Amount" amount
                             , labeledValue theme "Balance" balance
@@ -622,7 +623,7 @@ entryRow theme compact model commodity entry =
                     Element.row
                         [ Element.width Element.fill
                         , Element.spacing Tokens.space12
-                        , Typography.minWidthZero
+                        , Common.minWidthZero
                         ]
                         [ Element.el
                             [ Element.width (Element.px Tokens.registerDateWidth)
@@ -630,24 +631,24 @@ entryRow theme compact model commodity entry =
                             date
                         , Element.el
                             [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
-                            , Typography.minWidthZero
+                            , Common.minWidthZero
                             ]
                             description
                         , Element.el
                             [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
                             , Typography.caption
                             , Font.color theme.textMuted
-                            , Typography.minWidthZero
+                            , Common.minWidthZero
                             ]
                             account
                         , Element.el
                             [ Element.width (Element.px Tokens.registerAmountWidth)
-                            , Typography.minWidthZero
+                            , Common.minWidthZero
                             ]
                             amount
                         , Element.el
                             [ Element.width (Element.px Tokens.registerAmountWidth)
-                            , Typography.minWidthZero
+                            , Common.minWidthZero
                             ]
                             balance
                         , chevron
@@ -667,11 +668,11 @@ labeledValue theme label valueEl =
     Element.row
         [ Element.width Element.fill
         , Element.spacing Tokens.space8
-        , Typography.minWidthZero
+        , Common.minWidthZero
         ]
         [ Element.text label
             |> Element.el [ Typography.caption, Font.color theme.textMuted ]
-        , Element.el [ Element.width Element.fill, Typography.minWidthZero ] valueEl
+        , Element.el [ Element.width Element.fill, Common.minWidthZero ] valueEl
         ]
 
 
@@ -680,7 +681,7 @@ valueDisplay theme commodity isMovement color value =
     Element.row
         [ Element.width Element.fill
         , Element.spacing Tokens.space4
-        , Typography.minWidthZero
+        , Common.minWidthZero
         ]
         [ Ui.truncatedText (fullDisplayValue commodity value)
             |> Element.el
@@ -760,7 +761,7 @@ detailPage theme onClose commodity entry =
         , Element.height Element.fill
         , Element.scrollbarY
         , Background.color theme.pageBg
-        , Typography.uiClass "page-scroll register-detail-page"
+        , Common.uiClass "page-scroll register-detail-page"
         ]
         [ Ui.pageHeaderBand theme <|
             Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]

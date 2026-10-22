@@ -42,6 +42,7 @@ import Lib.Time as TimeExtra
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import Ui
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
@@ -534,7 +535,7 @@ listPage theme compact model =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Typography.uiClass "page-scroll transactions-page"
+        , Common.uiClass "page-scroll transactions-page"
         ]
         [ transactionsHeader theme
         , Ui.pageContainer
@@ -555,14 +556,14 @@ wideLayout theme model response selected =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Element.clip
-        , Typography.uiClass "transactions-wide-layout"
+        , Common.uiClass "transactions-wide-layout"
         ]
         [ Element.column
             [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
             , Element.height Element.fill
             , Element.scrollbarY
             , Background.color theme.pageBg
-            , Typography.uiClass "transactions-master-pane transactions-page"
+            , Common.uiClass "transactions-master-pane transactions-page"
             ]
             [ transactionsHeader theme
             , Ui.pageContainer
@@ -580,7 +581,7 @@ wideLayout theme model response selected =
             [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
             , Element.height Element.fill
             , Element.clipY
-            , Typography.uiClass "transactions-detail-pane"
+            , Common.uiClass "transactions-detail-pane"
             ]
             (detailPage theme (Just Back) selected)
         ]
@@ -896,8 +897,8 @@ desktopPrimaryRow theme transaction =
             , Font.semiBold
             , Element.width Element.fill
             , Font.color theme.textPrimary
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-ellipsis"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-ellipsis"
             ]
             (Element.text transaction.description)
         , trailingSummary theme transaction
@@ -916,8 +917,8 @@ phonePrimaryRow theme transaction =
                 , Font.semiBold
                 , Element.width Element.fill
                 , Font.color theme.textPrimary
-                , Typography.minWidthZero
-                , Typography.uiClass "ui-text-wrap"
+                , Common.minWidthZero
+                , Common.uiClass "ui-text-wrap"
                 ]
                 [ Element.text transaction.description ]
             , trailingSummary theme transaction
@@ -959,8 +960,8 @@ postingPreviewRow theme posting =
             [ Typography.rowMetadata
             , Font.color theme.textMuted
             , Element.width Element.fill
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-wrap"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-wrap"
             ]
             [ Element.text posting.account ]
         , Element.el
@@ -968,8 +969,8 @@ postingPreviewRow theme posting =
             , Font.color theme.textMuted
             , Element.alignRight
             , Element.width (Element.shrink |> Element.maximum Tokens.narrowContentWidth)
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-ellipsis"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-ellipsis"
             , Typography.financeNumber
             ]
             (Element.text (TransactionView.amountsText posting.amounts))
@@ -983,7 +984,7 @@ detailPage theme onBack transaction =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Typography.uiClass "page-scroll transaction-detail-page"
+        , Common.uiClass "page-scroll transaction-detail-page"
         , Element.htmlAttribute (Html.Attributes.id "transaction-detail")
         ]
         [ Ui.pageHeaderBand theme <|

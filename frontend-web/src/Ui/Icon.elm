@@ -4,7 +4,7 @@ import Element exposing (Element)
 import Html.Attributes
 import Svg exposing (Svg, circle, line, path, polyline, svg)
 import Svg.Attributes as SvgA
-import Ui.Css
+import Ui.Common as Common
 
 
 type Icon
@@ -70,7 +70,7 @@ view config =
                 , SvgA.width (String.fromInt config.size)
                 , SvgA.height (String.fromInt config.size)
                 , SvgA.fill "none"
-                , SvgA.stroke (Ui.Css.toCssColor config.color)
+                , SvgA.stroke (Common.toCssColor config.color)
                 , SvgA.strokeWidth "2"
                 , SvgA.strokeLinecap "round"
                 , SvgA.strokeLinejoin "round"

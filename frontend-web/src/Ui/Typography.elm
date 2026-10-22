@@ -12,7 +12,6 @@ module Ui.Typography exposing
     , htmlCaption
     , kpiValue
     , listItemTitle
-    , minWidthZero
     , mutedBody
     , mutedCaption
     , mutedParagraph
@@ -27,7 +26,6 @@ module Ui.Typography exposing
     , subsectionTitle
     , tabLabel
     , truncatedListItemTitle
-    , uiClass
     , wrappedListItemTitle
     )
 
@@ -36,6 +34,7 @@ import Element.Font as Font
 import Element.Region as Region
 import Html exposing (Attribute)
 import Html.Attributes
+import Ui.Common as Common
 import Ui.Theme exposing (Theme)
 
 
@@ -225,7 +224,7 @@ listItemTitle theme child =
         [ body
         , Font.semiBold
         , Font.color theme.textPrimary
-        , minWidthZero
+        , Common.minWidthZero
         ]
         child
 
@@ -234,13 +233,13 @@ truncatedListItemTitle : Theme -> String -> Element msg
 truncatedListItemTitle theme text =
     Element.el
         [ Element.width Element.fill
-        , minWidthZero
+        , Common.minWidthZero
         ]
         (listItemTitle theme
             (Element.el
                 [ Element.width Element.fill
                 , Element.clip
-                , uiClass "ui-text-ellipsis"
+                , Common.uiClass "ui-text-ellipsis"
                 ]
                 (Element.text text)
             )
@@ -252,8 +251,8 @@ wrappedListItemTitle theme text =
     listItemTitle theme
         (Element.paragraph
             [ Element.width Element.fill
-            , minWidthZero
-            , uiClass "ui-text-wrap"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-wrap"
             ]
             [ Element.text text ]
         )
@@ -264,7 +263,7 @@ naturalWrapText attributes delimiter value =
     if delimiter == "" then
         Element.paragraph
             ([ Element.width Element.fill
-             , minWidthZero
+             , Common.minWidthZero
              ]
                 ++ attributes
             )
@@ -274,7 +273,7 @@ naturalWrapText attributes delimiter value =
         Element.wrappedRow
             ([ Element.width Element.fill
              , Element.spacing 0
-             , minWidthZero
+             , Common.minWidthZero
              ]
                 ++ attributes
             )
@@ -303,13 +302,3 @@ delimitedTextSegments delimiter value =
                         )
                     )
             )
-
-
-uiClass : String -> Element.Attribute msg
-uiClass className =
-    Element.htmlAttribute (Html.Attributes.class className)
-
-
-minWidthZero : Element.Attribute msg
-minWidthZero =
-    Element.htmlAttribute (Html.Attributes.style "min-width" "0")

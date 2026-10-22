@@ -49,6 +49,8 @@ import Ui.Chart.Cartesian as Cartesian
 import Ui.Chart.Donut as Donut
 import Ui.Chart.Ring as Ring
 import Ui.Chart.Sparkline as Sparkline
+import Ui.Color as Color
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Theme as Theme exposing (Theme)
@@ -555,7 +557,7 @@ categoryRow theme commodity palette total index isHighlighted item =
             }
         , Element.el
             [ Element.width Element.fill
-            , Typography.minWidthZero
+            , Common.minWidthZero
             ]
             (Element.text (categoryLabel item.account))
         , Element.el
@@ -946,29 +948,7 @@ amountTextColor theme strongColor maximum amount =
             ratio =
                 clamp 0 1 (abs (decimalFloat amount) / maximum)
         in
-        blendColors theme.textMuted strongColor (sqrt ratio)
-
-
-blendColors : Element.Color -> Element.Color -> Float -> Element.Color
-blendColors start finish ratio =
-    let
-        from =
-            Element.toRgb start
-
-        to =
-            Element.toRgb finish
-
-        amount =
-            clamp 0 1 ratio
-
-        mix first second =
-            first + (second - first) * amount
-    in
-    Element.rgba
-        (mix from.red to.red)
-        (mix from.green to.green)
-        (mix from.blue to.blue)
-        (mix from.alpha to.alpha)
+        Color.mix theme.textMuted strongColor (sqrt ratio)
 
 
 addCategoryTotal : BreakdownItem -> List ( Float, BreakdownItem ) -> List ( Float, BreakdownItem )
@@ -1073,7 +1053,7 @@ activityCategoryLegend config =
                 [ Element.el
                     [ Element.width Element.fill
                     , Element.clip
-                    , Typography.minWidthZero
+                    , Common.minWidthZero
                     ]
                     (Element.row
                         [ Element.spacing Tokens.space10 ]
@@ -1271,7 +1251,7 @@ categoryRingSegments theme tone categories highlighted bucket =
                         baseColor
 
                     else
-                        withAlpha 0.14 baseColor
+                        Color.withAlpha 0.14 baseColor
                 , value = abs (decimalFloat category.quantity)
                 }
             )
@@ -1313,15 +1293,6 @@ isEmptyActivityBucket bucket =
 
         ExpenseMovements figures ->
             List.isEmpty figures.events
-
-
-withAlpha : Float -> Element.Color -> Element.Color
-withAlpha alpha color =
-    let
-        rgb =
-            Element.toRgb color
-    in
-    Element.rgba rgb.red rgb.green rgb.blue alpha
 
 
 activityCategoryColor : Theme -> ActivityTone -> Int -> Element.Color
@@ -1368,7 +1339,7 @@ activityTransactionList theme title transactions onSelect =
                                     ]
                                     [ Element.paragraph
                                         [ Element.width Element.fill
-                                        , Typography.minWidthZero
+                                        , Common.minWidthZero
                                         , Typography.chartLabel
                                         ]
                                         [ Element.text transaction.description ]
@@ -1674,7 +1645,7 @@ directionSegments specs highlighted bucket =
                         baseColor
 
                     else
-                        withAlpha 0.14 baseColor
+                        Color.withAlpha 0.14 baseColor
                 , value = decimalFloat (directionAmount spec.direction bucket)
                 }
             )

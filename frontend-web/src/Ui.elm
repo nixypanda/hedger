@@ -48,7 +48,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes
-import Ui.Css as Css
+import Ui.Common as Common exposing (minWidthZero, uiClass)
 import Ui.DesignTokens
     exposing
         ( compactControlVisualHeight
@@ -74,10 +74,8 @@ import Ui.Typography
     exposing
         ( body
         , caption
-        , minWidthZero
         , mutedParagraph
         , subsectionTitle
-        , uiClass
         )
 import Ui.Viewport
 
@@ -961,7 +959,7 @@ hoverBackground : Element.Color -> List (Attribute msg)
 hoverBackground color =
     [ Element.htmlAttribute (Html.Attributes.class "ui-hover-background")
     , Element.htmlAttribute
-        (Html.Attributes.style "--ui-hover-background" (Css.toCssColor color))
+        (Html.Attributes.style "--ui-hover-background" (Common.toCssColor color))
     ]
 
 
@@ -969,5 +967,5 @@ hoverBorder : Element.Color -> List (Attribute msg)
 hoverBorder color =
     [ Element.htmlAttribute (Html.Attributes.class "ui-hover-border")
     , Element.htmlAttribute
-        (Html.Attributes.style "--ui-hover-border" (Css.toCssColor color))
+        (Html.Attributes.style "--ui-hover-border" (Common.toCssColor color))
     ]

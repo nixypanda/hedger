@@ -10,7 +10,7 @@ import Element exposing (Element)
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Ui.Chart as Chart
-import Ui.Css as Css
+import Ui.Common as Common
 import Ui.Theme exposing (Theme)
 
 
@@ -156,7 +156,7 @@ view theme config =
                                             Svg.polyline
                                                 [ SvgA.points points
                                                 , SvgA.fill "none"
-                                                , SvgA.stroke (Css.toCssColor line.color)
+                                                , SvgA.stroke (Common.toCssColor line.color)
                                                 , SvgA.strokeWidth (float line.width)
                                                 , SvgA.strokeLinecap "round"
                                                 , SvgA.strokeLinejoin "round"
@@ -363,7 +363,7 @@ areaSegments x y area index ( firstItem, secondItem ) =
                             )
                         |> String.join " "
                     )
-                , SvgA.fill (Css.toCssColor color)
+                , SvgA.fill (Common.toCssColor color)
                 , SvgA.opacity (float area.opacity)
                 ]
                 []

@@ -27,6 +27,8 @@ import Html.Attributes as Attr
 import RemoteData exposing (RemoteData(..))
 import Ui
 import Ui.Chart.Cartesian as Cartesian
+import Ui.Color as Color
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Skeleton as Skeleton
@@ -216,7 +218,7 @@ view theme viewport (Model data) =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Typography.uiClass "page-scroll analytics-page"
+        , Common.uiClass "page-scroll analytics-page"
         ]
         [ Ui.pageHeaderBand theme <|
             Ui.pageHeader theme
@@ -584,29 +586,10 @@ allocationPerformanceColor theme current target =
                     clamp 0 1 (deviation / 15)
             in
             if distance <= 0.5 then
-                mixColor theme.positive theme.warningSolid (distance * 2)
+                Color.mix theme.positive theme.warningSolid (distance * 2)
 
             else
-                mixColor theme.warningSolid theme.negative ((distance - 0.5) * 2)
-
-
-mixColor : Element.Color -> Element.Color -> Float -> Element.Color
-mixColor start finish amount =
-    let
-        from =
-            Element.toRgb start
-
-        to =
-            Element.toRgb finish
-
-        mix first second =
-            first + (second - first) * clamp 0 1 amount
-    in
-    Element.rgba
-        (mix from.red to.red)
-        (mix from.green to.green)
-        (mix from.blue to.blue)
-        (mix from.alpha to.alpha)
+                Color.mix theme.warningSolid theme.negative ((distance - 0.5) * 2)
 
 
 allocationPercentageLabel : Maybe Decimal -> String
@@ -1333,7 +1316,7 @@ investmentsSkeleton theme viewport =
                 , Element.height (Element.px Tokens.iconSizeTiny)
                 , Background.color theme.inputFill
                 , Border.rounded Tokens.radiusControl
-                , Typography.uiClass "ui-skeleton"
+                , Common.uiClass "ui-skeleton"
                 ]
                 Element.none
             , Element.el
@@ -1341,7 +1324,7 @@ investmentsSkeleton theme viewport =
                 , Element.height (Element.px Tokens.iconSizeTiny)
                 , Background.color theme.inputFill
                 , Border.rounded Tokens.radiusControl
-                , Typography.uiClass "ui-skeleton"
+                , Common.uiClass "ui-skeleton"
                 ]
                 Element.none
             ]
@@ -1386,7 +1369,7 @@ investmentNavigatorSkeleton theme =
             , Element.height (Element.px Tokens.iconSizeCaption)
             , Background.color theme.inputFill
             , Border.rounded Tokens.radiusControl
-            , Typography.uiClass "ui-skeleton"
+            , Common.uiClass "ui-skeleton"
             ]
             Element.none
         , Element.el
@@ -1394,7 +1377,7 @@ investmentNavigatorSkeleton theme =
             , Element.height (Element.px Tokens.iconSizeTiny)
             , Background.color theme.inputFill
             , Border.rounded Tokens.radiusControl
-            , Typography.uiClass "ui-skeleton"
+            , Common.uiClass "ui-skeleton"
             ]
             Element.none
         , Ui.hairline theme

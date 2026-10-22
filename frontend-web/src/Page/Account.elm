@@ -34,6 +34,7 @@ import Route exposing (Route(..))
 import Set exposing (Set)
 import String
 import Ui
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
@@ -273,7 +274,7 @@ view theme viewport (Model model) =
             Element.column
                 [ Element.width Element.fill
                 , Element.spacing Tokens.space16
-                , Typography.uiClass "page-scroll"
+                , Common.uiClass "page-scroll"
                 ]
                 [ Ui.pageHeaderBand theme <|
                     Ui.pageHeader theme
@@ -310,7 +311,7 @@ wideLayout theme page account =
         [ Element.width Element.fill
         , Element.height Element.fill
         , Element.clip
-        , Typography.uiClass "accounts-wide-layout"
+        , Common.uiClass "accounts-wide-layout"
         ]
         [ Element.el
             [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
@@ -537,13 +538,13 @@ balanceText theme valuation symbolCount =
         [ Element.width Element.fill
         , Element.spacing Tokens.space2
         , Element.alignRight
-        , Typography.minWidthZero
+        , Common.minWidthZero
         ]
         [ Element.el
             [ Element.alignRight
             , Font.color theme.textPrimary
             , Font.semiBold
-            , Typography.minWidthZero
+            , Common.minWidthZero
             ]
             (Element.text
                 (case amount of
@@ -586,7 +587,7 @@ valueView theme path (Model model) =
                 , Element.height Element.fill
                 , Background.color theme.pageBg
                 , Element.scrollbarY
-                , Typography.uiClass "page-scroll account-detail-page"
+                , Common.uiClass "page-scroll account-detail-page"
                 ]
                 [ Ui.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
@@ -601,7 +602,7 @@ accountDetailPage theme onBack account =
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Typography.uiClass "page-scroll account-detail-page"
+        , Common.uiClass "page-scroll account-detail-page"
         ]
         [ Ui.pageHeaderBand theme <|
             accountDetailHeader theme onBack
@@ -662,7 +663,7 @@ detailForPath theme path response =
                 , Element.height Element.fill
                 , Background.color theme.pageBg
                 , Element.scrollbarY
-                , Typography.uiClass "page-scroll account-detail-page"
+                , Common.uiClass "page-scroll account-detail-page"
                 ]
                 [ Ui.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
@@ -710,9 +711,9 @@ detailBalance theme balance =
         [ Element.text (Quantity.commodity balance)
             |> Element.el
                 [ Element.width Element.fill
-                , Typography.minWidthZero
+                , Common.minWidthZero
                 , Element.clip
-                , Typography.uiClass "ui-text-ellipsis"
+                , Common.uiClass "ui-text-ellipsis"
                 , Font.color theme.textMedium
                 ]
         , Element.text (Formatting.formatBalance balance)
