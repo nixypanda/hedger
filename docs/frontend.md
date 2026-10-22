@@ -71,7 +71,7 @@ frontend-web/
       Color.elm               # color blending and alpha helpers
       Common.elm              # shared attributes and CSS color conversion
       Css.elm                 # theme CSS variables
-      DesignTokens.elm        # color and spacing tokens
+      DesignTokens.elm        # layout, sizing, and spacing tokens
       Env.elm                 # theme, device, and viewport context
       Feedback.elm            # loading, empty, error, and warning states
       Icon.elm                # icon set
@@ -395,8 +395,8 @@ sessions.
 
 ## Design system
 
-Shared primitives live in the `Ui.*` modules; pages and views compose them. The
-old `Ui.elm` facade and `Ui.Responsive`/`State.Viewport` helpers are gone.
+All shared presentation primitives now live under `Ui.*`; pages and views
+compose them.
 
 ### Visual language
 
@@ -417,7 +417,7 @@ old `Ui.elm` facade and `Ui.Responsive`/`State.Viewport` helpers are gone.
 
 - `Ui.Typography` — the type scale (page title, section, body, caption, KPI
   value, and so on).
-- `Ui.DesignTokens` — color and spacing tokens.
+- `Ui.DesignTokens` — layout, sizing, and spacing tokens.
 - `Ui.Theme` — light/dark theme records and mode parsing; the settings page
   toggles between them.
 - `Ui.Common` / `Ui.Color` — shared attributes, CSS color conversion, blending,
