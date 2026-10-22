@@ -1,4 +1,4 @@
-module View.Shell exposing
+module View.Chrome exposing
     ( ActionStyle(..)
     , Destination
     , Notice

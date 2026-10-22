@@ -6,6 +6,7 @@ import Api.Error as ApiError exposing (ApiError)
 import Browser
 import Browser.Events
 import Browser.Navigation as Nav
+import Chrome
 import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
 import Element.Font as Font
@@ -21,14 +22,12 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
-import Ui.Icon as Icon exposing (Icon)
 import Ui.Page as UiPage
 import Ui.Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Url exposing (Url)
-import View.Shell as Shell
 
 
 
@@ -285,101 +284,15 @@ view model =
             []
           <|
             UiPage.layout env.theme <|
-                Shell.view env
-                    { notice = shellNotice model.pwa
-                    , navigation = shellNavigation model.route
+                Chrome.view
+                    { env = env
+                    , route = model.route
+                    , pwa = model.pwa
                     , page = page
+                    , onNavigate = Navigate
+                    , onPwa = PwaMsg
                     }
         ]
-    }
-
-
-shellNavigation : Route -> List (Shell.Destination Msg)
-shellNavigation currentRoute =
-    [ destination currentRoute "Net Worth" Icon.TrendingUp NetWorth
-    , destination currentRoute "Investments" Icon.ChartBar Investments
-    , destination currentRoute "Cashflow" Icon.ChartPie Cashflow
-    , destination currentRoute "Accounts" Icon.Wallet Accounts
-    , destination currentRoute "Transactions" Icon.Receipt Transactions
-    , destination currentRoute "Settings" Icon.Settings Settings
-    ]
-
-
-destination : Route -> String -> Icon -> Route -> Shell.Destination Msg
-destination currentRoute label icon route =
-    { label = label
-    , icon = icon
-    , active = routeIsActive currentRoute route
-    , onPress = Navigate route
-    }
-
-
-routeIsActive : Route -> Route -> Bool
-routeIsActive currentRoute destinationRoute =
-    case ( currentRoute, destinationRoute ) of
-        ( Account _, Accounts ) ->
-            True
-
-        ( AccountValue _, Accounts ) ->
-            True
-
-        _ ->
-            currentRoute == destinationRoute
-
-
-shellNotice : Pwa.Model -> Maybe (Shell.Notice Msg)
-shellNotice pwa =
-    case pwa.serviceWorker of
-        Pwa.ServiceWorkerUpdateReady ->
-            Just
-                { icon = Icon.Refresh
-                , message = "A new version of Hedger is ready."
-                , actions =
-                    [ shellAction "Update" (PwaMsg Pwa.ApplyServiceWorkerUpdate)
-                    ]
-                }
-
-        _ ->
-            installationNotice pwa.installation
-
-
-installationNotice : Pwa.InstallationState -> Maybe (Shell.Notice Msg)
-installationNotice installation =
-    case installation of
-        Pwa.IosBrowser Pwa.InstallHintVisible ->
-            Just
-                { icon = Icon.Info
-                , message = "Add Hedger to your Home Screen from Safari's Share menu."
-                , actions = [ dismissAction ]
-                }
-
-        Pwa.InstallableBrowser Pwa.InstallPromptAvailable ->
-            Just
-                { icon = Icon.Download
-                , message = "Install Hedger for quick offline access."
-                , actions =
-                    [ shellAction "Install" (PwaMsg Pwa.PromptInstall)
-                    , dismissAction
-                    ]
-                }
-
-        _ ->
-            Nothing
-
-
-shellAction : String -> Msg -> Shell.NoticeAction Msg
-shellAction label onPress =
-    { label = label
-    , onPress = onPress
-    , style = Shell.PrimaryAction
-    }
-
-
-dismissAction : Shell.NoticeAction Msg
-dismissAction =
-    { label = "Dismiss"
-    , onPress = PwaMsg Pwa.DismissInstallPrompt
-    , style = Shell.GhostAction
     }
 
 
