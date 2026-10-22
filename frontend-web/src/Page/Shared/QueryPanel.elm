@@ -5,6 +5,7 @@ import Element exposing (Element)
 import Html.Attributes
 import Ui
 import Ui.DesignTokens as Tokens
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 
@@ -65,7 +66,7 @@ view config =
                     ]
                     [ searchInput, buttons ]
     in
-    Ui.card config.theme
+    Surface.card config.theme
         [ Ui.fieldLabel config.theme "hledger query"
         , inputRow
         , case config.queryError of

@@ -53,6 +53,7 @@ import Ui.Color as Color
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Surface as Surface
 import Ui.Theme as Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
@@ -95,7 +96,7 @@ kpiCard :
         }
     -> Element msg
 kpiCard theme config =
-    Ui.cardWith
+    Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         , Element.height (Element.px Tokens.analyticsChartHeight)
         ]
@@ -420,7 +421,7 @@ categoryCard :
         }
     -> Element msg
 categoryCard theme config =
-    Ui.cardWith
+    Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         , Element.alignTop
         , Element.height Element.fill
@@ -771,7 +772,7 @@ activityMonth theme config =
                             }
                 }
     in
-    Ui.cardWith
+    Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         , Element.alignTop
         , Element.height Element.fill
@@ -1024,7 +1025,7 @@ activityCategoryLegend config =
                     , onPress = config.onCategoryHighlight index
                     , label =
                         Element.row [ Element.spacing Tokens.space5 ]
-                            [ Ui.accentDot dotColor
+                            [ Surface.accentDot dotColor
                             , Typography.mutedCaption theme (categoryLabel category.account)
                             ]
                     }
@@ -1329,7 +1330,7 @@ activityTransactionList theme title transactions onSelect =
                 (List.map
                     (\transaction ->
                         Input.button
-                            (Ui.rowSurfaceAttrs theme False ++ [ Element.width Element.fill ])
+                            (Surface.rowSurfaceAttrs theme False ++ [ Element.width Element.fill ])
                             { onPress = Just (onSelect transaction)
                             , label =
                                 Element.row
@@ -1372,7 +1373,7 @@ activityYear :
         }
     -> Element msg
 activityYear theme config =
-    Ui.cardWith
+    Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         , Element.alignTop
         , Element.height Element.fill
@@ -1483,14 +1484,14 @@ activityYear theme config =
 
 activityTransactions : Theme -> String -> List Transaction -> (Transaction -> msg) -> Element msg
 activityTransactions theme title transactions onSelect =
-    Ui.card theme
+    Surface.card theme
         [ Typography.subsectionTitle theme title
         , if List.isEmpty transactions then
             Typography.mutedParagraph theme "No contributing transactions"
 
           else
             Element.column [ Element.width Element.fill ]
-                (List.intersperse (Ui.hairline theme)
+                (List.intersperse (Surface.hairline theme)
                     (List.map
                         (\transaction ->
                             Input.button
@@ -1791,7 +1792,7 @@ activityMeaningLegend theme tone =
         (List.map
             (\( label, color ) ->
                 Element.row [ Element.spacing Tokens.space5 ]
-                    [ Ui.accentDot color, Typography.mutedCaption theme label ]
+                    [ Surface.accentDot color, Typography.mutedCaption theme label ]
             )
             meanings
         )
@@ -1849,7 +1850,7 @@ activityDirectionLegend theme specs highlighted onHighlight =
                     , onPress = onHighlight index
                     , label =
                         Element.row [ Element.spacing Tokens.space5 ]
-                            [ Ui.accentDot (scaleColor spec.scale 0)
+                            [ Surface.accentDot (scaleColor spec.scale 0)
                             , Typography.mutedCaption theme spec.label
                             ]
                     }

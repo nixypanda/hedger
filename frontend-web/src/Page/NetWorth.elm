@@ -14,6 +14,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
@@ -341,7 +342,7 @@ dashboardContent theme viewport data =
                     }
                 ]
             , Typography.sectionTitle theme "Performance"
-            , Ui.card theme
+            , Surface.card theme
                 [ Element.row [ Element.width Element.fill ]
                     [ Typography.subsectionTitle theme "Net Investment vs Net Worth"
                     , if response.incompletePeriods > 0 then
@@ -416,7 +417,7 @@ chartLegend theme items =
         (List.map
             (\( color, label ) ->
                 Element.row [ Element.spacing Tokens.space5 ]
-                    [ Ui.accentDot color
+                    [ Surface.accentDot color
                     , Element.el [ Font.color theme.textMuted ] (Element.text label)
                     ]
             )

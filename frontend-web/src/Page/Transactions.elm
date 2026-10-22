@@ -46,6 +46,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
@@ -652,7 +653,7 @@ remoteContent :
 remoteContent theme compact model =
     case remoteData model of
         NotAsked ->
-            Ui.card theme [ Ui.loading theme "Loading transactions…" ]
+            Surface.card theme [ Ui.loading theme "Loading transactions…" ]
 
         Loading Nothing ->
             transactionsSkeleton theme
@@ -670,13 +671,13 @@ remoteContent theme compact model =
 
                 Nothing ->
                     if queryError (remoteData model) /= Nothing then
-                        Ui.card theme
+                        Surface.card theme
                             [ Typography.mutedParagraph theme
                                 "Correct the query above, then apply it again."
                             ]
 
                     else
-                        Ui.card theme
+                        Surface.card theme
                             [ Ui.errorBanner theme
                                 ("Transactions failed to load: " ++ ApiError.message error)
                             ]
@@ -706,7 +707,7 @@ transactionContent theme compact model response =
 
 noMatches : Theme -> Model -> Element Msg
 noMatches theme model =
-    Ui.card theme
+    Surface.card theme
         [ Typography.mutedParagraph theme
             (if String.isEmpty (appliedQuery model) then
                 "No transactions are available."
@@ -840,7 +841,7 @@ transactionRow theme compact selected transaction =
     let
         rowContent =
             Element.column
-                (Ui.rowSurfaceAttrs theme (selected == Just transaction)
+                (Surface.rowSurfaceAttrs theme (selected == Just transaction)
                     ++ [ Element.spacing Tokens.space8
                        ]
                 )
@@ -1003,7 +1004,7 @@ detailPage theme onBack transaction =
 
 transactionsSkeleton : Theme -> Element Msg
 transactionsSkeleton theme =
-    Ui.card theme
+    Surface.card theme
         [ Typography.mutedBody theme "Loading transactions…"
         , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
             [ Element.el
@@ -1016,9 +1017,9 @@ transactionsSkeleton theme =
                 ]
                 (Typography.subsectionTitle theme "January 2026")
             , Skeleton.listRow theme
-            , Ui.hairline theme
+            , Surface.hairline theme
             , Skeleton.listRow theme
-            , Ui.hairline theme
+            , Surface.hairline theme
             , Skeleton.listRow theme
             ]
         ]

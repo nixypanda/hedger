@@ -32,6 +32,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
@@ -325,7 +326,7 @@ assetClassAllocationCard layout theme commodity allocations =
         Element.none
 
     else
-        Ui.card theme
+        Surface.card theme
             [ Typography.subsectionTitle theme "Asset allocation"
             , allocationGrid layout theme commodity allocations
             ]
@@ -672,7 +673,7 @@ investmentHistoryCard :
     -> List Investments.TimelinePoint
     -> Element Msg
 investmentHistoryCard theme commodity chartWidth selectedMode selected summary timeline =
-    Ui.card theme
+    Surface.card theme
         [ Element.row [ Element.width Element.fill ]
             [ Element.column [ Element.spacing Tokens.space2 ]
                 [ Typography.subsectionTitle theme "Portfolio history"
@@ -922,7 +923,7 @@ investmentMetricCard :
     -> Element.Color
     -> Element Msg
 investmentMetricCard theme title value icon color =
-    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle) ]
+    Surface.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle) ]
         theme
         [ Element.row
             [ Element.width Element.fill
@@ -954,7 +955,7 @@ investmentNavigator :
     -> List Investments.Child
     -> Element Msg
 investmentNavigator theme commodity breadcrumbs children =
-    Ui.cardWith
+    Surface.cardWith
         [ Element.width Element.fill
         , Element.height Element.fill
         , Region.navigation
@@ -963,7 +964,7 @@ investmentNavigator theme commodity breadcrumbs children =
         theme
         [ Typography.mutedCaption theme "Current scope"
         , investmentNavigatorPath theme breadcrumbs
-        , Ui.hairline theme
+        , Surface.hairline theme
         , Typography.mutedCaption theme "Accounts in this scope"
         , if List.isEmpty children then
             Typography.mutedParagraph theme "No accounts below this level."
@@ -1220,22 +1221,22 @@ investmentChartLegend theme selectedMode points =
             ValueChart ->
                 Element.wrappedRow [ Element.spacing Tokens.space16 ]
                     [ Element.row [ Element.spacing Tokens.space6 ]
-                        [ Ui.accentDot theme.primary
+                        [ Surface.accentDot theme.primary
                         , Typography.mutedCaption theme "Portfolio value"
                         ]
                     , Element.row [ Element.spacing Tokens.space6 ]
-                        [ Ui.accentDot theme.textMuted
+                        [ Surface.accentDot theme.textMuted
                         , Typography.mutedCaption theme "Invested capital"
                         ]
                     , Element.row [ Element.spacing Tokens.space6 ]
-                        [ Ui.accentDot theme.positive, Typography.mutedCaption theme "Gain" ]
+                        [ Surface.accentDot theme.positive, Typography.mutedCaption theme "Gain" ]
                     , Element.row [ Element.spacing Tokens.space6 ]
-                        [ Ui.accentDot theme.negative, Typography.mutedCaption theme "Loss" ]
+                        [ Surface.accentDot theme.negative, Typography.mutedCaption theme "Loss" ]
                     ]
 
             ReturnsChart ->
                 Element.row [ Element.spacing Tokens.space6 ]
-                    [ Ui.accentDot theme.primary, Typography.mutedCaption theme "XIRR" ]
+                    [ Surface.accentDot theme.primary, Typography.mutedCaption theme "XIRR" ]
 
 
 investmentTone : Maybe Decimal -> Theme -> Element.Color
@@ -1363,7 +1364,7 @@ investmentsSkeleton theme viewport =
 
 investmentNavigatorSkeleton : Theme -> Element msg
 investmentNavigatorSkeleton theme =
-    Ui.card theme
+    Surface.card theme
         [ Element.el
             [ Element.width (Element.px Tokens.periodMonthLabelWidth)
             , Element.height (Element.px Tokens.iconSizeCaption)
@@ -1380,8 +1381,8 @@ investmentNavigatorSkeleton theme =
             , Common.uiClass "ui-skeleton"
             ]
             Element.none
-        , Ui.hairline theme
+        , Surface.hairline theme
         , Skeleton.listRow theme
-        , Ui.hairline theme
+        , Surface.hairline theme
         , Skeleton.listRow theme
         ]

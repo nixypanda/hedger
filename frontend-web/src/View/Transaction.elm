@@ -15,6 +15,7 @@ import Ui
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
@@ -130,7 +131,7 @@ effectLabel classification =
 transactionDetail : Theme -> Transaction -> Element msg
 transactionDetail theme transaction =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-        [ Ui.card theme
+        [ Surface.card theme
             (List.filterMap identity
                 [ Just (detailRow theme "Date" (Date.toString transaction.primaryDate))
                 , maybeDetailRow
@@ -145,14 +146,14 @@ transactionDetail theme transaction =
                 , tagsDetailRow theme transaction
                 ]
             )
-        , Ui.section theme
+        , Surface.section theme
             { header = Just (Typography.sectionTitle theme "Postings")
             , body =
                 if List.isEmpty transaction.postings then
                     [ Typography.mutedParagraph theme "No postings" ]
 
                 else
-                    List.intersperse (Ui.hairline theme)
+                    List.intersperse (Surface.hairline theme)
                         (List.map (postingDetailRow theme) transaction.postings)
             , footer = Nothing
             }

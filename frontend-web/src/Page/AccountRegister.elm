@@ -41,6 +41,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
@@ -428,7 +429,7 @@ filters theme model =
         ( from, to ) =
             modelFilters model
     in
-    Ui.card theme
+    Surface.card theme
         [ Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
             [ Element.el
                 [ Element.width (Element.fill |> Element.maximum Tokens.splitPaneControlWidth) ]
@@ -451,19 +452,19 @@ content : Theme -> Bool -> Model -> Element Msg
 content theme compact (Model data) =
     case ( Paginated.status data.paginated, visibleResponse (Model data) ) of
         ( Paginated.NotAsked, _ ) ->
-            Ui.card theme [ Ui.loading theme "Loading register…" ]
+            Surface.card theme [ Ui.loading theme "Loading register…" ]
 
         ( Paginated.LoadingFirst, _ ) ->
-            Ui.card theme
+            Surface.card theme
                 [ Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
                 ]
 
         ( Paginated.LoadFailure, _ ) ->
-            Ui.card theme
+            Surface.card theme
                 [ Ui.errorBanner theme
                     ("Register failed to load: " ++ failureMessage data.paginated)
                 ]
@@ -486,7 +487,7 @@ content theme compact (Model data) =
             registerContent theme compact (Model data) response
 
         ( _, Nothing ) ->
-            Ui.card theme [ Ui.loading theme "Loading register…" ]
+            Surface.card theme [ Ui.loading theme "Loading register…" ]
 
 
 failureMessage : Paginated ApiError Criteria Response -> String
@@ -501,7 +502,7 @@ registerContent theme compact model response =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ States.freshnessBanner theme response.metadata.freshness
         , if List.isEmpty response.entries then
-            Ui.card theme [ Ui.emptyState theme "No register entries match this date range." ]
+            Surface.card theme [ Ui.emptyState theme "No register entries match this date range." ]
 
           else
             registerRows theme compact model response.displayCommodity response.entries
@@ -587,7 +588,8 @@ entryRow theme compact model commodity entry =
                 Element.none
 
         rowContent =
-            Element.column (Ui.rowSurfaceAttrs theme False ++ [ Element.spacing Tokens.space8 ])
+            Element.column
+                (Surface.rowSurfaceAttrs theme False ++ [ Element.spacing Tokens.space8 ])
                 [ if compact then
                     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                         [ Element.el [ Typography.caption ] date
@@ -769,12 +771,12 @@ detailPage theme onClose commodity entry =
                 , Typography.sectionTitle theme "Details"
                 ]
         , Ui.pageContainer
-            [ Ui.card theme
+            [ Surface.card theme
                 [ Typography.sectionTitle theme entry.description
                 , Element.text (Date.toString entry.date ++ " · " ++ entry.account)
                     |> Element.el [ Typography.caption, Font.color theme.textMuted ]
                 , valueDetails theme commodity "Movement" entry.amount
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , valueDetails theme commodity "Balance" entry.balance
                 ]
             ]

@@ -38,6 +38,7 @@ import Element exposing (Element)
 import Element.Font as Font
 import Ui
 import Ui.DesignTokens as Tokens
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
@@ -724,7 +725,7 @@ timelineView : Theme -> Int -> Config -> Report -> ModelData -> Element Msg
 timelineView theme chartWidth config report data =
     case report.timeline of
         TimelineAvailable points ->
-            Ui.card theme
+            Surface.card theme
                 [ Typography.subsectionTitle theme config.timelineTitle
                 , AnalyticsView.positiveNegativeTimelineChart theme
                     { commodity = report.displayCommodity
@@ -1177,7 +1178,7 @@ chartLegend theme items =
         (List.map
             (\( color, label ) ->
                 Element.row [ Element.spacing Tokens.space5 ]
-                    [ Ui.accentDot color
+                    [ Surface.accentDot color
                     , Element.el [ Font.color theme.textMuted ] (Element.text label)
                     ]
             )

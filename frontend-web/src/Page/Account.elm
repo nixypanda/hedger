@@ -38,6 +38,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
@@ -342,20 +343,20 @@ content theme model =
             Ui.loading theme "Loading accounts…"
 
         Loading ->
-            Ui.card theme
+            Surface.card theme
                 [ Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
                 ]
 
         Refreshing response ->
-            Ui.card theme
+            Surface.card theme
                 [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing accounts"
                 , accountTree theme model.expanded response.accounts
                 ]
@@ -366,14 +367,14 @@ content theme model =
                 (accountTree theme model.expanded response.accounts)
 
         FailedWithStale error response ->
-            Ui.card theme
+            Surface.card theme
                 [ Ui.errorBanner theme
                     ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
                 , accountTree theme model.expanded response.accounts
                 ]
 
         Failed error ->
-            Ui.card theme
+            Surface.card theme
                 [ Ui.errorBanner theme
                     ("Accounts failed to load: " ++ ApiError.message error)
                 ]
@@ -381,7 +382,7 @@ content theme model =
 
 stateCard : Theme -> Freshness -> Element msg -> Element msg
 stateCard theme freshness tree =
-    Ui.card theme
+    Surface.card theme
         [ States.freshnessBanner theme freshness
         , tree
         ]
@@ -591,7 +592,8 @@ valueView theme path (Model model) =
                 ]
                 [ Ui.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
-                , Ui.pageContainer [ Ui.card theme [ Ui.loading theme "Loading account value…" ] ]
+                , Ui.pageContainer
+                    [ Surface.card theme [ Ui.loading theme "Loading account value…" ] ]
                 ]
 
 
@@ -606,7 +608,7 @@ accountDetailPage theme onBack account =
         ]
         [ Ui.pageHeaderBand theme <|
             accountDetailHeader theme onBack
-        , Ui.pageContainer [ Ui.card theme (valuePanel theme account) ]
+        , Ui.pageContainer [ Surface.card theme (valuePanel theme account) ]
         ]
 
 
@@ -636,7 +638,7 @@ valuePanel theme (AccountNode account) =
         ]
     , balanceText theme account.valuation Nothing
     , completenessBadge theme account.valuation.completeness
-    , Ui.hairline theme
+    , Surface.hairline theme
     , Typography.subsectionTitle theme "Balances included"
     , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (List.map (detailBalance theme) account.subtreeBalances)
@@ -668,7 +670,7 @@ detailForPath theme path response =
                 [ Ui.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
                 , Ui.pageContainer
-                    [ Ui.card theme
+                    [ Surface.card theme
                         [ Ui.errorBanner theme
                             "That account is no longer present in the current snapshot."
                         ]

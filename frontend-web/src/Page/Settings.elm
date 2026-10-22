@@ -4,6 +4,7 @@ import Element exposing (Element)
 import Preferences exposing (ThemeMode(..))
 import Ui
 import Ui.Common as Common
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 
@@ -68,7 +69,7 @@ view theme model =
 
 appearanceSection : Theme -> Model -> Element Msg
 appearanceSection theme model =
-    Ui.formSection theme
+    Surface.formSection theme
         "Appearance"
         [ themeToggle theme model ]
 

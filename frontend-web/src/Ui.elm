@@ -2,11 +2,8 @@ module Ui exposing
     ( FinancialTone(..)
     , PeriodLabelKind(..)
     , StatusTone(..)
-    , accentDot
     , backButton
     , badge
-    , card
-    , cardWith
     , chip
     , dangerButton
     , dateInput
@@ -14,9 +11,7 @@ module Ui exposing
     , errorBanner
     , fieldLabel
     , financialBadge
-    , formSection
     , ghostButton
-    , hairline
     , iconButton
     , layout
     , legendButton
@@ -27,10 +22,8 @@ module Ui exposing
     , pageHeaderBand
     , periodNavigation
     , primaryButton
-    , rowSurfaceAttrs
     , searchInputInline
     , secondaryButton
-    , section
     , segmentedControl
     , segmentedOption
     , statusBadge
@@ -52,27 +45,24 @@ import Ui.DesignTokens
         , minimumTouchTarget
         , periodFiscalYearLabelWidth
         , periodMonthLabelWidth
-        , radiusCard
         , radiusControl
-        , radiusHairline
         , radiusPill
         , radiusSmall
         , space12
         , space16
         , space2
-        , space20
         , space3
         , space4
         , space8
         )
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography
     exposing
         ( body
         , caption
         , mutedParagraph
-        , subsectionTitle
         )
 import Ui.Viewport
 
@@ -117,63 +107,6 @@ pageHeaderBand theme content =
             ]
             content
         )
-
-
-card : Theme -> List (Element msg) -> Element msg
-card theme children =
-    cardWith [] theme children
-
-
-cardWith : List (Attribute msg) -> Theme -> List (Element msg) -> Element msg
-cardWith attributes theme children =
-    Element.column
-        (attributes
-            ++ [ Element.width Element.fill
-               , Background.color theme.cardBg
-               , Border.rounded radiusCard
-               , Element.padding space20
-               , Element.spacing space12
-               , Border.width 1
-               , Border.color theme.divider
-               , uiClass "ui-card-shadow ui-surface"
-               ]
-        )
-        children
-
-
-section :
-    Theme
-    ->
-        { header : Maybe (Element msg)
-        , body : List (Element msg)
-        , footer : Maybe (Element msg)
-        }
-    -> Element msg
-section theme config =
-    card theme
-        (optionalWithDivider theme config.header
-            ++ config.body
-            ++ optionalFooter theme config.footer
-        )
-
-
-formSection : Theme -> String -> List (Element msg) -> Element msg
-formSection theme title children =
-    section theme
-        { header = Just (subsectionTitle theme title)
-        , body = children
-        , footer = Nothing
-        }
-
-
-hairline : Theme -> Element msg
-hairline theme =
-    Element.el
-        [ Element.width Element.fill
-        , Element.height (Element.px 1)
-        , Background.color theme.divider
-        ]
-        Element.none
 
 
 pageHeader :
@@ -275,7 +208,7 @@ loading theme message =
 
 emptyState : Theme -> String -> Element msg
 emptyState theme message =
-    card theme
+    Surface.card theme
         [ Element.paragraph
             [ Font.color theme.textMuted
             , Font.center
@@ -700,62 +633,6 @@ statusToneColors theme tone =
 
         StatusNeutral ->
             { bg = theme.chipBg, fg = theme.chipFg }
-
-
-rowSurfaceAttrs : Theme -> Bool -> List (Attribute msg)
-rowSurfaceAttrs theme selected =
-    [ Element.width Element.fill
-    , Element.padding 10
-    , Background.color
-        (if selected then
-            theme.selectedBg
-
-         else
-            theme.cardBg
-        )
-    , Border.rounded radiusCard
-    , Border.width 1
-    , Border.color
-        (if selected then
-            theme.primarySoft
-
-         else
-            theme.divider
-        )
-    ]
-        ++ Common.hoverBackground theme.hoverBg
-        ++ [ uiClass "ui-motion" ]
-
-
-accentDot : Element.Color -> Element msg
-accentDot color =
-    Element.el
-        [ Element.width (Element.px 4)
-        , Element.height (Element.px 24)
-        , Background.color color
-        , Border.rounded radiusHairline
-        ]
-        Element.none
-
-
-optionalWithDivider : Theme -> Maybe (Element msg) -> List (Element msg)
-optionalWithDivider theme maybeElement =
-    case maybeElement of
-        Just element ->
-            [ element, hairline theme ]
-
-        Nothing ->
-            []
-
-
-optionalFooter : Theme -> Maybe (Element msg) -> List (Element msg)
-optionalFooter theme maybeElement =
-    case maybeElement of
-        Just element ->
-            [ hairline theme, element ]
-
-        Nothing ->
-            []
 
 
 buttonBase :

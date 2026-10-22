@@ -21,6 +21,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport exposing (Viewport)
@@ -406,10 +407,10 @@ bootstrapStatus theme remote =
             Ui.loading theme "Preparing application metadata…"
 
         Loading Nothing ->
-            Ui.card theme [ Ui.Skeleton.loading theme ]
+            Surface.card theme [ Ui.Skeleton.loading theme ]
 
         Loading (Just bootstrap) ->
-            Ui.card theme
+            Surface.card theme
                 [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing metadata"
                 , bootstrapSummary theme bootstrap
                 ]
@@ -420,19 +421,19 @@ bootstrapStatus theme remote =
                     bootstrapSummary theme bootstrap
 
                 Refreshing ->
-                    Ui.card theme
+                    Surface.card theme
                         [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing"
                         , bootstrapSummary theme bootstrap
                         ]
 
                 Stale ->
-                    Ui.card theme
+                    Surface.card theme
                         [ Ui.statusBadge theme Ui.StatusWarning "Stale snapshot"
                         , bootstrapSummary theme bootstrap
                         ]
 
                 Partial ->
-                    Ui.card theme
+                    Surface.card theme
                         [ Ui.statusBadge theme Ui.StatusWarning "Partial data"
                         , bootstrapSummary theme bootstrap
                         ]
@@ -447,13 +448,13 @@ bootstrapStatus theme remote =
             in
             case stale of
                 Just bootstrap ->
-                    Ui.card theme
+                    Surface.card theme
                         [ failureBanner "Refresh failed; showing stale metadata: "
                         , bootstrapSummary theme bootstrap
                         ]
 
                 Nothing ->
-                    Ui.card theme [ failureBanner "Bootstrap failed: " ]
+                    Surface.card theme [ failureBanner "Bootstrap failed: " ]
 
 
 bootstrapSummary : Theme -> Bootstrap -> Element msg
@@ -469,7 +470,7 @@ bootstrapSummary theme bootstrap =
 
 placeholder : Theme -> Route -> List (Element Msg)
 placeholder theme route =
-    [ Ui.card theme
+    [ Surface.card theme
         [ Typography.sectionTitle theme (pageTitle route ++ " placeholder")
         , Element.paragraph [ Font.color theme.textMedium ]
             [ Element.text
