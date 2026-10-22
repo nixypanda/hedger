@@ -8,7 +8,7 @@ import Data.Date as Date
 import Data.Freshness exposing (Freshness(..))
 import Data.Metadata exposing (Metadata)
 import Data.Status as Status
-import Data.Transaction exposing (Transaction)
+import Data.Transaction exposing (Transaction, TransactionEffect(..), effectDecoder)
 import Expect
 import Fuzz
 import Json.Decode as Decode
@@ -46,7 +46,11 @@ suite =
                     |> Result.toMaybe
                     |> Maybe.andThen (.transactions >> List.head)
                     |> Maybe.map (.presentation >> .effects)
-                    |> Expect.equal (Just [ "expense", "borrowing" ])
+                    |> Expect.equal (Just [ TransactionExpense, Borrowing ])
+        , test "unknown effect labels decode while known labels are preserved" <|
+            \_ ->
+                Decode.decodeString (Decode.list effectDecoder) """["income","mystery_effect"]"""
+                    |> Expect.equal (Ok [ TransactionIncome, Unknown "mystery_effect" ])
         , test "initial load has no stale data" <|
             \_ ->
                 let
@@ -463,8 +467,8 @@ sampleResponse revision =
                   }
                 ]
           , presentation =
-                { classification = "expense"
-                , effects = [ "expense" ]
+                { classification = TransactionExpense
+                , effects = [ TransactionExpense ]
                 }
           }
         ]
@@ -503,7 +507,7 @@ sampleTransaction number =
             , comment = Nothing
             , tags = []
             , postings = []
-            , presentation = { classification = "expense", effects = [ "expense" ] }
+            , presentation = { classification = TransactionExpense, effects = [ TransactionExpense ] }
             }
 
 

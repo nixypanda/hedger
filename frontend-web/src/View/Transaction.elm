@@ -9,7 +9,7 @@ module View.Transaction exposing
 import Data.Date as Date
 import Data.Formatting as Formatting
 import Data.Status as Status
-import Data.Transaction exposing (Amount, Posting, Tag, Transaction)
+import Data.Transaction exposing (Amount, Posting, Tag, Transaction, TransactionEffect(..))
 import Element exposing (Element)
 import Element.Font as Font
 import Ui.Chip as Chip
@@ -22,52 +22,58 @@ import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
 
 
-classificationTone : String -> Chip.FinancialTone
+classificationTone : TransactionEffect -> Chip.FinancialTone
 classificationTone classification =
     case classification of
-        "income" ->
+        TransactionIncome ->
             Chip.FinancialIncome
 
-        "expense" ->
+        IncomeReversal ->
+            Chip.FinancialIncome
+
+        TransactionExpense ->
             Chip.FinancialExpense
 
-        "opening_balance" ->
+        ExpenseReversal ->
+            Chip.FinancialExpense
+
+        OpeningBalance ->
             Chip.FinancialEquity
 
-        "borrowing" ->
+        Borrowing ->
             Chip.FinancialBorrowing
 
-        "repayment" ->
-            Chip.FinancialRepayment
-
-        "asset_acquisition" ->
-            Chip.FinancialAsset
-
-        "asset_disposal" ->
-            Chip.FinancialAsset
-
-        "asset_reallocation" ->
-            Chip.FinancialAsset
-
-        "asset_transfer" ->
-            Chip.FinancialAsset
-
-        "refinancing" ->
+        Refinancing ->
             Chip.FinancialBorrowing
 
-        "debt_forgiveness" ->
+        Repayment ->
             Chip.FinancialRepayment
 
-        "borrowing_reversal" ->
+        DebtForgiveness ->
             Chip.FinancialRepayment
 
-        "income_reversal" ->
-            Chip.FinancialIncome
+        BorrowingReversal ->
+            Chip.FinancialRepayment
 
-        "expense_reversal" ->
-            Chip.FinancialExpense
+        AssetAcquisition ->
+            Chip.FinancialAsset
 
-        _ ->
+        AssetDisposal ->
+            Chip.FinancialAsset
+
+        AssetReallocation ->
+            Chip.FinancialAsset
+
+        AssetTransfer ->
+            Chip.FinancialAsset
+
+        TransactionTransfer ->
+            Chip.FinancialNeutral
+
+        Unclassified ->
+            Chip.FinancialNeutral
+
+        Unknown _ ->
             Chip.FinancialNeutral
 
 
@@ -76,55 +82,58 @@ classificationLabel transaction =
     effectLabel transaction.presentation.classification
 
 
-effectLabel : String -> String
-effectLabel classification =
-    case classification of
-        "income" ->
+effectLabel : TransactionEffect -> String
+effectLabel effect =
+    case effect of
+        TransactionIncome ->
             "Income"
 
-        "expense" ->
+        TransactionExpense ->
             "Expense"
 
-        "opening_balance" ->
+        TransactionTransfer ->
+            "Transfer"
+
+        OpeningBalance ->
             "Opening balance"
 
-        "borrowing" ->
+        Borrowing ->
             "Borrowing"
 
-        "repayment" ->
+        Repayment ->
             "Repayment"
 
-        "asset_acquisition" ->
+        AssetAcquisition ->
             "Asset acquisition"
 
-        "asset_disposal" ->
+        AssetDisposal ->
             "Asset disposal"
 
-        "asset_reallocation" ->
+        AssetReallocation ->
             "Asset reallocation"
 
-        "asset_transfer" ->
+        AssetTransfer ->
             "Asset transfer"
 
-        "refinancing" ->
+        Refinancing ->
             "Refinancing"
 
-        "debt_forgiveness" ->
+        DebtForgiveness ->
             "Debt forgiven"
 
-        "borrowing_reversal" ->
+        BorrowingReversal ->
             "Borrowing reversed"
 
-        "income_reversal" ->
+        IncomeReversal ->
             "Income reversed"
 
-        "expense_reversal" ->
+        ExpenseReversal ->
             "Expense reversed"
 
-        "unclassified" ->
+        Unclassified ->
             "Unclassified"
 
-        _ ->
+        Unknown _ ->
             "Transfer"
 
 

@@ -10,7 +10,16 @@ import Data.Date as Date
 import Data.Decimal as Decimal
 import Data.Metadata exposing (Metadata)
 import Data.Status as Status
-import Data.Transaction exposing (Amount, Cost, Posting, Presentation, Tag, Transaction)
+import Data.Transaction
+    exposing
+        ( Amount
+        , Cost
+        , Posting
+        , Presentation
+        , Tag
+        , Transaction
+        , effectDecoder
+        )
 import Json.Decode as Decode exposing (Decoder)
 
 
@@ -68,8 +77,8 @@ transactionDecoder =
 presentationDecoder : Decoder Presentation
 presentationDecoder =
     Decode.map2 Presentation
-        (Decode.field "classification" Decode.string)
-        (Decode.field "effects" (Decode.list Decode.string))
+        (Decode.field "classification" effectDecoder)
+        (Decode.field "effects" (Decode.list effectDecoder))
 
 
 postingDecoder : Decoder Posting

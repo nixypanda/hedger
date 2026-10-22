@@ -8,7 +8,7 @@ import Data.Decimal as Decimal
 import Data.Freshness exposing (Freshness(..))
 import Data.Granularity exposing (Granularity(..))
 import Data.Status exposing (Status(..))
-import Data.Transaction exposing (Transaction)
+import Data.Transaction exposing (Transaction, TransactionEffect(..))
 import Expect
 import Fuzz
 import Test exposing (Test, describe, fuzz, test)
@@ -106,7 +106,7 @@ selectedTransaction =
     , comment = Nothing
     , tags = []
     , postings = []
-    , presentation = { classification = "income", effects = [ "income" ] }
+    , presentation = { classification = TransactionIncome, effects = [ TransactionIncome ] }
     }
 
 

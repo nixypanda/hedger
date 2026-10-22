@@ -32,7 +32,7 @@ import Data.Date as Date
 import Data.Freshness exposing (Freshness(..))
 import Data.Paginated as Paginated exposing (Paginated)
 import Data.Revision as Revision
-import Data.Transaction exposing (Posting, Transaction)
+import Data.Transaction exposing (Posting, Transaction, TransactionEffect(..))
 import Element exposing (Element)
 import Element.Font as Font
 import Element.Input as Input
@@ -907,7 +907,7 @@ trailingSummary theme transaction =
     in
     Element.wrappedRow [ Element.alignRight, Element.spacing Tokens.space2 ]
         (effects
-            |> List.filter ((/=) "unclassified")
+            |> List.filter ((/=) Unclassified)
             |> List.map
                 (\effect ->
                     Chip.financialBadge theme
