@@ -40,11 +40,7 @@ view env panes =
             Element.none
 
         [ pane ] ->
-            Element.el
-                [ Element.width (widthLength pane.width)
-                , Common.minWidthZero
-                ]
-                pane.content
+            pane.content
 
         _ ->
             Keyed.row
@@ -52,6 +48,7 @@ view env panes =
                 , Element.height Element.fill
                 , Element.clip
                 , minHeightZero
+                , flexShrinkOne
                 , Background.color env.theme.pageBg
                 ]
                 (List.map (paneView env.theme) panes)
@@ -64,7 +61,7 @@ paneView theme pane =
         [ Element.width (widthLength pane.width)
         , Element.height Element.fill
         , Element.scrollbarY
-        , Element.clipX
+        , overflowXHidden
         , Common.minWidthZero
         , minHeightZero
         , Background.color theme.pageBg
@@ -89,3 +86,13 @@ widthLength width =
 minHeightZero : Element.Attribute msg
 minHeightZero =
     Element.htmlAttribute (Html.Attributes.style "min-height" "0")
+
+
+flexShrinkOne : Element.Attribute msg
+flexShrinkOne =
+    Element.htmlAttribute (Html.Attributes.style "flex-shrink" "1")
+
+
+overflowXHidden : Element.Attribute msg
+overflowXHidden =
+    Element.htmlAttribute (Html.Attributes.style "overflow-x" "hidden")
