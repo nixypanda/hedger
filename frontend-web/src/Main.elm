@@ -19,12 +19,13 @@ import Route exposing (Route(..))
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Page as UiPage
 import Ui.Skeleton
 import Ui.Surface as Surface
-import Ui.Theme exposing (Mode, Theme)
+import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport exposing (Viewport)
 import Url exposing (Url)
@@ -62,6 +63,15 @@ init flags url key =
             Ui.Theme.modeFromStringResult flags.initialMode
                 |> Result.withDefault Ui.Theme.Light
 
+        initialViewport =
+            { width = flags.viewportWidth, height = flags.viewportHeight }
+
+        initialEnv =
+            { theme = Ui.Theme.forMode initialMode
+            , device = Element.classifyDevice initialViewport
+            , viewport = initialViewport
+            }
+
         redirect =
             if url.path == "/" then
                 Nav.replaceUrl key (Route.toPath NetWorth)
@@ -74,17 +84,12 @@ init flags url key =
 
         ( pageModel, pageCmd, _ ) =
             Page.init
-                (pageContext
-                    initialRoute
-                    { width = flags.viewportWidth, height = flags.viewportHeight }
-                    (Ui.Theme.forMode initialMode)
-                    initialMode
-                )
+                (pageContext initialRoute initialEnv)
                 Nothing
     in
     ( { key = key
       , route = initialRoute
-      , viewport = { width = flags.viewportWidth, height = flags.viewportHeight }
+      , viewport = initialViewport
       , preferences = Preferences.current initialMode
       , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
       , bootstrap = Loading Nothing
@@ -99,12 +104,18 @@ init flags url key =
     )
 
 
-pageContext : Route -> Viewport -> Theme -> Mode -> Page.Context
-pageContext route viewport theme mode =
+pageContext : Route -> Env -> Page.Context
+pageContext route env =
     { route = route
-    , viewport = viewport
-    , theme = theme
-    , mode = mode
+    , env = env
+    }
+
+
+currentEnv : Model -> Env
+currentEnv model =
+    { theme = Ui.Theme.forMode model.preferences.mode
+    , device = Element.classifyDevice model.viewport
+    , viewport = model.viewport
     }
 
 
@@ -147,7 +158,7 @@ update msg model =
 
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext route model.viewport (Ui.Theme.forMode model.preferences.mode) model.preferences.mode)
+                        (pageContext route (currentEnv model))
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -177,7 +188,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext model.route model.viewport (Ui.Theme.forMode model.preferences.mode) model.preferences.mode)
+                        (pageContext model.route (currentEnv model))
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -214,7 +225,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.update
-                        (pageContext model.route model.viewport (Ui.Theme.forMode model.preferences.mode) model.preferences.mode)
+                        (pageContext model.route (currentEnv model))
                         pageMsg
                         model.page
 
@@ -253,11 +264,11 @@ applyPageOutMsg outMsg model =
 view : Model -> Browser.Document Msg
 view model =
     let
-        activeTheme =
-            Ui.Theme.forMode model.preferences.mode
+        env =
+            currentEnv model
 
         page =
-            pageView activeTheme model
+            pageView env model
     in
     { title = pageTitle model.route ++ " · Hedger"
     , body =
@@ -272,11 +283,9 @@ view model =
             }
             []
           <|
-            UiPage.layout activeTheme <|
-                Shell.view
-                    { viewport = model.viewport
-                    , theme = activeTheme
-                    , notice = shellNotice model.pwa
+            UiPage.layout env.theme <|
+                Shell.view env
+                    { notice = shellNotice model.pwa
                     , navigation = shellNavigation model.route
                     , page = page
                     }
@@ -373,11 +382,15 @@ dismissAction =
     }
 
 
-pageView : Theme -> Model -> Element Msg
-pageView theme model =
+pageView : Env -> Model -> Element Msg
+pageView env model =
+    let
+        theme =
+            env.theme
+    in
     if isRealPage model.route then
         Element.map GotPageMsg
-            (Page.view (pageContext model.route model.viewport theme model.preferences.mode) model.page)
+            (Page.view (pageContext model.route env) model.page)
 
     else
         Element.column

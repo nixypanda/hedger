@@ -9,8 +9,8 @@ import Page.NetWorth as NetWorthPage
 import Page.Settings as SettingsPage
 import Page.Transactions as TransactionsPage
 import Route exposing (Route(..))
-import Ui.Theme exposing (Mode, Theme)
-import Ui.Viewport exposing (Viewport)
+import Ui.Env exposing (Env)
+import Ui.Theme exposing (Mode)
 
 
 
@@ -30,9 +30,7 @@ type Model
 
 type alias Context =
     { route : Route
-    , viewport : Viewport
-    , theme : Theme
-    , mode : Mode
+    , env : Env
     }
 
 
@@ -138,7 +136,7 @@ init context maybeExistingModel =
             )
 
         ( Settings, _ ) ->
-            ( SettingsPage (SettingsPage.init context.mode)
+            ( SettingsPage (SettingsPage.init context.env.theme.mode)
             , Cmd.none
             , NoOutMsg
             )
@@ -194,7 +192,7 @@ update context msg model =
         ( GotAccountsMsg subMsg, AccountsPage subModel ) ->
             let
                 ( nextModel, subCmd, outMsg ) =
-                    AccountPage.update { viewport = context.viewport } subMsg subModel
+                    AccountPage.update { env = context.env } subMsg subModel
             in
             ( AccountsPage nextModel
             , Cmd.map GotAccountsMsg subCmd
@@ -265,33 +263,33 @@ view context model =
     case ( context.route, model ) of
         ( AccountValue accountName, AccountsPage subModel ) ->
             Element.map GotAccountsMsg
-                (AccountPage.valueView context.theme accountName subModel)
+                (AccountPage.valueView context.env accountName subModel)
 
         ( _, AccountsPage subModel ) ->
             Element.map GotAccountsMsg
-                (AccountPage.view context.theme context.viewport subModel)
+                (AccountPage.view context.env subModel)
 
         ( _, TransactionsPage subModel ) ->
             Element.map GotTransactionsMsg
-                (TransactionsPage.view context.theme context.viewport subModel)
+                (TransactionsPage.view context.env subModel)
 
         ( _, AccountRegisterPage subModel ) ->
             Element.map GotAccountRegisterMsg
-                (AccountRegisterPage.view context.theme context.viewport subModel)
+                (AccountRegisterPage.view context.env subModel)
 
         ( _, NetWorthPage subModel ) ->
-            Element.map GotNetWorthMsg (NetWorthPage.view context.theme context.viewport subModel)
+            Element.map GotNetWorthMsg (NetWorthPage.view context.env subModel)
 
         ( _, CashflowPage subModel ) ->
-            Element.map GotCashflowMsg (CashflowPage.view context.theme context.viewport subModel)
+            Element.map GotCashflowMsg (CashflowPage.view context.env subModel)
 
         ( _, InvestmentsPage subModel ) ->
             Element.map GotInvestmentsMsg
-                (InvestmentsPage.view context.theme context.viewport subModel)
+                (InvestmentsPage.view context.env subModel)
 
         ( _, SettingsPage subModel ) ->
             Element.map GotSettingsMsg
-                (SettingsPage.view context.theme subModel)
+                (SettingsPage.view context.env subModel)
 
         _ ->
             Element.none

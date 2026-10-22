@@ -45,6 +45,7 @@ import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Page as Page
@@ -52,7 +53,7 @@ import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport exposing (Viewport)
+import Ui.Viewport as Viewport
 import View.AccountPresentation as AccountPresentation
 import View.Transaction as TransactionView
 
@@ -490,12 +491,17 @@ canBeginLoadingMore (Model data) =
 
 
 view :
-    Theme
-    -> Viewport
+    Env
     -> Model
     -> Element Msg
-view theme viewport model =
+view env model =
     let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         response =
             visibleResponse model
 

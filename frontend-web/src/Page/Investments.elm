@@ -31,6 +31,7 @@ import Ui.Chip as Chip
 import Ui.Color as Color
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Input
@@ -216,8 +217,15 @@ latestPeriod =
     List.reverse >> List.head >> Maybe.map .period
 
 
-view : Theme -> Viewport -> Model -> Element Msg
-view theme viewport (Model data) =
+view : Env -> Model -> Element Msg
+view env (Model data) =
+    let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+    in
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill

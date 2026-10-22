@@ -12,6 +12,7 @@ import RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Page as Page
@@ -249,14 +250,18 @@ isReportEffect effect =
 -- VIEW
 
 
-view : Theme -> Viewport -> Model -> Element Msg
-view theme viewport (Model data) =
+view : Env -> Model -> Element Msg
+view env (Model data) =
+    let
+        theme =
+            env.theme
+    in
     case Analysis.transaction data.analysis of
         Just selectedTransaction ->
             transactionView theme selectedTransaction
 
         Nothing ->
-            dashboard theme viewport data
+            dashboard env data
 
 
 transactionView : Theme -> Transaction -> Element Msg
@@ -282,8 +287,15 @@ transactionView theme selectedTransaction =
         ]
 
 
-dashboard : Theme -> Viewport -> ModelData -> Element Msg
-dashboard theme viewport data =
+dashboard : Env -> ModelData -> Element Msg
+dashboard env data =
+    let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+    in
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -304,7 +316,7 @@ dashboard theme viewport data =
                 }
         , Page.pageContainer
             (queryPanel theme viewport data
-                :: dashboardContent theme viewport data
+                :: dashboardContent env data
             )
         ]
 
@@ -333,8 +345,15 @@ queryPanel theme viewport data =
         }
 
 
-dashboardContent : Theme -> Viewport -> ModelData -> List (Element Msg)
-dashboardContent theme viewport data =
+dashboardContent : Env -> ModelData -> List (Element Msg)
+dashboardContent env data =
+    let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+    in
     case RemoteData.value data.response of
         Nothing ->
             case data.response of
@@ -356,8 +375,7 @@ dashboardContent theme viewport data =
                 )
             , Element.map AnalysisMsg
                 (Analysis.view
-                    theme
-                    viewport
+                    env
                     analysisConfig
                     (analysisReport response)
                     data.analysis

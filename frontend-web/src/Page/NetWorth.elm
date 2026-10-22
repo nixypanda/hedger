@@ -13,6 +13,7 @@ import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Page as Page
@@ -234,14 +235,18 @@ isReportEffect effect =
 -- VIEW
 
 
-view : Theme -> Viewport -> Model -> Element Msg
-view theme viewport (Model data) =
+view : Env -> Model -> Element Msg
+view env (Model data) =
+    let
+        theme =
+            env.theme
+    in
     case Analysis.transaction data.analysis of
         Just transaction ->
             transactionView theme transaction
 
         Nothing ->
-            dashboard theme viewport data
+            dashboard env data
 
 
 transactionView : Theme -> Transaction -> Element Msg
@@ -267,8 +272,12 @@ transactionView theme transaction =
         ]
 
 
-dashboard : Theme -> Viewport -> ModelData -> Element Msg
-dashboard theme viewport data =
+dashboard : Env -> ModelData -> Element Msg
+dashboard env data =
+    let
+        theme =
+            env.theme
+    in
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
@@ -288,13 +297,19 @@ dashboard theme viewport data =
                     ]
                 }
         , Page.pageContainer
-            (dashboardContent theme viewport data)
+            (dashboardContent env data)
         ]
 
 
-dashboardContent : Theme -> Viewport -> ModelData -> List (Element Msg)
-dashboardContent theme viewport data =
+dashboardContent : Env -> ModelData -> List (Element Msg)
+dashboardContent env data =
     let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         layout =
             Viewport.contentLayout viewport
 
@@ -372,8 +387,7 @@ dashboardContent theme viewport data =
                 ]
             , Element.map AnalysisMsg
                 (Analysis.view
-                    theme
-                    viewport
+                    env
                     analysisConfig
                     (analysisReport response)
                     data.analysis

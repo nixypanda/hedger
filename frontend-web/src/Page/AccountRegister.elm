@@ -40,6 +40,7 @@ import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Input
@@ -48,7 +49,7 @@ import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport exposing (Viewport)
+import Ui.Viewport as Viewport
 import View.Formatting as Formatting
 import View.States as States
 
@@ -326,9 +327,15 @@ visibleResponse (Model data) =
 -- VIEW
 
 
-view : Theme -> Viewport -> Model -> Element Msg
-view theme viewport (Model data) =
+view : Env -> Model -> Element Msg
+view env (Model data) =
     let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         commodity =
             visibleResponse (Model data)
                 |> Maybe.map .displayCommodity

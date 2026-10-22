@@ -2,6 +2,7 @@ module Page.Settings exposing (Model, Msg(..), OutMsg(..), init, update, view)
 
 import Element exposing (Element)
 import Ui.Common as Common
+import Ui.Env exposing (Env)
 import Ui.Input
 import Ui.Page as Page
 import Ui.Surface as Surface
@@ -48,8 +49,12 @@ update msg model =
 -- VIEW
 
 
-view : Theme -> Model -> Element Msg
-view theme model =
+view : Env -> Model -> Element Msg
+view env model =
+    let
+        theme =
+            env.theme
+    in
     Element.column
         [ Element.width Element.fill
         , Common.uiClass "page-scroll"

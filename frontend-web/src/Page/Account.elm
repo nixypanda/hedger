@@ -37,6 +37,7 @@ import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Page as Page
@@ -44,7 +45,7 @@ import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport exposing (Viewport)
+import Ui.Viewport as Viewport
 import View.AccountPresentation as AccountPresentation
 import View.Formatting as Formatting
 import View.States as States
@@ -135,7 +136,7 @@ type OutMsg
 
 
 type alias UpdateProps =
-    { viewport : Viewport }
+    { env : Env }
 
 
 fetchAccounts : Cmd Msg
@@ -153,7 +154,7 @@ update props msg (Model model) =
             ( Model model, Cmd.none, Navigate (Account (Account.accountPathToString path)) )
 
         OpenAccountValue path ->
-            if Viewport.usesMasterDetail props.viewport then
+            if Viewport.usesMasterDetail props.env.viewport then
                 ( selectValue path (Model model), Cmd.none, NoOutMsg )
 
             else
@@ -268,12 +269,17 @@ clearValue (Model model) =
 
 
 view :
-    Theme
-    -> Viewport
+    Env
     -> Model
     -> Element Msg
-view theme viewport (Model model) =
+view env (Model model) =
     let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         page =
             Element.column
                 [ Element.width Element.fill
@@ -573,8 +579,12 @@ balanceText theme valuation symbolCount =
         ]
 
 
-valueView : Theme -> String -> Model -> Element Msg
-valueView theme path (Model model) =
+valueView : Env -> String -> Model -> Element Msg
+valueView env path (Model model) =
+    let
+        theme =
+            env.theme
+    in
     case model.accounts of
         Loaded response ->
             detailForPath theme path response

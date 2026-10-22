@@ -37,13 +37,14 @@ import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Font as Font
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Input
 import Ui.Page as Page
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport exposing (Viewport)
+import Ui.Viewport as Viewport
 import View.Analytics as AnalyticsView exposing (LegendState(..))
 
 
@@ -612,9 +613,15 @@ controlsView theme (Model data) =
 -- VIEW
 
 
-view : Theme -> Viewport -> Config -> Report -> Model -> Element Msg
-view theme viewport config report (Model data) =
+view : Env -> Config -> Report -> Model -> Element Msg
+view env config report (Model data) =
     let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         layout =
             Viewport.contentLayout viewport
 
