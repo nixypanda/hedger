@@ -39,7 +39,6 @@ import Element.Input as Input
 import Html.Attributes
 import Lib.RemoteData exposing (RemoteData(..))
 import Lib.Time as TimeExtra
-import Page.Shared.QueryPanel as QueryPanel
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
@@ -55,6 +54,7 @@ import Ui.Typography as Typography
 import Ui.Viewport as Viewport
 import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
+import View.QueryPanel as QueryPanel
 import View.Transaction as TransactionView
 
 
@@ -579,7 +579,7 @@ queryPanel theme compact model =
         , onDraftChanged = DraftChanged
         , onApply = ApplyDraft
         , onClear = ClearDraft
-        , queryError = queryError (remoteData model)
+        , queryError = Maybe.map ApiError.message (queryError (remoteData model))
         , helpText =
             "Type an hledger query below. Terms separated by spaces combine with AND. "
                 ++ "Prefix terms with acct:, desc:, date:, amt:, cur:, payee:, note:, status:, "

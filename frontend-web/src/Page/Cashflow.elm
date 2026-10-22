@@ -7,7 +7,6 @@ import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Lib.RemoteData as RemoteData exposing (RemoteData(..))
-import Page.Shared.QueryPanel as QueryPanel
 import Ui.Button as Button
 import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
@@ -19,6 +18,7 @@ import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
 import View.Analytics as AnalyticsView
+import View.QueryPanel as QueryPanel
 import View.States as States
 import View.Transaction as TransactionView
 
@@ -314,7 +314,7 @@ queryPanel theme viewport data =
         , onDraftChanged = DraftChanged
         , onApply = ApplyQuery
         , onClear = ClearQuery
-        , queryError = queryError data.response
+        , queryError = Maybe.map ApiError.message (queryError data.response)
         , helpText =
             "Filter this entire dashboard with an hledger query. Category, timeline, "
                 ++ "and activity results always use the same applied filter."

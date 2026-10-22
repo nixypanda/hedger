@@ -1,6 +1,5 @@
-module Page.Shared.QueryPanel exposing (Config, view)
+module View.QueryPanel exposing (Config, view)
 
-import Api.Error as ApiError exposing (ApiError)
 import Element exposing (Element)
 import Html.Attributes
 import Ui.Button as Button
@@ -20,7 +19,7 @@ type alias Config msg =
     , onDraftChanged : String -> msg
     , onApply : msg
     , onClear : msg
-    , queryError : Maybe ApiError
+    , queryError : Maybe String
     , helpText : String
     , examples : List String
     , baseId : String
@@ -73,13 +72,13 @@ view config =
         [ Ui.Input.fieldLabel config.theme "hledger query"
         , inputRow
         , case config.queryError of
-            Just error ->
+            Just errorMessage ->
                 Element.el
                     [ Element.width Element.fill
                     , Element.htmlAttribute (Html.Attributes.id (config.baseId ++ "-error"))
                     , Element.htmlAttribute (Html.Attributes.attribute "role" "alert")
                     ]
-                    (Feedback.errorBanner config.theme (ApiError.message error))
+                    (Feedback.errorBanner config.theme errorMessage)
 
             Nothing ->
                 Element.none
