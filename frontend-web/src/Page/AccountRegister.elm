@@ -50,6 +50,7 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
+import Ui.Workspace as Workspace
 import View.Formatting as Formatting
 import View.States as States
 
@@ -350,23 +351,15 @@ view env (Model data) =
                 listPage theme compact (Model data)
 
             Selected entry ->
-                Element.row
-                    [ Element.width Element.fill
-                    , Element.height Element.fill
-                    , Element.clip
-                    ]
-                    [ Element.el
-                        [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
-                        , Element.height Element.fill
-                        , Element.scrollbarY
-                        ]
-                        (listPage theme True (Model data))
-                    , Element.el
-                        [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
-                        , Element.height Element.fill
-                        , Element.scrollbarY
-                        ]
-                        (detailPage theme CloseDetail commodity entry)
+                Workspace.view env
+                    [ { key = "register"
+                      , width = Workspace.Portion Tokens.layoutPortionDouble
+                      , content = listPage theme True (Model data)
+                      }
+                    , { key = "register-detail"
+                      , width = Workspace.Portion Tokens.layoutPortionTriple
+                      , content = detailPage theme CloseDetail commodity entry
+                      }
                     ]
 
     else
@@ -382,10 +375,7 @@ listPage : Theme -> Bool -> Model -> Element Msg
 listPage theme compact model =
     Element.column
         [ Element.width Element.fill
-        , Element.height Element.fill
-        , Element.scrollbarY
         , Background.color theme.pageBg
-        , Common.uiClass "page-scroll account-register-page"
         ]
         [ Page.pageHeaderBand theme <|
             registerHeader theme compact model

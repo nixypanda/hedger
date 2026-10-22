@@ -34,7 +34,6 @@ import Data.Paginated as Paginated exposing (Paginated)
 import Data.Revision as Revision
 import Data.Transaction exposing (Posting, Transaction)
 import Element exposing (Element)
-import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
@@ -54,6 +53,7 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
+import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
 import View.Transaction as TransactionView
 
@@ -516,8 +516,17 @@ view env model =
     in
     if wideSelected then
         case ( response, currentSelection ) of
-            ( Just current, Just selected ) ->
-                wideLayout theme model current selected
+            ( Just _, Just selected ) ->
+                Workspace.view env
+                    [ { key = "transactions"
+                      , width = Workspace.Portion Tokens.layoutPortionDouble
+                      , content = listPage theme True model
+                      }
+                    , { key = "transaction-detail"
+                      , width = Workspace.Portion Tokens.layoutPortionTriple
+                      , content = detailPage theme (Just Back) selected
+                      }
+                    ]
 
             _ ->
                 listPage theme compact model
@@ -547,54 +556,6 @@ listPage theme compact model =
             , remoteContent theme compact model
             ]
         }
-
-
-wideLayout :
-    Theme
-    -> Model
-    -> Response
-    -> Transaction
-    -> Element Msg
-wideLayout theme model response selected =
-    Element.row
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Element.clip
-        , Common.uiClass "transactions-wide-layout"
-        ]
-        [ Element.column
-            [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
-            , Element.height Element.fill
-            , Element.scrollbarY
-            , Background.color theme.pageBg
-            , Common.uiClass "transactions-master-pane transactions-page"
-            ]
-            [ transactionsHeader theme
-            , Page.pageContainer
-                [ queryPanel theme True model
-                , remoteNotice theme (remoteData model) response
-                , transactionCount theme response.transactions
-                , transactionsList theme
-                    True
-                    (selectedTransaction model)
-                    response.transactions
-                , pagingControls theme model response
-                ]
-            ]
-        , Element.el
-            [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
-            , Element.height Element.fill
-            , Element.clipY
-            , Common.uiClass "transactions-detail-pane"
-            ]
-            (detailPage theme (Just Back) selected)
-        ]
-
-
-transactionsHeader : Theme -> Element Msg
-transactionsHeader theme =
-    Page.pageHeaderBand theme <|
-        Page.pageHeader theme (transactionsHeaderConfig theme)
 
 
 transactionsHeaderConfig : Theme -> Page.Header Msg

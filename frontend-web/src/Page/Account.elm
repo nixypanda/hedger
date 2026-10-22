@@ -46,6 +46,7 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
+import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
 import View.Formatting as Formatting
 import View.States as States
@@ -297,40 +298,22 @@ view env (Model model) =
     if wideSelected then
         case detailAccount model.detail of
             Just account ->
-                wideLayout theme page account
+                Workspace.view env
+                    [ { key = "accounts"
+                      , width = Workspace.Portion Tokens.layoutPortionDouble
+                      , content = page
+                      }
+                    , { key = "account-detail"
+                      , width = Workspace.Portion Tokens.layoutPortionTriple
+                      , content = accountDetailPage theme (Just BackToAccounts) account
+                      }
+                    ]
 
             _ ->
                 page
 
     else
         page
-
-
-wideLayout :
-    Theme
-    -> Element Msg
-    -> AccountNode
-    -> Element Msg
-wideLayout theme page account =
-    Element.row
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Element.clip
-        , Common.uiClass "accounts-wide-layout"
-        ]
-        [ Element.el
-            [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
-            , Element.height Element.fill
-            , Element.scrollbarY
-            ]
-            page
-        , Element.el
-            [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
-            , Element.height Element.fill
-            , Element.clipY
-            ]
-            (accountDetailPage theme (Just BackToAccounts) account)
-        ]
 
 
 content :
