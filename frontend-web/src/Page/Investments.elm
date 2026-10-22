@@ -25,7 +25,6 @@ import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
 import RemoteData exposing (RemoteData(..))
-import Ui
 import Ui.Button as Button
 import Ui.Chart.Cartesian as Cartesian
 import Ui.Chip as Chip
@@ -35,6 +34,7 @@ import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Input
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -225,8 +225,8 @@ view theme viewport (Model data) =
         , Element.scrollbarY
         , Common.uiClass "page-scroll analytics-page"
         ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
+        [ Page.pageHeaderBand theme <|
+            Page.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Investments"
                 , subtitle = Just "Value, invested capital, and investment performance"
@@ -236,7 +236,7 @@ view theme viewport (Model data) =
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
-        , Ui.pageContainer (content theme viewport data)
+        , Page.pageContainer (content theme viewport data)
         ]
 
 

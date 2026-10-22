@@ -9,12 +9,12 @@ import Element.Background as Background
 import Page.Shared.Analysis as Analysis
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
-import Ui
 import Ui.Button as Button
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -267,8 +267,8 @@ transactionView theme selectedTransaction =
         , Background.color theme.pageBg
         , Element.scrollbarY
         ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
+        [ Page.pageHeaderBand theme <|
+            Page.pageHeader theme
                 { leading =
                     Just
                         (Button.backButton theme
@@ -278,7 +278,7 @@ transactionView theme selectedTransaction =
                 , subtitle = Nothing
                 , actions = []
                 }
-        , Ui.pageContainer [ TransactionView.transactionDetail theme selectedTransaction ]
+        , Page.pageContainer [ TransactionView.transactionDetail theme selectedTransaction ]
         ]
 
 
@@ -291,8 +291,8 @@ dashboard theme viewport data =
         , Element.scrollbarY
         , Common.uiClass "page-scroll analytics-page"
         ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
+        [ Page.pageHeaderBand theme <|
+            Page.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Cashflow"
                 , subtitle = Just "Income, expenses, categories, and daily activity"
@@ -302,7 +302,7 @@ dashboard theme viewport data =
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
-        , Ui.pageContainer
+        , Page.pageContainer
             (queryPanel theme viewport data
                 :: dashboardContent theme viewport data
             )

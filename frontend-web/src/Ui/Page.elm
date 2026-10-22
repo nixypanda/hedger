@@ -1,4 +1,4 @@
-module Ui exposing
+module Ui.Page exposing
     ( PeriodLabelKind(..)
     , layout
     , pageContainer

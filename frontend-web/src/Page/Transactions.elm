@@ -41,13 +41,13 @@ import Html.Attributes
 import Lib.Time as TimeExtra
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
-import Ui
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -542,7 +542,7 @@ listPage theme compact model =
         , Common.uiClass "page-scroll transactions-page"
         ]
         [ transactionsHeader theme
-        , Ui.pageContainer
+        , Page.pageContainer
             [ queryPanel theme compact model
             , remoteContent theme compact model
             ]
@@ -570,7 +570,7 @@ wideLayout theme model response selected =
             , Common.uiClass "transactions-master-pane transactions-page"
             ]
             [ transactionsHeader theme
-            , Ui.pageContainer
+            , Page.pageContainer
                 [ queryPanel theme True model
                 , remoteNotice theme (remoteData model) response
                 , transactionCount theme response.transactions
@@ -593,8 +593,8 @@ wideLayout theme model response selected =
 
 transactionsHeader : Theme -> Element Msg
 transactionsHeader theme =
-    Ui.pageHeaderBand theme <|
-        Ui.pageHeader theme
+    Page.pageHeaderBand theme <|
+        Page.pageHeader theme
             { leading = Nothing
             , title = Typography.pageTitle theme "Transactions"
             , subtitle = Just "Browse your ledger activity"
@@ -991,7 +991,7 @@ detailPage theme onBack transaction =
         , Common.uiClass "page-scroll transaction-detail-page"
         , Element.htmlAttribute (Html.Attributes.id "transaction-detail")
         ]
-        [ Ui.pageHeaderBand theme <|
+        [ Page.pageHeaderBand theme <|
             Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ case onBack of
                     Just message ->
@@ -1001,7 +1001,7 @@ detailPage theme onBack transaction =
                         Element.none
                 , Typography.sectionTitle theme "Transaction Detail"
                 ]
-        , Ui.pageContainer [ TransactionView.transactionDetail theme transaction ]
+        , Page.pageContainer [ TransactionView.transactionDetail theme transaction ]
         ]
 
 

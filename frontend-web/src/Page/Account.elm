@@ -33,13 +33,13 @@ import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import Set exposing (Set)
 import String
-import Ui
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -280,14 +280,14 @@ view theme viewport (Model model) =
                 , Element.spacing Tokens.space16
                 , Common.uiClass "page-scroll"
                 ]
-                [ Ui.pageHeaderBand theme <|
-                    Ui.pageHeader theme
+                [ Page.pageHeaderBand theme <|
+                    Page.pageHeader theme
                         { leading = Nothing
                         , title = Typography.pageTitle theme "Accounts"
                         , subtitle = Nothing
                         , actions = []
                         }
-                , Ui.pageContainer [ content theme model ]
+                , Page.pageContainer [ content theme model ]
                 ]
 
         wideSelected =
@@ -593,9 +593,9 @@ valueView theme path (Model model) =
                 , Element.scrollbarY
                 , Common.uiClass "page-scroll account-detail-page"
                 ]
-                [ Ui.pageHeaderBand theme <|
+                [ Page.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
-                , Ui.pageContainer
+                , Page.pageContainer
                     [ Surface.card theme [ Feedback.loading theme "Loading account value…" ] ]
                 ]
 
@@ -609,9 +609,9 @@ accountDetailPage theme onBack account =
         , Element.scrollbarY
         , Common.uiClass "page-scroll account-detail-page"
         ]
-        [ Ui.pageHeaderBand theme <|
+        [ Page.pageHeaderBand theme <|
             accountDetailHeader theme onBack
-        , Ui.pageContainer [ Surface.card theme (valuePanel theme account) ]
+        , Page.pageContainer [ Surface.card theme (valuePanel theme account) ]
         ]
 
 
@@ -670,9 +670,9 @@ detailForPath theme path response =
                 , Element.scrollbarY
                 , Common.uiClass "page-scroll account-detail-page"
                 ]
-                [ Ui.pageHeaderBand theme <|
+                [ Page.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
-                , Ui.pageContainer
+                , Page.pageContainer
                     [ Surface.card theme
                         [ Feedback.errorBanner theme
                             "That account is no longer present in the current snapshot."

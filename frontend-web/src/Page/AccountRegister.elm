@@ -36,7 +36,6 @@ import Element.Font as Font
 import Element.Input as Input
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
-import Ui
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
@@ -44,6 +43,7 @@ import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Input
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -380,9 +380,9 @@ listPage theme compact model =
         , Background.color theme.pageBg
         , Common.uiClass "page-scroll account-register-page"
         ]
-        [ Ui.pageHeaderBand theme <|
+        [ Page.pageHeaderBand theme <|
             registerHeader theme compact model
-        , Ui.pageContainer [ filters theme model, content theme compact model ]
+        , Page.pageContainer [ filters theme model, content theme compact model ]
         ]
 
 
@@ -416,7 +416,7 @@ registerHeader theme compact model =
             ]
 
     else
-        Ui.pageHeader theme
+        Page.pageHeader theme
             { leading = Just (Button.backButton theme { onPress = BackToAccounts })
             , title = Typography.delimitedPageTitle theme ":" account
             , subtitle = Just "Account register"
@@ -770,12 +770,12 @@ detailPage theme onClose commodity entry =
         , Background.color theme.pageBg
         , Common.uiClass "page-scroll register-detail-page"
         ]
-        [ Ui.pageHeaderBand theme <|
+        [ Page.pageHeaderBand theme <|
             Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ Button.backButton theme { onPress = onClose }
                 , Typography.sectionTitle theme "Details"
                 ]
-        , Ui.pageContainer
+        , Page.pageContainer
             [ Surface.card theme
                 [ Typography.sectionTitle theme entry.description
                 , Element.text (Date.toString entry.date ++ " · " ++ entry.account)

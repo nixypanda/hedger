@@ -36,10 +36,10 @@ import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Font as Font
-import Ui
 import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback
 import Ui.Input
+import Ui.Page as Page
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -675,15 +675,15 @@ compositionHeader theme layout data =
                     (Typography.mutedBody theme "Period")
                 , Element.row [ Element.width (Element.fillPortion Tokens.layoutPortionDouble) ]
                     [ Element.el [ Element.width Element.fill ] Element.none
-                    , Ui.periodNavigation theme
+                    , Page.periodNavigation theme
                         { label = selectedPeriodLabel data
                         , labelKind =
                             case data.granularity of
                                 Monthly ->
-                                    Ui.MonthPeriodLabel
+                                    Page.MonthPeriodLabel
 
                                 Yearly ->
-                                    Ui.FiscalYearPeriodLabel
+                                    Page.FiscalYearPeriodLabel
                         , onPrevious = PeriodChanged -1
                         , onNext = PeriodChanged 1
                         }

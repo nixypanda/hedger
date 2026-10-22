@@ -9,13 +9,13 @@ import Element.Background as Background
 import Element.Font as Font
 import Page.Shared.Analysis as Analysis
 import RemoteData exposing (RemoteData(..))
-import Ui
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -252,8 +252,8 @@ transactionView theme transaction =
         , Background.color theme.pageBg
         , Element.scrollbarY
         ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
+        [ Page.pageHeaderBand theme <|
+            Page.pageHeader theme
                 { leading =
                     Just
                         (Button.backButton theme
@@ -263,7 +263,7 @@ transactionView theme transaction =
                 , subtitle = Nothing
                 , actions = []
                 }
-        , Ui.pageContainer [ TransactionView.transactionDetail theme transaction ]
+        , Page.pageContainer [ TransactionView.transactionDetail theme transaction ]
         ]
 
 
@@ -276,8 +276,8 @@ dashboard theme viewport data =
         , Element.scrollbarY
         , Common.uiClass "page-scroll analytics-page"
         ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
+        [ Page.pageHeaderBand theme <|
+            Page.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Net Worth"
                 , subtitle = Just "Assets, liabilities, performance, and activity"
@@ -287,7 +287,7 @@ dashboard theme viewport data =
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
-        , Ui.pageContainer
+        , Page.pageContainer
             (dashboardContent theme viewport data)
         ]
 

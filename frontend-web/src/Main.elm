@@ -16,12 +16,12 @@ import Preferences exposing (Preferences, ThemeMode(..))
 import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
-import Ui
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Page as UiPage
 import Ui.Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -272,7 +272,7 @@ view model =
             }
             []
           <|
-            Ui.layout activeTheme <|
+            UiPage.layout activeTheme <|
                 Shell.view
                     { viewport = model.viewport
                     , theme = activeTheme
@@ -384,14 +384,14 @@ pageView theme model =
             [ Element.width Element.fill
             , Common.uiClass "page-scroll"
             ]
-            [ Ui.pageHeaderBand theme <|
-                Ui.pageHeader theme
+            [ UiPage.pageHeaderBand theme <|
+                UiPage.pageHeader theme
                     { leading = Nothing
                     , title = Typography.pageTitle theme (pageTitle model.route)
                     , subtitle = Nothing
                     , actions = []
                     }
-            , Ui.pageContainer <|
+            , UiPage.pageContainer <|
                 bootstrapStatus theme model.bootstrap
                     :: placeholder theme model.route
             ]

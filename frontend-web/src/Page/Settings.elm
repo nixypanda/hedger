@@ -2,9 +2,9 @@ module Page.Settings exposing (Model, Msg(..), OutMsg(..), init, update, view)
 
 import Element exposing (Element)
 import Preferences exposing (ThemeMode(..))
-import Ui
 import Ui.Common as Common
 import Ui.Input
+import Ui.Page as Page
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -55,14 +55,14 @@ view theme model =
         [ Element.width Element.fill
         , Common.uiClass "page-scroll"
         ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
+        [ Page.pageHeaderBand theme <|
+            Page.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Settings"
                 , subtitle = Nothing
                 , actions = []
                 }
-        , Ui.pageContainer
+        , Page.pageContainer
             [ appearanceSection theme model
             ]
         ]
