@@ -19,16 +19,12 @@ withTheme env theme =
 
 withViewport : Env -> Viewport -> Env
 withViewport env viewport =
-    { env | viewport = viewport }
-
-
-resize : Env -> Int -> Int -> Env
-resize env width height =
-    let
-        viewport =
-            { width = width, height = height }
-    in
     { env
         | viewport = viewport
         , device = Element.classifyDevice viewport
     }
+
+
+resize : Env -> Int -> Int -> Env
+resize env width height =
+    withViewport env { width = width, height = height }
