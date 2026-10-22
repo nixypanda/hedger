@@ -6,7 +6,6 @@ import Component.Analysis as Analysis
 import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
-import Element.Font as Font
 import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
 import Ui.Chip as Chip
@@ -21,6 +20,7 @@ import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
 import View.Analytics.Kpi as Kpi
+import View.Analytics.Legend as Legend
 import View.Analytics.Timeline as Timeline
 import View.Analytics.Types as AnalyticsTypes
 import View.States as States
@@ -364,7 +364,7 @@ dashboardContent env data =
                     , onSelect = PerformanceSelected
                     , availableWidth = chartWidth
                     }
-                , chartLegend theme
+                , Legend.chartLegend theme
                     [ ( theme.positive, "Net investment" )
                     , ( theme.primary, "Net worth" )
                     , ( theme.positive, "Gain" )
@@ -398,9 +398,9 @@ netWorthSkeleton theme viewport =
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ responsiveGrid layout
-            [ Skeleton.kpiCard theme
-            , Skeleton.kpiCard theme
-            , Skeleton.kpiCard theme
+            [ Skeleton.summaryCard theme
+            , Skeleton.summaryCard theme
+            , Skeleton.summaryCard theme
             ]
         , Typography.sectionTitle theme "Performance"
         , Skeleton.chartCard theme
@@ -412,17 +412,3 @@ netWorthSkeleton theme viewport =
                 ]
             ]
         ]
-
-
-chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
-chartLegend theme items =
-    Element.wrappedRow [ Element.spacing Tokens.space14 ]
-        (List.map
-            (\( color, label ) ->
-                Element.row [ Element.spacing Tokens.space5 ]
-                    [ Surface.accentDot color
-                    , Element.el [ Font.color theme.textMuted ] (Element.text label)
-                    ]
-            )
-            items
-        )

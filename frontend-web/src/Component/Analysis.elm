@@ -35,7 +35,6 @@ import Data.Granularity exposing (Granularity(..))
 import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..), Period(..))
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
-import Element.Font as Font
 import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
@@ -45,9 +44,9 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
-import View.Analytics as AnalyticsView
 import View.Analytics.Activity as Activity
 import View.Analytics.Category as Category
+import View.Analytics.Legend as Legend
 import View.Analytics.Timeline as Timeline
 import View.Analytics.Types as AnalyticsTypes exposing (LegendState(..))
 
@@ -657,7 +656,7 @@ view env config report (Model data) =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Typography.sectionTitle theme config.timelineSectionTitle
         , timelineView theme chartWidth config report data
-        , AnalyticsView.warningList theme report.warnings
+        , Feedback.warningList theme report.warnings
         , compositionHeader theme layout data
         , breakdownsView theme layout config report data
         , activityViews theme layout activityColumns config report data
@@ -750,7 +749,7 @@ timelineView theme chartWidth config report data =
                     , negativeLabel = config.negative.label
                     , netLabel = config.netLabel
                     }
-                , chartLegend theme
+                , Legend.chartLegend theme
                     [ ( theme.positive, config.positive.label )
                     , ( theme.negative, config.negative.label )
                     , ( theme.primary, config.netLabel )
@@ -1183,17 +1182,3 @@ responsiveGrid layout items =
 
     else
         Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
-
-
-chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
-chartLegend theme items =
-    Element.wrappedRow [ Element.spacing Tokens.space14 ]
-        (List.map
-            (\( color, label ) ->
-                Element.row [ Element.spacing Tokens.space5 ]
-                    [ Surface.accentDot color
-                    , Element.el [ Font.color theme.textMuted ] (Element.text label)
-                    ]
-            )
-            items
-        )

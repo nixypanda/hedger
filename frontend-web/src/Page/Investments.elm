@@ -25,6 +25,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
+import Lib.ListExtra as ListExtra
 import Lib.Number as Number
 import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
@@ -368,10 +369,10 @@ allocationGrid layout theme commodity allocations =
         cells =
             allocations
                 |> List.map Just
-                |> padToMultiple columnCount Nothing
+                |> ListExtra.padToMultiple columnCount Nothing
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        (chunksOf columnCount cells
+        (ListExtra.chunksOf columnCount cells
             |> List.map (allocationGridRow theme commodity)
         )
 
@@ -421,23 +422,6 @@ allocationGridItem theme commodity allocation =
     Element.el
         (Border.color theme.divider :: allocationCardAttributes)
         (assetClassAllocationRow theme commodity allocation)
-
-
-chunksOf : Int -> List value -> List (List value)
-chunksOf size values =
-    if List.isEmpty values then
-        []
-
-    else
-        List.take size values :: chunksOf size (List.drop size values)
-
-
-padToMultiple : Int -> value -> List value -> List value
-padToMultiple size padding values =
-    values
-        ++ List.repeat
-            (modBy size (size - modBy size (List.length values)))
-            padding
 
 
 assetClassAllocationRow :
@@ -1295,16 +1279,16 @@ investmentsSkeleton theme viewport =
             ]
         , if isCompact then
             Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-                [ Skeleton.kpiCard theme
-                , Skeleton.kpiCard theme
-                , Skeleton.kpiCard theme
+                [ Skeleton.summaryCard theme
+                , Skeleton.summaryCard theme
+                , Skeleton.summaryCard theme
                 ]
 
           else
             Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-                [ Skeleton.kpiCard theme
-                , Skeleton.kpiCard theme
-                , Skeleton.kpiCard theme
+                [ Skeleton.summaryCard theme
+                , Skeleton.summaryCard theme
+                , Skeleton.summaryCard theme
                 ]
         , if isCompact then
             Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]

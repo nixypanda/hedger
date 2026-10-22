@@ -1,12 +1,9 @@
 module Ui.Skeleton exposing
-    ( bar
-    , chartCard
+    ( chartCard
     , chipRow
-    , datePair
     , inputBar
-    , kpiCard
     , listRow
-    , metricCard
+    , summaryCard
     )
 
 import Element exposing (Element)
@@ -25,20 +22,8 @@ import Ui.DesignTokens
 import Ui.Theme exposing (Theme)
 
 
-bar : Theme -> Element msg
-bar theme =
-    Element.el
-        [ Element.width Element.fill
-        , Element.height (Element.px 16)
-        , Background.color theme.inputFill
-        , Border.rounded radiusSmall
-        , uiClass "ui-skeleton"
-        ]
-        Element.none
-
-
-kpiCard : Theme -> Element msg
-kpiCard theme =
+summaryCard : Theme -> Element msg
+summaryCard theme =
     cardBase theme
         [ Element.row [ Element.width Element.fill, Element.spacing space12 ]
             [ Element.el
@@ -57,31 +42,6 @@ kpiCard theme =
                 Element.none
             ]
         , barNarrow theme
-        , barWide theme
-        , barNarrow theme
-        ]
-
-
-metricCard : Theme -> Element msg
-metricCard theme =
-    cardBase theme
-        [ Element.row [ Element.width Element.fill ]
-            [ Element.el
-                [ Element.width (Element.px 22)
-                , Element.height (Element.px 22)
-                , Background.color theme.inputFill
-                , Border.rounded 4
-                ]
-                Element.none
-            , Element.el [ Element.width Element.fill ] Element.none
-            , Element.el
-                [ Element.width (Element.px 60)
-                , Element.height (Element.px 12)
-                , Background.color theme.inputFill
-                , Border.rounded radiusSmall
-                ]
-                Element.none
-            ]
         , barWide theme
         , barNarrow theme
         ]
@@ -178,26 +138,6 @@ chipRow theme =
         , chipSkeleton theme
         , chipSkeleton theme
         , chipSkeleton theme
-        ]
-
-
-datePair : Theme -> Element msg
-datePair theme =
-    Element.row [ Element.width Element.fill, Element.spacing space12 ]
-        [ Element.column
-            [ Element.width (Element.fill |> Element.maximum 220)
-            , Element.spacing space4
-            ]
-            [ barNarrow theme
-            , inputBar theme
-            ]
-        , Element.column
-            [ Element.width (Element.fill |> Element.maximum 220)
-            , Element.spacing space4
-            ]
-            [ barNarrow theme
-            , inputBar theme
-            ]
         ]
 
 
