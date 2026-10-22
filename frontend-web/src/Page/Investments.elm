@@ -26,6 +26,7 @@ import Element.Region as Region
 import Html.Attributes as Attr
 import RemoteData exposing (RemoteData(..))
 import Ui
+import Ui.Button as Button
 import Ui.Chart.Cartesian as Cartesian
 import Ui.Color as Color
 import Ui.Common as Common
@@ -228,7 +229,7 @@ view theme viewport (Model data) =
                 , subtitle = Just "Value, invested capital, and investment performance"
                 , actions =
                     [ granularityControl theme data.granularity
-                    , Ui.iconButton theme
+                    , Button.iconButton theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
@@ -253,7 +254,7 @@ content theme viewport data =
             case data.response of
                 Failure error _ ->
                     [ Ui.errorBanner theme (ApiError.message error)
-                    , Ui.secondaryButton theme { label = "Retry", onPress = Refresh }
+                    , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
                     ]
 
                 _ ->

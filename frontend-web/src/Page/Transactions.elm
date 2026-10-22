@@ -42,6 +42,7 @@ import Lib.Time as TimeExtra
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import Ui
+import Ui.Button as Button
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -596,7 +597,7 @@ transactionsHeader theme =
             , title = Typography.pageTitle theme "Transactions"
             , subtitle = Just "Browse your ledger activity"
             , actions =
-                [ Ui.iconButton theme
+                [ Button.iconButton theme
                     { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                 ]
             }
@@ -740,7 +741,7 @@ pagingControls theme model response =
             case response.nextCursor of
                 Just _ ->
                     if canBeginLoadingMore model then
-                        Ui.secondaryButton theme { label = "Load more", onPress = LoadMore }
+                        Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
 
                     else
                         Typography.mutedCaption theme "Finish refreshing before loading more."
@@ -992,7 +993,7 @@ detailPage theme onBack transaction =
             Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ case onBack of
                     Just message ->
-                        Ui.backButton theme { onPress = message }
+                        Button.backButton theme { onPress = message }
 
                     Nothing ->
                         Element.none

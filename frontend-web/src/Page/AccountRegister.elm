@@ -37,6 +37,7 @@ import Element.Input as Input
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import Ui
+import Ui.Button as Button
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -395,9 +396,9 @@ registerHeader theme compact model =
             , Common.minWidthZero
             ]
             [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                [ Ui.backButton theme { onPress = BackToAccounts }
+                [ Button.backButton theme { onPress = BackToAccounts }
                 , Element.el [ Element.alignRight ]
-                    (Ui.iconButton theme
+                    (Button.iconButton theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     )
                 ]
@@ -413,11 +414,11 @@ registerHeader theme compact model =
 
     else
         Ui.pageHeader theme
-            { leading = Just (Ui.backButton theme { onPress = BackToAccounts })
+            { leading = Just (Button.backButton theme { onPress = BackToAccounts })
             , title = Typography.delimitedPageTitle theme ":" account
             , subtitle = Just "Account register"
             , actions =
-                [ Ui.iconButton theme
+                [ Button.iconButton theme
                     { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                 ]
             }
@@ -518,7 +519,7 @@ paging theme (Model data) response =
     else
         case response.nextCursor of
             Just _ ->
-                Ui.secondaryButton theme { label = "Load more", onPress = LoadMore }
+                Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
 
             Nothing ->
                 Typography.mutedCaption theme "All matching entries are loaded."
@@ -767,7 +768,7 @@ detailPage theme onClose commodity entry =
         ]
         [ Ui.pageHeaderBand theme <|
             Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                [ Ui.backButton theme { onPress = onClose }
+                [ Button.backButton theme { onPress = onClose }
                 , Typography.sectionTitle theme "Details"
                 ]
         , Ui.pageContainer

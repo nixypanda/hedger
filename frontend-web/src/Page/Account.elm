@@ -34,6 +34,7 @@ import Route exposing (Route(..))
 import Set exposing (Set)
 import String
 import Ui
+import Ui.Button as Button
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -617,7 +618,7 @@ accountDetailHeader theme onBack =
     Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         [ case onBack of
             Just message ->
-                Ui.backButton theme { onPress = message }
+                Button.backButton theme { onPress = message }
 
             Nothing ->
                 Element.none

@@ -4,6 +4,7 @@ import Api.Error as ApiError exposing (ApiError)
 import Element exposing (Element)
 import Html.Attributes
 import Ui
+import Ui.Button as Button
 import Ui.DesignTokens as Tokens
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -44,8 +45,8 @@ view config =
 
         buttons =
             Element.row [ Element.spacing Tokens.space8 ]
-                [ Ui.dangerButton config.theme { label = "Clear", onPress = config.onClear }
-                , Ui.primaryButton config.theme { label = "Apply", onPress = config.onApply }
+                [ Button.dangerButton config.theme { label = "Clear", onPress = config.onClear }
+                , Button.primaryButton config.theme { label = "Apply", onPress = config.onApply }
                 ]
 
         inputRow =

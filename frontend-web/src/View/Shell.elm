@@ -13,7 +13,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
-import Ui
+import Ui.Button as Button
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
@@ -116,11 +116,11 @@ noticeAction : Theme -> NoticeAction msg -> Element msg
 noticeAction theme action =
     case action.style of
         PrimaryAction ->
-            Ui.primaryButton theme
+            Button.primaryButton theme
                 { label = action.label, onPress = action.onPress }
 
         GhostAction ->
-            Ui.ghostButton theme
+            Button.ghostButton theme
                 { label = action.label, onPress = action.onPress }
 
 

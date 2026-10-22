@@ -10,6 +10,7 @@ import Page.Shared.Analysis as Analysis
 import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import Ui
+import Ui.Button as Button
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -269,7 +270,7 @@ transactionView theme selectedTransaction =
             Ui.pageHeader theme
                 { leading =
                     Just
-                        (Ui.backButton theme
+                        (Button.backButton theme
                             { onPress = AnalysisMsg Analysis.Back }
                         )
                 , title = Typography.pageTitle theme "Transaction Detail"
@@ -296,7 +297,7 @@ dashboard theme viewport data =
                 , subtitle = Just "Income, expenses, categories, and daily activity"
                 , actions =
                     [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                    , Ui.iconButton theme
+                    , Button.iconButton theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
@@ -338,7 +339,7 @@ dashboardContent theme viewport data =
             case data.response of
                 Failure error _ ->
                     [ Ui.errorBanner theme (ApiError.message error)
-                    , Ui.secondaryButton theme { label = "Retry", onPress = Refresh }
+                    , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
                     ]
 
                 _ ->

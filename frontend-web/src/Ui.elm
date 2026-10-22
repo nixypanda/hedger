@@ -2,17 +2,13 @@ module Ui exposing
     ( FinancialTone(..)
     , PeriodLabelKind(..)
     , StatusTone(..)
-    , backButton
     , badge
     , chip
-    , dangerButton
     , dateInput
     , emptyState
     , errorBanner
     , fieldLabel
     , financialBadge
-    , ghostButton
-    , iconButton
     , layout
     , legendButton
     , legendToggleButton
@@ -21,9 +17,7 @@ module Ui exposing
     , pageHeader
     , pageHeaderBand
     , periodNavigation
-    , primaryButton
     , searchInputInline
-    , secondaryButton
     , segmentedControl
     , segmentedOption
     , statusBadge
@@ -36,8 +30,8 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Element.Region as Region
 import Html.Attributes
+import Ui.Button as Button
 import Ui.Common as Common exposing (minWidthZero, uiClass)
 import Ui.DesignTokens
     exposing
@@ -55,7 +49,7 @@ import Ui.DesignTokens
         , space4
         , space8
         )
-import Ui.Icon as Icon exposing (Icon)
+import Ui.Icon as Icon
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography
@@ -158,7 +152,7 @@ periodNavigation :
     -> Element msg
 periodNavigation theme config =
     Element.row [ Element.spacing space4, Element.alignRight ]
-        [ iconButton theme
+        [ Button.iconButton theme
             { icon = Icon.ChevronLeft
             , title = "Previous period"
             , onPress = config.onPrevious
@@ -172,7 +166,7 @@ periodNavigation theme config =
                 [ Element.centerX, Element.centerY, body, Font.medium ]
                 (Element.text config.label)
             )
-        , iconButton theme
+        , Button.iconButton theme
             { icon = Icon.ChevronRight
             , title = "Next period"
             , onPress = config.onNext
@@ -231,85 +225,6 @@ errorBanner theme message =
         [ Icon.view { icon = Icon.AlertTriangle, size = 18, color = theme.dangerFg }
         , Element.paragraph [ Element.width Element.fill ] [ Element.text message ]
         ]
-
-
-primaryButton : Theme -> { label : String, onPress : msg } -> Element msg
-primaryButton theme config =
-    buttonBase theme
-        { label = Element.text config.label
-        , onPress = Just config.onPress
-        , background = theme.primary
-        , foreground = theme.primaryButtonFg
-        , border = theme.primary
-        , hoverBackground = theme.primaryPressed
-        }
-
-
-secondaryButton : Theme -> { label : String, onPress : msg } -> Element msg
-secondaryButton theme config =
-    buttonBase theme
-        { label = Element.text config.label
-        , onPress = Just config.onPress
-        , background = theme.primarySoft
-        , foreground = theme.primary
-        , border = theme.primarySoft
-        , hoverBackground = theme.selectedBg
-        }
-
-
-dangerButton : Theme -> { label : String, onPress : msg } -> Element msg
-dangerButton theme config =
-    buttonBase theme
-        { label = Element.text config.label
-        , onPress = Just config.onPress
-        , background = theme.dangerSolid
-        , foreground = theme.dangerSolidFg
-        , border = theme.dangerSolid
-        , hoverBackground = theme.dangerFg
-        }
-
-
-ghostButton : Theme -> { label : String, onPress : msg } -> Element msg
-ghostButton theme config =
-    ghostButtonWithLabel theme
-        { label = Element.text config.label
-        , onPress = config.onPress
-        }
-
-
-ghostButtonWithLabel : Theme -> { label : Element msg, onPress : msg } -> Element msg
-ghostButtonWithLabel theme config =
-    buttonBase theme
-        { label = config.label
-        , onPress = Just config.onPress
-        , background = theme.cardBg
-        , foreground = theme.textPrimary
-        , border = theme.divider
-        , hoverBackground = theme.hoverBg
-        }
-
-
-iconButton : Theme -> { icon : Icon, title : String, onPress : msg } -> Element msg
-iconButton theme config =
-    iconButtonBase theme
-        { icon = config.icon
-        , title = config.title
-        , onPress = Just config.onPress
-        , background = theme.cardBg
-        , foreground = theme.textPrimary
-        , border = theme.divider
-        , hoverBackground = theme.primarySoft
-        , hoverBorder = theme.primary
-        }
-
-
-backButton : Theme -> { onPress : msg } -> Element msg
-backButton theme config =
-    iconButton theme
-        { icon = Icon.ChevronLeft
-        , title = "Back"
-        , onPress = config.onPress
-        }
 
 
 fieldLabel : Theme -> String -> Element msg
@@ -633,78 +548,6 @@ statusToneColors theme tone =
 
         StatusNeutral ->
             { bg = theme.chipBg, fg = theme.chipFg }
-
-
-buttonBase :
-    Theme
-    ->
-        { label : Element msg
-        , onPress : Maybe msg
-        , background : Element.Color
-        , foreground : Element.Color
-        , border : Element.Color
-        , hoverBackground : Element.Color
-        }
-    -> Element msg
-buttonBase _ config =
-    Input.button
-        ([ Element.paddingEach { top = 11, right = 16, bottom = 11, left = 16 }
-         , Border.rounded radiusControl
-         , Border.width 1
-         , Border.color config.border
-         , Background.color config.background
-         , Font.color config.foreground
-         , Font.medium
-         , Font.center
-         , uiClass "ui-motion"
-         ]
-            ++ Common.hoverBackground config.hoverBackground
-            ++ [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget) ]
-        )
-        { onPress = config.onPress
-        , label = Element.el [ Element.centerX ] config.label
-        }
-
-
-iconButtonBase :
-    Theme
-    ->
-        { icon : Icon
-        , title : String
-        , onPress : Maybe msg
-        , background : Element.Color
-        , foreground : Element.Color
-        , border : Element.Color
-        , hoverBackground : Element.Color
-        , hoverBorder : Element.Color
-        }
-    -> Element msg
-iconButtonBase _ config =
-    Input.button
-        ([ Element.width (Element.px minimumTouchTarget)
-         , Element.height (Element.px minimumTouchTarget)
-         , Background.color config.background
-         , Font.color config.foreground
-         , Font.center
-         , Border.rounded radiusPill
-         , Border.width 1
-         , Border.color config.border
-         , uiClass "ui-motion"
-         ]
-            ++ Common.hoverBackground config.hoverBackground
-            ++ Common.hoverBorder config.hoverBorder
-            ++ [ Element.htmlAttribute (Html.Attributes.title config.title)
-               , Region.description config.title
-               ]
-        )
-        { onPress = config.onPress
-        , label =
-            Icon.view
-                { icon = config.icon
-                , size = 20
-                , color = config.foreground
-                }
-        }
 
 
 inputAttrs : Theme -> List (Attribute msg)
