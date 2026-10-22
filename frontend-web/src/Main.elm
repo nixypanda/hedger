@@ -20,6 +20,7 @@ import Ui
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Skeleton
 import Ui.Surface as Surface
@@ -405,7 +406,7 @@ bootstrapStatus : Theme -> RemoteData ApiError Bootstrap -> Element Msg
 bootstrapStatus theme remote =
     case remote of
         NotAsked ->
-            Ui.loading theme "Preparing application metadata…"
+            Feedback.loading theme "Preparing application metadata…"
 
         Loading Nothing ->
             Surface.card theme [ Ui.Skeleton.loading theme ]
@@ -440,12 +441,12 @@ bootstrapStatus theme remote =
                         ]
 
                 Unavailable ->
-                    Ui.errorBanner theme "Journal metadata is unavailable."
+                    Feedback.errorBanner theme "Journal metadata is unavailable."
 
         Failure error stale ->
             let
                 failureBanner prefix =
-                    Ui.errorBanner theme (prefix ++ ApiError.message error)
+                    Feedback.errorBanner theme (prefix ++ ApiError.message error)
             in
             case stale of
                 Just bootstrap ->
@@ -479,7 +480,7 @@ placeholder theme route =
                     ++ "primitives here before endpoint-specific UI is added."
                 )
             ]
-        , Ui.emptyState theme "No screen data is requested during Phase 3."
+        , Feedback.emptyState theme "No screen data is requested during Phase 3."
         ]
     ]
 

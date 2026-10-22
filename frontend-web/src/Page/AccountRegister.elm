@@ -41,6 +41,7 @@ import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Input
 import Ui.Skeleton as Skeleton
@@ -455,7 +456,7 @@ content : Theme -> Bool -> Model -> Element Msg
 content theme compact (Model data) =
     case ( Paginated.status data.paginated, visibleResponse (Model data) ) of
         ( Paginated.NotAsked, _ ) ->
-            Surface.card theme [ Ui.loading theme "Loading register…" ]
+            Surface.card theme [ Feedback.loading theme "Loading register…" ]
 
         ( Paginated.LoadingFirst, _ ) ->
             Surface.card theme
@@ -468,20 +469,20 @@ content theme compact (Model data) =
 
         ( Paginated.LoadFailure, _ ) ->
             Surface.card theme
-                [ Ui.errorBanner theme
+                [ Feedback.errorBanner theme
                     ("Register failed to load: " ++ failureMessage data.paginated)
                 ]
 
         ( Paginated.RefreshFailure, Just response ) ->
             Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-                [ Ui.errorBanner theme
+                [ Feedback.errorBanner theme
                     ("Refresh failed; showing stale register: " ++ failureMessage data.paginated)
                 , registerContent theme compact (Model data) response
                 ]
 
         ( Paginated.LoadMoreFailure, Just response ) ->
             Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-                [ Ui.errorBanner theme
+                [ Feedback.errorBanner theme
                     ("Loading more entries failed: " ++ failureMessage data.paginated)
                 , registerContent theme compact (Model data) response
                 ]
@@ -490,7 +491,7 @@ content theme compact (Model data) =
             registerContent theme compact (Model data) response
 
         ( _, Nothing ) ->
-            Surface.card theme [ Ui.loading theme "Loading register…" ]
+            Surface.card theme [ Feedback.loading theme "Loading register…" ]
 
 
 failureMessage : Paginated ApiError Criteria Response -> String
@@ -505,7 +506,8 @@ registerContent theme compact model response =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ States.freshnessBanner theme response.metadata.freshness
         , if List.isEmpty response.entries then
-            Surface.card theme [ Ui.emptyState theme "No register entries match this date range." ]
+            Surface.card theme
+                [ Feedback.emptyState theme "No register entries match this date range." ]
 
           else
             registerRows theme compact model response.displayCommodity response.entries
@@ -516,7 +518,7 @@ registerContent theme compact model response =
 paging : Theme -> Model -> Response -> Element Msg
 paging theme (Model data) response =
     if Paginated.status data.paginated == Paginated.LoadingMore_ then
-        Ui.loading theme "Loading more entries…"
+        Feedback.loading theme "Loading more entries…"
 
     else
         case response.nextCursor of

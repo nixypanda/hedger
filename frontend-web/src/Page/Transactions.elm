@@ -46,6 +46,7 @@ import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
@@ -655,7 +656,7 @@ remoteContent :
 remoteContent theme compact model =
     case remoteData model of
         NotAsked ->
-            Surface.card theme [ Ui.loading theme "Loading transactions…" ]
+            Surface.card theme [ Feedback.loading theme "Loading transactions…" ]
 
         Loading Nothing ->
             transactionsSkeleton theme
@@ -680,7 +681,7 @@ remoteContent theme compact model =
 
                     else
                         Surface.card theme
-                            [ Ui.errorBanner theme
+                            [ Feedback.errorBanner theme
                                 ("Transactions failed to load: " ++ ApiError.message error)
                             ]
 
@@ -730,13 +731,13 @@ pagingControls theme model response =
         ]
         [ case loadMoreError model of
             Just error ->
-                Ui.errorBanner theme
+                Feedback.errorBanner theme
                     ("Could not load more transactions: " ++ ApiError.message error)
 
             Nothing ->
                 Element.none
         , if status model == LoadingMoreStatus then
-            Ui.loading theme "Loading more transactions…"
+            Feedback.loading theme "Loading more transactions…"
 
           else
             case response.nextCursor of
@@ -768,7 +769,7 @@ remoteNotice theme remote response =
             Chip.statusBadge theme Chip.StatusPrimary "Refreshing transactions"
 
         Failure error _ ->
-            Ui.errorBanner theme
+            Feedback.errorBanner theme
                 ("Refresh failed; showing stale transactions: " ++ ApiError.message error)
 
         _ ->
@@ -786,7 +787,7 @@ remoteNotice theme remote response =
                     Chip.statusBadge theme Chip.StatusWarning "Transaction data is partial"
 
                 Unavailable ->
-                    Ui.errorBanner theme "Transaction data is unavailable."
+                    Feedback.errorBanner theme "Transaction data is unavailable."
 
 
 transactionCount : Theme -> List Transaction -> Element msg

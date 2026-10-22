@@ -14,6 +14,7 @@ import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
@@ -308,7 +309,7 @@ dashboardContent theme viewport data =
         Nothing ->
             case data.response of
                 Failure error _ ->
-                    [ Ui.errorBanner theme (ApiError.message error)
+                    [ Feedback.errorBanner theme (ApiError.message error)
                     , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
                     ]
 

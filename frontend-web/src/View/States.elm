@@ -8,9 +8,9 @@ import Data.Completeness as Completeness exposing (Completeness)
 import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
 import RemoteData exposing (RemoteData(..))
-import Ui
 import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Theme exposing (Theme)
 
 
@@ -58,7 +58,7 @@ remoteNotice errorMessage theme freshness remote =
             noticeSlot (Chip.statusBadge theme Chip.StatusPrimary "Refreshing")
 
         Failure error _ ->
-            Ui.errorBanner theme (errorMessage error)
+            Feedback.errorBanner theme (errorMessage error)
 
         _ ->
             case freshness of

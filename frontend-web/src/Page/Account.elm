@@ -38,6 +38,7 @@ import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
@@ -342,7 +343,7 @@ content :
 content theme model =
     case model.accounts of
         NotRequested ->
-            Ui.loading theme "Loading accounts…"
+            Feedback.loading theme "Loading accounts…"
 
         Loading ->
             Surface.card theme
@@ -370,14 +371,14 @@ content theme model =
 
         FailedWithStale error response ->
             Surface.card theme
-                [ Ui.errorBanner theme
+                [ Feedback.errorBanner theme
                     ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
                 , accountTree theme model.expanded response.accounts
                 ]
 
         Failed error ->
             Surface.card theme
-                [ Ui.errorBanner theme
+                [ Feedback.errorBanner theme
                     ("Accounts failed to load: " ++ ApiError.message error)
                 ]
 
@@ -397,7 +398,7 @@ accountTree :
     -> Element Msg
 accountTree theme expanded accounts =
     if List.isEmpty accounts then
-        Ui.emptyState theme "No accounts were found in the journal."
+        Feedback.emptyState theme "No accounts were found in the journal."
 
     else
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
@@ -595,7 +596,7 @@ valueView theme path (Model model) =
                 [ Ui.pageHeaderBand theme <|
                     accountDetailHeader theme (Just BackToAccounts)
                 , Ui.pageContainer
-                    [ Surface.card theme [ Ui.loading theme "Loading account value…" ] ]
+                    [ Surface.card theme [ Feedback.loading theme "Loading account value…" ] ]
                 ]
 
 
@@ -673,7 +674,7 @@ detailForPath theme path response =
                     accountDetailHeader theme (Just BackToAccounts)
                 , Ui.pageContainer
                     [ Surface.card theme
-                        [ Ui.errorBanner theme
+                        [ Feedback.errorBanner theme
                             "That account is no longer present in the current snapshot."
                         ]
                     ]

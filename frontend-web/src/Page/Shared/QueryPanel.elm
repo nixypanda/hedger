@@ -3,10 +3,10 @@ module Page.Shared.QueryPanel exposing (Config, view)
 import Api.Error as ApiError exposing (ApiError)
 import Element exposing (Element)
 import Html.Attributes
-import Ui
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Input
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -79,7 +79,7 @@ view config =
                     , Element.htmlAttribute (Html.Attributes.id (config.baseId ++ "-error"))
                     , Element.htmlAttribute (Html.Attributes.attribute "role" "alert")
                     ]
-                    (Ui.errorBanner config.theme (ApiError.message error))
+                    (Feedback.errorBanner config.theme (ApiError.message error))
 
             Nothing ->
                 Element.none

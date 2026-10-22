@@ -42,7 +42,6 @@ import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes as Attr
 import List
-import Ui
 import Ui.Calendar.Month as MonthCalendar
 import Ui.Chart as Chart
 import Ui.Chart.Cartesian as Cartesian
@@ -53,6 +52,7 @@ import Ui.Chip as Chip
 import Ui.Color as Color
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Input
 import Ui.Surface as Surface
@@ -431,7 +431,7 @@ categoryCard theme config =
         theme
         [ Typography.subsectionTitle theme config.title
         , if List.isEmpty config.breakdown.items then
-            Ui.emptyState theme "No categories for this period"
+            Feedback.emptyState theme "No categories for this period"
 
           else
             Element.wrappedRow
@@ -1384,7 +1384,7 @@ activityYear theme config =
         [ Typography.subsectionTitle theme config.title
         , case config.response of
             Nothing ->
-                Ui.loading theme "Loading activity"
+                Feedback.loading theme "Loading activity"
 
             Just response ->
                 let
@@ -1528,7 +1528,7 @@ warningList theme warnings =
 
     else
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-            (List.map (Ui.errorBanner theme) warnings)
+            (List.map (Feedback.errorBanner theme) warnings)
 
 
 paletteColor : Theme -> Palette -> Int -> Element.Color

@@ -32,6 +32,7 @@ import Ui.Chip as Chip
 import Ui.Color as Color
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Input
 import Ui.Skeleton as Skeleton
@@ -255,7 +256,7 @@ content theme viewport data =
         Nothing ->
             case data.response of
                 Failure error _ ->
-                    [ Ui.errorBanner theme (ApiError.message error)
+                    [ Feedback.errorBanner theme (ApiError.message error)
                     , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
                     ]
 
@@ -265,7 +266,7 @@ content theme viewport data =
         Just response ->
             [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , if isEmpty response then
-                Ui.emptyState theme "No investment holdings were found in this account scope."
+                Feedback.emptyState theme "No investment holdings were found in this account scope."
 
               else
                 investmentDashboard theme viewport data.chartMode data.selectedPeriod response
@@ -796,7 +797,7 @@ investmentValueChart theme commodity availableWidth selected points =
             }
 
     else
-        Ui.emptyState theme "No historical valuations are available for this scope."
+        Feedback.emptyState theme "No historical valuations are available for this scope."
 
 
 investmentReturnsChart :
@@ -849,7 +850,7 @@ investmentReturnsChart theme availableWidth selected points =
             }
 
     else
-        Ui.emptyState theme "No XIRR history is available for this scope."
+        Feedback.emptyState theme "No XIRR history is available for this scope."
 
 
 investmentChartLabelPeriods : List Investments.TimelinePoint -> List String
@@ -1117,7 +1118,7 @@ investmentWarnings theme warnings =
             (Typography.sectionTitle theme "Data notes"
                 :: List.map
                     (\warning ->
-                        Ui.errorBanner theme
+                        Feedback.errorBanner theme
                             (warning.account
                                 |> Maybe.map (\account -> account ++ ": " ++ warning.message)
                                 |> Maybe.withDefault warning.message

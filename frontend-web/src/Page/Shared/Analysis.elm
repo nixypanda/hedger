@@ -38,6 +38,7 @@ import Element exposing (Element)
 import Element.Font as Font
 import Ui
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
 import Ui.Input
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -746,7 +747,7 @@ timelineView theme chartWidth config report data =
                 ]
 
         TimelineUnavailable message _ ->
-            Ui.errorBanner theme message
+            Feedback.errorBanner theme message
 
 
 breakdownsView : Theme -> Viewport.ContentLayout -> Config -> Report -> ModelData -> Element Msg
