@@ -17,7 +17,7 @@ import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
-import View.Analytics as AnalyticsView
+import View.Analytics.Types as AnalyticsTypes
 import View.QueryPanel as QueryPanel
 import View.States as States
 import View.Transaction as TransactionView
@@ -186,16 +186,16 @@ analysisConfig =
         , monthActivityTitle = "Income calendar"
         , yearActivityTitle = "Income activity"
         , activityKind = Analytics.IncomeActivity
-        , palette = AnalyticsView.PositivePalette
-        , tone = AnalyticsView.IncomeTone
+        , palette = AnalyticsTypes.PositivePalette
+        , tone = AnalyticsTypes.IncomeTone
         }
     , negative =
         { label = "Expenses"
         , monthActivityTitle = "Expenses calendar"
         , yearActivityTitle = "Expense activity"
         , activityKind = Analytics.ExpenseActivity
-        , palette = AnalyticsView.NegativePalette
-        , tone = AnalyticsView.ExpenseTone
+        , palette = AnalyticsTypes.NegativePalette
+        , tone = AnalyticsTypes.ExpenseTone
         }
     }
 

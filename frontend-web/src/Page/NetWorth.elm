@@ -21,6 +21,7 @@ import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
 import View.Analytics as AnalyticsView
+import View.Analytics.Types as AnalyticsTypes
 import View.States as States
 import View.Transaction as TransactionView
 
@@ -180,16 +181,16 @@ analysisConfig =
         , monthActivityTitle = "Asset activity"
         , yearActivityTitle = "Asset activity"
         , activityKind = Analytics.AssetActivity
-        , palette = AnalyticsView.AssetPalette
-        , tone = AnalyticsView.AssetTone
+        , palette = AnalyticsTypes.AssetPalette
+        , tone = AnalyticsTypes.AssetTone
         }
     , negative =
         { label = "Liabilities"
         , monthActivityTitle = "Liability activity"
         , yearActivityTitle = "Liability activity"
         , activityKind = Analytics.LiabilityActivity
-        , palette = AnalyticsView.LiabilityPalette
-        , tone = AnalyticsView.LiabilityTone
+        , palette = AnalyticsTypes.LiabilityPalette
+        , tone = AnalyticsTypes.LiabilityTone
         }
     }
 

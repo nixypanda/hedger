@@ -12,7 +12,7 @@ import Data.Transaction exposing (Transaction)
 import Expect
 import Fuzz
 import Test exposing (Test, describe, fuzz, test)
-import View.Analytics exposing (ActivityTone(..), CalendarDisplay(..), Palette(..))
+import View.Analytics.Types exposing (ActivityTone(..), CalendarDisplay(..), Palette(..))
 
 
 {-| Two domain rules of the analysis views: an out-of-date report or activity

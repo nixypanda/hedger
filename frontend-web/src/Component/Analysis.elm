@@ -45,7 +45,8 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
-import View.Analytics as AnalyticsView exposing (LegendState(..))
+import View.Analytics as AnalyticsView
+import View.Analytics.Types as AnalyticsTypes exposing (LegendState(..))
 
 
 
@@ -59,7 +60,7 @@ type Model
 type alias ModelData =
     { granularity : Granularity
     , depth : Depth
-    , calendarDisplay : AnalyticsView.CalendarDisplay
+    , calendarDisplay : AnalyticsTypes.CalendarDisplay
     , period : Maybe Period
     , calendarMonth : Maybe Month
     , timeline : List TimelinePoint
@@ -138,8 +139,8 @@ type alias SideConfig =
     , monthActivityTitle : String
     , yearActivityTitle : String
     , activityKind : Analytics.ActivityKind
-    , palette : AnalyticsView.Palette
-    , tone : AnalyticsView.ActivityTone
+    , palette : AnalyticsTypes.Palette
+    , tone : AnalyticsTypes.ActivityTone
     }
 
 
@@ -148,7 +149,7 @@ init =
     Model
         { granularity = Monthly
         , depth = Depth 2
-        , calendarDisplay = AnalyticsView.ByCategory
+        , calendarDisplay = AnalyticsTypes.ByCategory
         , period = Nothing
         , calendarMonth = Nothing
         , timeline = []
@@ -181,7 +182,7 @@ type Msg
     | TimelineSelected String
     | PeriodChanged Int
     | DepthSelected Int
-    | CalendarDisplaySelected AnalyticsView.CalendarDisplay
+    | CalendarDisplaySelected AnalyticsTypes.CalendarDisplay
     | OtherToggled Side
     | LegendToggled Side
     | LegendCategoryHighlighted Side Int
@@ -840,20 +841,20 @@ activityViews theme layout columns config report data =
         ]
 
 
-calendarDisplayControl : Theme -> AnalyticsView.CalendarDisplay -> Element Msg
+calendarDisplayControl : Theme -> AnalyticsTypes.CalendarDisplay -> Element Msg
 calendarDisplayControl theme selected =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
         [ Typography.mutedBody theme "Show calendar by"
         , Ui.Input.segmentedControl theme
             [ Ui.Input.segmentedOption theme
                 { label = "Category"
-                , selected = selected == AnalyticsView.ByCategory
-                , onPress = CalendarDisplaySelected AnalyticsView.ByCategory
+                , selected = selected == AnalyticsTypes.ByCategory
+                , onPress = CalendarDisplaySelected AnalyticsTypes.ByCategory
                 }
             , Ui.Input.segmentedOption theme
                 { label = "Movement"
-                , selected = selected == AnalyticsView.ByMovement
-                , onPress = CalendarDisplaySelected AnalyticsView.ByMovement
+                , selected = selected == AnalyticsTypes.ByMovement
+                , onPress = CalendarDisplaySelected AnalyticsTypes.ByMovement
                 }
             ]
         ]
@@ -945,7 +946,7 @@ activityResponse side (Model data) =
     activityValue (sideFor side data).activity
 
 
-calendarDisplay : Model -> AnalyticsView.CalendarDisplay
+calendarDisplay : Model -> AnalyticsTypes.CalendarDisplay
 calendarDisplay (Model data) =
     data.calendarDisplay
 

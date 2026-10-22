@@ -1,14 +1,9 @@
 module View.Analytics exposing
-    ( ActivityTone(..)
-    , CalendarDisplay(..)
-    , LegendState(..)
-    , Palette(..)
-    , activityMonth
+    ( activityMonth
     , activityTransactions
     , activityYear
     , categoryCard
     , depthControl
-    , flowMovementColors
     , kpiCard
     , netWorthPerformanceChart
     , positiveNegativeTimelineChart
@@ -56,33 +51,27 @@ import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Input
 import Ui.Surface as Surface
-import Ui.Theme as Theme exposing (Theme)
+import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
-
-
-type Palette
-    = PositivePalette
-    | NegativePalette
-    | AssetPalette
-    | LiabilityPalette
-
-
-type ActivityTone
-    = IncomeTone
-    | ExpenseTone
-    | AssetTone
-    | LiabilityTone
-
-
-type CalendarDisplay
-    = ByMovement
-    | ByCategory
-
-
-type LegendState
-    = LegendCollapsed
-    | LegendExpanded
+import View.Analytics.Palette
+    exposing
+        ( activityCategoryColor
+        , activityColor
+        , directionSpecsFor
+        , flowMovementColors
+        , otherColor
+        , paletteColor
+        , scaleColor
+        )
+import View.Analytics.Types
+    exposing
+        ( ActivityTone(..)
+        , CalendarDisplay(..)
+        , DirectionSpec
+        , LegendState(..)
+        , Palette
+        )
 
 
 kpiCard :
@@ -1229,16 +1218,6 @@ flowRingSegments theme tone figures =
     ]
 
 
-flowMovementColors : Theme -> ActivityTone -> ( Element.Color, Element.Color )
-flowMovementColors theme tone =
-    case tone of
-        ExpenseTone ->
-            ( theme.negative, theme.positive )
-
-        _ ->
-            ( theme.positive, theme.negative )
-
-
 categoryRingSegments :
     Theme
     -> ActivityTone
@@ -1308,25 +1287,6 @@ isEmptyActivityBucket bucket =
 
         ExpenseMovements figures ->
             List.isEmpty figures.events
-
-
-activityCategoryColor : Theme -> ActivityTone -> Int -> Element.Color
-activityCategoryColor theme tone index =
-    paletteColor theme
-        (case tone of
-            IncomeTone ->
-                PositivePalette
-
-            ExpenseTone ->
-                NegativePalette
-
-            AssetTone ->
-                AssetPalette
-
-            LiabilityTone ->
-                LiabilityPalette
-        )
-        index
 
 
 activityTransactionList : Theme -> String -> List Transaction -> (Transaction -> msg) -> Element msg
@@ -1541,87 +1501,6 @@ warningList theme warnings =
     else
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             (List.map (Feedback.errorBanner theme) warnings)
-
-
-paletteColor : Theme -> Palette -> Int -> Element.Color
-paletteColor theme palette index =
-    let
-        order =
-            case palette of
-                PositivePalette ->
-                    [ 1, 7, 4, 3, 0, 2, 9, 5, 8 ]
-
-                AssetPalette ->
-                    [ 1, 7, 4, 3, 0, 2, 9, 5, 8 ]
-
-                NegativePalette ->
-                    [ 5, 8, 2, 0, 3, 4, 9, 1, 7 ]
-
-                LiabilityPalette ->
-                    [ 5, 8, 2, 0, 3, 4, 9, 1, 7 ]
-
-        colorIndex =
-            order |> List.drop (modBy (List.length order) index) |> List.head |> Maybe.withDefault 0
-    in
-    theme.chartSeries |> List.drop colorIndex |> List.head |> Maybe.withDefault theme.primary
-
-
-otherColor : Theme -> Element.Color
-otherColor theme =
-    theme.chartSeries |> List.drop 6 |> List.head |> Maybe.withDefault theme.primary
-
-
-activityColor : Theme -> ActivityTone -> Element.Color
-activityColor theme tone =
-    case tone of
-        IncomeTone ->
-            theme.income
-
-        ExpenseTone ->
-            theme.liability
-
-        AssetTone ->
-            theme.positive
-
-        LiabilityTone ->
-            theme.negative
-
-
-type alias DirectionSpec =
-    { direction : ActivityDirection
-    , label : String
-    , scale : List Element.Color
-    }
-
-
-directionSpecsFor : Theme -> ActivityTone -> Maybe (List DirectionSpec)
-directionSpecsFor theme tone =
-    case tone of
-        AssetTone ->
-            Just
-                [ { direction = Increase, label = "Acquire", scale = theme.acquireScale }
-                , { direction = Reallocate, label = "Transfer", scale = theme.rebalanceScale }
-                , { direction = Decrease, label = "Dispose", scale = theme.disposeScale }
-                ]
-
-        LiabilityTone ->
-            Nothing
-
-        _ ->
-            Nothing
-
-
-scaleColor : List Element.Color -> Int -> Element.Color
-scaleColor scale index =
-    case scale of
-        [] ->
-            Theme.transparentColor
-
-        _ ->
-            scale
-                |> List.drop (modBy (List.length scale) index)
-                |> List.head
-                |> Maybe.withDefault Theme.transparentColor
 
 
 directionSegments : List DirectionSpec -> Maybe Int -> ActivityBucket -> List Ring.Segment
