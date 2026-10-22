@@ -1,10 +1,12 @@
 module Ui.Page exposing
-    ( PeriodLabelKind(..)
+    ( Header
+    , PeriodLabelKind(..)
     , layout
     , pageContainer
     , pageHeader
     , pageHeaderBand
     , periodNavigation
+    , scaffold
     )
 
 import Element exposing (Element)
@@ -54,6 +56,26 @@ pageContainer children =
         children
 
 
+type alias Header msg =
+    { leading : Maybe (Element msg)
+    , title : Element msg
+    , subtitle : Maybe String
+    , actions : List (Element msg)
+    }
+
+
+scaffold :
+    Theme
+    -> { header : Header msg, body : List (Element msg) }
+    -> Element msg
+scaffold theme config =
+    Element.column
+        [ Element.width Element.fill ]
+        [ pageHeaderBand theme (pageHeader theme config.header)
+        , pageContainer config.body
+        ]
+
+
 pageHeaderBand : Theme -> Element msg -> Element msg
 pageHeaderBand theme content =
     Element.el
@@ -73,12 +95,7 @@ pageHeaderBand theme content =
 
 pageHeader :
     Theme
-    ->
-        { leading : Maybe (Element msg)
-        , title : Element msg
-        , subtitle : Maybe String
-        , actions : List (Element msg)
-        }
+    -> Header msg
     -> Element msg
 pageHeader theme config =
     Element.wrappedRow
