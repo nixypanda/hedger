@@ -27,7 +27,6 @@ import Ui.Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport exposing (Viewport)
 import Url exposing (Url)
 import View.Shell as Shell
 
@@ -48,7 +47,7 @@ type alias Flags =
 type alias Model =
     { key : Nav.Key
     , route : Route
-    , viewport : Viewport
+    , env : Env
     , preferences : Preferences
     , pwa : Pwa.Model
     , bootstrap : RemoteData ApiError Bootstrap
@@ -89,7 +88,7 @@ init flags url key =
     in
     ( { key = key
       , route = initialRoute
-      , viewport = initialViewport
+      , env = initialEnv
       , preferences = Preferences.current initialMode
       , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
       , bootstrap = Loading Nothing
@@ -108,14 +107,6 @@ pageContext : Route -> Env -> Page.Context
 pageContext route env =
     { route = route
     , env = env
-    }
-
-
-currentEnv : Model -> Env
-currentEnv model =
-    { theme = Ui.Theme.forMode model.preferences.mode
-    , device = Element.classifyDevice model.viewport
-    , viewport = model.viewport
     }
 
 
@@ -158,7 +149,7 @@ update msg model =
 
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext route (currentEnv model))
+                        (pageContext route model.env)
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -169,7 +160,7 @@ update msg model =
             )
 
         Resized width height ->
-            ( { model | viewport = { width = width, height = height } }, Cmd.none )
+            ( { model | env = Ui.Env.resize model.env width height }, Cmd.none )
 
         BootstrapLoaded result ->
             case result of
@@ -188,7 +179,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext model.route (currentEnv model))
+                        (pageContext model.route model.env)
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -209,7 +200,12 @@ update msg model =
         ConfigLoaded value ->
             case Decode.decodeValue Preferences.decoder value of
                 Ok preferences ->
-                    ( { model | preferences = preferences }, Cmd.none )
+                    ( { model
+                        | preferences = preferences
+                        , env = Ui.Env.withTheme model.env (Ui.Theme.forMode preferences.mode)
+                      }
+                    , Cmd.none
+                    )
 
                 Err _ ->
                     ( model, Cmd.none )
@@ -225,7 +221,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.update
-                        (pageContext model.route (currentEnv model))
+                        (pageContext model.route model.env)
                         pageMsg
                         model.page
 
@@ -254,7 +250,12 @@ applyPageOutMsg outMsg model =
                 preferences =
                     Preferences.setTheme mode model.preferences
             in
-            ( { model | preferences = preferences }, Ports.storeConfig (Preferences.encode preferences) )
+            ( { model
+                | preferences = preferences
+                , env = Ui.Env.withTheme model.env (Ui.Theme.forMode mode)
+              }
+            , Ports.storeConfig (Preferences.encode preferences)
+            )
 
 
 
@@ -265,7 +266,7 @@ view : Model -> Browser.Document Msg
 view model =
     let
         env =
-            currentEnv model
+            model.env
 
         page =
             pageView env model
