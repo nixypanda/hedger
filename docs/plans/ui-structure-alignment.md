@@ -169,7 +169,9 @@ Supporting moves:
 | `Ui.Responsive.*`, `State.Viewport.Viewport` | `Ui.Viewport` |
 | `View.Analytics` blend/alpha helpers, `Page.Investments.mixColor` | `Ui.Color.mix` / `withAlpha` |
 | `View.Analytics`/`Page.Investments` chunk/pad helpers | `Lib.ListExtra` |
-| `View.Analytics.decimalFloat`, `investmentDecimalFloat` | `Data.Decimal.toFloat` |
+| `View.Analytics.decimalFloat` | `Data.Decimal.toFloat` (default zero) |
+| `Page.Investments.investmentDecimalFloat` | `Maybe.andThen Data.Decimal.toFloat` (preserve `Nothing`) |
+| `Page.Investments.investmentRateFloat` | Keep local `Maybe.map ((*) 100)` |
 | `View.Analytics.money`, `moneyFloat`, `axisMoney`, period helpers | `Data.Formatting` |
 | `Page.Investments.investmentMoney`, `investmentAxisMoney`, period helper | `Data.Formatting` |
 | `View.Formatting` generic float rounding | `Lib.Number` |
@@ -243,6 +245,8 @@ Helper moves and call sites:
 - `Ui/Chart.elm`, `Chart/Cartesian.elm`, `Chart/Donut.elm`,
   `Chart/Sparkline.elm`, `Ui/Icon.elm`: `Ui.Css.toCssColor` ->
   `Ui.Common.toCssColor`.
+- `Ui/Chart.elm:159` currently uses `Typography.minWidthZero`; change that
+  specific use to `Ui.Common.minWidthZero` along with the other call sites.
 - `Ui.elm`: `Css.toCssColor` -> `Common.toCssColor`; `Typography.uiClass` ->
   `Common.uiClass`; `Responsive.contentPadding` -> `Ui.Viewport`.
 - Every `Typography.uiClass`/`Typography.minWidthZero` call site -> `Ui.Common`:
@@ -294,8 +298,14 @@ Commits:
 Goal: delete `Ui.elm` without a facade. `Ui.elm` shrinks as each family moves;
 each family commit updates every call site and compiles.
 
-Order: Surface -> Button -> Input -> Chip -> Feedback -> Page -> delete
-`Ui.elm`.
+Order: Common -> Surface -> Button -> Input -> Chip -> Feedback -> Page ->
+delete `Ui.elm`.
+
+`Ui.Common` is already created in Stage 1 for `uiClass`, `minWidthZero`, and
+`toCssColor`. In Stage 2 it also takes `touchTargetHeight`,
+`hoverBackground`, `hoverBorder`, and `truncatedText` out of `Ui.elm`. Remaining
+`Ui.elm` internals (`rowSurfaceAttrs`, `buttonBase`, `iconButtonBase`,
+`segmentedOption`) import `Ui.Common` until their owning family moves.
 
 When a family moves, any remaining `Ui.elm` definition that calls a moved
 helper imports the new module (for example, `Ui.emptyState` uses
@@ -307,10 +317,11 @@ Per-family call-site map:
 
 | Family | Update in the same commit |
 | --- | --- |
+| `Ui.Common` | `View/Shell`; `View/Analytics`; `Page/Investments`; `Page/Account`; `Page/AccountRegister` |
 | `Ui.Surface` | `Main`; `View/Transaction`; `View/Analytics`; `Page/Shared/Analysis`; `Page/Shared/QueryPanel`; `Page/NetWorth`; `Page/Cashflow`; `Page/Investments`; `Page/Account`; `Page/AccountRegister`; `Page/Transactions`; `Page/Settings` |
 | `Ui.Button` | `View/Shell`; `Page/Shared/QueryPanel`; `Page/NetWorth`; `Page/Cashflow`; `Page/Investments`; `Page/Account`; `Page/AccountRegister`; `Page/Transactions` |
 | `Ui.Input` | `Page/Shared/QueryPanel`; `Page/Shared/Analysis`; `Page/Investments`; `Page/Settings`; `Page/AccountRegister` (date inputs) |
-| `Ui.Chip` | `Main`; `View/States`; `View/Transaction`; `View/Analytics`; `Page/Investments`; `Page/Account`; `Page/AccountRegister`; `Page/NetWorth`; `Page/Transactions` |
+| `Ui.Chip` | `Main`; `View/States`; `View/Transaction`; `View/Analytics`; `Page/Shared/QueryPanel.elm:88`; `Page/Investments`; `Page/Account`; `Page/AccountRegister`; `Page/NetWorth`; `Page/Transactions` |
 | `Ui.Feedback` | `Main`; `View/States`; `View/Analytics`; `Page/Shared/Analysis`; `Page/Shared/QueryPanel`; `Page/NetWorth`; `Page/Cashflow`; `Page/Investments`; `Page/Account`; `Page/AccountRegister`; `Page/Transactions` |
 | `Ui.Page` | `Main`; `Page/NetWorth`; `Page/Cashflow`; `Page/Investments`; `Page/Account`; `Page/AccountRegister`; `Page/Transactions`; `Page/Settings`; `Page/Shared/Analysis` |
 
@@ -383,10 +394,22 @@ Theme mode:
   `"themeMode"`.
 - Decoder uses `modeFromStringResult` and **fails on unknown values**, matching
   current behavior. Add tests for `"light"`, `"dark"`, and an unknown value.
+- Update `tests/FoundationTest.elm`: import `Ui.Theme exposing (Mode(..))`,
+  read `preferences.mode`, and expect `Ui.Theme.Dark` in the legacy-preference
+  test.
 - `Main` flags use `modeFromStringResult |> Result.withDefault Light`.
+- Rename `Main.Flags.initialThemeMode` -> `initialMode`,
+  `Page.Settings.Model.themeMode` -> `mode`,
+  `Page.Settings.Msg.ThemeModeSelected` -> `ModeSelected`, and
+  `Page.OutMsg.SetThemeMode` -> `SetTheme`. Update the `main.js` Elm flags key
+  to `initialMode`; keep the persisted JSON field `"themeMode"`.
 - Delete `Preferences.ThemeMode`, duplicate serializers, and
   `Preferences.theme`.
 - `Page.Settings`/`OutMsg` use `Ui.Theme.Mode`.
+- `Main.init` builds the initial `Env` with
+  `Ui.Theme.forMode initialMode`, `Element.classifyDevice { width =
+  flags.viewportWidth, height = flags.viewportHeight }`, and the matching
+  `Viewport`. `Main.view` uses `model.env.theme`, never `Preferences.theme`.
 - `Main.ConfigLoaded` updates **both** `preferences` and `env.theme` via
   `Ui.Env.withTheme`.
 - `Main.applyPageOutMsg` on theme change updates preferences, `env.theme`, and
@@ -415,8 +438,16 @@ Env threading:
     Element Msg`; `controlsView` may stay `Theme`.
 - `Page/Shared/Analysis` already uses `Ui.Viewport` after stage 1; verify no
   `Responsive.*` references remain and update its view signature here.
-- After this stage, `rg -ni 'thememode' src tests` should only find the JSON
-  wire string `"themeMode"` and `main.js` localStorage handling.
+- After this stage, run:
+
+  ```bash
+  rg -n '\bThemeMode\b|Preferences\.themeMode|\.themeMode\b' \
+    src --glob '*.elm' tests --glob '*.elm'
+  rg -ni 'thememode' src/Preferences.elm src/main.js tests
+  ```
+
+  The first command must be empty. The second may only find the persisted
+  JSON/localStorage key `themeMode`; no Elm type or field.
 - `test ! -e src/State/Viewport.elm`, `test ! -e src/Ui/Responsive.elm`.
 
 Verify: standard gate; manual resize at 390/768/1024/1543/1544/1920; theme
@@ -453,14 +484,17 @@ scaffold :
 It renders `pageHeaderBand` + `pageHeader` + `pageContainer body`; it adds no
 local scrolling. Single pages scroll through the app content wrapper.
 
-Use it for: NetWorth, Cashflow, Settings, Account, AccountRegister (only
-branches whose header matches), and Transactions.
+Use it for: NetWorth, Cashflow, Settings, Account, Transactions, and
+AccountRegister `detailPage` (standard back/title header). AccountRegister
+`listPage` keeps its custom `registerHeader` because the wide-selected master
+calls `listPage theme True` and must retain the compact back/refresh header.
 
 Exceptions:
 
-- **AccountRegister compact header stays custom.** Its current narrow header is
-  a back/refresh row above the title. Keep `registerHeader` for compact and use
-  `scaffold` only for the standard wide header. Do not silently replace it.
+- **AccountRegister list header stays custom.** Its current header is a
+  back/refresh row above the title. Keep `registerHeader` for `listPage` in
+  both narrow and wide-selected master (`listPage theme True`); only
+  `detailPage` uses `scaffold`. Do not silently replace the compact header.
 - **Investments stays on its current page wrapper and
   `investmentMasterDetail`.** It keeps compact stack and Medium/Wide
   navigator+history behavior. Do not apply `Ui.Workspace` to Investments.
@@ -500,10 +534,19 @@ view : Env -> List (Pane msg) -> Element msg
 Apply Workspace only to:
 
 - `Page.Account` wide selected: master `Portion 2`, detail `Portion 3`.
-- `Page.AccountRegister` wide selected: master `Portion 2`, detail
-  `Portion 3`; compact keeps custom header.
+- `Page.AccountRegister` wide selected: master `Portion 2` keeps
+  `listPage theme True` (its custom compact header), detail `Portion 3`.
+  `listPage`/`detailPage` lose their local `height fill` and `scrollbarY`;
+  Workspace supplies the pane scroll wrapper.
 - `Page.Transactions` wide selected: master `Portion 2`, detail
   `Portion 3`.
+
+When a branch adopts `Ui.Page.scaffold` or `Ui.Workspace` (or keeps a custom
+header wrapper such as AccountRegister `listPage`), remove the `page-scroll`
+class **and** its local `Element.height Element.fill` and `Element.scrollbarY`
+attributes from the single-pane branch and from the Workspace pane content.
+Single pages scroll through app content; Workspace panes own height and scroll.
+Investments is the exception: it keeps its current wrapper and scroll.
 
 `page-scroll` removal checklist (remove only after the page uses scaffold or
 Workspace):
@@ -632,6 +675,9 @@ Formatting ownership:
   `formatDecimalAxis`, `shortPeriod`, `shortPeriodWithYear`,
   `periodDisplayName`.
   It may import `Lib.Number`, `Data.Decimal`, `Data.Quantity`, `Data.Calendar`.
+- Add `Data.Decimal.toFloat : Decimal -> Float` (default zero) for
+  `View.Analytics.decimalFloat`; `Page.Investments.investmentDecimalFloat`
+  wraps it in `Maybe.andThen`, preserving `Nothing`.
 - Tests: `FormattingTest` imports `Lib.Number` for rounding and
   `Data.Formatting` for display behavior.
 
@@ -646,8 +692,21 @@ Exact formatting replacements (preserve current output):
 | `Page.Investments.investmentAxisMoney commodity float` | `Data.Formatting.formatDecimalAxis commodity float` | Symbol included |
 | `View.Analytics.shortPeriod` | `Data.Formatting.shortPeriod` | `2026-03` -> `03` |
 | `Page.Investments.shortInvestmentPeriod` | `Data.Formatting.shortPeriodWithYear` | `2026-03` -> `03/26` |
+| `Page.Investments` `Formatting.formatPercentage` | `Data.Formatting.formatPercentage` | Decimal percentage; same output |
+| `Page.Investments` `Formatting.formatRatePercentage` | `Data.Formatting.formatRatePercentage` | Rate decimal -> percentage; same output |
 | `View.Analytics.periodName` | `Data.Formatting.periodDisplayName` | Month name for `YYYY-MM`, otherwise raw |
-| `View.Analytics.decimalFloat`, `investmentDecimalFloat` | `Data.Decimal.toFloat` | Same default-zero behavior |
+| `View.Analytics.decimalFloat` | `Data.Decimal.toFloat` | Defaults to zero. |
+| `Page.Investments.investmentDecimalFloat` | `Maybe.andThen Data.Decimal.toFloat` | Preserves `Nothing` for a missing Decimal. |
+| `Page.Investments.investmentRateFloat` | keep local `Maybe.map ((*) 100)` | Preserves `Nothing` and the percentage scaling. |
+
+Direct `Formatting.roundedString` uses move to `Lib.Number.roundedString`:
+`View/Analytics.elm:151`, `View/Analytics.elm:568`,
+`Page/Investments.elm:569`, and `Page/Investments.elm:1293`. The Kpi and
+Category modules import `Lib.Number` for these calls.
+
+`Page/Investments` percentage/rate display moves to `Data.Formatting`:
+`formatPercentage` at lines 615 and 1082, and `formatRatePercentage` at lines
+1073 and 1283.
 
 `View.QueryPanel`:
 
@@ -682,17 +741,25 @@ appearance.
 
 Create:
 
+- `Lib/ListExtra.elm` with `chunksOf`/`padToMultiple`.
 - `View/Analytics/Types.elm`: `Palette(..)`, `ActivityTone(..)`,
   `CalendarDisplay(..)`, `LegendState(..)`, `DirectionSpec`.
-- `View/Analytics/Palette.elm`: palette/activity colors,
-  `flowMovementColors`, direction specs/segments.
+- `View/Analytics/Palette.elm`: `paletteColor`, `otherColor`,
+  `activityColor`, `activityCategoryColor`, `flowMovementColors`,
+  `directionSpecsFor`, and `scaleColor`. `Palette` may import only
+  `Ui.Chart.Ring` for segment types; it must never import
+  `View.Analytics.Activity.Ring`.
 - `View/Analytics/Kpi.elm`: `kpiCard` (NetWorth) and `metricCard`
-  (Investments).
+  (Investments); imports `Lib.Number` for rounded percentage strings.
 - `View/Analytics/Timeline.elm`: the two charts and selected-period detail.
-- `View/Analytics/Category.elm`: `categoryCard`, `depthControl`.
+- `View/Analytics/Category.elm`: `categoryCard`, `depthControl`; imports
+  `Lib.Number` for rounded share percentages.
 - `View/Analytics/Legend.elm`: `chartLegend` and activity legends.
 - `View/Analytics/Activity.elm`: month/year calendars and transaction lists.
-- `View/Analytics/Activity/Ring.elm`: ring/segment/color helpers.
+- `View/Analytics/Activity/Ring.elm`: `directionSegments`, `ringAccent`,
+  `ringEmptyColor`, `presentDirections`, `monthRingCenter`, and the ring view /
+  segment construction. Ring imports `Types` and `Palette`; it does not import
+  `Activity`.
 
 Type ownership to avoid cycles:
 
@@ -720,8 +787,11 @@ Dedupe:
 - `Data.Formatting` replaces money/period helpers.
 - `Lib.ListExtra` replaces `chunks`/`padToMultiple`.
 - `Ui.Color` replaces color blending.
-- Add `Ui.Feedback.warningList : Theme -> List String -> Element msg` and use
-  it in `Component.Analysis`, `Activity`, and Investments warning rendering.
+- Add `Ui.Feedback.warningList : Theme -> List String -> Element msg` in
+  commit 3 and use it from `Activity`/`Legend`. Keep `View.Analytics.warningList`
+  as a temporary alias until commit 4, when `Component.Analysis` and
+  `Page.Investments` switch and the alias plus `View.Analytics.elm` are
+  deleted.
 
 Skeleton:
 
@@ -738,19 +808,25 @@ Skeleton:
 - Keep `investmentMasterDetail` and its page scroll; no Workspace.
 - Replace `investmentMetricCard`, money/period/chunk helpers as above.
 
-Delete `View/Analytics.elm` after imports move. Update `Component.Analysis`,
-`Page.NetWorth`, `Page.Cashflow`, `Page.Investments`, `tests/AnalysisTest`, and
-`tests/ThemeTest` (`Palette.flowMovementColors`, `Types.ActivityTone`).
+`View.Analytics.elm` is deleted in commit 4 only. Per-commit call-site table
+(each commit compiles):
+
+| Commit | Creates / moves | Call sites updated |
+| --- | --- | --- |
+| 1. types/palette/flow colors | `Types`, `Palette` | `Page/NetWorth`, `Page/Cashflow`, `Component/Analysis`, `tests/AnalysisTest`, `tests/ThemeTest` |
+| 2. KPI/charts/category | `Kpi`, `Timeline`, `Category` | `Page/NetWorth`, `Component/Analysis`, `Page/Investments` if `metricCard` moves |
+| 3. activity/legend | `Activity`, `Activity/Ring`, `Legend`; add `Ui.Feedback.warningList`; keep `View.Analytics.warningList` alias | `Component/Analysis` |
+| 4. dedupe/delete | remove `View.Analytics.warningList` alias; delete `View.Analytics.elm` | `Component.Analysis`, `Page/NetWorth` (chartLegend), `Page/Investments` (warningList/metricCard) |
 
 Verify: standard gate; manual chart/legend/calendar/KPI checks in both themes at
 compact/medium/wide. `test ! -e src/View/Analytics.elm`.
 
-Commits:
+Commit messages:
 
 - `refactor(frontend): split analytics types and palette`
 - `refactor(frontend): split analytics charts and category views`
 - `refactor(frontend): split activity views and legends`
-- `refactor(frontend): dedupe KPI and warning rendering`
+- `refactor(frontend): dedupe analytics helpers`
 - `refactor(frontend): organize Investments page sections`
 
 ### Stage 8 — Transaction presentation ADT (late, optional)
@@ -833,7 +909,9 @@ Gates:
 Docs:
 
 - Update `docs/frontend.md` tree, dependency graph, module ownership, page
-  structure, design system, testing commands, and "Known debt".
+  structure, design system, testing commands, and "Known debt". Remove the
+  classification/effect Known Debt item only if Stage 8 lands; otherwise keep
+  it unchanged.
 - Update the frontend section of `docs/architecture.md` for
   `Main -> Chrome / Route / Page`, `Page -> Component`, `Ui.Env`, `Ui.Page`,
   `Ui.Workspace`, `Data.Formatting`, and `Lib.Number`.
@@ -864,7 +942,7 @@ Commits:
 | --- | --- | --- |
 | 1 | standard | review clean; viewport threshold tests; `test ! -e` viewport/responsive files |
 | 2 | standard after each family | constructor call-site audit; `test ! -e src/Ui.elm` |
-| 3 | standard | theme decoder unknown test; `rg -ni thememode`; `test ! -e` old viewport files |
+| 3 | standard | theme decoder unknown test; precise `ThemeMode`/`.themeMode` check plus persisted-key check; `test ! -e` old viewport files |
 | 4 | standard | manual 390/768/1024/1544/1920; Investments medium parity; AccountRegister compact header |
 | 5 | standard | nav/PWA/live refresh/dark first paint; `Api.Bootstrap` still present |
 | 6 | standard | `test ! -e` old shared files; `rg` imports; QueryPanel no `Api.Error` |
@@ -960,10 +1038,24 @@ migrate Investments to scaffold/Workspace in a separate parity task.
 | P1-18 dark first paint | Minimal `:root` and `:root[data-theme="dark"]` fallback kept in index.html; Elm injects full variables; `Html` import added to Main. |
 | P2-19 no NoUnused.Exports | Dead-export sweep is explicitly manual; no claim review finds exposed unused values. |
 | P2-20 file checks | `test ! -e`/`find` for deleted files; `rg` only for imports. |
-| P2-21 theme search | `rg -ni 'thememode'` in stage 3. |
+| P2-21 theme search | Stage 3 uses a precise `ThemeMode`/`.themeMode` Elm check plus a separate persisted `themeMode` key check. |
 | P2-22 line length | `just check-frontend-line-length` is in every standard gate. |
 | P2-23 boundary tests | Stage 1 adds 731/732, 991/992, 1543/1544 tests including sidebar/bottom-nav transition. |
 | P2-24 sidebar width | `Ui.Viewport` uses `Ui.DesignTokens.sidebarWidth`. |
 | P2-25 Ui -> State dependency | `Ui.Viewport` exists before `Ui.Page`; no `Ui -> State` import. |
 | P2-26 record update trap | `Ui.Env.withTheme`/`withViewport`/`resize` mandated; `{ model.env | ... }` called out as invalid. |
 | P2-27 local development docs | Stage 9 updates `docs/local-development.md` frontend task list for `just check-frontend` contents. |
+| R2-1 family order/Common | Stage 2 order is Common -> Surface -> Button -> Input -> Chip -> Feedback -> Page; Common moves `touchTargetHeight`/hover/truncatedText with Shell/Analytics/Investments/Account/AccountRegister call sites and notes remaining `Ui.elm` internals importing it. |
+| R2-2 Chart.elm:159 | Stage 1 explicitly changes `Ui/Chart.elm:159` from `Typography.minWidthZero` to `Ui.Common.minWidthZero`. |
+| R2-3 Chip QueryPanel | Stage 2 `Ui.Chip` row includes `Page/Shared/QueryPanel.elm:88`. |
+| R2-4 FoundationTest mode | Stage 3 imports `Ui.Theme exposing (Mode(..))`, reads `preferences.mode`, and expects `Ui.Theme.Dark` in the legacy test. |
+| R2-5 theme search | Stage 3 renames `initialThemeMode`/`themeMode` fields, updates the `main.js` flags key to `initialMode`, and uses a precise old-type check plus a separate persisted-key check. |
+| R2-6 decimal split | Formatting table splits `View.Analytics.decimalFloat` (default zero) from `Page.Investments.investmentDecimalFloat` (`Maybe.andThen`, preserves Nothing); `investmentRateFloat` stays `Maybe.map ((*) 100)`. |
+| R2-7 direct number calls | Stage 6 lists `roundedString` uses at Analytics 151/568 and Investments 569/1293, and percentage/rate uses; Kpi/Category import `Lib.Number`. |
+| R2-8 warningList ordering | Commit 3 adds `Ui.Feedback.warningList` and keeps `View.Analytics.warningList` as an alias; commit 4 switches call sites and deletes the alias/View.Analytics.elm. |
+| R2-9 per-commit analytics table | Stage 7 adds the four-commit table with exact call sites and states each commit compiles. |
+| R2-10 AccountRegister master | Wide-selected master keeps `listPage theme True` (custom compact header); Workspace supplies scroll and the page loses local scrollbar/height. |
+| R2-11 remove scroll attrs | Stage 4 removes `page-scroll`, `height fill`, and `scrollbarY` from migrated single-pane branches (including custom-header AccountRegister) and Workspace pane content, not just the CSS class. |
+| R2-12 Palette/Ring split | Palette owns `directionSpecsFor`, `scaleColor`, `activityColor`, `paletteColor`; Ring owns `directionSegments`, `ringAccent`, `ringEmptyColor`, `presentDirections`, `monthRingCenter`; Palette never imports Activity/Ring. |
+| R2-13 Main Env init/view | Stage 3 states `Main.init` builds `Env` with `Ui.Theme.forMode` and `Element.classifyDevice`; `Main.view` uses `model.env.theme`. |
+| R2-14 conditional Known Debt | Stage 9 removes the classification/effect Known Debt item only if Stage 8 lands; otherwise keeps it. |
