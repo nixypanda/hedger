@@ -25,7 +25,6 @@ type Model
     | CashflowPage CashflowPage.Model
     | InvestmentsPage InvestmentsPage.Model
     | SettingsPage SettingsPage.Model
-    | PlaceholderPage
 
 
 type alias Context =
@@ -290,6 +289,3 @@ view context model =
         ( _, SettingsPage subModel ) ->
             Element.map GotSettingsMsg
                 (SettingsPage.view context.env subModel)
-
-        _ ->
-            Element.none

@@ -1,4 +1,4 @@
-module Route exposing (Route(..), fromUrl, parser, toPath)
+module Route exposing (Route(..), fromUrl, parser, title, toPath)
 
 import Url exposing (Url)
 import Url.Parser exposing ((</>), Parser, map, oneOf, s, string, top)
@@ -48,6 +48,34 @@ decodeAccountRoute route =
 
         _ ->
             route
+
+
+title : Route -> String
+title route =
+    case route of
+        NetWorth ->
+            "Net Worth"
+
+        Investments ->
+            "Investments"
+
+        Cashflow ->
+            "Cashflow"
+
+        Accounts ->
+            "Accounts"
+
+        Account accountName ->
+            accountName
+
+        AccountValue accountName ->
+            accountName ++ " value"
+
+        Transactions ->
+            "Transactions"
+
+        Settings ->
+            "Settings"
 
 
 toPath : Route -> String

@@ -6,7 +6,6 @@ module Ui.Skeleton exposing
     , inputBar
     , kpiCard
     , listRow
-    , loading
     , metricCard
     )
 
@@ -24,15 +23,6 @@ import Ui.DesignTokens
         , space8
         )
 import Ui.Theme exposing (Theme)
-
-
-loading : Theme -> Element msg
-loading theme =
-    Element.column [ Element.width Element.fill, Element.spacing space12 ]
-        [ bar theme
-        , bar theme
-        , bar theme
-        ]
 
 
 bar : Theme -> Element msg

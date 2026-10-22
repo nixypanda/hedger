@@ -2,14 +2,12 @@ module Main exposing (main)
 
 import Api.Bootstrap exposing (Bootstrap)
 import Api.Client as Api
-import Api.Error as ApiError exposing (ApiError)
+import Api.Error exposing (ApiError)
 import Browser
 import Browser.Events
 import Browser.Navigation as Nav
 import Chrome
-import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
-import Element.Font as Font
 import Json.Decode as Decode
 import Page
 import Ports
@@ -17,16 +15,9 @@ import Preferences exposing (Preferences)
 import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
-import Ui.Chip as Chip
-import Ui.Common as Common
-import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
-import Ui.Feedback as Feedback
 import Ui.Page as UiPage
-import Ui.Skeleton
-import Ui.Surface as Surface
-import Ui.Theme exposing (Theme)
-import Ui.Typography as Typography
+import Ui.Theme
 import Url exposing (Url)
 
 
@@ -268,9 +259,9 @@ view model =
             model.env
 
         page =
-            pageView env model
+            pageView model
     in
-    { title = pageTitle model.route ++ " · Hedger"
+    { title = Route.title model.route ++ " · Hedger"
     , body =
         [ Element.layoutWith
             { options =
@@ -296,148 +287,10 @@ view model =
     }
 
 
-pageView : Env -> Model -> Element Msg
-pageView env model =
-    let
-        theme =
-            env.theme
-    in
-    if isRealPage model.route then
-        Element.map GotPageMsg
-            (Page.view (pageContext model.route env) model.page)
-
-    else
-        Element.column
-            [ Element.width Element.fill
-            , Common.uiClass "page-scroll"
-            ]
-            [ UiPage.pageHeaderBand theme <|
-                UiPage.pageHeader theme
-                    { leading = Nothing
-                    , title = Typography.pageTitle theme (pageTitle model.route)
-                    , subtitle = Nothing
-                    , actions = []
-                    }
-            , UiPage.pageContainer <|
-                bootstrapStatus theme model.bootstrap
-                    :: placeholder theme model.route
-            ]
-
-
-isRealPage : Route -> Bool
-isRealPage _ =
-    True
-
-
-bootstrapStatus : Theme -> RemoteData ApiError Bootstrap -> Element Msg
-bootstrapStatus theme remote =
-    case remote of
-        NotAsked ->
-            Feedback.loading theme "Preparing application metadata…"
-
-        Loading Nothing ->
-            Surface.card theme [ Ui.Skeleton.loading theme ]
-
-        Loading (Just bootstrap) ->
-            Surface.card theme
-                [ Chip.statusBadge theme Chip.StatusPrimary "Refreshing metadata"
-                , bootstrapSummary theme bootstrap
-                ]
-
-        Success bootstrap ->
-            case bootstrap.metadata.freshness of
-                Fresh ->
-                    bootstrapSummary theme bootstrap
-
-                Refreshing ->
-                    Surface.card theme
-                        [ Chip.statusBadge theme Chip.StatusPrimary "Refreshing"
-                        , bootstrapSummary theme bootstrap
-                        ]
-
-                Stale ->
-                    Surface.card theme
-                        [ Chip.statusBadge theme Chip.StatusWarning "Stale snapshot"
-                        , bootstrapSummary theme bootstrap
-                        ]
-
-                Partial ->
-                    Surface.card theme
-                        [ Chip.statusBadge theme Chip.StatusWarning "Partial data"
-                        , bootstrapSummary theme bootstrap
-                        ]
-
-                Unavailable ->
-                    Feedback.errorBanner theme "Journal metadata is unavailable."
-
-        Failure error stale ->
-            let
-                failureBanner prefix =
-                    Feedback.errorBanner theme (prefix ++ ApiError.message error)
-            in
-            case stale of
-                Just bootstrap ->
-                    Surface.card theme
-                        [ failureBanner "Refresh failed; showing stale metadata: "
-                        , bootstrapSummary theme bootstrap
-                        ]
-
-                Nothing ->
-                    Surface.card theme [ failureBanner "Bootstrap failed: " ]
-
-
-bootstrapSummary : Theme -> Bootstrap -> Element msg
-bootstrapSummary theme bootstrap =
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        [ Chip.statusBadge theme Chip.StatusSuccess (bootstrap.appName ++ " API " ++ bootstrap.apiVersion)
-        , Chip.badge theme ("Fiscal year starts in month " ++ String.fromInt bootstrap.fiscalYearStartMonth)
-        , bootstrap.metadata.revision
-            |> Maybe.map (\revision -> Chip.badge theme ("Revision " ++ revision))
-            |> Maybe.withDefault Element.none
-        ]
-
-
-placeholder : Theme -> Route -> List (Element Msg)
-placeholder theme route =
-    [ Surface.card theme
-        [ Typography.sectionTitle theme (pageTitle route ++ " placeholder")
-        , Element.paragraph [ Font.color theme.textMedium ]
-            [ Element.text
-                ("Loading, success, empty, stale, partial, unavailable, and failed states use shared "
-                    ++ "primitives here before endpoint-specific UI is added."
-                )
-            ]
-        , Feedback.emptyState theme "No screen data is requested during Phase 3."
-        ]
-    ]
-
-
-pageTitle : Route -> String
-pageTitle route =
-    case route of
-        NetWorth ->
-            "Net Worth"
-
-        Investments ->
-            "Investments"
-
-        Cashflow ->
-            "Cashflow"
-
-        Accounts ->
-            "Accounts"
-
-        Account accountName ->
-            accountName
-
-        AccountValue accountName ->
-            accountName ++ " value"
-
-        Transactions ->
-            "Transactions"
-
-        Settings ->
-            "Settings"
+pageView : Model -> Element Msg
+pageView model =
+    Element.map GotPageMsg
+        (Page.view (pageContext model.route model.env) model.page)
 
 
 
