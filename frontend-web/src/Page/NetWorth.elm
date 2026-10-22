@@ -20,7 +20,8 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
-import View.Analytics as AnalyticsView
+import View.Analytics.Kpi as Kpi
+import View.Analytics.Timeline as Timeline
 import View.Analytics.Types as AnalyticsTypes
 import View.States as States
 import View.Transaction as TransactionView
@@ -319,7 +320,7 @@ dashboardContent env data =
         Just response ->
             [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , responsiveGrid layout
-                [ AnalyticsView.kpiCard theme
+                [ Kpi.kpiCard theme
                     { title = "Net worth"
                     , commodity = response.displayCommodity
                     , kpi = response.netWorth
@@ -327,7 +328,7 @@ dashboardContent env data =
                     , icon = Icon.TrendingUp
                     , decreaseIsPositive = False
                     }
-                , AnalyticsView.kpiCard theme
+                , Kpi.kpiCard theme
                     { title = "Assets"
                     , commodity = response.displayCommodity
                     , kpi = response.assets
@@ -335,7 +336,7 @@ dashboardContent env data =
                     , icon = Icon.Wallet
                     , decreaseIsPositive = False
                     }
-                , AnalyticsView.kpiCard theme
+                , Kpi.kpiCard theme
                     { title = "Liabilities"
                     , commodity = response.displayCommodity
                     , kpi = response.liabilities
@@ -356,7 +357,7 @@ dashboardContent env data =
                       else
                         Element.none
                     ]
-                , AnalyticsView.netWorthPerformanceChart theme
+                , Timeline.netWorthPerformanceChart theme
                     { commodity = response.displayCommodity
                     , points = response.performance
                     , selected = data.selectedPerformance

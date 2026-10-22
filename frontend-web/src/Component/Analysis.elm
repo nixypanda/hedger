@@ -46,6 +46,8 @@ import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
 import View.Analytics as AnalyticsView
+import View.Analytics.Category as Category
+import View.Analytics.Timeline as Timeline
 import View.Analytics.Types as AnalyticsTypes exposing (LegendState(..))
 
 
@@ -705,7 +707,7 @@ compositionHeader theme layout data =
                     (Typography.mutedBody theme "Account depth")
                 , Element.row [ Element.width (Element.fillPortion Tokens.layoutPortionDouble) ]
                     [ Element.el [ Element.width Element.fill ] Element.none
-                    , AnalyticsView.depthControl theme (Time.depthValue data.depth) DepthSelected
+                    , Category.depthControl theme (Time.depthValue data.depth) DepthSelected
                     ]
                 ]
             ]
@@ -737,7 +739,7 @@ timelineView theme chartWidth config report data =
         TimelineAvailable points ->
             Surface.card theme
                 [ Typography.subsectionTitle theme config.timelineTitle
-                , AnalyticsView.positiveNegativeTimelineChart theme
+                , Timeline.positiveNegativeTimelineChart theme
                     { commodity = report.displayCommodity
                     , points = points
                     , selected = Maybe.map Time.periodToString data.period
@@ -787,7 +789,7 @@ categoryView :
     -> SideState
     -> Element Msg
 categoryView theme config side commodity breakdown sideState =
-    AnalyticsView.categoryCard theme
+    Category.categoryCard theme
         { title = config.label
         , commodity = commodity
         , breakdown = breakdown

@@ -43,6 +43,7 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
+import View.Analytics.Kpi as Kpi
 import View.States as States
 
 
@@ -905,17 +906,17 @@ investmentSummaryGrid :
 investmentSummaryGrid layout theme commodity summary =
     let
         cards =
-            [ investmentMetricCard theme
+            [ Kpi.metricCard theme
                 "Portfolio value"
                 (Formatting.formatMaybeDecimalDisplay commodity summary.marketValue)
                 Icon.Wallet
                 theme.primary
-            , investmentMetricCard theme
+            , Kpi.metricCard theme
                 "XIRR since inception"
                 (investmentRate summary.xirr)
                 Icon.TrendingUp
                 theme.textMedium
-            , investmentMetricCard theme
+            , Kpi.metricCard theme
                 "Total profit"
                 (Formatting.formatMaybeDecimalDisplay commodity summary.totalProfit)
                 Icon.ChartBar
@@ -927,39 +928,6 @@ investmentSummaryGrid layout theme commodity summary =
 
     else
         Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] cards
-
-
-investmentMetricCard :
-    Theme
-    -> String
-    -> String
-    -> Icon
-    -> Element.Color
-    -> Element Msg
-investmentMetricCard theme title value icon color =
-    Surface.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle) ]
-        theme
-        [ Element.row
-            [ Element.width Element.fill
-            , Element.spacing Tokens.space12
-            , Element.alignTop
-            ]
-            [ Element.el
-                [ Element.width (Element.px Tokens.compactControlVisualHeight)
-                , Element.height (Element.px Tokens.compactControlVisualHeight)
-                , Background.color theme.primarySoft
-                , Border.rounded Tokens.radiusMedium
-                ]
-                (Element.el [ Element.centerX, Element.centerY ]
-                    (Icon.view { icon = icon, size = Tokens.iconSizeNavigation, color = color })
-                )
-            , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
-                [ Typography.mutedCaption theme title
-                , Element.el [ Typography.kpiValue, Typography.financeNumber, Font.bold ]
-                    (Element.text value)
-                ]
-            ]
-        ]
 
 
 investmentNavigator :
