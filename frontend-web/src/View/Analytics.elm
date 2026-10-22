@@ -1596,28 +1596,6 @@ directionSpecsFor theme tone =
             Nothing
 
 
-categoriesForDirection : ActivityDirection -> ActivityBucket -> List BreakdownItem
-categoriesForDirection direction bucket =
-    activityDirections bucket.movement
-        |> List.filter (.direction >> (==) direction)
-        |> List.head
-        |> Maybe.map .categories
-        |> Maybe.withDefault []
-
-
-activityDirections : ActivityMovement -> List Data.Analytics.DirectionBreakdown
-activityDirections movement =
-    case movement of
-        AssetMovements figures ->
-            figures.directions
-
-        LiabilityMovements figures ->
-            figures.directions
-
-        _ ->
-            []
-
-
 scaleColor : List Element.Color -> Int -> Element.Color
 scaleColor scale index =
     case scale of

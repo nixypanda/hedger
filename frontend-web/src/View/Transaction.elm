@@ -131,22 +131,18 @@ transactionDetail : Theme -> Transaction -> Element msg
 transactionDetail theme transaction =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Ui.card theme
-            (List.concat
-                [ [ detailRow theme "Date" (Date.toString transaction.primaryDate) ]
+            (List.filterMap identity
+                [ Just (detailRow theme "Date" (Date.toString transaction.primaryDate))
                 , maybeDetailRow
                     theme
                     "Secondary date"
                     (Maybe.map Date.toString transaction.secondaryDate)
-                , [ detailRow theme "Status" (Status.toString transaction.status) ]
+                , Just (detailRow theme "Status" (Status.toString transaction.status))
                 , maybeDetailRow theme "Code" transaction.code
-                , [ detailRow theme "Description" transaction.description ]
-                , [ detailRow theme "Effects" (effectSummary transaction) ]
+                , Just (detailRow theme "Description" transaction.description)
+                , Just (detailRow theme "Effects" (effectSummary transaction))
                 , maybeDetailRow theme "Comment" transaction.comment
-                , if List.isEmpty transaction.tags then
-                    []
-
-                  else
-                    [ detailRow theme "Tags" (tagsText transaction.tags) ]
+                , tagsDetailRow theme transaction
                 ]
             )
         , Ui.section theme
@@ -201,9 +197,18 @@ detailRow theme label value =
         ]
 
 
-maybeDetailRow : Theme -> String -> Maybe String -> List (Element msg)
+maybeDetailRow : Theme -> String -> Maybe String -> Maybe (Element msg)
 maybeDetailRow theme label value =
-    value |> Maybe.map (\current -> [ detailRow theme label current ]) |> Maybe.withDefault []
+    Maybe.map (detailRow theme label) value
+
+
+tagsDetailRow : Theme -> Transaction -> Maybe (Element msg)
+tagsDetailRow theme transaction =
+    if List.isEmpty transaction.tags then
+        Nothing
+
+    else
+        Just (detailRow theme "Tags" (tagsText transaction.tags))
 
 
 postingDetailRow : Theme -> Posting -> Element msg

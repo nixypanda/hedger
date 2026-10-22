@@ -16,8 +16,7 @@ suite =
                         [ Theme.light, Theme.forMode Dark ]
                             |> List.all debtColorsHaveExpectedHue
                             |> Expect.equal True
-               ]
-            ++ [ test "expense flow colors invert income flow colors in both themes" <|
+               , test "expense flow colors invert income flow colors in both themes" <|
                     \_ ->
                         [ Theme.light, Theme.forMode Dark ]
                             |> List.all expenseColorsInvertIncome
