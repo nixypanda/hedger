@@ -23,6 +23,16 @@ suite =
                     |> Expect.equal (Ok "7%")
         , test "generic rounding trims trailing zeros" <|
             \_ -> roundedStringHolds
+        , test "axis values omit the symbol and keep the sign" <|
+            \_ -> axisValuesHold
+        , test "decimal axis values include the symbol" <|
+            \_ -> decimalAxisHolds
+        , test "missing decimals render as an em dash" <|
+            \_ -> missingDecimalHolds
+        , test "present decimals keep the symbol and precision" <|
+            \_ -> presentDecimalHolds
+        , test "period helpers preserve month and year forms" <|
+            \_ -> periodHelpersHold
         ]
 
 
@@ -185,3 +195,38 @@ roundedStringHolds =
     , Number.roundedString 100 2
     ]
         |> Expect.equal [ "2", "1.3", "100" ]
+
+
+axisValuesHold : Expect.Expectation
+axisValuesHold =
+    [ Formatting.formatAxisValue "INR" 100000
+    , Formatting.formatAxisValue "USD" -1500
+    ]
+        |> Expect.equal [ "1.0L", "-1.5K" ]
+
+
+decimalAxisHolds : Expect.Expectation
+decimalAxisHolds =
+    Formatting.formatDecimalAxis "INR" 100000
+        |> Expect.equal "₹1.0L"
+
+
+missingDecimalHolds : Expect.Expectation
+missingDecimalHolds =
+    Formatting.formatMaybeDecimalDisplay "USD" Nothing
+        |> Expect.equal "—"
+
+
+presentDecimalHolds : Expect.Expectation
+presentDecimalHolds =
+    Formatting.formatMaybeDecimalDisplay "INR" (Just Decimal.zero)
+        |> Expect.equal "₹0.00"
+
+
+periodHelpersHold : Expect.Expectation
+periodHelpersHold =
+    [ Formatting.shortPeriod "2026-03"
+    , Formatting.shortPeriodWithYear "2026-03"
+    , Formatting.periodDisplayName "2026-03"
+    ]
+        |> Expect.equal [ "03", "03/26", "March 2026" ]
