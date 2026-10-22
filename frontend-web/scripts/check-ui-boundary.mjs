@@ -25,7 +25,7 @@ function elmFiles(directory) {
 const violations = elmFiles(sourceRoot)
   .filter((path) => {
     const modulePath = relative(sourceRoot, path);
-    return modulePath !== "Ui.elm" && !modulePath.startsWith("Ui/");
+    return !modulePath.startsWith("Ui/");
   })
   .flatMap((path) =>
     readFileSync(path, "utf8")
