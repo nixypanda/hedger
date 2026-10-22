@@ -6,6 +6,7 @@ import Html.Attributes
 import Ui
 import Ui.Button as Button
 import Ui.DesignTokens as Tokens
+import Ui.Input
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -29,7 +30,7 @@ view : Config msg -> Element msg
 view config =
     let
         searchInput =
-            Ui.searchInputInline config.theme
+            Ui.Input.searchInputInline config.theme
                 { label = "hledger query"
                 , text = config.draftQuery
                 , onChange = config.onDraftChanged
@@ -68,7 +69,7 @@ view config =
                     [ searchInput, buttons ]
     in
     Surface.card config.theme
-        [ Ui.fieldLabel config.theme "hledger query"
+        [ Ui.Input.fieldLabel config.theme "hledger query"
         , inputRow
         , case config.queryError of
             Just error ->

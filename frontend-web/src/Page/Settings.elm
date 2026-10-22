@@ -4,6 +4,7 @@ import Element exposing (Element)
 import Preferences exposing (ThemeMode(..))
 import Ui
 import Ui.Common as Common
+import Ui.Input
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -76,13 +77,13 @@ appearanceSection theme model =
 
 themeToggle : Theme -> Model -> Element Msg
 themeToggle theme model =
-    Ui.segmentedControl theme
-        [ Ui.segmentedOption theme
+    Ui.Input.segmentedControl theme
+        [ Ui.Input.segmentedOption theme
             { label = "Light"
             , selected = model.themeMode == Light
             , onPress = ThemeModeSelected Light
             }
-        , Ui.segmentedOption theme
+        , Ui.Input.segmentedOption theme
             { label = "Dark"
             , selected = model.themeMode == Dark
             , onPress = ThemeModeSelected Dark

@@ -41,6 +41,7 @@ import Ui.Button as Button
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
+import Ui.Input
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -435,7 +436,7 @@ filters theme model =
             [ Element.el
                 [ Element.width (Element.fill |> Element.maximum Tokens.splitPaneControlWidth) ]
               <|
-                Ui.dateInput theme
+                Ui.Input.dateInput theme
                     { label = "From"
                     , value = from
                     , onChange = FromChange
@@ -444,7 +445,7 @@ filters theme model =
                 [ Element.width (Element.fill |> Element.maximum Tokens.splitPaneControlWidth)
                 ]
               <|
-                Ui.dateInput theme { label = "To", value = to, onChange = ToChange }
+                Ui.Input.dateInput theme { label = "To", value = to, onChange = ToChange }
             ]
         ]
 

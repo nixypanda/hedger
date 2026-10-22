@@ -38,6 +38,7 @@ import Element exposing (Element)
 import Element.Font as Font
 import Ui
 import Ui.DesignTokens as Tokens
+import Ui.Input
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -594,7 +595,7 @@ activityRequest context side data =
 
 controlsView : Theme -> Model -> Element Msg
 controlsView theme (Model data) =
-    Ui.wideSegmentedControl theme
+    Ui.Input.wideSegmentedControl theme
         [ { label = "M"
           , selected = data.granularity == Monthly
           , onPress = GranularitySelected Monthly
@@ -835,13 +836,13 @@ calendarDisplayControl : Theme -> AnalyticsView.CalendarDisplay -> Element Msg
 calendarDisplayControl theme selected =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
         [ Typography.mutedBody theme "Show calendar by"
-        , Ui.segmentedControl theme
-            [ Ui.segmentedOption theme
+        , Ui.Input.segmentedControl theme
+            [ Ui.Input.segmentedOption theme
                 { label = "Category"
                 , selected = selected == AnalyticsView.ByCategory
                 , onPress = CalendarDisplaySelected AnalyticsView.ByCategory
                 }
-            , Ui.segmentedOption theme
+            , Ui.Input.segmentedOption theme
                 { label = "Movement"
                 , selected = selected == AnalyticsView.ByMovement
                 , onPress = CalendarDisplaySelected AnalyticsView.ByMovement

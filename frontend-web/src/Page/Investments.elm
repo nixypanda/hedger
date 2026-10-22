@@ -32,6 +32,7 @@ import Ui.Color as Color
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Input
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -239,10 +240,10 @@ view theme viewport (Model data) =
 
 granularityControl : Theme -> Granularity -> Element Msg
 granularityControl theme selected =
-    Ui.segmentedControl theme
-        [ Ui.segmentedOption theme
+    Ui.Input.segmentedControl theme
+        [ Ui.Input.segmentedOption theme
             { label = "M", selected = selected == Monthly, onPress = GranularitySelected Monthly }
-        , Ui.segmentedOption theme
+        , Ui.Input.segmentedOption theme
             { label = "Y", selected = selected == Yearly, onPress = GranularitySelected Yearly }
         ]
 
@@ -690,13 +691,13 @@ investmentHistoryCard theme commodity chartWidth selectedMode selected summary t
 
 chartModeControl : Theme -> ChartMode -> Element Msg
 chartModeControl theme selectedMode =
-    Ui.segmentedControl theme
-        [ Ui.segmentedOption theme
+    Ui.Input.segmentedControl theme
+        [ Ui.Input.segmentedOption theme
             { label = "Value"
             , selected = selectedMode == ValueChart
             , onPress = ChartModeSelected ValueChart
             }
-        , Ui.segmentedOption theme
+        , Ui.Input.segmentedOption theme
             { label = "Returns"
             , selected = selectedMode == ReturnsChart
             , onPress = ChartModeSelected ReturnsChart

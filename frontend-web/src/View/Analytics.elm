@@ -53,6 +53,7 @@ import Ui.Color as Color
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Input
 import Ui.Surface as Surface
 import Ui.Theme as Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -459,10 +460,10 @@ categoryCard theme config =
 
 depthControl : Theme -> Int -> (Int -> msg) -> Element msg
 depthControl theme selected onDepth =
-    Ui.segmentedControl theme
+    Ui.Input.segmentedControl theme
         (List.map
             (\depth ->
-                Ui.segmentedOption theme
+                Ui.Input.segmentedOption theme
                     { label = String.fromInt depth
                     , selected = selected == depth
                     , onPress = onDepth depth
