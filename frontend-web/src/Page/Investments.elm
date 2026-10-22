@@ -48,6 +48,10 @@ import View.Analytics.Kpi as Kpi
 import View.States as States
 
 
+
+-- MODEL
+
+
 type Model
     = Model ModelData
 
@@ -82,6 +86,10 @@ init =
             }
     in
     ( Model data, fetch data.activeRequestToken data )
+
+
+
+-- UPDATE
 
 
 type Msg
@@ -218,6 +226,10 @@ synchronizedPeriod current points =
 latestPeriod : List Investments.TimelinePoint -> Maybe String
 latestPeriod =
     List.reverse >> List.head >> Maybe.map .period
+
+
+
+-- VIEW
 
 
 view : Env -> Model -> Element Msg
