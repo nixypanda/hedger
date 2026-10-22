@@ -1,11 +1,16 @@
 module Ui.Common exposing
-    ( minWidthZero
+    ( hoverBackground
+    , hoverBorder
+    , minWidthZero
     , toCssColor
+    , touchTargetHeight
+    , truncatedText
     , uiClass
     )
 
-import Element
+import Element exposing (Element)
 import Html.Attributes
+import Ui.DesignTokens exposing (minimumTouchTarget)
 
 
 uiClass : String -> Element.Attribute msg
@@ -33,3 +38,35 @@ toCssColor color =
         ++ ", "
         ++ String.fromFloat alpha
         ++ ")"
+
+
+touchTargetHeight : Element.Attribute msg
+touchTargetHeight =
+    Element.height (Element.shrink |> Element.minimum minimumTouchTarget)
+
+
+truncatedText : String -> Element msg
+truncatedText value =
+    Element.el
+        [ Element.width Element.fill
+        , Element.clip
+        , minWidthZero
+        , uiClass "ui-text-ellipsis"
+        ]
+        (Element.text value)
+
+
+hoverBackground : Element.Color -> List (Element.Attribute msg)
+hoverBackground color =
+    [ Element.htmlAttribute (Html.Attributes.class "ui-hover-background")
+    , Element.htmlAttribute
+        (Html.Attributes.style "--ui-hover-background" (toCssColor color))
+    ]
+
+
+hoverBorder : Element.Color -> List (Element.Attribute msg)
+hoverBorder color =
+    [ Element.htmlAttribute (Html.Attributes.class "ui-hover-border")
+    , Element.htmlAttribute
+        (Html.Attributes.style "--ui-hover-border" (toCssColor color))
+    ]

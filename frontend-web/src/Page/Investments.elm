@@ -1014,13 +1014,13 @@ investmentNavigatorPathButton : Theme -> String -> Msg -> Element Msg
 investmentNavigatorPathButton theme label onPress =
     Input.button
         ([ Element.htmlAttribute (Attr.title ("Open " ++ label))
-         , Ui.touchTargetHeight
+         , Common.touchTargetHeight
          , Element.paddingXY Tokens.space10 Tokens.space8
          , Border.rounded Tokens.radiusSmall
          , Font.color theme.primary
          , Font.medium
          ]
-            ++ Ui.hoverBackground theme.primarySoft
+            ++ Common.hoverBackground theme.primarySoft
         )
         { onPress = Just onPress, label = Element.text label }
 

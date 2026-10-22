@@ -563,10 +563,10 @@ entryRow theme compact model commodity entry =
             valueDisplay theme commodity False theme.textPrimary entry.balance
 
         description =
-            Ui.truncatedText entry.description
+            Common.truncatedText entry.description
 
         account =
-            Ui.truncatedText entry.account
+            Common.truncatedText entry.account
 
         date =
             Element.text (Date.toString entry.date)
@@ -683,7 +683,7 @@ valueDisplay theme commodity isMovement color value =
         , Element.spacing Tokens.space4
         , Common.minWidthZero
         ]
-        [ Ui.truncatedText (fullDisplayValue commodity value)
+        [ Common.truncatedText (fullDisplayValue commodity value)
             |> Element.el
                 ([ Element.width Element.fill
                  , Font.alignRight

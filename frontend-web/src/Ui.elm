@@ -17,7 +17,6 @@ module Ui exposing
     , formSection
     , ghostButton
     , hairline
-    , hoverBackground
     , iconButton
     , layout
     , legendButton
@@ -35,8 +34,6 @@ module Ui exposing
     , segmentedControl
     , segmentedOption
     , statusBadge
-    , touchTargetHeight
-    , truncatedText
     , wideSegmentedControl
     , wrappingStatusBadge
     )
@@ -120,17 +117,6 @@ pageHeaderBand theme content =
             ]
             content
         )
-
-
-truncatedText : String -> Element msg
-truncatedText value =
-    Element.el
-        [ Element.width Element.fill
-        , Element.clip
-        , minWidthZero
-        , uiClass "ui-text-ellipsis"
-        ]
-        (Element.text value)
 
 
 card : Theme -> List (Element msg) -> Element msg
@@ -542,7 +528,7 @@ segmentedOption :
     -> Element msg
 segmentedOption theme config =
     Input.button
-        [ touchTargetHeight
+        [ Common.touchTargetHeight
         , Font.color
             (if config.selected then
                 theme.primary
@@ -737,7 +723,7 @@ rowSurfaceAttrs theme selected =
             theme.divider
         )
     ]
-        ++ hoverBackground theme.hoverBg
+        ++ Common.hoverBackground theme.hoverBg
         ++ [ uiClass "ui-motion" ]
 
 
@@ -795,7 +781,7 @@ buttonBase _ config =
          , Font.center
          , uiClass "ui-motion"
          ]
-            ++ hoverBackground config.hoverBackground
+            ++ Common.hoverBackground config.hoverBackground
             ++ [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget) ]
         )
         { onPress = config.onPress
@@ -828,8 +814,8 @@ iconButtonBase _ config =
          , Border.color config.border
          , uiClass "ui-motion"
          ]
-            ++ hoverBackground config.hoverBackground
-            ++ hoverBorder config.hoverBorder
+            ++ Common.hoverBackground config.hoverBackground
+            ++ Common.hoverBorder config.hoverBorder
             ++ [ Element.htmlAttribute (Html.Attributes.title config.title)
                , Region.description config.title
                ]
@@ -948,24 +934,3 @@ legendToggleSurface label =
         , Element.paddingXY space8 0
         ]
         (Element.el [ Element.centerY ] label)
-
-
-touchTargetHeight : Attribute msg
-touchTargetHeight =
-    Element.height (Element.shrink |> Element.minimum minimumTouchTarget)
-
-
-hoverBackground : Element.Color -> List (Attribute msg)
-hoverBackground color =
-    [ Element.htmlAttribute (Html.Attributes.class "ui-hover-background")
-    , Element.htmlAttribute
-        (Html.Attributes.style "--ui-hover-background" (Common.toCssColor color))
-    ]
-
-
-hoverBorder : Element.Color -> List (Attribute msg)
-hoverBorder color =
-    [ Element.htmlAttribute (Html.Attributes.class "ui-hover-border")
-    , Element.htmlAttribute
-        (Html.Attributes.style "--ui-hover-border" (Common.toCssColor color))
-    ]

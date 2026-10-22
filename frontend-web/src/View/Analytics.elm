@@ -604,7 +604,7 @@ categoryRows theme config =
                         then
                             Input.button
                                 [ Element.width Element.fill
-                                , Ui.touchTargetHeight
+                                , Common.touchTargetHeight
                                 , Element.htmlAttribute
                                     (Attr.attribute "aria-expanded"
                                         (if config.otherExpanded then
@@ -1495,7 +1495,7 @@ activityTransactions theme title transactions onSelect =
                         (\transaction ->
                             Input.button
                                 [ Element.width Element.fill
-                                , Ui.touchTargetHeight
+                                , Common.touchTargetHeight
                                 , Element.paddingXY Tokens.space0 Tokens.space10
                                 ]
                                 { onPress = Just (onSelect transaction)
