@@ -4,19 +4,16 @@ module Ui.Typography exposing
     , caption
     , chartLabel
     , delimitedPageTitle
-    , delimitedSectionTitle
     , detailHeroValue
     , detailLabel
     , detailValue
     , financeNumber
     , htmlCaption
     , kpiValue
-    , listItemTitle
     , mutedBody
     , mutedCaption
     , mutedParagraph
     , naturalWrapText
-    , navLabel
     , pageTitle
     , rowAmount
     , rowDate
@@ -25,8 +22,6 @@ module Ui.Typography exposing
     , sectionTitle
     , subsectionTitle
     , tabLabel
-    , truncatedListItemTitle
-    , wrappedListItemTitle
     )
 
 import Element exposing (Element)
@@ -91,11 +86,6 @@ chartLabel =
 kpiValue : Element.Attribute msg
 kpiValue =
     Font.size 28
-
-
-navLabel : Element.Attribute msg
-navLabel =
-    Font.size 16
 
 
 tabLabel : Element.Attribute msg
@@ -167,18 +157,6 @@ sectionTitle theme text =
         (Element.text text)
 
 
-delimitedSectionTitle : Theme -> String -> String -> Element msg
-delimitedSectionTitle theme delimiter text =
-    naturalWrapText
-        [ sectionTitleSize
-        , Font.semiBold
-        , Font.color theme.textPrimary
-        , Region.heading 2
-        ]
-        delimiter
-        text
-
-
 subsectionTitle : Theme -> String -> Element msg
 subsectionTitle theme text =
     Element.el
@@ -216,46 +194,6 @@ mutedParagraph theme text =
         , Element.spacing 4
         ]
         [ Element.text text ]
-
-
-listItemTitle : Theme -> Element msg -> Element msg
-listItemTitle theme child =
-    Element.el
-        [ body
-        , Font.semiBold
-        , Font.color theme.textPrimary
-        , Common.minWidthZero
-        ]
-        child
-
-
-truncatedListItemTitle : Theme -> String -> Element msg
-truncatedListItemTitle theme text =
-    Element.el
-        [ Element.width Element.fill
-        , Common.minWidthZero
-        ]
-        (listItemTitle theme
-            (Element.el
-                [ Element.width Element.fill
-                , Element.clip
-                , Common.uiClass "ui-text-ellipsis"
-                ]
-                (Element.text text)
-            )
-        )
-
-
-wrappedListItemTitle : Theme -> String -> Element msg
-wrappedListItemTitle theme text =
-    listItemTitle theme
-        (Element.paragraph
-            [ Element.width Element.fill
-            , Common.minWidthZero
-            , Common.uiClass "ui-text-wrap"
-            ]
-            [ Element.text text ]
-        )
 
 
 naturalWrapText : List (Element.Attribute msg) -> String -> String -> Element msg

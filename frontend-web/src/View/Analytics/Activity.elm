@@ -1,6 +1,5 @@
 module View.Analytics.Activity exposing
     ( activityMonth
-    , activityTransactions
     , activityYear
     )
 
@@ -11,7 +10,6 @@ import Data.Analytics
         , ActivityResponse
         , BreakdownItem
         )
-import Data.Date as Date
 import Data.Decimal as Decimal
 import Data.Formatting as Formatting
 import Data.Transaction exposing (Transaction)
@@ -463,41 +461,4 @@ activityYear theme config =
                                 (config.onTransaction bucket)
                     , Feedback.warningList theme response.warnings
                     ]
-        ]
-
-
-activityTransactions : Theme -> String -> List Transaction -> (Transaction -> msg) -> Element msg
-activityTransactions theme title transactions onSelect =
-    Surface.card theme
-        [ Typography.subsectionTitle theme title
-        , if List.isEmpty transactions then
-            Typography.mutedParagraph theme "No contributing transactions"
-
-          else
-            Element.column [ Element.width Element.fill ]
-                (List.intersperse (Surface.hairline theme)
-                    (List.map
-                        (\transaction ->
-                            Input.button
-                                [ Element.width Element.fill
-                                , Common.touchTargetHeight
-                                , Element.paddingXY Tokens.space0 Tokens.space10
-                                ]
-                                { onPress = Just (onSelect transaction)
-                                , label =
-                                    Element.row
-                                        [ Element.width Element.fill
-                                        , Element.spacing Tokens.space12
-                                        ]
-                                        [ Element.el [ Font.color theme.textMuted ]
-                                            (Element.text (Date.toString transaction.primaryDate))
-                                        , Element.el [ Element.width Element.fill ]
-                                            (Element.text transaction.description)
-                                        , Element.text "›"
-                                        ]
-                                }
-                        )
-                        transactions
-                    )
-                )
         ]

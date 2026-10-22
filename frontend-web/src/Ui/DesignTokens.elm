@@ -6,8 +6,6 @@ module Ui.DesignTokens exposing
     , iconSizeCaption
     , iconSizeCompact
     , iconSizeDetail
-    , iconSizeLarge
-    , iconSizeMedium
     , iconSizeNavigation
     , iconSizeSmall
     , iconSizeSmallGlyph
@@ -30,7 +28,6 @@ module Ui.DesignTokens exposing
     , radiusHairline
     , radiusIcon
     , radiusMedium
-    , radiusPanel
     , radiusPill
     , radiusSmall
     , radiusTight
@@ -38,7 +35,6 @@ module Ui.DesignTokens exposing
     , registerDateWidth
     , sidebarWidth
     , skeletonLineLong
-    , skeletonLineMedium
     , skeletonLineShort
     , skeletonLineTiny
     , space0
@@ -140,16 +136,6 @@ iconSizeSmall =
     20
 
 
-iconSizeMedium : Int
-iconSizeMedium =
-    36
-
-
-iconSizeLarge : Int
-iconSizeLarge =
-    44
-
-
 sidebarWidth : Int
 sidebarWidth =
     232
@@ -213,11 +199,6 @@ skeletonLineTiny =
 skeletonLineShort : Int
 skeletonLineShort =
     80
-
-
-skeletonLineMedium : Int
-skeletonLineMedium =
-    112
 
 
 skeletonLineLong : Int
@@ -346,11 +327,6 @@ radiusSmall =
 radiusCard : Int
 radiusCard =
     12
-
-
-radiusPanel : Int
-radiusPanel =
-    14
 
 
 radiusPill : Int

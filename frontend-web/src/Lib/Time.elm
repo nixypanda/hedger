@@ -2,7 +2,6 @@ module Lib.Time exposing
     ( formatDate
     , groupByKey
     , monthLabel
-    , monthName
     )
 
 

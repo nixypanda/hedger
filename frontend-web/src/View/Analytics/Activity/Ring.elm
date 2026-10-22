@@ -3,11 +3,7 @@ module View.Analytics.Activity.Ring exposing
     , activityDayRing
     , activityMonthRing
     , amountTextColor
-    , directionSegments
-    , monthRingCenter
-    , presentDirections
     , ringAccent
-    , ringEmptyColor
     )
 
 import Data.Analytics

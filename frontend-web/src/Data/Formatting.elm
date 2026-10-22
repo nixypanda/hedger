@@ -1,7 +1,5 @@
 module Data.Formatting exposing
-    ( commodityDisplaySymbol
-    , compactValue
-    , formatAmountDisplay
+    ( compactValue
     , formatAxisValue
     , formatBalance
     , formatDecimalAxis

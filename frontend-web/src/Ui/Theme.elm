@@ -3,7 +3,6 @@ module Ui.Theme exposing
     , Theme
     , forMode
     , light
-    , modeFromString
     , modeFromStringResult
     , modeToString
     , toggle
@@ -309,12 +308,6 @@ modeToString mode =
 
         Dark ->
             "dark"
-
-
-modeFromString : String -> Mode
-modeFromString value =
-    modeFromStringResult value
-        |> Result.withDefault Light
 
 
 modeFromStringResult : String -> Result String Mode

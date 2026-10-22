@@ -1,6 +1,5 @@
 module View.Transaction exposing
     ( amountsText
-    , classificationLabel
     , classificationTone
     , effectLabel
     , transactionDetail

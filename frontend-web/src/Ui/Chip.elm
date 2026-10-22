@@ -1,7 +1,6 @@
 module Ui.Chip exposing
     ( FinancialTone(..)
     , StatusTone(..)
-    , badge
     , chip
     , financialBadge
     , legendButton
@@ -79,15 +78,6 @@ coloredPill config =
         , Font.medium
         ]
         (Element.text config.label)
-
-
-badge : Theme -> String -> Element msg
-badge theme label =
-    coloredPill
-        { label = label
-        , bg = theme.inputFill
-        , fg = theme.textPrimary
-        }
 
 
 type StatusTone

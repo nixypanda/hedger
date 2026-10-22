@@ -109,13 +109,16 @@ format-frontend:
     elm-format frontend-web/src frontend-web/tests --yes
 
 # Run all frontend checks.
-check-frontend: check-frontend-ui-boundary check-frontend-format check-frontend-line-length build-frontend test-frontend
+check-frontend: check-frontend-ui-boundary check-frontend-format check-frontend-line-length check-frontend-review build-frontend test-frontend
 
 check-frontend-ui-boundary:
     cd frontend-web && npm run check:ui-boundary
 
 check-frontend-format:
     elm-format frontend-web/src frontend-web/tests --validate
+
+check-frontend-review:
+    cd frontend-web && npm run review
 
 check-frontend-line-length:
     if rg '.{101,}' -g '*.elm' frontend-web/src -g '!**/Main.elm' frontend-web/tests -g '!**/TransactionsTest.elm'; then exit 1; else test "$?" -eq 1; fi

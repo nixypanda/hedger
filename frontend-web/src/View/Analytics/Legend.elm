@@ -1,8 +1,5 @@
 module View.Analytics.Legend exposing
-    ( activityCategoryLegend
-    , activityDirectionLegend
-    , activityLegend
-    , activityMeaningLegend
+    ( activityLegend
     , chartLegend
     )
 
