@@ -5,10 +5,11 @@ import Data.Revision as Revision
 import Expect
 import Fuzz
 import Json.Decode as Decode
-import Preferences exposing (ThemeMode(..))
+import Preferences
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import Test exposing (Test, describe, fuzz2, test)
+import Ui.Theme exposing (Mode(..))
 import Ui.Viewport as Viewport exposing (Viewport)
 import Url
 
@@ -60,8 +61,22 @@ suite =
         , test "legacy theme preference migrates to version one" <|
             \_ ->
                 Decode.decodeString Preferences.decoder "{\"themeMode\":\"dark\"}"
-                    |> Result.map (\preferences -> ( preferences.version, preferences.themeMode ))
-                    |> Expect.equal (Ok ( 1, Dark ))
+                    |> Result.map (\preferences -> ( preferences.version, preferences.mode ))
+                    |> Expect.equal (Ok ( 1, Ui.Theme.Dark ))
+        , describe "theme mode decoding"
+            [ test "accepts light" <|
+                \_ ->
+                    decodeMode "light"
+                        |> Expect.equal (Ok Light)
+            , test "accepts dark" <|
+                \_ ->
+                    decodeMode "dark"
+                        |> Expect.equal (Ok Dark)
+            , test "rejects unknown values" <|
+                \_ ->
+                    decodeMode "sepia"
+                        |> Expect.err
+            ]
         , fuzz2 (Fuzz.maybe Fuzz.string)
             (Fuzz.maybe Fuzz.string)
             "snapshots are compatible only when revisions match or are absent"
@@ -84,6 +99,12 @@ suite =
 viewportAt : Int -> Viewport
 viewportAt width =
     { width = width, height = 900 }
+
+
+decodeMode : String -> Result Decode.Error Mode
+decodeMode value =
+    Decode.decodeString Preferences.decoder ("{\"themeMode\":\"" ++ value ++ "\"}")
+        |> Result.map .mode
 
 
 contentLayoutBoundaries : () -> Expect.Expectation

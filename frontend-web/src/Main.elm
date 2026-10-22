@@ -12,7 +12,7 @@ import Element.Font as Font
 import Json.Decode as Decode
 import Page
 import Ports
-import Preferences exposing (Preferences, ThemeMode(..))
+import Preferences exposing (Preferences)
 import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
@@ -24,7 +24,7 @@ import Ui.Icon as Icon exposing (Icon)
 import Ui.Page as UiPage
 import Ui.Skeleton
 import Ui.Surface as Surface
-import Ui.Theme exposing (Theme)
+import Ui.Theme exposing (Mode, Theme)
 import Ui.Typography as Typography
 import Ui.Viewport exposing (Viewport)
 import Url exposing (Url)
@@ -40,7 +40,7 @@ type alias Flags =
     , isStandalone : Bool
     , viewportWidth : Int
     , viewportHeight : Int
-    , initialThemeMode : String
+    , initialMode : String
     }
 
 
@@ -58,9 +58,9 @@ type alias Model =
 init : Flags -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
-        initialTheme =
-            Preferences.themeModeFromString flags.initialThemeMode
-                |> Result.withDefault Light
+        initialMode =
+            Ui.Theme.modeFromStringResult flags.initialMode
+                |> Result.withDefault Ui.Theme.Light
 
         redirect =
             if url.path == "/" then
@@ -77,15 +77,15 @@ init flags url key =
                 (pageContext
                     initialRoute
                     { width = flags.viewportWidth, height = flags.viewportHeight }
-                    (Preferences.theme (Preferences.current initialTheme))
-                    initialTheme
+                    (Ui.Theme.forMode initialMode)
+                    initialMode
                 )
                 Nothing
     in
     ( { key = key
       , route = initialRoute
       , viewport = { width = flags.viewportWidth, height = flags.viewportHeight }
-      , preferences = Preferences.current initialTheme
+      , preferences = Preferences.current initialMode
       , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
       , bootstrap = Loading Nothing
       , page = pageModel
@@ -99,12 +99,12 @@ init flags url key =
     )
 
 
-pageContext : Route -> Viewport -> Theme -> ThemeMode -> Page.Context
-pageContext route viewport theme themeMode =
+pageContext : Route -> Viewport -> Theme -> Mode -> Page.Context
+pageContext route viewport theme mode =
     { route = route
     , viewport = viewport
     , theme = theme
-    , themeMode = themeMode
+    , mode = mode
     }
 
 
@@ -147,7 +147,7 @@ update msg model =
 
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
+                        (pageContext route model.viewport (Ui.Theme.forMode model.preferences.mode) model.preferences.mode)
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -177,7 +177,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext model.route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
+                        (pageContext model.route model.viewport (Ui.Theme.forMode model.preferences.mode) model.preferences.mode)
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -214,7 +214,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.update
-                        (pageContext model.route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
+                        (pageContext model.route model.viewport (Ui.Theme.forMode model.preferences.mode) model.preferences.mode)
                         pageMsg
                         model.page
 
@@ -238,7 +238,7 @@ applyPageOutMsg outMsg model =
         Page.Navigate route ->
             ( model, Nav.pushUrl model.key (Route.toPath route) )
 
-        Page.SetThemeMode mode ->
+        Page.SetTheme mode ->
             let
                 preferences =
                     Preferences.setTheme mode model.preferences
@@ -254,7 +254,7 @@ view : Model -> Browser.Document Msg
 view model =
     let
         activeTheme =
-            Preferences.theme model.preferences
+            Ui.Theme.forMode model.preferences.mode
 
         page =
             pageView activeTheme model
@@ -377,7 +377,7 @@ pageView : Theme -> Model -> Element Msg
 pageView theme model =
     if isRealPage model.route then
         Element.map GotPageMsg
-            (Page.view (pageContext model.route model.viewport theme model.preferences.themeMode) model.page)
+            (Page.view (pageContext model.route model.viewport theme model.preferences.mode) model.page)
 
     else
         Element.column

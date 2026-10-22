@@ -1,12 +1,11 @@
 module Page.Settings exposing (Model, Msg(..), OutMsg(..), init, update, view)
 
 import Element exposing (Element)
-import Preferences exposing (ThemeMode(..))
 import Ui.Common as Common
 import Ui.Input
 import Ui.Page as Page
 import Ui.Surface as Surface
-import Ui.Theme exposing (Theme)
+import Ui.Theme exposing (Mode(..), Theme)
 import Ui.Typography as Typography
 
 
@@ -15,12 +14,12 @@ import Ui.Typography as Typography
 
 
 type alias Model =
-    { themeMode : ThemeMode }
+    { mode : Mode }
 
 
-init : ThemeMode -> Model
-init themeMode =
-    { themeMode = themeMode }
+init : Mode -> Model
+init mode =
+    { mode = mode }
 
 
 
@@ -28,20 +27,20 @@ init themeMode =
 
 
 type Msg
-    = ThemeModeSelected ThemeMode
+    = ModeSelected Mode
 
 
 type OutMsg
-    = SetThemeMode ThemeMode
+    = SetTheme Mode
 
 
 update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
 update msg model =
     case msg of
-        ThemeModeSelected mode ->
-            ( { model | themeMode = mode }
+        ModeSelected mode ->
+            ( { model | mode = mode }
             , Cmd.none
-            , SetThemeMode mode
+            , SetTheme mode
             )
 
 
@@ -80,12 +79,12 @@ themeToggle theme model =
     Ui.Input.segmentedControl theme
         [ Ui.Input.segmentedOption theme
             { label = "Light"
-            , selected = model.themeMode == Light
-            , onPress = ThemeModeSelected Light
+            , selected = model.mode == Light
+            , onPress = ModeSelected Light
             }
         , Ui.Input.segmentedOption theme
             { label = "Dark"
-            , selected = model.themeMode == Dark
-            , onPress = ThemeModeSelected Dark
+            , selected = model.mode == Dark
+            , onPress = ModeSelected Dark
             }
         ]

@@ -8,9 +8,8 @@ import Page.Investments as InvestmentsPage
 import Page.NetWorth as NetWorthPage
 import Page.Settings as SettingsPage
 import Page.Transactions as TransactionsPage
-import Preferences exposing (ThemeMode)
 import Route exposing (Route(..))
-import Ui.Theme exposing (Theme)
+import Ui.Theme exposing (Mode, Theme)
 import Ui.Viewport exposing (Viewport)
 
 
@@ -33,7 +32,7 @@ type alias Context =
     { route : Route
     , viewport : Viewport
     , theme : Theme
-    , themeMode : ThemeMode
+    , mode : Mode
     }
 
 
@@ -139,7 +138,7 @@ init context maybeExistingModel =
             )
 
         ( Settings, _ ) ->
-            ( SettingsPage (SettingsPage.init context.themeMode)
+            ( SettingsPage (SettingsPage.init context.mode)
             , Cmd.none
             , NoOutMsg
             )
@@ -162,7 +161,7 @@ type Msg
 type OutMsg
     = NoOutMsg
     | Navigate Route
-    | SetThemeMode ThemeMode
+    | SetTheme Mode
 
 
 mapTransactionsOutMsg : TransactionsPage.OutMsg -> OutMsg
@@ -185,8 +184,8 @@ mapAccountRegisterOutMsg outMsg =
 mapSettingsOutMsg : SettingsPage.OutMsg -> OutMsg
 mapSettingsOutMsg outMsg =
     case outMsg of
-        SettingsPage.SetThemeMode mode ->
-            SetThemeMode mode
+        SettingsPage.SetTheme mode ->
+            SetTheme mode
 
 
 update : Context -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
