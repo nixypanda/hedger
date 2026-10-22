@@ -7,6 +7,7 @@ module View.Transaction exposing
     )
 
 import Data.Date as Date
+import Data.Formatting as Formatting
 import Data.Status as Status
 import Data.Transaction exposing (Amount, Posting, Tag, Transaction)
 import Element exposing (Element)
@@ -19,7 +20,6 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
-import View.Formatting as Formatting
 
 
 classificationTone : String -> Chip.FinancialTone

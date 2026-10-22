@@ -22,6 +22,7 @@ import Data.Account as Account exposing (AccountNode(..), AccountPath)
 import Data.AccountType as AccountType
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date
+import Data.Formatting as Formatting
 import Data.Freshness exposing (Freshness)
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Element)
@@ -48,7 +49,6 @@ import Ui.Typography as Typography
 import Ui.Viewport as Viewport
 import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
-import View.Formatting as Formatting
 import View.States as States
 
 

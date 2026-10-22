@@ -16,6 +16,7 @@ import Api.Error as ApiError exposing (ApiError)
 import Api.Investments as Investments
 import Data.Completeness exposing (Completeness(..))
 import Data.Decimal as Decimal exposing (Decimal)
+import Data.Formatting as Formatting
 import Data.Granularity exposing (Granularity(..))
 import Element exposing (Element)
 import Element.Background as Background
@@ -24,6 +25,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
+import Lib.Number as Number
 import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Ui.Button as Button
 import Ui.Chart.Cartesian as Cartesian
@@ -41,7 +43,6 @@ import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
-import View.Formatting as Formatting
 import View.States as States
 
 
@@ -473,7 +474,8 @@ assetClassAllocationRow theme commodity allocation =
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space2 ]
                 [ Element.el [ Font.semiBold ]
                     (Element.text (assetClassLabel allocation.assetClass))
-                , Typography.mutedCaption theme (investmentMoney commodity allocation.marketValue)
+                , Typography.mutedCaption theme
+                    (Formatting.formatMaybeDecimalDisplay commodity allocation.marketValue)
                 ]
             , Element.column [ Element.alignRight, Element.spacing Tokens.space2 ]
                 [ Element.el [ Typography.financeNumber, Font.semiBold ]
@@ -580,7 +582,7 @@ allocationDeltaLabel color current target =
                         ""
             in
             Element.el [ Font.color color, Typography.caption, Font.semiBold ]
-                (Element.text (sign ++ Formatting.roundedString delta 2 ++ " pp"))
+                (Element.text (sign ++ Number.roundedString delta 2 ++ " pp"))
 
 
 allocationPerformanceColor :
@@ -765,7 +767,7 @@ investmentValueChart theme commodity availableWidth selected points =
             , xLabel =
                 \point ->
                     if List.member point.period visiblePeriods then
-                        Just (shortInvestmentPeriod point.period)
+                        Just (Formatting.shortPeriodWithYear point.period)
 
                     else
                         Nothing
@@ -774,12 +776,12 @@ investmentValueChart theme commodity availableWidth selected points =
                     "Select "
                         ++ point.period
                         ++ ": portfolio value "
-                        ++ investmentMoney commodity point.summary.marketValue
+                        ++ Formatting.formatMaybeDecimalDisplay commodity point.summary.marketValue
                         ++ ", invested capital "
-                        ++ investmentMoney commodity point.summary.purchaseCost
+                        ++ Formatting.formatMaybeDecimalDisplay commodity point.summary.purchaseCost
             , selected = selected
             , onSelect = PeriodSelected
-            , formatTick = investmentAxisMoney commodity
+            , formatTick = Formatting.formatDecimalAxis commodity
             , domain = Cartesian.PaddedExtent { ratio = 0.12, minimum = 1 }
             , series =
                 [ Cartesian.AreaBetween
@@ -833,7 +835,7 @@ investmentReturnsChart theme availableWidth selected points =
             , xLabel =
                 \point ->
                     if List.member point.period visiblePeriods then
-                        Just (shortInvestmentPeriod point.period)
+                        Just (Formatting.shortPeriodWithYear point.period)
 
                     else
                         Nothing
@@ -890,7 +892,7 @@ investmentBreakdownMetric theme commodity label value =
         ]
         [ Typography.mutedCaption theme label
         , Element.el [ Typography.financeNumber, Font.semiBold ]
-            (Element.text (investmentMoney commodity value))
+            (Element.text (Formatting.formatMaybeDecimalDisplay commodity value))
         ]
 
 
@@ -905,7 +907,7 @@ investmentSummaryGrid layout theme commodity summary =
         cards =
             [ investmentMetricCard theme
                 "Portfolio value"
-                (investmentMoney commodity summary.marketValue)
+                (Formatting.formatMaybeDecimalDisplay commodity summary.marketValue)
                 Icon.Wallet
                 theme.primary
             , investmentMetricCard theme
@@ -915,7 +917,7 @@ investmentSummaryGrid layout theme commodity summary =
                 theme.textMedium
             , investmentMetricCard theme
                 "Total profit"
-                (investmentMoney commodity summary.totalProfit)
+                (Formatting.formatMaybeDecimalDisplay commodity summary.totalProfit)
                 Icon.ChartBar
                 (investmentTone summary.totalProfit theme)
             ]
@@ -1072,7 +1074,12 @@ investmentNavigatorChild theme commodity child =
                     ]
                 , Element.column [ Element.alignRight, Element.spacing Tokens.space3 ]
                     [ Element.el [ Typography.financeNumber, Font.semiBold ]
-                        (Element.text (investmentMoney commodity child.summary.marketValue))
+                        (Element.text
+                            (Formatting.formatMaybeDecimalDisplay
+                                commodity
+                                child.summary.marketValue
+                            )
+                        )
                     , child.allocationPercentage
                         |> Maybe.map Formatting.formatPercentage
                         |> Maybe.map (Typography.mutedCaption theme)
@@ -1265,37 +1272,14 @@ investmentTone value theme =
             theme.textMuted
 
 
-investmentMoney : String -> Maybe Decimal -> String
-investmentMoney commodity value =
-    value
-        |> investmentDecimalFloat
-        |> Maybe.map (Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity))
-        |> Maybe.withDefault "—"
-
-
 investmentRate : Maybe Decimal -> String
 investmentRate =
     Maybe.map Formatting.formatRatePercentage >> Maybe.withDefault "—"
 
 
-investmentAxisMoney : String -> Float -> String
-investmentAxisMoney commodity =
-    Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity)
-
-
 investmentAxisRate : Float -> String
 investmentAxisRate value =
-    Formatting.roundedString value 1 ++ "%"
-
-
-shortInvestmentPeriod : String -> String
-shortInvestmentPeriod period =
-    case String.split "-" period of
-        [ year, month ] ->
-            month ++ "/" ++ String.right 2 year
-
-        _ ->
-            period
+    Number.roundedString value 1 ++ "%"
 
 
 investmentPeriodLabel : String -> String
@@ -1305,7 +1289,7 @@ investmentPeriodLabel period =
 
 investmentDecimalFloat : Maybe Decimal -> Maybe Float
 investmentDecimalFloat =
-    Maybe.andThen (Decimal.toString >> String.toFloat)
+    Maybe.map Decimal.toFloat
 
 
 investmentRateFloat : Maybe Decimal -> Maybe Float

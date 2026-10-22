@@ -1,10 +1,11 @@
 module FormattingTest exposing (suite)
 
 import Data.Decimal as Decimal
+import Data.Formatting as Formatting
 import Expect
 import Fuzz
+import Lib.Number as Number
 import Test exposing (Test, describe, fuzz, test)
-import View.Formatting as Formatting
 
 
 {-| Money is displayed at a fixed domain precision (two decimals for full
@@ -20,6 +21,8 @@ suite =
                 Decimal.fromString "0.07"
                     |> Result.map Formatting.formatRatePercentage
                     |> Expect.equal (Ok "7%")
+        , test "generic rounding trims trailing zeros" <|
+            \_ -> roundedStringHolds
         ]
 
 
@@ -173,3 +176,12 @@ expectRoundedTo expected value =
 renderedFloat : String -> Float
 renderedFloat value =
     String.toFloat value |> Maybe.withDefault 0
+
+
+roundedStringHolds : Expect.Expectation
+roundedStringHolds =
+    [ Number.roundedString 1.5 0
+    , Number.roundedString 1.25 1
+    , Number.roundedString 100 2
+    ]
+        |> Expect.equal [ "2", "1.3", "100" ]

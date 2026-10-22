@@ -1,19 +1,29 @@
-module View.Formatting exposing
+module Data.Formatting exposing
     ( commodityDisplaySymbol
     , compactValue
     , formatAmountDisplay
+    , formatAxisValue
     , formatBalance
+    , formatDecimalAxis
+    , formatDecimalDisplay
+    , formatFloatDisplay
     , formatFullAmount
     , formatFullBalance
     , formatFullValue
+    , formatMaybeDecimalDisplay
     , formatPercentage
     , formatRatePercentage
-    , roundedString
+    , periodDisplayName
+    , shortPeriod
+    , shortPeriodWithYear
     )
 
 import Char
+import Data.Calendar as Calendar
 import Data.Decimal as Decimal exposing (Decimal)
+import Data.Granularity exposing (Granularity(..))
 import Data.Quantity as Quantity exposing (Quantity)
+import Lib.Number as Number
 
 
 commodityDisplaySymbol : String -> String
@@ -87,7 +97,7 @@ formatPercentageWithMultiplier multiplier percentage =
     percentage
         |> Decimal.toString
         |> String.toFloat
-        |> Maybe.map (\value -> roundedString (value * multiplier) 2 ++ "%")
+        |> Maybe.map (\value -> Number.roundedString (value * multiplier) 2 ++ "%")
         |> Maybe.withDefault "—"
 
 
@@ -130,22 +140,22 @@ symbolSeparator symbol =
 compactValue : String -> Float -> ( String, String )
 compactValue commodity amount =
     if commodity == "₹" && amount >= 10000000 then
-        ( fixedRoundedString (amount / 10000000) 1, "Cr" )
+        ( Number.fixedRoundedString (amount / 10000000) 1, "Cr" )
 
     else if commodity == "₹" && amount >= 100000 then
-        ( fixedRoundedString (amount / 100000) 1, "L" )
+        ( Number.fixedRoundedString (amount / 100000) 1, "L" )
 
     else if amount >= 1000000000 then
-        ( fixedRoundedString (amount / 1000000000) 1, "B" )
+        ( Number.fixedRoundedString (amount / 1000000000) 1, "B" )
 
     else if amount >= 1000000 then
-        ( fixedRoundedString (amount / 1000000) 1, "M" )
+        ( Number.fixedRoundedString (amount / 1000000) 1, "M" )
 
     else if amount >= 1000 then
-        ( fixedRoundedString (amount / 1000) 1, "K" )
+        ( Number.fixedRoundedString (amount / 1000) 1, "K" )
 
     else
-        ( fixedRoundedString amount 2, "" )
+        ( Number.fixedRoundedString amount 2, "" )
 
 
 formatFullAmount : String -> Decimal -> String
@@ -241,41 +251,70 @@ incrementDigits digits =
         )
 
 
-fixedRoundedString : Float -> Int -> String
-fixedRoundedString value decimals =
-    let
-        rounded =
-            roundedString value decimals
-    in
-    case String.split "." rounded of
-        [ whole, fraction ] ->
-            whole ++ "." ++ String.padRight decimals '0' fraction
+formatDecimalDisplay : String -> Decimal -> String
+formatDecimalDisplay commodity amount =
+    formatAmountDisplay
+        (commodityDisplaySymbol commodity)
+        (Decimal.toFloat amount)
 
-        [ whole ] ->
-            if decimals == 0 then
-                whole
+
+formatMaybeDecimalDisplay : String -> Maybe Decimal -> String
+formatMaybeDecimalDisplay commodity value =
+    value
+        |> Maybe.map
+            (Decimal.toFloat >> formatAmountDisplay (commodityDisplaySymbol commodity))
+        |> Maybe.withDefault "—"
+
+
+formatFloatDisplay : String -> Float -> String
+formatFloatDisplay commodity amount =
+    formatAmountDisplay (commodityDisplaySymbol commodity) amount
+
+
+formatAxisValue : String -> Float -> String
+formatAxisValue commodity amount =
+    let
+        ( value, suffix ) =
+            compactValue (commodityDisplaySymbol commodity) (abs amount)
+
+        sign =
+            if amount < 0 then
+                "-"
 
             else
-                whole ++ "." ++ String.repeat decimals "0"
-
-        _ ->
-            rounded
-
-
-roundedString : Float -> Int -> String
-roundedString value decimals =
-    let
-        factor =
-            10 ^ decimals
-
-        rounded =
-            toFloat (round (value * toFloat factor)) / toFloat factor
-
-        raw =
-            String.fromFloat rounded
+                ""
     in
-    if String.endsWith ".0" raw then
-        String.dropRight 2 raw
+    sign ++ value ++ suffix
+
+
+formatDecimalAxis : String -> Float -> String
+formatDecimalAxis commodity =
+    formatAmountDisplay (commodityDisplaySymbol commodity)
+
+
+periodDisplayName : String -> String
+periodDisplayName period =
+    if String.length period == 7 then
+        Calendar.periodLabel Monthly period
 
     else
-        raw
+        period
+
+
+shortPeriod : String -> String
+shortPeriod period =
+    if String.length period == 7 then
+        String.right 2 period
+
+    else
+        period
+
+
+shortPeriodWithYear : String -> String
+shortPeriodWithYear period =
+    case String.split "-" period of
+        [ year, month ] ->
+            month ++ "/" ++ String.right 2 year
+
+        _ ->
+            period

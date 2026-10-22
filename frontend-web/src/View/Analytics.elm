@@ -29,10 +29,9 @@ import Data.Analytics
         , PerformancePoint
         , TimelinePoint
         )
-import Data.Calendar as Calendar
 import Data.Date as Date
 import Data.Decimal as Decimal exposing (Decimal)
-import Data.Granularity exposing (Granularity(..))
+import Data.Formatting as Formatting
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Element.Background as Background
@@ -41,6 +40,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Lib.Number as Number
 import List
 import Ui.Calendar.Month as MonthCalendar
 import Ui.Chart as Chart
@@ -59,7 +59,6 @@ import Ui.Surface as Surface
 import Ui.Theme as Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
-import View.Formatting as Formatting
 
 
 type Palette
@@ -118,7 +117,7 @@ kpiCard theme config =
                         }
                     )
                 )
-            , kpiTrendSparkline config.color (List.map decimalFloat config.kpi.trend)
+            , kpiTrendSparkline config.color (List.map Decimal.toFloat config.kpi.trend)
             ]
         , Typography.mutedBody theme config.title
         , Element.el
@@ -126,7 +125,7 @@ kpiCard theme config =
             , Typography.financeNumber
             , Font.bold
             ]
-            (Element.text (money config.commodity config.kpi.value))
+            (Element.text (Formatting.formatDecimalDisplay config.commodity config.kpi.value))
         , comparison theme config.commodity config.decreaseIsPositive config.kpi
         ]
 
@@ -140,7 +139,7 @@ comparison theme commodity decreaseIsPositive kpi =
         Just change ->
             let
                 amount =
-                    decimalFloat change
+                    Decimal.toFloat change
 
                 color =
                     if (amount >= 0) /= decreaseIsPositive then
@@ -153,7 +152,7 @@ comparison theme commodity decreaseIsPositive kpi =
                     kpi.percentageChange
                         |> Maybe.map
                             (\value ->
-                                " · " ++ Formatting.roundedString (decimalFloat value) 1 ++ "%"
+                                " · " ++ Number.roundedString (Decimal.toFloat value) 1 ++ "%"
                             )
                         |> Maybe.withDefault ""
             in
@@ -163,7 +162,12 @@ comparison theme commodity decreaseIsPositive kpi =
                 , Typography.caption
                 , Typography.financeNumber
                 ]
-                (Element.text ("vs previous  " ++ money commodity change ++ percentage))
+                (Element.text
+                    ("vs previous  "
+                        ++ Formatting.formatDecimalDisplay commodity change
+                        ++ percentage
+                    )
+                )
 
 
 kpiTrendSparkline : Element.Color -> List Float -> Element msg
@@ -205,35 +209,35 @@ positiveNegativeTimelineChart theme config =
                 , label = "Assets and liabilities timeline"
                 , items = config.points
                 , key = .period
-                , xLabel = .period >> shortPeriod >> Just
+                , xLabel = .period >> Formatting.shortPeriod >> Just
                 , describe =
                     \point ->
                         point.period
                             ++ ": "
                             ++ String.toLower config.positiveLabel
                             ++ " "
-                            ++ money config.commodity point.positive
+                            ++ Formatting.formatDecimalDisplay config.commodity point.positive
                             ++ ", "
                             ++ String.toLower config.negativeLabel
                             ++ " "
-                            ++ money config.commodity point.negative
+                            ++ Formatting.formatDecimalDisplay config.commodity point.negative
                 , selected = config.selected
                 , onSelect = config.onSelect
-                , formatTick = axisMoney config.commodity
+                , formatTick = Formatting.formatAxisValue config.commodity
                 , domain = Cartesian.SymmetricAroundZero
                 , series =
                     [ Cartesian.Bars
-                        { value = .positive >> decimalFloat
+                        { value = .positive >> Decimal.toFloat
                         , baseline = 0
                         , color = theme.positive
                         }
                     , Cartesian.Bars
-                        { value = .negative >> decimalFloat >> abs >> negate
+                        { value = .negative >> Decimal.toFloat >> abs >> negate
                         , baseline = 0
                         , color = theme.negative
                         }
                     , Cartesian.Line
-                        { value = .net >> decimalFloat >> Just
+                        { value = .net >> Decimal.toFloat >> Just
                         , color = theme.primary
                         , width = 2.6
                         , markers = Cartesian.SelectedMarkers
@@ -247,17 +251,17 @@ positiveNegativeTimelineChart theme config =
             |> Maybe.map
                 (\point ->
                     selectedPeriodDetails theme
-                        (periodName point.period)
+                        (Formatting.periodDisplayName point.period)
                         [ { label = config.positiveLabel
-                          , value = money config.commodity point.positive
+                          , value = Formatting.formatDecimalDisplay config.commodity point.positive
                           , color = theme.positive
                           }
                         , { label = config.negativeLabel
-                          , value = money config.commodity point.negative
+                          , value = Formatting.formatDecimalDisplay config.commodity point.negative
                           , color = theme.negative
                           }
                         , { label = config.netLabel
-                          , value = money config.commodity point.net
+                          , value = Formatting.formatDecimalDisplay config.commodity point.net
                           , color = theme.primary
                           }
                         ]
@@ -291,34 +295,34 @@ netWorthPerformanceChart theme config =
                 , label = "Net investment and net worth timeline"
                 , items = config.points
                 , key = .period
-                , xLabel = .period >> shortPeriod >> Just
+                , xLabel = .period >> Formatting.shortPeriod >> Just
                 , describe =
                     \point ->
                         point.period
                             ++ ": net investment "
-                            ++ money config.commodity point.netInvestment
+                            ++ Formatting.formatDecimalDisplay config.commodity point.netInvestment
                             ++ ", net worth "
-                            ++ money config.commodity point.netWorth
+                            ++ Formatting.formatDecimalDisplay config.commodity point.netWorth
                 , selected = config.selected
                 , onSelect = config.onSelect
-                , formatTick = axisMoney config.commodity
+                , formatTick = Formatting.formatAxisValue config.commodity
                 , domain = Cartesian.PaddedExtent { ratio = 0.12, minimum = 1 }
                 , series =
                     [ Cartesian.AreaBetween
-                        { first = .netWorth >> decimalFloat >> Just
-                        , second = .netInvestment >> decimalFloat >> Just
+                        { first = .netWorth >> Decimal.toFloat >> Just
+                        , second = .netInvestment >> Decimal.toFloat >> Just
                         , positiveColor = theme.positive
                         , negativeColor = theme.negative
                         , opacity = 0.18
                         }
                     , Cartesian.Line
-                        { value = .netWorth >> decimalFloat >> Just
+                        { value = .netWorth >> Decimal.toFloat >> Just
                         , color = theme.primary
                         , width = 2.6
                         , markers = Cartesian.SelectedMarkers
                         }
                     , Cartesian.Line
-                        { value = .netInvestment >> decimalFloat >> Just
+                        { value = .netInvestment >> Decimal.toFloat >> Just
                         , color = theme.positive
                         , width = 2.4
                         , markers = Cartesian.SelectedMarkers
@@ -333,7 +337,7 @@ netWorthPerformanceChart theme config =
                 (\point ->
                     let
                         gainLoss =
-                            decimalFloat point.gainLoss
+                            Decimal.toFloat point.gainLoss
 
                         gainLossLabel =
                             if gainLoss >= 0 then
@@ -350,17 +354,23 @@ netWorthPerformanceChart theme config =
                                 theme.negative
                     in
                     selectedPeriodDetails theme
-                        (periodName point.period)
+                        (Formatting.periodDisplayName point.period)
                         [ { label = "Net investment"
-                          , value = money config.commodity point.netInvestment
+                          , value =
+                                Formatting.formatDecimalDisplay
+                                    config.commodity
+                                    point.netInvestment
                           , color = theme.positive
                           }
                         , { label = "Net worth"
-                          , value = money config.commodity point.netWorth
+                          , value =
+                                Formatting.formatDecimalDisplay
+                                    config.commodity
+                                    point.netWorth
                           , color = theme.primary
                           }
                         , { label = gainLossLabel
-                          , value = moneyFloat config.commodity (abs gainLoss)
+                          , value = Formatting.formatFloatDisplay config.commodity (abs gainLoss)
                           , color = gainLossColor
                           }
                         ]
@@ -500,7 +510,7 @@ categoryBreakdownDonut theme palette highlightedCategory onSliceClick items =
             , selectedOffset = 18
             , label = "Category breakdown"
             , items = items
-            , value = .quantity >> decimalFloat
+            , value = .quantity >> Decimal.toFloat
             , color = sliceColor
             , itemLabel = .account >> categoryLabel >> (\label -> label ++ " slice")
             , selected = highlightedCategory
@@ -522,14 +532,14 @@ categoryRow :
 categoryRow theme commodity palette total index isHighlighted item =
     let
         totalValue =
-            decimalFloat total
+            Decimal.toFloat total
 
         share =
             if totalValue <= 0 then
                 0
 
             else
-                decimalFloat item.quantity / totalValue * 100
+                Decimal.toFloat item.quantity / totalValue * 100
 
         itemColor =
             if item.account == "Other" then
@@ -568,9 +578,9 @@ categoryRow theme commodity palette total index isHighlighted item =
             , Typography.financeNumber
             ]
             (Element.text
-                (money commodity item.quantity
+                (Formatting.formatDecimalDisplay commodity item.quantity
                     ++ " ("
-                    ++ Formatting.roundedString share 0
+                    ++ Number.roundedString share 0
                     ++ "%)"
                 )
             )
@@ -903,7 +913,9 @@ dayCell config =
                                     )
                                 , Typography.financeNumber
                                 ]
-                                (Element.text (money commodity bucket.total))
+                                (Element.text
+                                    (Formatting.formatDecimalDisplay commodity bucket.total)
+                                )
                         )
                     |> Maybe.withDefault Element.none
                 ]
@@ -936,7 +948,7 @@ activityCategories response =
 maximumActivityTotal : List ActivityBucket -> Float
 maximumActivityTotal buckets =
     buckets
-        |> List.map (.total >> decimalFloat >> abs)
+        |> List.map (.total >> Decimal.toFloat >> abs)
         |> List.maximum
         |> Maybe.withDefault 0
 
@@ -949,7 +961,7 @@ amountTextColor theme strongColor maximum amount =
     else
         let
             ratio =
-                clamp 0 1 (abs (decimalFloat amount) / maximum)
+                clamp 0 1 (abs (Decimal.toFloat amount) / maximum)
         in
         Color.mix theme.textMuted strongColor (sqrt ratio)
 
@@ -958,7 +970,7 @@ addCategoryTotal : BreakdownItem -> List ( Float, BreakdownItem ) -> List ( Floa
 addCategoryTotal category totals =
     let
         amount =
-            abs (decimalFloat category.quantity)
+            abs (Decimal.toFloat category.quantity)
 
         isSameAccount ( _, item ) =
             item.account == category.account
@@ -1141,7 +1153,7 @@ activityMonthRing theme commodity tone display groups highlight selected maxTota
             activityRingSegments theme tone display groups highlight bucket
 
         monthLabel =
-            String.left 3 (periodName bucket.key)
+            String.left 3 (Formatting.periodDisplayName bucket.key)
     in
     Ring.view
         { size = Ring.Fill { minimum = 70, maximum = 110 }
@@ -1183,10 +1195,10 @@ activityRingSegments theme tone display categories highlightedCategory bucket =
                 bucket
 
         LiabilityMovements figures ->
-            [ { color = theme.borrowingFg, value = decimalFloat figures.borrowed }
-            , { color = theme.repaymentFg, value = decimalFloat figures.repaid }
-            , { color = theme.warningFg, value = decimalFloat figures.forgiven }
-            , { color = theme.textMuted, value = decimalFloat figures.borrowingReversed }
+            [ { color = theme.borrowingFg, value = Decimal.toFloat figures.borrowed }
+            , { color = theme.repaymentFg, value = Decimal.toFloat figures.repaid }
+            , { color = theme.warningFg, value = Decimal.toFloat figures.forgiven }
+            , { color = theme.textMuted, value = Decimal.toFloat figures.borrowingReversed }
             ]
 
         IncomeMovements figures ->
@@ -1212,8 +1224,8 @@ flowRingSegments theme tone figures =
         ( postedColor, reversedColor ) =
             flowMovementColors theme tone
     in
-    [ { color = postedColor, value = decimalFloat figures.posted }
-    , { color = reversedColor, value = decimalFloat figures.reversed }
+    [ { color = postedColor, value = Decimal.toFloat figures.posted }
+    , { color = reversedColor, value = Decimal.toFloat figures.reversed }
     ]
 
 
@@ -1255,7 +1267,7 @@ categoryRingSegments theme tone categories highlighted bucket =
 
                     else
                         Color.withAlpha 0.14 baseColor
-                , value = abs (decimalFloat category.quantity)
+                , value = abs (Decimal.toFloat category.quantity)
                 }
             )
 
@@ -1627,7 +1639,7 @@ directionSegments specs highlighted bucket =
 
                     else
                         Color.withAlpha 0.14 baseColor
-                , value = decimalFloat (directionAmount spec.direction bucket)
+                , value = Decimal.toFloat (directionAmount spec.direction bucket)
                 }
             )
 
@@ -1642,7 +1654,7 @@ ringAccent theme tone bucket =
             specs
                 |> List.map
                     (\spec ->
-                        ( decimalFloat (directionAmount spec.direction bucket)
+                        ( Decimal.toFloat (directionAmount spec.direction bucket)
                         , scaleColor spec.scale 0
                         )
                     )
@@ -1690,7 +1702,7 @@ presentDirections specs bucket =
                     amount =
                         directionAmount spec.direction bucket
                 in
-                if decimalFloat amount > 0 then
+                if Decimal.toFloat amount > 0 then
                     Just ( spec, amount )
 
                 else
@@ -1711,7 +1723,9 @@ monthRingCenter theme tone commodity isEmpty maxTotal bucket =
         Just specs ->
             case presentDirections specs bucket of
                 [] ->
-                    [ Chart.ringValueText theme.textMuted (money commodity bucket.total) ]
+                    [ Chart.ringValueText theme.textMuted
+                        (Formatting.formatDecimalDisplay commodity bucket.total)
+                    ]
 
                 present ->
                     List.map (directionValueText theme maxTotal commodity) present
@@ -1727,7 +1741,7 @@ monthRingCenter theme tone commodity isEmpty maxTotal bucket =
                         maxTotal
                         bucket.total
                 )
-                (money commodity bucket.total)
+                (Formatting.formatDecimalDisplay commodity bucket.total)
             ]
 
 
@@ -1735,7 +1749,7 @@ directionValueText : Theme -> Float -> String -> ( DirectionSpec, Decimal ) -> H
 directionValueText theme maxTotal commodity ( spec, amount ) =
     Chart.ringValueText
         (amountTextColor theme (scaleColor spec.scale 0) maxTotal amount)
-        (money commodity amount)
+        (Formatting.formatDecimalDisplay commodity amount)
 
 
 activityLegend :
@@ -1836,7 +1850,11 @@ activityAccessibleLabel commodity bucket =
         ++ " · "
         ++ (movementSummary bucket
                 |> List.map
-                    (\( label, amount ) -> label ++ " " ++ money commodity amount)
+                    (\( label, amount ) ->
+                        label
+                            ++ " "
+                            ++ Formatting.formatDecimalDisplay commodity amount
+                    )
                 |> String.join ", "
            )
 
@@ -1859,57 +1877,6 @@ activityDirectionLegend theme specs highlighted onHighlight =
             )
             specs
         )
-
-
-money : String -> Decimal -> String
-money commodity amount =
-    Formatting.formatAmountDisplay
-        (Formatting.commodityDisplaySymbol commodity)
-        (decimalFloat amount)
-
-
-moneyFloat : String -> Float -> String
-moneyFloat commodity amount =
-    Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity) amount
-
-
-decimalFloat : Decimal -> Float
-decimalFloat amount =
-    Decimal.toString amount |> String.toFloat |> Maybe.withDefault 0
-
-
-axisMoney : String -> Float -> String
-axisMoney commodity amount =
-    let
-        ( value, suffix ) =
-            Formatting.compactValue (Formatting.commodityDisplaySymbol commodity) (abs amount)
-
-        sign =
-            if amount < 0 then
-                "-"
-
-            else
-                ""
-    in
-    sign ++ value ++ suffix
-
-
-periodName : String -> String
-periodName period =
-    if String.length period == 7 then
-        Calendar.periodLabel Monthly period
-
-    else
-        period
-
-
-shortPeriod : String -> String
-shortPeriod period =
-    if String.length period == 7 then
-        String.right 2 period
-
-    else
-        period
 
 
 categoryLabel : String -> String

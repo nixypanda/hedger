@@ -27,6 +27,7 @@ import Api.Register exposing (Entry, Response, Value)
 import Data.Completeness exposing (Completeness(..))
 import Data.Date as Date
 import Data.Decimal as Decimal
+import Data.Formatting as Formatting
 import Data.Paginated as Paginated exposing (Paginated)
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Element)
@@ -51,7 +52,6 @@ import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
 import Ui.Workspace as Workspace
-import View.Formatting as Formatting
 import View.States as States
 
 
