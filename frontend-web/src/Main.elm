@@ -271,7 +271,12 @@ view model =
     , body =
         [ Html.node "style"
             []
-            [ Html.text (":root { " ++ Ui.Css.themeCssVariables env.theme ++ " }") ]
+            [ Html.text
+                (":root, :root[data-theme] { "
+                    ++ Ui.Css.themeCssVariables env.theme
+                    ++ " }"
+                )
+            ]
         , Element.layoutWith
             { options =
                 [ Element.focusStyle
