@@ -12,13 +12,16 @@ frontend-web/
   index.html
   src/
     Main.elm                  # app composition root
-    Route.elm                 # URL routing
+    Chrome.elm                # app chrome assembly: navigation and PWA notices
+    Route.elm                 # URL routing and document titles
     Page.elm                  # page composition
-    RemoteData.elm            # loading/refreshing/partial data states
     Preferences.elm           # browser-local theme persistence
     Pwa.elm                   # PWA lifecycle and install state
     Ports.elm                 # Elm ports
     main.js                   # Elm init, service worker, EventSource, install prompt
+    main.css                  # document shell, safe-area, app shell, shared CSS
+    Component/
+      Analysis.elm            # shared analytics report host
     Page/
       NetWorth.elm            # default dashboard
       Cashflow.elm            # income/expense analytics
@@ -27,9 +30,6 @@ frontend-web/
       AccountRegister.elm     # account register
       Transactions.elm        # transaction list with hledger query
       Settings.elm            # theme toggle
-      Shared/
-        Analysis.elm          # shared analytics host
-        QueryPanel.elm        # shared query input panel
     Api/
       Client.elm              # request construction, error handling
       Bootstrap.elm           # bootstrap endpoint
@@ -50,6 +50,7 @@ frontend-web/
       Completeness.elm        # valuation completeness
       Date.elm                # date helpers
       Decimal.elm             # decimal quantity representation
+      Formatting.elm          # domain, quantity, and period display formatting
       Freshness.elm           # data freshness
       Granularity.elm         # monthly/yearly
       Metadata.elm            # response metadata
@@ -58,18 +59,30 @@ frontend-web/
       Revision.elm            # journal revision matching
       Status.elm              # data status types
       Time.elm                # time helpers
-      Transaction.elm         # transaction read-models
-    State/
-      Viewport.elm            # viewport size
-    Ui.elm                    # shared UI primitives
+      Transaction.elm         # transaction read-models and effects
+    Lib/
+      ListExtra.elm           # chunk/pad helpers
+      Number.elm              # generic numeric formatting
+      RemoteData.elm          # loading/refreshing/partial data states
+      Time.elm                # generic time helpers
     Ui/
-      Theme.elm               # light/dark theme tokens
-      Typography.elm          # font sizes and styles
-      Icon.elm                # icon set
-      Skeleton.elm            # skeleton loading states
-      Responsive.elm          # device-aware layout helpers
-      Css.elm                 # CSS helpers
+      Button.elm              # buttons
+      Chip.elm                # chips and status/financial badges
+      Color.elm               # color blending and alpha helpers
+      Common.elm              # shared attributes and CSS color conversion
+      Css.elm                 # theme CSS variables
       DesignTokens.elm        # color and spacing tokens
+      Env.elm                 # theme, device, and viewport context
+      Feedback.elm            # loading, empty, error, and warning states
+      Icon.elm                # icon set
+      Input.elm               # text, date, and segmented controls
+      Page.elm                # page scaffold, header, and period navigation
+      Skeleton.elm            # skeleton loading shapes
+      Surface.elm             # cards, sections, and surfaces
+      Theme.elm               # light/dark theme tokens and mode parsing
+      Typography.elm          # font sizes and styles
+      Viewport.elm            # width-driven layout thresholds
+      Workspace.elm           # independently scrolling master/detail panes
       Calendar/Month.elm      # month grid
       Chart.elm               # chart toolkit
       Chart/Cartesian.elm     # cartesian charts
@@ -77,15 +90,20 @@ frontend-web/
       Chart/Ring.elm          # activity rings
       Chart/Sparkline.elm     # KPI sparklines
     View/
-      Shell.elm               # app shell, navigation, banners
-      Analytics.elm           # chart and calendar rendering
-      Transaction.elm         # transaction rendering
-      Formatting.elm          # number and date formatting
       AccountPresentation.elm # account display helpers
+      Chrome.elm              # app shell, navigation, banners
+      QueryPanel.elm          # stateless hledger query input panel
       States.elm              # loading/empty/error state views
-    Lib/
-      Text.elm                # text helpers
-      Time.elm                # time helpers
+      Transaction.elm         # transaction rendering
+      Analytics/
+        Activity.elm          # month/year calendars and transaction lists
+        Activity/Ring.elm     # activity ring construction and views
+        Category.elm          # category breakdown cards and depth control
+        Kpi.elm               # Net Worth and Investments KPI cards
+        Legend.elm            # chart and activity legends
+        Palette.elm           # analytics palette and activity colors
+        Timeline.elm          # timeline charts and selected-period detail
+        Types.elm             # shared analytics presentation types
   tests/
   review/                     # elm-review configuration
   public/
@@ -101,44 +119,65 @@ frontend-web/
 `Main.elm` is an Elm `Browser.application`. It initializes from flags supplied
 by `main.js`, which also owns everything the Elm side cannot: localStorage
 preferences, service-worker registration, the install prompt, and the
-`EventSource` connection.
+`EventSource` connection. `Main` renders the page inside `Ui.Page.layout` and
+`Chrome.view`; `Chrome` supplies navigation and PWA notices and delegates the
+shell to `View.Chrome`.
 
 ## Architecture
 
 The frontend follows a strict ownership model:
 
 ```text
-Main -> Route / Page
-Page -> Data / Api / Ui / View
-View -> Ui / Data
-Api -> Client / Data decoders
-Data -> other Data
-Ui -> Theme / DesignTokens
+Main -> Chrome / Route / Page
+Chrome -> View.Chrome / Pwa / Ui / Route
+Page -> Component / Data / Api / Ui / View / Lib
+Component -> Data / Api / Ui / View / Lib
+View -> Ui / Data / Lib
+Api -> Api.Client / Api.Json / Data decoders
+Data -> other Data / Lib
+Lib -> no Data, Api, Page, or View
+Ui -> Theme / DesignTokens / Common / Viewport / Data
 ```
 
 Disallowed dependency directions:
 
 - `Data` importing `Page`, `Main`, or `Api`.
+- `Lib` importing `Data`, `Api`, `Page`, or `View`.
 - `Ui` importing page-specific modules.
 - `Api` owning page state, navigation decisions, or view formatting.
 - `View` triggering HTTP or owning page orchestration.
 
 A Node script (`scripts/check-ui-boundary.mjs`, run by `just
-check-frontend-ui-boundary`) enforces part of this at check time.
+check-frontend-ui-boundary`) enforces the appearance boundary: pages and views
+must express spacing, sizing, colors, and classes through `Ui` modules.
 
 ### Module ownership
 
 - `Main.elm` — URL changes and browser navigation, bootstrap loading, page
-  lifting and `Cmd.map`, top-level theme state, PWA integration, and the live
-  journal-change subscription.
-- `Route.elm` — the single source of truth for route parsing and serialization.
+  lifting and `Cmd.map`, the app environment and theme state, PWA integration,
+  the live journal-change subscription, and theme CSS injection.
+- `Chrome.elm` — app chrome assembly: navigation destinations, active-route
+  state, and PWA notice/install actions passed to `View.Chrome`.
+- `Route.elm` — the single source of truth for route parsing, serialization,
+  and document titles.
+- `Page.elm` — route-aware page model/message composition and page lifting.
 - `Page.*` — page-local TEA (Model, Msg, init, update, view), page-local loading
-  state, and page-specific composition of shared UI and API calls.
+  state, and page-specific composition of shared UI and API calls. Views receive
+  `Ui.Env.Env`.
+- `Component.*` — reusable stateful UI hosts. `Component.Analysis` owns the
+  shared net-worth/cashflow analytics model, update loop, query panel, controls,
+  and report view.
 - `Api.*` — request construction, response decoding, and transport errors. No
   business interpretation beyond transport concerns.
 - `Data.*` — domain-facing frontend types and pure helpers, testable without
-  HTTP or page wiring.
-- `Ui.*` / `View.*` — shared presentation primitives composed by pages.
+  HTTP or page wiring. `Data.Formatting` owns domain display formatting.
+- `Lib.*` — generic helpers only: `Lib.Number` formatting, `Lib.ListExtra`
+  chunking, `Lib.RemoteData`, and `Lib.Time`. `Lib` never imports `Data`.
+- `Ui.*` — reusable presentation primitives, layout, theme, and shared
+  attributes. This is the only layer allowed to use raw elm-ui dimensions.
+- `View.*` — stateless presentation composed from `Ui` and `Data`; `View.Analytics`
+  is split into focused chart, category, activity, legend, palette, KPI, and
+  shared-type modules.
 
 ## Routes
 
@@ -182,13 +221,15 @@ update msg model =
 
 -- VIEW
 
-view : Model -> Element Msg
-view model =
+view : Env -> Model -> Element Msg
+view env model =
     ...
 ```
 
-Pages compose `Ui.*` primitives and `View.*` helpers, and own their loading,
-success, empty, stale, and error states.
+Pages compose `Ui.*`, `Component.*`, and `View.*` helpers, and own their
+loading, success, empty, stale, and error states. Standard pages use
+`Ui.Page.scaffold` for the header/body frame and `Ui.Workspace` for split
+master/detail layouts; `Page.Investments` keeps its own page wrapper.
 
 ## Pages
 
@@ -210,7 +251,7 @@ Default dashboard. Fetches `POST /api/v1/net-worth/query`.
 
 Income/expense analytics. Fetches `POST /api/v1/cashflow/query`.
 
-- Query panel with draft/apply/clear (reuses `Page.Shared.QueryPanel`).
+- Query panel with draft/apply/clear (reuses `View.QueryPanel`).
 - Monthly/yearly timeline with selected-period synchronization.
 - Separate income and expense category breakdowns.
 - Separate income and expense activity calendars showing posted, reversed, and
@@ -257,7 +298,7 @@ Global transaction list. Fetches `GET /api/v1/transactions`.
 - Cursor-based pagination with a bounded page window (5 pages).
 - Month-grouped rows with posting previews.
 - Full transaction detail with every posting, commodity, and cost.
-- Effect labels (with all effects in the detail view).
+- Typed effect labels (with all effects in the detail view).
 - Loading, success, empty, stale, refreshing, and failed states; a changed
   revision resets the window.
 
@@ -272,8 +313,8 @@ Minimal settings, no API calls.
 
 ### RemoteData
 
-The frontend uses a `RemoteData` type parameterized by its error and value
-types. Loading and failure states retain the previous value when one exists:
+The frontend uses `Lib.RemoteData` parameterized by its error and value types.
+Loading and failure states retain the previous value when one exists:
 
 ```elm
 type RemoteData error value
@@ -346,14 +387,16 @@ The frontend is a Progressive Web App:
 - `main.js` registers the service worker in production and unregisters/caches-
   clears it in development.
 - `Pwa.elm` models service-worker state (installing, update-ready, controlling)
-  and install-hint state; `View.Shell` renders the corresponding banners.
+  and install-hint state; `Chrome` passes the corresponding notices to
+  `View.Chrome`, which renders the banners.
 
 Offline support is limited to the app shell. Business data is not cached across
 sessions.
 
 ## Design system
 
-Shared primitives live in `Ui.elm` and the `Ui.*` modules; pages compose them.
+Shared primitives live in the `Ui.*` modules; pages and views compose them. The
+old `Ui.elm` facade and `Ui.Responsive`/`State.Viewport` helpers are gone.
 
 ### Visual language
 
@@ -361,19 +404,33 @@ Shared primitives live in `Ui.elm` and the `Ui.*` modules; pages compose them.
 - System sans-serif typography.
 - Light and dark themes with theme-owned surfaces, borders, radii, and shadows.
 
+### Environment and layout
+
+- `Ui.Env` carries `{ theme, device, viewport }` through `Main` and pages.
+- `Ui.Viewport` owns the width-driven content layout and responsive thresholds.
+- `Ui.Page.layout` provides the page background and theme root.
+- `Ui.Page.scaffold` renders the standard header band, header, and page container.
+- `Ui.Workspace` lays out master/detail panes with independent scrolling; pages
+  choose which panes are visible for the current layout.
+
 ### Type and tokens
 
 - `Ui.Typography` — the type scale (page title, section, body, caption, KPI
   value, and so on).
 - `Ui.DesignTokens` — color and spacing tokens.
-- `Ui.Theme` — light/dark theme records; the settings page toggles between them.
+- `Ui.Theme` — light/dark theme records and mode parsing; the settings page
+  toggles between them.
+- `Ui.Common` / `Ui.Color` — shared attributes, CSS color conversion, blending,
+  and alpha helpers.
 
 ### Components
 
-- `Ui.elm` exposes buttons, inputs, cards, chips, badges, overlays, list rows,
-  segmented controls, and common loading/empty states.
-- `Ui.Skeleton`, `Ui.Responsive`, and `Ui.Icon` provide loading placeholders,
-  device-aware layout helpers, and the icon set.
+- `Ui.Button`, `Ui.Input`, `Ui.Surface`, `Ui.Chip`, `Ui.Feedback`, and
+  `Ui.Skeleton` provide buttons, fields, cards, chips, state feedback, and
+  loading placeholders.
+- `Ui.Icon` provides the icon set.
+- `Ui.Page` provides the page scaffold, headers, and period navigation.
+- `Ui.Workspace` provides split-pane layout and scroll ownership.
 
 ### Charts
 
@@ -383,26 +440,27 @@ Shared primitives live in `Ui.elm` and the `Ui.*` modules; pages compose them.
 - `Ui.Chart.Donut` and `Ui.Chart.Ring` — category and activity rings.
 - `Ui.Chart.Sparkline` — compact KPI trends.
 
-`View.Analytics` composes these into timelines, breakdowns, and calendars.
+`View.Analytics.*` composes these into KPI cards, timelines, breakdowns,
+legends, and calendars. `View.Analytics.Palette` owns analytics colors and does
+not depend on the activity views.
 
 ### Responsive design
 
-`Ui.Responsive` and `State.Viewport` provide phone/desktop detection: a sidebar
-and split list/detail on wide layouts, a bottom navigation bar and
-replace-list-with-detail on narrow layouts, with skeletons matching the target
-layout.
+`Ui.Env` and `Ui.Viewport` drive phone/desktop behavior: a sidebar and split
+list/detail on wide layouts, a bottom navigation bar and
+replace-list-with-detail on narrow layouts. `Ui.Workspace` mounts only the panes
+a page selects, so narrow layouts drop the detail pane rather than hiding it.
+Skeletons match the target layout.
 
 ## Known debt
 
-- `Transaction.Presentation.classification` is a stringly-typed enum re-matched
-  in several view/page sites; it should be decoded once into a custom type so
-  the matches are total.
 - Domain identifiers (commodity, account path, period, date) often travel as raw
   `String`/`Float` across the API boundary, so nothing prevents passing one where
   another is expected.
-- `Ui.elm` is a large grab-bag of component families and exported helpers. It
-  would benefit from being split by component family and having dead exports
-  removed.
+- `Page.Investments` still uses its own master/detail wrapper and page scroll
+  instead of `Ui.Page.scaffold` and `Ui.Workspace`; moving it is a separate
+  parity task.
+- Exposed-value pruning is manual because `NoUnused.Exports` is not enabled.
 
 ## Testing
 
@@ -429,6 +487,7 @@ just check-frontend              # all frontend checks
 just check-frontend-ui-boundary  # UI boundary rules
 just check-frontend-format       # elm-format validation
 just check-frontend-line-length  # 100 char limit
+just check-frontend-review       # elm-review
 just format-frontend             # elm-format in place
 just dev-frontend                # Vite dev server
 ```
@@ -438,6 +497,7 @@ Or directly:
 ```bash
 cd frontend-web && npm run dev      # dev server
 cd frontend-web && npm run build    # production build
+cd frontend-web && npm run check    # boundary, format, compile, review, tests
 cd frontend-web && npm test         # elm-test
 cd frontend-web && npm run review   # elm-review
 cd frontend-web && npm run format   # elm-format

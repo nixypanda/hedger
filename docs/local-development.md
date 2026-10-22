@@ -98,7 +98,7 @@ Cabal reuses `backend/dist-newstyle`, so narrow commands stay incremental. See
 just build-frontend          # vite production build
 just test-frontend           # elm-test
 just format-frontend         # elm-format in place
-just check-frontend          # UI boundary, format, line length, build, tests
+just check-frontend          # UI boundary, format, line length, elm-review, build, tests
 ```
 
 Or directly:

@@ -1,9 +1,13 @@
 # UI Structure Alignment Plan (revised)
 
-Status: ready for implementation review
+Status: implemented and complete (2026-10-23)
 Branch: `refactor/ui-structure-alignment`
 Scope: `frontend-web/` only
 Reference: Calco `frontend-web` Elm frontend
+
+Outcome: all nine stages landed, including the optional Stage 8 transaction
+presentation ADT. The aligned module structure, check gates, and documentation
+are in place; the plan history below is retained unchanged.
 
 This plan aligns Hedger's Elm UI structure with Calco's module families while
 preserving Hedger's products and behavior. Every stage leaves the tree
