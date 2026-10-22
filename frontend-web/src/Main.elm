@@ -17,6 +17,7 @@ import Pwa
 import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
 import Ui
+import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
@@ -411,7 +412,7 @@ bootstrapStatus theme remote =
 
         Loading (Just bootstrap) ->
             Surface.card theme
-                [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing metadata"
+                [ Chip.statusBadge theme Chip.StatusPrimary "Refreshing metadata"
                 , bootstrapSummary theme bootstrap
                 ]
 
@@ -422,19 +423,19 @@ bootstrapStatus theme remote =
 
                 Refreshing ->
                     Surface.card theme
-                        [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing"
+                        [ Chip.statusBadge theme Chip.StatusPrimary "Refreshing"
                         , bootstrapSummary theme bootstrap
                         ]
 
                 Stale ->
                     Surface.card theme
-                        [ Ui.statusBadge theme Ui.StatusWarning "Stale snapshot"
+                        [ Chip.statusBadge theme Chip.StatusWarning "Stale snapshot"
                         , bootstrapSummary theme bootstrap
                         ]
 
                 Partial ->
                     Surface.card theme
-                        [ Ui.statusBadge theme Ui.StatusWarning "Partial data"
+                        [ Chip.statusBadge theme Chip.StatusWarning "Partial data"
                         , bootstrapSummary theme bootstrap
                         ]
 
@@ -460,10 +461,10 @@ bootstrapStatus theme remote =
 bootstrapSummary : Theme -> Bootstrap -> Element msg
 bootstrapSummary theme bootstrap =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        [ Ui.statusBadge theme Ui.StatusSuccess (bootstrap.appName ++ " API " ++ bootstrap.apiVersion)
-        , Ui.badge theme ("Fiscal year starts in month " ++ String.fromInt bootstrap.fiscalYearStartMonth)
+        [ Chip.statusBadge theme Chip.StatusSuccess (bootstrap.appName ++ " API " ++ bootstrap.apiVersion)
+        , Chip.badge theme ("Fiscal year starts in month " ++ String.fromInt bootstrap.fiscalYearStartMonth)
         , bootstrap.metadata.revision
-            |> Maybe.map (\revision -> Ui.badge theme ("Revision " ++ revision))
+            |> Maybe.map (\revision -> Chip.badge theme ("Revision " ++ revision))
             |> Maybe.withDefault Element.none
         ]
 

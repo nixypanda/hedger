@@ -5,6 +5,7 @@ import Element exposing (Element)
 import Html.Attributes
 import Ui
 import Ui.Button as Button
+import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens
 import Ui.Input
 import Ui.Surface as Surface
@@ -88,7 +89,7 @@ view config =
             (Typography.mutedCaption config.theme "Examples:"
                 :: List.map
                     (\example ->
-                        Ui.chip config.theme
+                        Chip.chip config.theme
                             { label = example
                             , selected = config.draftQuery == example
                             , onClick = Just (config.onDraftChanged example)

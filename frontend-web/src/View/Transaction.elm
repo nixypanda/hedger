@@ -11,7 +11,7 @@ import Data.Status as Status
 import Data.Transaction exposing (Amount, Posting, Tag, Transaction)
 import Element exposing (Element)
 import Element.Font as Font
-import Ui
+import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -22,53 +22,53 @@ import View.AccountPresentation as AccountPresentation
 import View.Formatting as Formatting
 
 
-classificationTone : String -> Ui.FinancialTone
+classificationTone : String -> Chip.FinancialTone
 classificationTone classification =
     case classification of
         "income" ->
-            Ui.FinancialIncome
+            Chip.FinancialIncome
 
         "expense" ->
-            Ui.FinancialExpense
+            Chip.FinancialExpense
 
         "opening_balance" ->
-            Ui.FinancialEquity
+            Chip.FinancialEquity
 
         "borrowing" ->
-            Ui.FinancialBorrowing
+            Chip.FinancialBorrowing
 
         "repayment" ->
-            Ui.FinancialRepayment
+            Chip.FinancialRepayment
 
         "asset_acquisition" ->
-            Ui.FinancialAsset
+            Chip.FinancialAsset
 
         "asset_disposal" ->
-            Ui.FinancialAsset
+            Chip.FinancialAsset
 
         "asset_reallocation" ->
-            Ui.FinancialAsset
+            Chip.FinancialAsset
 
         "asset_transfer" ->
-            Ui.FinancialAsset
+            Chip.FinancialAsset
 
         "refinancing" ->
-            Ui.FinancialBorrowing
+            Chip.FinancialBorrowing
 
         "debt_forgiveness" ->
-            Ui.FinancialRepayment
+            Chip.FinancialRepayment
 
         "borrowing_reversal" ->
-            Ui.FinancialRepayment
+            Chip.FinancialRepayment
 
         "income_reversal" ->
-            Ui.FinancialIncome
+            Chip.FinancialIncome
 
         "expense_reversal" ->
-            Ui.FinancialExpense
+            Chip.FinancialExpense
 
         _ ->
-            Ui.FinancialNeutral
+            Chip.FinancialNeutral
 
 
 classificationLabel : Transaction -> String

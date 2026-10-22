@@ -28,6 +28,7 @@ import RemoteData exposing (RemoteData(..))
 import Ui
 import Ui.Button as Button
 import Ui.Chart.Cartesian as Cartesian
+import Ui.Chip as Chip
 import Ui.Color as Color
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
@@ -1133,10 +1134,10 @@ investmentCompletenessBadge theme completeness =
             Element.none
 
         Partial ->
-            Ui.statusBadge theme Ui.StatusWarning "Partial"
+            Chip.statusBadge theme Chip.StatusWarning "Partial"
 
         Unavailable ->
-            Ui.statusBadge theme Ui.StatusDanger "Unavailable"
+            Chip.statusBadge theme Chip.StatusDanger "Unavailable"
 
 
 selectedInvestmentPeriod :

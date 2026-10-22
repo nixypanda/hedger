@@ -38,6 +38,7 @@ import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import Ui
 import Ui.Button as Button
+import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -701,7 +702,7 @@ valueDisplay theme commodity isMovement color value =
                        )
                 )
         , if value.completeness == Partial then
-            Ui.statusBadge theme Ui.StatusWarning "Partial"
+            Chip.statusBadge theme Chip.StatusWarning "Partial"
 
           else
             Element.none

@@ -11,6 +11,7 @@ import Page.Shared.Analysis as Analysis
 import RemoteData exposing (RemoteData(..))
 import Ui
 import Ui.Button as Button
+import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -347,8 +348,8 @@ dashboardContent theme viewport data =
                 [ Element.row [ Element.width Element.fill ]
                     [ Typography.subsectionTitle theme "Net Investment vs Net Worth"
                     , if response.incompletePeriods > 0 then
-                        Ui.statusBadge theme
-                            Ui.StatusWarning
+                        Chip.statusBadge theme
+                            Chip.StatusWarning
                             (String.fromInt response.incompletePeriods ++ " incomplete")
 
                       else

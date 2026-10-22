@@ -35,6 +35,7 @@ import Set exposing (Set)
 import String
 import Ui
 import Ui.Button as Button
+import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -358,7 +359,7 @@ content theme model =
 
         Refreshing response ->
             Surface.card theme
-                [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing accounts"
+                [ Chip.statusBadge theme Chip.StatusPrimary "Refreshing accounts"
                 , accountTree theme model.expanded response.accounts
                 ]
 
@@ -693,13 +694,13 @@ completenessBadge : Theme -> Completeness -> Element msg
 completenessBadge theme completeness =
     case completeness of
         Completeness.Complete ->
-            Ui.statusBadge theme Ui.StatusSuccess "Complete valuation"
+            Chip.statusBadge theme Chip.StatusSuccess "Complete valuation"
 
         Completeness.Partial ->
-            Ui.statusBadge theme Ui.StatusWarning "Partial valuation"
+            Chip.statusBadge theme Chip.StatusWarning "Partial valuation"
 
         Completeness.Unavailable ->
-            Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
+            Chip.statusBadge theme Chip.StatusDanger "Valuation unavailable"
 
 
 detailBalance : Theme -> Quantity -> Element msg

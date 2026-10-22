@@ -43,6 +43,7 @@ import Page.Shared.QueryPanel as QueryPanel
 import RemoteData exposing (RemoteData(..))
 import Ui
 import Ui.Button as Button
+import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
@@ -764,7 +765,7 @@ remoteNotice : Theme -> RemoteData ApiError Response -> Response -> Element msg
 remoteNotice theme remote response =
     case remote of
         Loading _ ->
-            Ui.statusBadge theme Ui.StatusPrimary "Refreshing transactions"
+            Chip.statusBadge theme Chip.StatusPrimary "Refreshing transactions"
 
         Failure error _ ->
             Ui.errorBanner theme
@@ -776,13 +777,13 @@ remoteNotice theme remote response =
                     Element.none
 
                 Refreshing ->
-                    Ui.statusBadge theme Ui.StatusPrimary "Refreshing transactions"
+                    Chip.statusBadge theme Chip.StatusPrimary "Refreshing transactions"
 
                 Stale ->
-                    Ui.statusBadge theme Ui.StatusWarning "Showing a stale journal snapshot"
+                    Chip.statusBadge theme Chip.StatusWarning "Showing a stale journal snapshot"
 
                 Partial ->
-                    Ui.statusBadge theme Ui.StatusWarning "Transaction data is partial"
+                    Chip.statusBadge theme Chip.StatusWarning "Transaction data is partial"
 
                 Unavailable ->
                     Ui.errorBanner theme "Transaction data is unavailable."
@@ -943,7 +944,7 @@ trailingSummary theme transaction =
             |> List.filter ((/=) "unclassified")
             |> List.map
                 (\effect ->
-                    Ui.financialBadge theme
+                    Chip.financialBadge theme
                         (TransactionView.classificationTone effect)
                         (TransactionView.effectLabel effect)
                 )

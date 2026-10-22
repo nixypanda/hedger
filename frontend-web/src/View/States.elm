@@ -9,6 +9,7 @@ import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
 import RemoteData exposing (RemoteData(..))
 import Ui
+import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens
 import Ui.Theme exposing (Theme)
 
@@ -20,29 +21,29 @@ freshnessBanner theme freshness =
             Element.none
 
         Refreshing ->
-            Ui.statusBadge theme Ui.StatusPrimary "Refreshing"
+            Chip.statusBadge theme Chip.StatusPrimary "Refreshing"
 
         Stale ->
-            Ui.statusBadge theme Ui.StatusWarning "Stale snapshot"
+            Chip.statusBadge theme Chip.StatusWarning "Stale snapshot"
 
         Partial ->
-            Ui.statusBadge theme Ui.StatusWarning "Partial data"
+            Chip.statusBadge theme Chip.StatusWarning "Partial data"
 
         Unavailable ->
-            Ui.statusBadge theme Ui.StatusDanger "Unavailable"
+            Chip.statusBadge theme Chip.StatusDanger "Unavailable"
 
 
 registerCompletenessBadge : Theme -> Completeness -> Element msg
 registerCompletenessBadge theme completeness =
     case completeness of
         Completeness.Complete ->
-            Ui.statusBadge theme Ui.StatusSuccess "Complete valuation"
+            Chip.statusBadge theme Chip.StatusSuccess "Complete valuation"
 
         Completeness.Partial ->
-            Ui.statusBadge theme Ui.StatusWarning "Partial valuation"
+            Chip.statusBadge theme Chip.StatusWarning "Partial valuation"
 
         Completeness.Unavailable ->
-            Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
+            Chip.statusBadge theme Chip.StatusDanger "Valuation unavailable"
 
 
 remoteNotice :
@@ -54,7 +55,7 @@ remoteNotice :
 remoteNotice errorMessage theme freshness remote =
     case remote of
         Loading _ ->
-            noticeSlot (Ui.statusBadge theme Ui.StatusPrimary "Refreshing")
+            noticeSlot (Chip.statusBadge theme Chip.StatusPrimary "Refreshing")
 
         Failure error _ ->
             Ui.errorBanner theme (errorMessage error)

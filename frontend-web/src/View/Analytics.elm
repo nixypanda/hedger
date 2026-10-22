@@ -49,6 +49,7 @@ import Ui.Chart.Cartesian as Cartesian
 import Ui.Chart.Donut as Donut
 import Ui.Chart.Ring as Ring
 import Ui.Chart.Sparkline as Sparkline
+import Ui.Chip as Chip
 import Ui.Color as Color
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
@@ -1020,7 +1021,7 @@ activityCategoryLegend config =
                         else
                             activityCategoryColor theme tone index
                 in
-                Ui.legendButton theme
+                Chip.legendButton theme
                     { accent = dotColor
                     , selected = config.highlightedCategory == Just index
                     , onPress = config.onCategoryHighlight index
@@ -1032,7 +1033,7 @@ activityCategoryLegend config =
                     }
 
             toggle text =
-                Ui.legendToggleButton theme
+                Chip.legendToggleButton theme
                     { onPress = config.onToggle
                     , label = Typography.mutedCaption theme text
                     }
@@ -1845,7 +1846,7 @@ activityDirectionLegend theme specs highlighted onHighlight =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
         (List.indexedMap
             (\index spec ->
-                Ui.legendButton theme
+                Chip.legendButton theme
                     { accent = scaleColor spec.scale 0
                     , selected = highlighted == Just index
                     , onPress = onHighlight index
