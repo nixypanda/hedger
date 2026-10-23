@@ -187,7 +187,7 @@ detailRow theme label value =
         , Common.minWidthZero
         ]
         [ Element.el
-            (Typography.detailLabel
+            (Typography.labelSmall
                 ++ [ Element.width (Element.px Tokens.postingAccountWidth)
                    , Font.color theme.textMedium
                    , Element.alignTop
@@ -195,13 +195,14 @@ detailRow theme label value =
             )
             (Element.text (label ++ ":"))
         , Element.paragraph
-            [ Element.width Element.fill
-            , Typography.detailValue
-            , Font.alignRight
-            , Font.color theme.textPrimary
-            , Common.minWidthZero
-            , Common.uiClass "ui-text-wrap"
-            ]
+            (Typography.bodyLarge
+                ++ [ Element.width Element.fill
+                   , Font.alignRight
+                   , Font.color theme.textPrimary
+                   , Common.minWidthZero
+                   , Common.uiClass "ui-text-wrap"
+                   ]
+            )
             [ Element.text value ]
         ]
 
@@ -242,7 +243,7 @@ postingDetailRow theme posting =
                 }
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
                 ([ Typography.naturalWrapText
-                    [ Typography.detailValue, Font.color theme.textMedium ]
+                    (Typography.bodyLarge ++ [ Font.color theme.textMedium ])
                     ":"
                     posting.account
                  , Typography.mutedCaption theme (Status.toString posting.status)
@@ -271,16 +272,17 @@ postingAmountLine : Theme -> Amount -> Element msg
 postingAmountLine theme amount =
     Element.column [ Element.alignRight, Element.spacing Tokens.space2 ]
         [ Element.paragraph
-            [ Element.width (Element.fill |> Element.maximum Tokens.narrowContentWidth)
-            , Element.alignRight
-            , Typography.rowAmount
-            , Typography.financeNumber
-            , Font.alignRight
-            , Font.semiBold
-            , Font.color theme.textPrimary
-            , Common.minWidthZero
-            , Common.uiClass "ui-text-wrap"
-            ]
+            (Typography.caption
+                ++ Typography.numeric
+                ++ [ Element.width (Element.fill |> Element.maximum Tokens.narrowContentWidth)
+                   , Element.alignRight
+                   , Font.alignRight
+                   , Typography.fontWeight Typography.SemiBold
+                   , Font.color theme.textPrimary
+                   , Common.minWidthZero
+                   , Common.uiClass "ui-text-wrap"
+                   ]
+            )
             [ Element.text (amountText amount) ]
         , case amount.cost of
             Just cost ->

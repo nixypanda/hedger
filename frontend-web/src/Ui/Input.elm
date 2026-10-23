@@ -24,7 +24,7 @@ import Ui.DesignTokens
         , space4
         )
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (caption, controlLabel)
+import Ui.Typography as Typography
 
 
 fieldVerticalPadding : Int
@@ -35,10 +35,7 @@ fieldVerticalPadding =
 fieldLabel : Theme -> String -> Element msg
 fieldLabel theme label =
     Element.el
-        [ caption
-        , Font.medium
-        , Font.color theme.textPrimary
-        ]
+        (Typography.labelSmall ++ [ Font.color theme.textPrimary ])
         (Element.text label)
 
 
@@ -108,29 +105,29 @@ wideSegmentedControl theme options =
         (List.map
             (\config ->
                 Input.button
-                    [ Element.width (Element.fillPortion 1)
-                    , Font.color
-                        (if config.selected then
-                            theme.primary
+                    (Typography.label
+                        ++ [ Element.width (Element.fillPortion 1)
+                           , Font.color
+                                (if config.selected then
+                                    theme.primary
 
-                         else
-                            theme.textMedium
-                        )
-                    , Font.medium
-                    , Font.center
-                    , controlLabel
-                    , Common.uiClass "ui-motion"
-                    , Element.htmlAttribute
-                        (Html.Attributes.attribute
-                            "aria-pressed"
-                            (if config.selected then
-                                "true"
+                                 else
+                                    theme.textMedium
+                                )
+                           , Font.center
+                           , Common.uiClass "ui-motion"
+                           , Element.htmlAttribute
+                                (Html.Attributes.attribute
+                                    "aria-pressed"
+                                    (if config.selected then
+                                        "true"
 
-                             else
-                                "false"
-                            )
-                        )
-                    ]
+                                     else
+                                        "false"
+                                    )
+                                )
+                           ]
+                    )
                     { onPress = Just config.onPress
                     , label = segmentedSurface theme config.selected config.label
                     }
@@ -145,29 +142,29 @@ segmentedOption :
     -> Element msg
 segmentedOption theme config =
     Input.button
-        [ Common.touchTargetHeight
-        , Font.color
-            (if config.selected then
-                theme.primary
+        (Typography.label
+            ++ [ Common.touchTargetHeight
+               , Font.color
+                    (if config.selected then
+                        theme.primary
 
-             else
-                theme.textMedium
-            )
-        , Font.medium
-        , Font.center
-        , controlLabel
-        , Common.uiClass "ui-motion"
-        , Element.htmlAttribute
-            (Html.Attributes.attribute
-                "aria-pressed"
-                (if config.selected then
-                    "true"
+                     else
+                        theme.textMedium
+                    )
+               , Font.center
+               , Common.uiClass "ui-motion"
+               , Element.htmlAttribute
+                    (Html.Attributes.attribute
+                        "aria-pressed"
+                        (if config.selected then
+                            "true"
 
-                 else
-                    "false"
-                )
-            )
-        ]
+                         else
+                            "false"
+                        )
+                    )
+               ]
+        )
         { onPress = Just config.onPress
         , label = segmentedSurface theme config.selected config.label
         }

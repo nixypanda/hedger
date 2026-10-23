@@ -23,7 +23,7 @@ import Ui.DesignTokens
         , space8
         )
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (caption)
+import Ui.Typography as Typography
 
 
 chip :
@@ -70,13 +70,13 @@ coloredPill :
     -> Element msg
 coloredPill config =
     Element.el
-        [ Background.color config.bg
-        , Font.color config.fg
-        , Border.rounded radiusPill
-        , Element.paddingEach { top = 4, right = 10, bottom = 4, left = 10 }
-        , caption
-        , Font.medium
-        ]
+        (Typography.labelSmall
+            ++ [ Background.color config.bg
+               , Font.color config.fg
+               , Border.rounded radiusPill
+               , Element.paddingEach { top = 4, right = 10, bottom = 4, left = 10 }
+               ]
+        )
         (Element.text config.label)
 
 
@@ -125,13 +125,13 @@ financialBadge theme tone label =
                     { bg = theme.assetBg, fg = theme.assetFg }
     in
     Element.el
-        [ Background.color colors.bg
-        , Font.color colors.fg
-        , Border.rounded radiusPill
-        , Element.paddingEach { top = 2, right = 8, bottom = 2, left = 8 }
-        , caption
-        , Font.medium
-        ]
+        (Typography.labelSmall
+            ++ [ Background.color colors.bg
+               , Font.color colors.fg
+               , Border.rounded radiusPill
+               , Element.paddingEach { top = 2, right = 8, bottom = 2, left = 8 }
+               ]
+        )
         (Element.text label)
 
 
@@ -165,34 +165,33 @@ statusToneColors theme tone =
 
 chipAttrs : Theme -> Bool -> List (Attribute msg)
 chipAttrs theme selected =
-    [ Background.color
-        (if selected then
-            theme.chipSelectedBg
+    Typography.labelSmall
+        ++ [ Background.color
+                (if selected then
+                    theme.chipSelectedBg
 
-         else
-            theme.chipBg
-        )
-    , Font.color
-        (if selected then
-            theme.chipSelectedFg
+                 else
+                    theme.chipBg
+                )
+           , Font.color
+                (if selected then
+                    theme.chipSelectedFg
 
-         else
-            theme.chipFg
-        )
-    , Border.rounded radiusPill
-    , Border.width 1
-    , Border.color
-        (if selected then
-            theme.chipSelectedBg
+                 else
+                    theme.chipFg
+                )
+           , Border.rounded radiusPill
+           , Border.width 1
+           , Border.color
+                (if selected then
+                    theme.chipSelectedBg
 
-         else
-            theme.chipBorder
-        )
-    , Element.paddingEach { top = 5, right = 10, bottom = 5, left = 10 }
-    , caption
-    , Font.medium
-    , Common.uiClass "ui-motion"
-    ]
+                 else
+                    theme.chipBorder
+                )
+           , Element.paddingEach { top = 5, right = 10, bottom = 5, left = 10 }
+           , Common.uiClass "ui-motion"
+           ]
 
 
 legendButton :

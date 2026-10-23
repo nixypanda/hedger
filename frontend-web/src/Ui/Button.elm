@@ -23,7 +23,7 @@ import Ui.DesignTokens
         )
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (controlLabel)
+import Ui.Typography as Typography
 
 
 primaryButton : Theme -> { label : String, onPress : msg } -> Element msg
@@ -124,11 +124,10 @@ buttonBase _ config =
          , Border.color config.border
          , Background.color config.background
          , Font.color config.foreground
-         , Font.medium
          , Font.center
-         , controlLabel
          , Common.uiClass "ui-motion"
          ]
+            ++ Typography.label
             ++ Common.hoverBackground config.hoverBackground
             ++ [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget) ]
         )

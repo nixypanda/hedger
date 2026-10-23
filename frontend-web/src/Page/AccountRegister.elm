@@ -407,7 +407,7 @@ registerHeader theme compact model =
                 , Element.spacing Tokens.space8
                 , Common.minWidthZero
                 ]
-                [ Typography.delimitedPageTitle theme ":" account
+                [ Typography.pageTitleWithDelimiter theme ":" account
                 , Typography.mutedParagraph theme "Account register"
                 ]
             ]
@@ -415,7 +415,7 @@ registerHeader theme compact model =
     else
         Page.pageHeader theme
             { leading = Just (Button.backButton theme { onPress = BackToAccounts })
-            , title = Typography.delimitedPageTitle theme ":" account
+            , title = Typography.pageTitleWithDelimiter theme ":" account
             , subtitle = Just "Account register"
             , actions =
                 [ Button.iconButton theme
@@ -594,7 +594,7 @@ entryRow theme compact model commodity entry =
                 (Surface.rowSurfaceAttrs theme False ++ [ Element.spacing Tokens.space8 ])
                 [ if compact then
                     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                        [ Element.el [ Typography.caption ] date
+                        [ Element.el Typography.caption date
                         , Element.row
                             [ Element.width Element.fill
                             , Element.spacing Tokens.space8
@@ -608,10 +608,11 @@ entryRow theme compact model commodity entry =
                             , chevron
                             ]
                         , Element.el
-                            [ Typography.caption
-                            , Font.color theme.textMuted
-                            , Common.minWidthZero
-                            ]
+                            (Typography.caption
+                                ++ [ Font.color theme.textMuted
+                                   , Common.minWidthZero
+                                   ]
+                            )
                             account
                         , Element.column
                             [ Element.width Element.fill
@@ -630,9 +631,9 @@ entryRow theme compact model commodity entry =
                         , Common.minWidthZero
                         ]
                         [ Element.el
-                            [ Element.width (Element.px Tokens.registerDateWidth)
-                            , Typography.rowDate
-                            ]
+                            (Typography.caption
+                                ++ [ Element.width (Element.px Tokens.registerDateWidth) ]
+                            )
                             date
                         , Element.el
                             [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
@@ -640,11 +641,12 @@ entryRow theme compact model commodity entry =
                             ]
                             description
                         , Element.el
-                            [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
-                            , Typography.caption
-                            , Font.color theme.textMuted
-                            , Common.minWidthZero
-                            ]
+                            (Typography.caption
+                                ++ [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+                                   , Font.color theme.textMuted
+                                   , Common.minWidthZero
+                                   ]
+                            )
                             account
                         , Element.el
                             [ Element.width (Element.px Tokens.registerAmountWidth)
@@ -676,7 +678,7 @@ labeledValue theme label valueEl =
         , Common.minWidthZero
         ]
         [ Element.text label
-            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+            |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
         , Element.el [ Element.width Element.fill, Common.minWidthZero ] valueEl
         ]
 
@@ -690,14 +692,14 @@ valueDisplay theme commodity isMovement color value =
         ]
         [ Common.truncatedText (fullDisplayValue commodity value)
             |> Element.el
-                ([ Element.width Element.fill
-                 , Typography.rowAmount
-                 , Typography.financeNumber
-                 , Font.alignRight
-                 , Font.color color
-                 ]
+                (Typography.caption
+                    ++ Typography.numeric
+                    ++ [ Element.width Element.fill
+                       , Font.alignRight
+                       , Font.color color
+                       ]
                     ++ (if isMovement then
-                            [ Font.semiBold ]
+                            [ Typography.fontWeight Typography.SemiBold ]
 
                         else
                             []
@@ -774,7 +776,7 @@ detailPage theme onClose commodity entry =
             [ Surface.card theme
                 [ Typography.sectionTitle theme entry.description
                 , Element.text (Date.toString entry.date ++ " · " ++ entry.account)
-                    |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+                    |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
                 , valueDetails theme commodity "Movement" entry.amount
                 , Surface.hairline theme
                 , valueDetails theme commodity "Balance" entry.balance
@@ -788,8 +790,7 @@ valueDetails theme commodity label value =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         [ Typography.subsectionTitle theme label
         , Element.text (displayValue commodity value)
-            |> Element.el
-                Typography.detailHeroValue
+            |> Element.el Typography.headline
         , States.registerCompletenessBadge theme value.completeness
         , Typography.mutedCaption theme "Raw amounts included"
         , Element.column
@@ -815,5 +816,5 @@ rawRow theme quantity =
         [ Element.text (Quantity.commodity quantity)
             |> Element.el [ Element.width Element.fill, Font.color theme.textMedium ]
         , Element.text (Formatting.formatFullValue (Quantity.quantity quantity))
-            |> Element.el [ Font.semiBold ]
+            |> Element.el (Typography.body ++ [ Typography.fontWeight Typography.SemiBold ])
         ]

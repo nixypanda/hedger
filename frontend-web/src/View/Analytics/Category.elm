@@ -184,9 +184,7 @@ categoryRow theme commodity palette total index isHighlighted item =
             ]
             (Element.text (categoryLabel item.account))
         , Element.el
-            [ Font.color theme.textMuted
-            , Typography.financeNumber
-            ]
+            (Typography.numeric ++ [ Font.color theme.textMuted ])
             (Element.text
                 (Formatting.formatDecimalDisplay commodity item.quantity
                     ++ " ("

@@ -98,7 +98,7 @@ ringMonthCenter theme label values =
         ]
         (Html.div
             [ Typography.htmlCaption
-            , Attr.style "font-weight" "600"
+            , Typography.htmlFontWeight Typography.SemiBold
             , Attr.style "color" (Common.toCssColor theme.textMuted)
             , Attr.style "line-height" "1"
             ]
@@ -111,7 +111,7 @@ ringValueText : Color -> String -> Html msg
 ringValueText color content =
     Html.div
         [ Typography.htmlCaption
-        , Attr.style "font-weight" "600"
+        , Typography.htmlFontWeight Typography.SemiBold
         , Attr.style "color" (Common.toCssColor color)
         , Attr.style "line-height" "1.25"
         , Attr.style "white-space" "nowrap"

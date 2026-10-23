@@ -219,17 +219,18 @@ dayCell config =
                     |> Maybe.map
                         (\bucket ->
                             Element.el
-                                [ Element.centerX
-                                , Typography.caption
-                                , Font.semiBold
-                                , Font.color
-                                    (Ring.amountTextColor theme
-                                        (Ring.ringAccent theme tone bucket)
-                                        maxTotal
-                                        bucket.total
-                                    )
-                                , Typography.financeNumber
-                                ]
+                                (Typography.caption
+                                    ++ [ Element.centerX
+                                       , Typography.fontWeight Typography.SemiBold
+                                       , Font.color
+                                            (Ring.amountTextColor theme
+                                                (Ring.ringAccent theme tone bucket)
+                                                maxTotal
+                                                bucket.total
+                                            )
+                                       ]
+                                    ++ Typography.numeric
+                                )
                                 (Element.text
                                     (Formatting.formatDecimalDisplay commodity bucket.total)
                                 )
@@ -320,10 +321,11 @@ activityTransactionList theme title transactions onSelect =
                                     , Element.spacing Tokens.space12
                                     ]
                                     [ Element.paragraph
-                                        [ Element.width Element.fill
-                                        , Common.minWidthZero
-                                        , Typography.chartLabel
-                                        ]
+                                        (Typography.body
+                                            ++ [ Element.width Element.fill
+                                               , Common.minWidthZero
+                                               ]
+                                        )
                                         [ Element.text transaction.description ]
                                     , Element.text "›"
                                     ]

@@ -476,7 +476,7 @@ accountRow theme expanded depth (AccountNode account) =
                                     |> Maybe.map AccountType.toString
                                     |> Maybe.withDefault "account"
                                 )
-                                |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+                                |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
                             ]
                         ]
                 }
@@ -529,11 +529,13 @@ balanceText theme valuation symbolCount =
         , Common.minWidthZero
         ]
         [ Element.el
-            [ Element.alignRight
-            , Font.color theme.textPrimary
-            , Font.semiBold
-            , Common.minWidthZero
-            ]
+            (Typography.body
+                ++ [ Element.alignRight
+                   , Font.color theme.textPrimary
+                   , Typography.fontWeight Typography.SemiBold
+                   , Common.minWidthZero
+                   ]
+            )
             (Element.text
                 (case amount of
                     Just value ->
@@ -546,10 +548,11 @@ balanceText theme valuation symbolCount =
         , case symbolCount of
             Just count ->
                 Element.el
-                    [ Element.alignRight
-                    , Typography.caption
-                    , Font.color theme.textMuted
-                    ]
+                    (Typography.caption
+                        ++ [ Element.alignRight
+                           , Font.color theme.textMuted
+                           ]
+                    )
                     (Element.text (String.fromInt count ++ " symbols"))
 
             Nothing ->
@@ -610,7 +613,7 @@ valuePanel theme (AccountNode account) =
                 |> Maybe.map AccountType.toString
                 |> Maybe.withDefault "account"
             )
-            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+            |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
         ]
     , balanceText theme account.valuation Nothing
     , completenessBadge theme account.valuation.completeness
@@ -625,7 +628,7 @@ valuePanel theme (AccountNode account) =
          in
          "Valued as of " ++ TimeExtra.formatDate date
         )
-        |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+        |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
     ]
 
 
@@ -688,7 +691,13 @@ detailBalance theme balance =
                 , Font.color theme.textMedium
                 ]
         , Element.text (Formatting.formatBalance balance)
-            |> Element.el [ Element.alignRight, Font.semiBold, Font.color theme.textPrimary ]
+            |> Element.el
+                (Typography.body
+                    ++ [ Element.alignRight
+                       , Typography.fontWeight Typography.SemiBold
+                       , Font.color theme.textPrimary
+                       ]
+                )
         ]
 
 

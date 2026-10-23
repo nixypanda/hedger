@@ -80,7 +80,7 @@ frontend-web/
       Skeleton.elm            # skeleton loading shapes
       Surface.elm             # cards, sections, and surfaces
       Theme.elm               # light/dark theme tokens and mode parsing
-      Typography.elm          # font sizes and styles
+      Typography.elm          # generic type scale and roles
       Viewport.elm            # width-driven layout thresholds
       Workspace.elm           # independently scrolling master/detail panes
       Calendar/Month.elm      # month grid
@@ -416,21 +416,29 @@ compose them.
 
 ### Type and tokens
 
-The spacing, radius, and type scales follow CalCo's scales. Layout spacing
-follows the scale; component-internal chip and skeleton paddings may use
-explicit values. Layout and component sizes (sidebar width, navigation height,
-chart sizes, column widths, and similar) are separate constants, not scale
-steps.
+The spacing and radius scales follow CalCo's scales. Typography uses its own
+coarse scale. Layout spacing follows the scale;
+component-internal chip and skeleton paddings may use explicit values. Layout
+and component sizes (sidebar width, navigation height, chart sizes, column
+widths, and similar) are separate constants, not scale steps.
 
 - Spacing (`Ui.DesignTokens`): `0, 2, 4, 8, 12, 16, 20, 24`.
 - Radius (`Ui.DesignTokens`): `2` hairline, `8` small, `12` control, `20` card,
   `999` pill.
-- Type (`Ui.Typography`): `13, 16, 20, 24, 32, 44`; control text is `14`
-  (`Typography.controlLabel`) for buttons, segmented controls, and period
-  navigation. Text inputs and navigation items intentionally use body `16`.
-  The `44` hero stat is reserved and currently unused.
-- `Ui.Typography` — role-based type styles (page title, section, body, caption,
-  KPI value, hero stat, and so on).
+- Type (`Ui.Typography`): `12, 14, 16, 20, 24, 32, 44`.
+  - `14` is body text.
+  - `16` is used for detail values and other emphasized body text.
+  - `12` is the small-text step for captions, metadata, chips, and compact
+    labels.
+  - `44` is reserved for future display text and is currently unused.
+- `Ui.Typography` owns the generic scale (`Size`, `Weight`, `fontSize`,
+  `fontWeight`, `fontFamily`) and app-agnostic roles (`display`, `headline`,
+  `heading`, `subheading`, `body`, `bodyLarge`, `label`, `labelSmall`,
+  `caption`, `numeric`). Document roles (`pageTitle`, `sectionTitle`,
+  `subsectionTitle`) and muted text helpers also live there.
+- Do not add app-specific roles such as KPI, row, brand, tab, or detail styles
+  to `Ui.Typography`; compose the generic roles in the owning `Ui.*`,
+  `Component.*`, or `View.*` module.
 - `Ui.DesignTokens` — layout and component constants plus the spacing and
   radius scales.
 - `Ui.Theme` — light/dark theme records and mode parsing; the settings page

@@ -48,9 +48,7 @@ kpiCard theme config =
             ]
         , Typography.mutedBody theme config.title
         , Element.el
-            (Typography.kpiValue
-                ++ [ Typography.financeNumber ]
-            )
+            (Typography.headline ++ Typography.numeric)
             (Element.text (Formatting.formatDecimalDisplay config.commodity config.kpi.value))
         , comparison theme config.commodity config.decreaseIsPositive config.kpi
         ]
@@ -80,7 +78,7 @@ metricCard theme title value icon color =
                 }
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
                 [ Typography.mutedCaption theme title
-                , Element.el (Typography.kpiValue ++ [ Typography.financeNumber ])
+                , Element.el (Typography.headline ++ Typography.numeric)
                     (Element.text value)
                 ]
             ]
@@ -139,11 +137,12 @@ comparison theme commodity decreaseIsPositive kpi =
                         |> Maybe.withDefault ""
             in
             Element.el
-                [ Font.color color
-                , Font.semiBold
-                , Typography.caption
-                , Typography.financeNumber
-                ]
+                (Typography.caption
+                    ++ [ Font.color color
+                       , Typography.fontWeight Typography.SemiBold
+                       ]
+                    ++ Typography.numeric
+                )
                 (Element.text
                     ("vs previous  "
                         ++ Formatting.formatDecimalDisplay commodity change

@@ -227,7 +227,9 @@ selectedPeriodDetails theme period metrics =
         , Background.color theme.primarySoft
         , Border.rounded Tokens.radiusControl
         ]
-        [ Element.el [ Font.semiBold ] (Element.text period)
+        [ Element.el
+            (Typography.body ++ [ Typography.fontWeight Typography.SemiBold ])
+            (Element.text period)
         , Element.wrappedRow
             [ Element.width Element.fill
             , Element.spacing Tokens.space16
@@ -247,9 +249,11 @@ selectedPeriodMetric theme metric =
         ]
         [ Typography.mutedCaption theme metric.label
         , Element.el
-            [ Typography.financeNumber
-            , Font.semiBold
-            , Font.color metric.color
-            ]
+            (Typography.body
+                ++ Typography.numeric
+                ++ [ Typography.fontWeight Typography.SemiBold
+                   , Font.color metric.color
+                   ]
+            )
             (Element.text metric.value)
         ]

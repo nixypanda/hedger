@@ -852,17 +852,23 @@ transactionRow theme compact selected transaction =
         { onPress = Just (Select transaction), label = rowContent }
 
 
+rowTitleStyle : List (Element.Attribute msg)
+rowTitleStyle =
+    Typography.body ++ [ Typography.fontWeight Typography.Bold ]
+
+
 desktopPrimaryRow : Theme -> Transaction -> Element msg
 desktopPrimaryRow theme transaction =
     Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ Element.el
-            [ Typography.rowDate
-            , Font.color theme.textMuted
-            , Element.width (Element.px Tokens.registerDateWidth)
-            ]
+            (Typography.caption
+                ++ [ Font.color theme.textMuted
+                   , Element.width (Element.px Tokens.registerDateWidth)
+                   ]
+            )
             (Element.text (Date.toString transaction.primaryDate))
         , Element.el
-            (Typography.rowTitle
+            (rowTitleStyle
                 ++ [ Element.width Element.fill
                    , Font.color theme.textPrimary
                    , Common.minWidthZero
@@ -878,11 +884,11 @@ phonePrimaryRow : Theme -> Transaction -> Element msg
 phonePrimaryRow theme transaction =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
         [ Element.el
-            [ Typography.rowDate, Font.color theme.textMuted ]
+            (Typography.caption ++ [ Font.color theme.textMuted ])
             (Element.text (Date.toString transaction.primaryDate))
         , Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             [ Element.paragraph
-                (Typography.rowTitle
+                (rowTitleStyle
                     ++ [ Element.width Element.fill
                        , Font.color theme.textPrimary
                        , Common.minWidthZero
@@ -926,22 +932,24 @@ postingPreviewRow theme posting =
             , color = theme.textMuted
             }
         , Element.paragraph
-            [ Typography.rowMetadata
-            , Font.color theme.textMuted
-            , Element.width Element.fill
-            , Common.minWidthZero
-            , Common.uiClass "ui-text-wrap"
-            ]
+            (Typography.caption
+                ++ [ Font.color theme.textMuted
+                   , Element.width Element.fill
+                   , Common.minWidthZero
+                   , Common.uiClass "ui-text-wrap"
+                   ]
+            )
             [ Element.text posting.account ]
         , Element.el
-            [ Typography.rowMetadata
-            , Font.color theme.textMuted
-            , Element.alignRight
-            , Element.width (Element.shrink |> Element.maximum Tokens.narrowContentWidth)
-            , Common.minWidthZero
-            , Common.uiClass "ui-text-ellipsis"
-            , Typography.financeNumber
-            ]
+            (Typography.caption
+                ++ Typography.numeric
+                ++ [ Font.color theme.textMuted
+                   , Element.alignRight
+                   , Element.width (Element.shrink |> Element.maximum Tokens.narrowContentWidth)
+                   , Common.minWidthZero
+                   , Common.uiClass "ui-text-ellipsis"
+                   ]
+            )
             (Element.text (TransactionView.amountsText posting.amounts))
         ]
 

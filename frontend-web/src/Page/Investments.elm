@@ -469,13 +469,18 @@ assetClassAllocationRow theme commodity allocation =
                     )
                 )
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space2 ]
-                [ Element.el [ Font.semiBold ]
+                [ Element.el
+                    (Typography.body ++ [ Typography.fontWeight Typography.SemiBold ])
                     (Element.text (assetClassLabel allocation.assetClass))
                 , Typography.mutedCaption theme
                     (Formatting.formatMaybeDecimalDisplay commodity allocation.marketValue)
                 ]
             , Element.column [ Element.alignRight, Element.spacing Tokens.space2 ]
-                [ Element.el [ Typography.financeNumber, Font.semiBold ]
+                [ Element.el
+                    (Typography.body
+                        ++ Typography.numeric
+                        ++ [ Typography.fontWeight Typography.SemiBold ]
+                    )
                     (Element.text (allocationPercentageLabel allocation.currentPercentage))
                 , Element.row [ Element.spacing Tokens.space8 ]
                     [ Typography.mutedCaption theme
@@ -578,7 +583,12 @@ allocationDeltaLabel color current target =
                     else
                         ""
             in
-            Element.el [ Font.color color, Typography.caption, Font.semiBold ]
+            Element.el
+                (Typography.caption
+                    ++ [ Font.color color
+                       , Typography.fontWeight Typography.SemiBold
+                       ]
+                )
                 (Element.text (sign ++ Number.roundedString delta 2 ++ " pp"))
 
 
@@ -888,7 +898,11 @@ investmentBreakdownMetric theme commodity label value =
         , Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         ]
         [ Typography.mutedCaption theme label
-        , Element.el [ Typography.financeNumber, Font.semiBold ]
+        , Element.el
+            (Typography.body
+                ++ Typography.numeric
+                ++ [ Typography.fontWeight Typography.SemiBold ]
+            )
             (Element.text (Formatting.formatMaybeDecimalDisplay commodity value))
         ]
 
@@ -970,12 +984,14 @@ investmentNavigatorPath theme breadcrumbs =
                         }
                     , if index == lastIndex then
                         Element.el
-                            [ Element.paddingXY Tokens.space8 Tokens.space8
-                            , Background.color theme.selectedBg
-                            , Border.rounded Tokens.radiusSmall
-                            , Font.color theme.textPrimary
-                            , Font.semiBold
-                            ]
+                            (Typography.body
+                                ++ [ Element.paddingXY Tokens.space8 Tokens.space8
+                                   , Background.color theme.selectedBg
+                                   , Border.rounded Tokens.radiusSmall
+                                   , Font.color theme.textPrimary
+                                   , Typography.fontWeight Typography.SemiBold
+                                   ]
+                            )
                             (Element.text crumb.label)
 
                       else
@@ -992,13 +1008,13 @@ investmentNavigatorPath theme breadcrumbs =
 investmentNavigatorPathButton : Theme -> String -> Msg -> Element Msg
 investmentNavigatorPathButton theme label onPress =
     Input.button
-        ([ Element.htmlAttribute (Attr.title ("Open " ++ label))
-         , Common.touchTargetHeight
-         , Element.paddingXY Tokens.space8 Tokens.space8
-         , Border.rounded Tokens.radiusSmall
-         , Font.color theme.primary
-         , Font.medium
-         ]
+        (Typography.label
+            ++ [ Element.htmlAttribute (Attr.title ("Open " ++ label))
+               , Common.touchTargetHeight
+               , Element.paddingXY Tokens.space8 Tokens.space8
+               , Border.rounded Tokens.radiusSmall
+               , Font.color theme.primary
+               ]
             ++ Common.hoverBackground theme.primarySoft
         )
         { onPress = Just onPress, label = Element.text label }
@@ -1021,7 +1037,9 @@ investmentNavigatorChild theme commodity child =
                     , color = theme.primary
                     }
                 , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
-                    [ Element.el [ Font.semiBold ] (Element.text child.label)
+                    [ Element.el
+                        (Typography.body ++ [ Typography.fontWeight Typography.SemiBold ])
+                        (Element.text child.label)
                     , Element.wrappedRow
                         [ Element.width Element.fill
                         , Element.spacing Tokens.space8
@@ -1037,7 +1055,11 @@ investmentNavigatorChild theme commodity child =
                         ]
                     ]
                 , Element.column [ Element.alignRight, Element.spacing Tokens.space4 ]
-                    [ Element.el [ Typography.financeNumber, Font.semiBold ]
+                    [ Element.el
+                        (Typography.body
+                            ++ Typography.numeric
+                            ++ [ Typography.fontWeight Typography.SemiBold ]
+                        )
                         (Element.text
                             (Formatting.formatMaybeDecimalDisplay
                                 commodity
@@ -1146,7 +1168,8 @@ selectedInvestmentPeriod theme commodity selected points =
                 , Border.rounded Tokens.radiusControl
                 ]
                 [ Element.row [ Element.width Element.fill ]
-                    [ Element.el [ Font.semiBold ]
+                    [ Element.el
+                        (Typography.body ++ [ Typography.fontWeight Typography.SemiBold ])
                         (Element.text (investmentPeriodLabel point.period))
                     , Element.el [ Element.alignRight ]
                         (investmentCompletenessBadge theme point.summary.completeness)

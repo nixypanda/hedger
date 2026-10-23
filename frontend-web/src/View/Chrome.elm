@@ -205,7 +205,7 @@ brand theme =
                 )
             )
         , Element.el
-            (Typography.brandLabel
+            (Typography.subheading
                 ++ [ Font.color theme.navigationFg
                    , Element.centerY
                    ]
@@ -313,10 +313,11 @@ tabItem theme destination =
                     , color = foreground
                     }
                 , Element.el
-                    [ Typography.tabLabel
-                    , Font.center
-                    , Element.width Element.fill
-                    ]
+                    (Typography.caption
+                        ++ [ Font.center
+                           , Element.width Element.fill
+                           ]
+                    )
                     (Element.text destination.label)
                 ]
         }
