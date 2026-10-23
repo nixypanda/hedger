@@ -2,29 +2,25 @@ module Main exposing (main)
 
 import Api.Bootstrap exposing (Bootstrap)
 import Api.Client as Api
-import Api.Error as ApiError exposing (ApiError)
+import Api.Error exposing (ApiError)
 import Browser
 import Browser.Events
 import Browser.Navigation as Nav
-import Data.Freshness exposing (Freshness(..))
+import Chrome
 import Element exposing (Element)
-import Element.Font as Font
+import Html
 import Json.Decode as Decode
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Page
 import Ports
-import Preferences exposing (Preferences, ThemeMode(..))
+import Preferences exposing (Preferences)
 import Pwa
-import RemoteData exposing (RemoteData(..))
 import Route exposing (Route(..))
-import State.Viewport exposing (Viewport)
-import Ui
-import Ui.DesignTokens as Tokens
-import Ui.Icon as Icon exposing (Icon)
-import Ui.Skeleton
-import Ui.Theme exposing (Theme)
-import Ui.Typography as Typography
+import Ui.Css
+import Ui.Env exposing (Env)
+import Ui.Page as UiPage
+import Ui.Theme
 import Url exposing (Url)
-import View.Shell as Shell
 
 
 
@@ -36,14 +32,14 @@ type alias Flags =
     , isStandalone : Bool
     , viewportWidth : Int
     , viewportHeight : Int
-    , initialThemeMode : String
+    , initialMode : String
     }
 
 
 type alias Model =
     { key : Nav.Key
     , route : Route
-    , viewport : Viewport
+    , env : Env
     , preferences : Preferences
     , pwa : Pwa.Model
     , bootstrap : RemoteData ApiError Bootstrap
@@ -54,9 +50,18 @@ type alias Model =
 init : Flags -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
-        initialTheme =
-            Preferences.themeModeFromString flags.initialThemeMode
-                |> Result.withDefault Light
+        initialMode =
+            Ui.Theme.modeFromStringResult flags.initialMode
+                |> Result.withDefault Ui.Theme.Light
+
+        initialViewport =
+            { width = flags.viewportWidth, height = flags.viewportHeight }
+
+        initialEnv =
+            { theme = Ui.Theme.forMode initialMode
+            , device = Element.classifyDevice initialViewport
+            , viewport = initialViewport
+            }
 
         redirect =
             if url.path == "/" then
@@ -70,18 +75,13 @@ init flags url key =
 
         ( pageModel, pageCmd, _ ) =
             Page.init
-                (pageContext
-                    initialRoute
-                    { width = flags.viewportWidth, height = flags.viewportHeight }
-                    (Preferences.theme (Preferences.current initialTheme))
-                    initialTheme
-                )
+                (pageContext initialRoute initialEnv)
                 Nothing
     in
     ( { key = key
       , route = initialRoute
-      , viewport = { width = flags.viewportWidth, height = flags.viewportHeight }
-      , preferences = Preferences.current initialTheme
+      , env = initialEnv
+      , preferences = Preferences.current initialMode
       , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
       , bootstrap = Loading Nothing
       , page = pageModel
@@ -95,12 +95,10 @@ init flags url key =
     )
 
 
-pageContext : Route -> Viewport -> Theme -> ThemeMode -> Page.Context
-pageContext route viewport theme themeMode =
+pageContext : Route -> Env -> Page.Context
+pageContext route env =
     { route = route
-    , viewport = viewport
-    , theme = theme
-    , themeMode = themeMode
+    , env = env
     }
 
 
@@ -143,7 +141,7 @@ update msg model =
 
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
+                        (pageContext route model.env)
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -154,7 +152,7 @@ update msg model =
             )
 
         Resized width height ->
-            ( { model | viewport = { width = width, height = height } }, Cmd.none )
+            ( { model | env = Ui.Env.resize model.env width height }, Cmd.none )
 
         BootstrapLoaded result ->
             case result of
@@ -162,7 +160,11 @@ update msg model =
                     ( { model | bootstrap = Success bootstrap }, Cmd.none )
 
                 Err error ->
-                    ( { model | bootstrap = Failure error (RemoteData.value model.bootstrap) }, Cmd.none )
+                    ( { model
+                        | bootstrap = Failure error (RemoteData.value model.bootstrap)
+                      }
+                    , Cmd.none
+                    )
 
         RefreshBootstrap ->
             ( { model | bootstrap = RemoteData.beginLoading model.bootstrap }
@@ -173,7 +175,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.init
-                        (pageContext model.route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
+                        (pageContext model.route model.env)
                         (Just model.page)
 
                 ( finalModel, outCmd ) =
@@ -194,7 +196,12 @@ update msg model =
         ConfigLoaded value ->
             case Decode.decodeValue Preferences.decoder value of
                 Ok preferences ->
-                    ( { model | preferences = preferences }, Cmd.none )
+                    ( { model
+                        | preferences = preferences
+                        , env = Ui.Env.withTheme model.env (Ui.Theme.forMode preferences.mode)
+                      }
+                    , Cmd.none
+                    )
 
                 Err _ ->
                     ( model, Cmd.none )
@@ -210,7 +217,7 @@ update msg model =
             let
                 ( pageModel, pageCmd, outMsg ) =
                     Page.update
-                        (pageContext model.route model.viewport (Preferences.theme model.preferences) model.preferences.themeMode)
+                        (pageContext model.route model.env)
                         pageMsg
                         model.page
 
@@ -234,12 +241,17 @@ applyPageOutMsg outMsg model =
         Page.Navigate route ->
             ( model, Nav.pushUrl model.key (Route.toPath route) )
 
-        Page.SetThemeMode mode ->
+        Page.SetTheme mode ->
             let
                 preferences =
                     Preferences.setTheme mode model.preferences
             in
-            ( { model | preferences = preferences }, Ports.storeConfig (Preferences.encode preferences) )
+            ( { model
+                | preferences = preferences
+                , env = Ui.Env.withTheme model.env (Ui.Theme.forMode mode)
+              }
+            , Ports.storeConfig (Preferences.encode preferences)
+            )
 
 
 
@@ -249,15 +261,23 @@ applyPageOutMsg outMsg model =
 view : Model -> Browser.Document Msg
 view model =
     let
-        activeTheme =
-            Preferences.theme model.preferences
+        env =
+            model.env
 
         page =
-            pageView activeTheme model
+            pageView model
     in
-    { title = pageTitle model.route ++ " · Hedger"
+    { title = Route.title model.route ++ " · Hedger"
     , body =
-        [ Element.layoutWith
+        [ Html.node "style"
+            []
+            [ Html.text
+                (":root, :root[data-theme] { "
+                    ++ Ui.Css.themeCssVariables env.theme
+                    ++ " }"
+                )
+            ]
+        , Element.layoutWith
             { options =
                 [ Element.focusStyle
                     { borderColor = Nothing
@@ -268,245 +288,23 @@ view model =
             }
             []
           <|
-            Ui.layout activeTheme <|
-                Shell.view
-                    { viewport = model.viewport
-                    , theme = activeTheme
-                    , notice = shellNotice model.pwa
-                    , navigation = shellNavigation model.route
+            UiPage.layout env.theme <|
+                Chrome.view
+                    { env = env
+                    , route = model.route
+                    , pwa = model.pwa
                     , page = page
+                    , onNavigate = Navigate
+                    , onPwa = PwaMsg
                     }
         ]
     }
 
 
-shellNavigation : Route -> List (Shell.Destination Msg)
-shellNavigation currentRoute =
-    [ destination currentRoute "Net Worth" Icon.TrendingUp NetWorth
-    , destination currentRoute "Investments" Icon.ChartBar Investments
-    , destination currentRoute "Cashflow" Icon.ChartPie Cashflow
-    , destination currentRoute "Accounts" Icon.Wallet Accounts
-    , destination currentRoute "Transactions" Icon.Receipt Transactions
-    , destination currentRoute "Settings" Icon.Settings Settings
-    ]
-
-
-destination : Route -> String -> Icon -> Route -> Shell.Destination Msg
-destination currentRoute label icon route =
-    { label = label
-    , icon = icon
-    , active = routeIsActive currentRoute route
-    , onPress = Navigate route
-    }
-
-
-routeIsActive : Route -> Route -> Bool
-routeIsActive currentRoute destinationRoute =
-    case ( currentRoute, destinationRoute ) of
-        ( Account _, Accounts ) ->
-            True
-
-        ( AccountValue _, Accounts ) ->
-            True
-
-        _ ->
-            currentRoute == destinationRoute
-
-
-shellNotice : Pwa.Model -> Maybe (Shell.Notice Msg)
-shellNotice pwa =
-    case pwa.serviceWorker of
-        Pwa.ServiceWorkerUpdateReady ->
-            Just
-                { icon = Icon.Refresh
-                , message = "A new version of Hedger is ready."
-                , actions =
-                    [ shellAction "Update" (PwaMsg Pwa.ApplyServiceWorkerUpdate)
-                    ]
-                }
-
-        _ ->
-            installationNotice pwa.installation
-
-
-installationNotice : Pwa.InstallationState -> Maybe (Shell.Notice Msg)
-installationNotice installation =
-    case installation of
-        Pwa.IosBrowser Pwa.InstallHintVisible ->
-            Just
-                { icon = Icon.Info
-                , message = "Add Hedger to your Home Screen from Safari's Share menu."
-                , actions = [ dismissAction ]
-                }
-
-        Pwa.InstallableBrowser Pwa.InstallPromptAvailable ->
-            Just
-                { icon = Icon.Download
-                , message = "Install Hedger for quick offline access."
-                , actions =
-                    [ shellAction "Install" (PwaMsg Pwa.PromptInstall)
-                    , dismissAction
-                    ]
-                }
-
-        _ ->
-            Nothing
-
-
-shellAction : String -> Msg -> Shell.NoticeAction Msg
-shellAction label onPress =
-    { label = label
-    , onPress = onPress
-    , style = Shell.PrimaryAction
-    }
-
-
-dismissAction : Shell.NoticeAction Msg
-dismissAction =
-    { label = "Dismiss"
-    , onPress = PwaMsg Pwa.DismissInstallPrompt
-    , style = Shell.GhostAction
-    }
-
-
-pageView : Theme -> Model -> Element Msg
-pageView theme model =
-    if isRealPage model.route then
-        Element.map GotPageMsg
-            (Page.view (pageContext model.route model.viewport theme model.preferences.themeMode) model.page)
-
-    else
-        Element.column
-            [ Element.width Element.fill
-            , Typography.uiClass "page-scroll"
-            ]
-            [ Ui.pageHeaderBand theme <|
-                Ui.pageHeader theme
-                    { leading = Nothing
-                    , title = Typography.pageTitle theme (pageTitle model.route)
-                    , subtitle = Nothing
-                    , actions = []
-                    }
-            , Ui.pageContainer <|
-                bootstrapStatus theme model.bootstrap
-                    :: placeholder theme model.route
-            ]
-
-
-isRealPage : Route -> Bool
-isRealPage _ =
-    True
-
-
-bootstrapStatus : Theme -> RemoteData ApiError Bootstrap -> Element Msg
-bootstrapStatus theme remote =
-    case remote of
-        NotAsked ->
-            Ui.loading theme "Preparing application metadata…"
-
-        Loading Nothing ->
-            Ui.card theme [ Ui.Skeleton.loading theme ]
-
-        Loading (Just bootstrap) ->
-            Ui.card theme
-                [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing metadata"
-                , bootstrapSummary theme bootstrap
-                ]
-
-        Success bootstrap ->
-            case bootstrap.metadata.freshness of
-                Fresh ->
-                    bootstrapSummary theme bootstrap
-
-                Refreshing ->
-                    Ui.card theme
-                        [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing"
-                        , bootstrapSummary theme bootstrap
-                        ]
-
-                Stale ->
-                    Ui.card theme
-                        [ Ui.statusBadge theme Ui.StatusWarning "Stale snapshot"
-                        , bootstrapSummary theme bootstrap
-                        ]
-
-                Partial ->
-                    Ui.card theme
-                        [ Ui.statusBadge theme Ui.StatusWarning "Partial data"
-                        , bootstrapSummary theme bootstrap
-                        ]
-
-                Unavailable ->
-                    Ui.errorBanner theme "Journal metadata is unavailable."
-
-        Failure error stale ->
-            let
-                failureBanner prefix =
-                    Ui.errorBanner theme (prefix ++ ApiError.message error)
-            in
-            case stale of
-                Just bootstrap ->
-                    Ui.card theme
-                        [ failureBanner "Refresh failed; showing stale metadata: "
-                        , bootstrapSummary theme bootstrap
-                        ]
-
-                Nothing ->
-                    Ui.card theme [ failureBanner "Bootstrap failed: " ]
-
-
-bootstrapSummary : Theme -> Bootstrap -> Element msg
-bootstrapSummary theme bootstrap =
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        [ Ui.statusBadge theme Ui.StatusSuccess (bootstrap.appName ++ " API " ++ bootstrap.apiVersion)
-        , Ui.badge theme ("Fiscal year starts in month " ++ String.fromInt bootstrap.fiscalYearStartMonth)
-        , bootstrap.metadata.revision
-            |> Maybe.map (\revision -> Ui.badge theme ("Revision " ++ revision))
-            |> Maybe.withDefault Element.none
-        ]
-
-
-placeholder : Theme -> Route -> List (Element Msg)
-placeholder theme route =
-    [ Ui.card theme
-        [ Typography.sectionTitle theme (pageTitle route ++ " placeholder")
-        , Element.paragraph [ Font.color theme.textMedium ]
-            [ Element.text
-                ("Loading, success, empty, stale, partial, unavailable, and failed states use shared "
-                    ++ "primitives here before endpoint-specific UI is added."
-                )
-            ]
-        , Ui.emptyState theme "No screen data is requested during Phase 3."
-        ]
-    ]
-
-
-pageTitle : Route -> String
-pageTitle route =
-    case route of
-        NetWorth ->
-            "Net Worth"
-
-        Investments ->
-            "Investments"
-
-        Cashflow ->
-            "Cashflow"
-
-        Accounts ->
-            "Accounts"
-
-        Account accountName ->
-            accountName
-
-        AccountValue accountName ->
-            accountName ++ " value"
-
-        Transactions ->
-            "Transactions"
-
-        Settings ->
-            "Settings"
+pageView : Model -> Element Msg
+pageView model =
+    Element.map GotPageMsg
+        (Page.view (pageContext model.route model.env) model.page)
 
 
 

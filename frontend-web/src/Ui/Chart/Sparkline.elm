@@ -4,7 +4,7 @@ import Element exposing (Element)
 import Html.Attributes as Attr
 import Svg
 import Svg.Attributes as SvgA
-import Ui.Css as Css
+import Ui.Common as Common
 
 
 view :
@@ -68,7 +68,7 @@ view config =
                     [ Svg.polyline
                         [ SvgA.points (String.join " " (List.indexedMap point config.values))
                         , SvgA.fill "none"
-                        , SvgA.stroke (Css.toCssColor config.color)
+                        , SvgA.stroke (Common.toCssColor config.color)
                         , SvgA.strokeWidth "2"
                         , SvgA.strokeLinecap "round"
                         , SvgA.strokeLinejoin "round"

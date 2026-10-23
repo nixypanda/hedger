@@ -4,7 +4,8 @@ import Element exposing (Color)
 import Expect
 import Test exposing (Test, describe, test)
 import Ui.Theme as Theme exposing (Mode(..), Theme)
-import View.Analytics as Analytics exposing (ActivityTone(..))
+import View.Analytics.Palette as Palette
+import View.Analytics.Types exposing (ActivityTone(..))
 
 
 suite : Test
@@ -16,8 +17,7 @@ suite =
                         [ Theme.light, Theme.forMode Dark ]
                             |> List.all debtColorsHaveExpectedHue
                             |> Expect.equal True
-               ]
-            ++ [ test "expense flow colors invert income flow colors in both themes" <|
+               , test "expense flow colors invert income flow colors in both themes" <|
                     \_ ->
                         [ Theme.light, Theme.forMode Dark ]
                             |> List.all expenseColorsInvertIncome
@@ -28,9 +28,9 @@ suite =
 
 expenseColorsInvertIncome : Theme -> Bool
 expenseColorsInvertIncome theme =
-    Analytics.flowMovementColors theme IncomeTone
+    Palette.flowMovementColors theme IncomeTone
         == ( theme.positive, theme.negative )
-        && Analytics.flowMovementColors theme ExpenseTone
+        && Palette.flowMovementColors theme ExpenseTone
         == ( theme.negative, theme.positive )
 
 

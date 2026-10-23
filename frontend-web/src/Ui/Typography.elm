@@ -4,20 +4,16 @@ module Ui.Typography exposing
     , caption
     , chartLabel
     , delimitedPageTitle
-    , delimitedSectionTitle
     , detailHeroValue
     , detailLabel
     , detailValue
     , financeNumber
     , htmlCaption
     , kpiValue
-    , listItemTitle
-    , minWidthZero
     , mutedBody
     , mutedCaption
     , mutedParagraph
     , naturalWrapText
-    , navLabel
     , pageTitle
     , rowAmount
     , rowDate
@@ -26,9 +22,6 @@ module Ui.Typography exposing
     , sectionTitle
     , subsectionTitle
     , tabLabel
-    , truncatedListItemTitle
-    , uiClass
-    , wrappedListItemTitle
     )
 
 import Element exposing (Element)
@@ -36,6 +29,7 @@ import Element.Font as Font
 import Element.Region as Region
 import Html exposing (Attribute)
 import Html.Attributes
+import Ui.Common as Common
 import Ui.Theme exposing (Theme)
 
 
@@ -92,11 +86,6 @@ chartLabel =
 kpiValue : Element.Attribute msg
 kpiValue =
     Font.size 28
-
-
-navLabel : Element.Attribute msg
-navLabel =
-    Font.size 16
 
 
 tabLabel : Element.Attribute msg
@@ -168,18 +157,6 @@ sectionTitle theme text =
         (Element.text text)
 
 
-delimitedSectionTitle : Theme -> String -> String -> Element msg
-delimitedSectionTitle theme delimiter text =
-    naturalWrapText
-        [ sectionTitleSize
-        , Font.semiBold
-        , Font.color theme.textPrimary
-        , Region.heading 2
-        ]
-        delimiter
-        text
-
-
 subsectionTitle : Theme -> String -> Element msg
 subsectionTitle theme text =
     Element.el
@@ -219,52 +196,12 @@ mutedParagraph theme text =
         [ Element.text text ]
 
 
-listItemTitle : Theme -> Element msg -> Element msg
-listItemTitle theme child =
-    Element.el
-        [ body
-        , Font.semiBold
-        , Font.color theme.textPrimary
-        , minWidthZero
-        ]
-        child
-
-
-truncatedListItemTitle : Theme -> String -> Element msg
-truncatedListItemTitle theme text =
-    Element.el
-        [ Element.width Element.fill
-        , minWidthZero
-        ]
-        (listItemTitle theme
-            (Element.el
-                [ Element.width Element.fill
-                , Element.clip
-                , uiClass "ui-text-ellipsis"
-                ]
-                (Element.text text)
-            )
-        )
-
-
-wrappedListItemTitle : Theme -> String -> Element msg
-wrappedListItemTitle theme text =
-    listItemTitle theme
-        (Element.paragraph
-            [ Element.width Element.fill
-            , minWidthZero
-            , uiClass "ui-text-wrap"
-            ]
-            [ Element.text text ]
-        )
-
-
 naturalWrapText : List (Element.Attribute msg) -> String -> String -> Element msg
 naturalWrapText attributes delimiter value =
     if delimiter == "" then
         Element.paragraph
             ([ Element.width Element.fill
-             , minWidthZero
+             , Common.minWidthZero
              ]
                 ++ attributes
             )
@@ -274,7 +211,7 @@ naturalWrapText attributes delimiter value =
         Element.wrappedRow
             ([ Element.width Element.fill
              , Element.spacing 0
-             , minWidthZero
+             , Common.minWidthZero
              ]
                 ++ attributes
             )
@@ -303,13 +240,3 @@ delimitedTextSegments delimiter value =
                         )
                     )
             )
-
-
-uiClass : String -> Element.Attribute msg
-uiClass className =
-    Element.htmlAttribute (Html.Attributes.class className)
-
-
-minWidthZero : Element.Attribute msg
-minWidthZero =
-    Element.htmlAttribute (Html.Attributes.style "min-width" "0")

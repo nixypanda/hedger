@@ -1,4 +1,4 @@
-module Page.Shared.Analysis exposing
+module Component.Analysis exposing
     ( Config
     , Context
     , Effect(..)
@@ -35,14 +35,20 @@ import Data.Granularity exposing (Granularity(..))
 import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..), Period(..))
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
-import Element.Font as Font
-import State.Viewport exposing (Viewport)
-import Ui
 import Ui.DesignTokens as Tokens
-import Ui.Responsive as Responsive
+import Ui.Env exposing (Env)
+import Ui.Feedback as Feedback
+import Ui.Input
+import Ui.Page as Page
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import View.Analytics as AnalyticsView exposing (LegendState(..))
+import Ui.Viewport as Viewport
+import View.Analytics.Activity as Activity
+import View.Analytics.Category as Category
+import View.Analytics.Legend as Legend
+import View.Analytics.Timeline as Timeline
+import View.Analytics.Types as AnalyticsTypes exposing (LegendState(..))
 
 
 
@@ -56,7 +62,7 @@ type Model
 type alias ModelData =
     { granularity : Granularity
     , depth : Depth
-    , calendarDisplay : AnalyticsView.CalendarDisplay
+    , calendarDisplay : AnalyticsTypes.CalendarDisplay
     , period : Maybe Period
     , calendarMonth : Maybe Month
     , timeline : List TimelinePoint
@@ -135,8 +141,8 @@ type alias SideConfig =
     , monthActivityTitle : String
     , yearActivityTitle : String
     , activityKind : Analytics.ActivityKind
-    , palette : AnalyticsView.Palette
-    , tone : AnalyticsView.ActivityTone
+    , palette : AnalyticsTypes.Palette
+    , tone : AnalyticsTypes.ActivityTone
     }
 
 
@@ -145,7 +151,7 @@ init =
     Model
         { granularity = Monthly
         , depth = Depth 2
-        , calendarDisplay = AnalyticsView.ByCategory
+        , calendarDisplay = AnalyticsTypes.ByCategory
         , period = Nothing
         , calendarMonth = Nothing
         , timeline = []
@@ -178,7 +184,7 @@ type Msg
     | TimelineSelected String
     | PeriodChanged Int
     | DepthSelected Int
-    | CalendarDisplaySelected AnalyticsView.CalendarDisplay
+    | CalendarDisplaySelected AnalyticsTypes.CalendarDisplay
     | OtherToggled Side
     | LegendToggled Side
     | LegendCategoryHighlighted Side Int
@@ -594,7 +600,7 @@ activityRequest context side data =
 
 controlsView : Theme -> Model -> Element Msg
 controlsView theme (Model data) =
-    Ui.wideSegmentedControl theme
+    Ui.Input.wideSegmentedControl theme
         [ { label = "M"
           , selected = data.granularity == Monthly
           , onPress = GranularitySelected Monthly
@@ -610,27 +616,33 @@ controlsView theme (Model data) =
 -- VIEW
 
 
-view : Theme -> Viewport -> Config -> Report -> Model -> Element Msg
-view theme viewport config report (Model data) =
+view : Env -> Config -> Report -> Model -> Element Msg
+view env config report (Model data) =
     let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         chartWidth =
             let
                 maxContainerWidth =
-                    1280 - 2 * Responsive.contentPadding - 40
+                    1280 - 2 * Viewport.contentPadding - 40
             in
-            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport - 40))
+            min maxContainerWidth (max 320 (Viewport.usableContentWidth viewport - 40))
 
         activityColumns =
             let
                 cardWidth =
-                    if Responsive.isCompact layout then
-                        Responsive.usableContentWidth viewport
+                    if Viewport.isCompact layout then
+                        Viewport.usableContentWidth viewport
 
                     else
-                        (Responsive.usableContentWidth viewport - 16) // 2
+                        (Viewport.usableContentWidth viewport - 16) // 2
             in
             if cardWidth < 360 then
                 3
@@ -644,18 +656,18 @@ view theme viewport config report (Model data) =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Typography.sectionTitle theme config.timelineSectionTitle
         , timelineView theme chartWidth config report data
-        , AnalyticsView.warningList theme report.warnings
+        , Feedback.warningList theme report.warnings
         , compositionHeader theme layout data
         , breakdownsView theme layout config report data
         , activityViews theme layout activityColumns config report data
         ]
 
 
-compositionHeader : Theme -> Responsive.ContentLayout -> ModelData -> Element Msg
+compositionHeader : Theme -> Viewport.ContentLayout -> ModelData -> Element Msg
 compositionHeader theme layout data =
     let
         container =
-            if Responsive.isCompact layout then
+            if Viewport.isCompact layout then
                 Element.wrappedRow
 
             else
@@ -673,15 +685,15 @@ compositionHeader theme layout data =
                     (Typography.mutedBody theme "Period")
                 , Element.row [ Element.width (Element.fillPortion Tokens.layoutPortionDouble) ]
                     [ Element.el [ Element.width Element.fill ] Element.none
-                    , Ui.periodNavigation theme
+                    , Page.periodNavigation theme
                         { label = selectedPeriodLabel data
                         , labelKind =
                             case data.granularity of
                                 Monthly ->
-                                    Ui.MonthPeriodLabel
+                                    Page.MonthPeriodLabel
 
                                 Yearly ->
-                                    Ui.FiscalYearPeriodLabel
+                                    Page.FiscalYearPeriodLabel
                         , onPrevious = PeriodChanged -1
                         , onNext = PeriodChanged 1
                         }
@@ -695,7 +707,7 @@ compositionHeader theme layout data =
                     (Typography.mutedBody theme "Account depth")
                 , Element.row [ Element.width (Element.fillPortion Tokens.layoutPortionDouble) ]
                     [ Element.el [ Element.width Element.fill ] Element.none
-                    , AnalyticsView.depthControl theme (Time.depthValue data.depth) DepthSelected
+                    , Category.depthControl theme (Time.depthValue data.depth) DepthSelected
                     ]
                 ]
             ]
@@ -725,9 +737,9 @@ timelineView : Theme -> Int -> Config -> Report -> ModelData -> Element Msg
 timelineView theme chartWidth config report data =
     case report.timeline of
         TimelineAvailable points ->
-            Ui.card theme
+            Surface.card theme
                 [ Typography.subsectionTitle theme config.timelineTitle
-                , AnalyticsView.positiveNegativeTimelineChart theme
+                , Timeline.positiveNegativeTimelineChart theme
                     { commodity = report.displayCommodity
                     , points = points
                     , selected = Maybe.map Time.periodToString data.period
@@ -737,7 +749,7 @@ timelineView theme chartWidth config report data =
                     , negativeLabel = config.negative.label
                     , netLabel = config.netLabel
                     }
-                , chartLegend theme
+                , Legend.chartLegend theme
                     [ ( theme.positive, config.positive.label )
                     , ( theme.negative, config.negative.label )
                     , ( theme.primary, config.netLabel )
@@ -745,10 +757,10 @@ timelineView theme chartWidth config report data =
                 ]
 
         TimelineUnavailable message _ ->
-            Ui.errorBanner theme message
+            Feedback.errorBanner theme message
 
 
-breakdownsView : Theme -> Responsive.ContentLayout -> Config -> Report -> ModelData -> Element Msg
+breakdownsView : Theme -> Viewport.ContentLayout -> Config -> Report -> ModelData -> Element Msg
 breakdownsView theme layout config report data =
     responsiveGrid layout
         [ categoryView
@@ -777,7 +789,7 @@ categoryView :
     -> SideState
     -> Element Msg
 categoryView theme config side commodity breakdown sideState =
-    AnalyticsView.categoryCard theme
+    Category.categoryCard theme
         { title = config.label
         , commodity = commodity
         , breakdown = breakdown
@@ -791,7 +803,7 @@ categoryView theme config side commodity breakdown sideState =
 
 activityViews :
     Theme
-    -> Responsive.ContentLayout
+    -> Viewport.ContentLayout
     -> Int
     -> Config
     -> Report
@@ -831,35 +843,35 @@ activityViews theme layout columns config report data =
         ]
 
 
-calendarDisplayControl : Theme -> AnalyticsView.CalendarDisplay -> Element Msg
+calendarDisplayControl : Theme -> AnalyticsTypes.CalendarDisplay -> Element Msg
 calendarDisplayControl theme selected =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
         [ Typography.mutedBody theme "Show calendar by"
-        , Ui.segmentedControl theme
-            [ Ui.segmentedOption theme
+        , Ui.Input.segmentedControl theme
+            [ Ui.Input.segmentedOption theme
                 { label = "Category"
-                , selected = selected == AnalyticsView.ByCategory
-                , onPress = CalendarDisplaySelected AnalyticsView.ByCategory
+                , selected = selected == AnalyticsTypes.ByCategory
+                , onPress = CalendarDisplaySelected AnalyticsTypes.ByCategory
                 }
-            , Ui.segmentedOption theme
+            , Ui.Input.segmentedOption theme
                 { label = "Movement"
-                , selected = selected == AnalyticsView.ByMovement
-                , onPress = CalendarDisplaySelected AnalyticsView.ByMovement
+                , selected = selected == AnalyticsTypes.ByMovement
+                , onPress = CalendarDisplaySelected AnalyticsTypes.ByMovement
                 }
             ]
         ]
 
 
-legendCapacity : Responsive.ContentLayout -> Int
+legendCapacity : Viewport.ContentLayout -> Int
 legendCapacity layout =
     case layout of
-        Responsive.Compact ->
+        Viewport.Compact ->
             4
 
-        Responsive.Medium ->
+        Viewport.Medium ->
             2
 
-        Responsive.Wide ->
+        Viewport.Wide ->
             3
 
 
@@ -885,7 +897,7 @@ activityView theme columns maxLegendItems granularity config side commodity data
     in
     case granularity of
         Monthly ->
-            AnalyticsView.activityMonth theme
+            Activity.activityMonth theme
                 { title = config.monthActivityTitle
                 , period = month
                 , commodity = commodity
@@ -903,7 +915,7 @@ activityView theme columns maxLegendItems granularity config side commodity data
                 }
 
         Yearly ->
-            AnalyticsView.activityYear theme
+            Activity.activityYear theme
                 { title = config.yearActivityTitle
                 , commodity = commodity
                 , tone = config.tone
@@ -936,7 +948,7 @@ activityResponse side (Model data) =
     activityValue (sideFor side data).activity
 
 
-calendarDisplay : Model -> AnalyticsView.CalendarDisplay
+calendarDisplay : Model -> AnalyticsTypes.CalendarDisplay
 calendarDisplay (Model data) =
     data.calendarDisplay
 
@@ -1163,24 +1175,10 @@ periodFromString granularity value =
                 Nothing
 
 
-responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
+responsiveGrid : Viewport.ContentLayout -> List (Element msg) -> Element msg
 responsiveGrid layout items =
-    if Responsive.isCompact layout then
+    if Viewport.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
     else
         Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
-
-
-chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
-chartLegend theme items =
-    Element.wrappedRow [ Element.spacing Tokens.space14 ]
-        (List.map
-            (\( color, label ) ->
-                Element.row [ Element.spacing Tokens.space5 ]
-                    [ Ui.accentDot color
-                    , Element.el [ Font.color theme.textMuted ] (Element.text label)
-                    ]
-            )
-            items
-        )

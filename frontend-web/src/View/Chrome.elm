@@ -1,4 +1,4 @@
-module View.Shell exposing
+module View.Chrome exposing
     ( ActionStyle(..)
     , Destination
     , Notice
@@ -13,19 +13,18 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
-import State.Viewport exposing (Viewport)
-import Ui
+import Ui.Button as Button
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
 import Ui.Icon as Icon exposing (Icon)
-import Ui.Responsive as Responsive
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport
 
 
 type alias Config msg =
-    { viewport : Viewport
-    , theme : Theme
-    , notice : Maybe (Notice msg)
+    { notice : Maybe (Notice msg)
     , navigation : List (Destination msg)
     , page : Element msg
     }
@@ -58,29 +57,33 @@ type alias Destination msg =
     }
 
 
-view : Config msg -> Element msg
-view config =
+view : Env -> Config msg -> Element msg
+view env config =
+    let
+        theme =
+            env.theme
+    in
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
-        , Background.color config.theme.pageBg
-        , Typography.uiClass "app-shell"
+        , Background.color theme.pageBg
+        , Common.uiClass "app-shell"
         ]
-        [ noticeView config.theme config.notice
+        [ noticeView theme config.notice
         , Element.row
             [ Element.width Element.fill
             , Element.height Element.fill
             , Element.clipY
-            , Typography.uiClass "shell-body"
+            , Common.uiClass "shell-body"
             ]
-            (if Responsive.usesBottomNavigation config.viewport then
+            (if Viewport.usesBottomNavigation env.viewport then
                 [ content config.page ]
 
              else
-                [ sidebar config, content config.page ]
+                [ sidebar env config, content config.page ]
             )
-        , if Responsive.usesBottomNavigation config.viewport then
-            tabBar config
+        , if Viewport.usesBottomNavigation env.viewport then
+            tabBar env config
 
           else
             Element.none
@@ -94,7 +97,7 @@ content page =
         , Element.height Element.fill
         , Element.clipX
         , Region.mainContent
-        , Typography.uiClass "app-content"
+        , Common.uiClass "app-content"
         ]
         page
 
@@ -116,11 +119,11 @@ noticeAction : Theme -> NoticeAction msg -> Element msg
 noticeAction theme action =
     case action.style of
         PrimaryAction ->
-            Ui.primaryButton theme
+            Button.primaryButton theme
                 { label = action.label, onPress = action.onPress }
 
         GhostAction ->
-            Ui.ghostButton theme
+            Button.ghostButton theme
                 { label = action.label, onPress = action.onPress }
 
 
@@ -146,29 +149,33 @@ banner theme icon message actions =
         )
 
 
-sidebar : Config msg -> Element msg
-sidebar config =
+sidebar : Env -> Config msg -> Element msg
+sidebar env config =
+    let
+        theme =
+            env.theme
+    in
     Element.column
         [ Element.width (Element.px Tokens.sidebarWidth)
         , Element.height Element.fill
         , Background.gradient
             { angle = pi
             , steps =
-                [ config.theme.navigationGradientStart
-                , config.theme.navigationGradientEnd
+                [ theme.navigationGradientStart
+                , theme.navigationGradientEnd
                 ]
             }
         , Element.padding Tokens.space20
         , Element.spacing Tokens.space12
         ]
-        [ brand config.theme
+        [ brand theme
         , Element.column
             [ Element.width Element.fill
             , Element.spacing Tokens.space12
             , Region.navigation
             , Element.htmlAttribute (Attr.attribute "aria-label" "Primary navigation")
             ]
-            (List.map (navItem config) config.navigation)
+            (List.map (navItem theme) config.navigation)
         ]
 
 
@@ -207,30 +214,30 @@ brand theme =
         ]
 
 
-navItem : Config msg -> Destination msg -> Element msg
-navItem config destination =
+navItem : Theme -> Destination msg -> Element msg
+navItem theme destination =
     let
         foreground =
             if destination.active then
-                config.theme.navigationActiveFg
+                theme.navigationActiveFg
 
             else
-                config.theme.navigationFg
+                theme.navigationFg
     in
     Input.button
         [ Element.width Element.fill
-        , Ui.touchTargetHeight
+        , Common.touchTargetHeight
         , Element.paddingXY Tokens.space16 Tokens.space12
         , Background.color
             (if destination.active then
-                config.theme.navigationActiveBg
+                theme.navigationActiveBg
 
              else
-                config.theme.transparent
+                theme.transparent
             )
         , Border.rounded Tokens.radiusMedium
         , Font.color foreground
-        , Typography.uiClass "ui-motion"
+        , Common.uiClass "ui-motion"
         ]
         { onPress = Just destination.onPress
         , label =
@@ -245,13 +252,17 @@ navItem config destination =
         }
 
 
-tabBar : Config msg -> Element msg
-tabBar config =
+tabBar : Env -> Config msg -> Element msg
+tabBar env config =
+    let
+        theme =
+            env.theme
+    in
     Element.row
         [ Element.width Element.fill
         , Element.height (Element.px Tokens.navigationBarHeight)
-        , Background.color config.theme.surface
-        , Border.color config.theme.divider
+        , Background.color theme.surface
+        , Border.color theme.divider
         , Border.widthEach
             { top = Tokens.borderHairline
             , right = Tokens.space0
@@ -262,28 +273,28 @@ tabBar config =
         , Region.navigation
         , Element.htmlAttribute (Attr.attribute "aria-label" "Primary navigation")
         ]
-        (List.map (tabItem config) config.navigation)
+        (List.map (tabItem theme) config.navigation)
 
 
-tabItem : Config msg -> Destination msg -> Element msg
-tabItem config destination =
+tabItem : Theme -> Destination msg -> Element msg
+tabItem theme destination =
     let
         foreground =
             if destination.active then
-                config.theme.primary
+                theme.primary
 
             else
-                config.theme.textMuted
+                theme.textMuted
     in
     Input.button
         [ Element.width Element.fill
         , Element.height Element.fill
         , Background.color
             (if destination.active then
-                config.theme.selectedBg
+                theme.selectedBg
 
              else
-                config.theme.transparent
+                theme.transparent
             )
         , Border.rounded Tokens.radiusControl
         , Font.color foreground

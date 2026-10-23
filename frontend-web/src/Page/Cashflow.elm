@@ -2,22 +2,23 @@ module Page.Cashflow exposing (Model, Msg(..), init, update, view)
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Component.Analysis as Analysis
 import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
-import Element.Background as Background
-import Page.Shared.Analysis as Analysis
-import Page.Shared.QueryPanel as QueryPanel
-import RemoteData exposing (RemoteData(..))
-import State.Viewport exposing (Viewport)
-import Ui
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
+import Ui.Button as Button
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import View.Analytics as AnalyticsView
+import Ui.Viewport as Viewport exposing (Viewport)
+import View.Analytics.Types as AnalyticsTypes
+import View.QueryPanel as QueryPanel
 import View.States as States
 import View.Transaction as TransactionView
 
@@ -185,16 +186,16 @@ analysisConfig =
         , monthActivityTitle = "Income calendar"
         , yearActivityTitle = "Income activity"
         , activityKind = Analytics.IncomeActivity
-        , palette = AnalyticsView.PositivePalette
-        , tone = AnalyticsView.IncomeTone
+        , palette = AnalyticsTypes.PositivePalette
+        , tone = AnalyticsTypes.IncomeTone
         }
     , negative =
         { label = "Expenses"
         , monthActivityTitle = "Expenses calendar"
         , yearActivityTitle = "Expense activity"
         , activityKind = Analytics.ExpenseActivity
-        , palette = AnalyticsView.NegativePalette
-        , tone = AnalyticsView.ExpenseTone
+        , palette = AnalyticsTypes.NegativePalette
+        , tone = AnalyticsTypes.ExpenseTone
         }
     }
 
@@ -247,76 +248,73 @@ isReportEffect effect =
 -- VIEW
 
 
-view : Theme -> Viewport -> Model -> Element Msg
-view theme viewport (Model data) =
+view : Env -> Model -> Element Msg
+view env (Model data) =
+    let
+        theme =
+            env.theme
+    in
     case Analysis.transaction data.analysis of
         Just selectedTransaction ->
             transactionView theme selectedTransaction
 
         Nothing ->
-            dashboard theme viewport data
+            dashboard env data
 
 
 transactionView : Theme -> Transaction -> Element Msg
 transactionView theme selectedTransaction =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
-                { leading =
-                    Just
-                        (Ui.backButton theme
-                            { onPress = AnalysisMsg Analysis.Back }
-                        )
-                , title = Typography.pageTitle theme "Transaction Detail"
-                , subtitle = Nothing
-                , actions = []
-                }
-        , Ui.pageContainer [ TransactionView.transactionDetail theme selectedTransaction ]
-        ]
+    Page.scaffold theme
+        { header =
+            { leading =
+                Just
+                    (Button.backButton theme
+                        { onPress = AnalysisMsg Analysis.Back }
+                    )
+            , title = Typography.pageTitle theme "Transaction Detail"
+            , subtitle = Nothing
+            , actions = []
+            }
+        , body = [ TransactionView.transactionDetail theme selectedTransaction ]
+        }
 
 
-dashboard : Theme -> Viewport -> ModelData -> Element Msg
-dashboard theme viewport data =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Typography.uiClass "page-scroll analytics-page"
-        ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
-                { leading = Nothing
-                , title = Typography.pageTitle theme "Cashflow"
-                , subtitle = Just "Income, expenses, categories, and daily activity"
-                , actions =
-                    [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                    , Ui.iconButton theme
-                        { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
-                    ]
-                }
-        , Ui.pageContainer
-            (queryPanel theme viewport data
-                :: dashboardContent theme viewport data
-            )
-        ]
+dashboard : Env -> ModelData -> Element Msg
+dashboard env data =
+    let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+    in
+    Page.scaffold theme
+        { header =
+            { leading = Nothing
+            , title = Typography.pageTitle theme "Cashflow"
+            , subtitle = Just "Income, expenses, categories, and daily activity"
+            , actions =
+                [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
+                , Button.iconButton theme
+                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                ]
+            }
+        , body =
+            queryPanel theme viewport data
+                :: dashboardContent env data
+        }
 
 
 queryPanel : Theme -> Viewport -> ModelData -> Element Msg
 queryPanel theme viewport data =
     QueryPanel.view
         { theme = theme
-        , compact = Responsive.isCompact (Responsive.contentLayout viewport)
+        , compact = Viewport.isCompact (Viewport.contentLayout viewport)
         , draftQuery = data.draftQuery
         , onDraftChanged = DraftChanged
         , onApply = ApplyQuery
         , onClear = ClearQuery
-        , queryError = queryError data.response
+        , queryError = Maybe.map ApiError.message (queryError data.response)
         , helpText =
             "Filter this entire dashboard with an hledger query. Category, timeline, "
                 ++ "and activity results always use the same applied filter."
@@ -331,14 +329,21 @@ queryPanel theme viewport data =
         }
 
 
-dashboardContent : Theme -> Viewport -> ModelData -> List (Element Msg)
-dashboardContent theme viewport data =
+dashboardContent : Env -> ModelData -> List (Element Msg)
+dashboardContent env data =
+    let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+    in
     case RemoteData.value data.response of
         Nothing ->
             case data.response of
                 Failure error _ ->
-                    [ Ui.errorBanner theme (ApiError.message error)
-                    , Ui.secondaryButton theme { label = "Retry", onPress = Refresh }
+                    [ Feedback.errorBanner theme (ApiError.message error)
+                    , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
                     ]
 
                 _ ->
@@ -354,8 +359,7 @@ dashboardContent theme viewport data =
                 )
             , Element.map AnalysisMsg
                 (Analysis.view
-                    theme
-                    viewport
+                    env
                     analysisConfig
                     (analysisReport response)
                     data.analysis
@@ -381,10 +385,10 @@ cashflowSkeleton : Theme -> Viewport -> Element Msg
 cashflowSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         isCompact =
-            Responsive.isCompact layout
+            Viewport.isCompact layout
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]

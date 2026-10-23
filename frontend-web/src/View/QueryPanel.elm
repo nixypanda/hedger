@@ -1,10 +1,13 @@
-module Page.Shared.QueryPanel exposing (Config, view)
+module View.QueryPanel exposing (Config, view)
 
-import Api.Error as ApiError exposing (ApiError)
 import Element exposing (Element)
 import Html.Attributes
-import Ui
+import Ui.Button as Button
+import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens
+import Ui.Feedback as Feedback
+import Ui.Input
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 
@@ -16,7 +19,7 @@ type alias Config msg =
     , onDraftChanged : String -> msg
     , onApply : msg
     , onClear : msg
-    , queryError : Maybe ApiError
+    , queryError : Maybe String
     , helpText : String
     , examples : List String
     , baseId : String
@@ -27,7 +30,7 @@ view : Config msg -> Element msg
 view config =
     let
         searchInput =
-            Ui.searchInputInline config.theme
+            Ui.Input.searchInputInline config.theme
                 { label = "hledger query"
                 , text = config.draftQuery
                 , onChange = config.onDraftChanged
@@ -43,8 +46,8 @@ view config =
 
         buttons =
             Element.row [ Element.spacing Tokens.space8 ]
-                [ Ui.dangerButton config.theme { label = "Clear", onPress = config.onClear }
-                , Ui.primaryButton config.theme { label = "Apply", onPress = config.onApply }
+                [ Button.dangerButton config.theme { label = "Clear", onPress = config.onClear }
+                , Button.primaryButton config.theme { label = "Apply", onPress = config.onApply }
                 ]
 
         inputRow =
@@ -65,17 +68,17 @@ view config =
                     ]
                     [ searchInput, buttons ]
     in
-    Ui.card config.theme
-        [ Ui.fieldLabel config.theme "hledger query"
+    Surface.card config.theme
+        [ Ui.Input.fieldLabel config.theme "hledger query"
         , inputRow
         , case config.queryError of
-            Just error ->
+            Just errorMessage ->
                 Element.el
                     [ Element.width Element.fill
                     , Element.htmlAttribute (Html.Attributes.id (config.baseId ++ "-error"))
                     , Element.htmlAttribute (Html.Attributes.attribute "role" "alert")
                     ]
-                    (Ui.errorBanner config.theme (ApiError.message error))
+                    (Feedback.errorBanner config.theme errorMessage)
 
             Nothing ->
                 Element.none
@@ -85,7 +88,7 @@ view config =
             (Typography.mutedCaption config.theme "Examples:"
                 :: List.map
                     (\example ->
-                        Ui.chip config.theme
+                        Chip.chip config.theme
                             { label = example
                             , selected = config.draftQuery == example
                             , onClick = Just (config.onDraftChanged example)

@@ -2,22 +2,27 @@ module Page.NetWorth exposing (Model, Msg(..), init, update, view)
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
+import Component.Analysis as Analysis
 import Data.Analytics as Analytics
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
-import Element.Background as Background
-import Element.Font as Font
-import Page.Shared.Analysis as Analysis
-import RemoteData exposing (RemoteData(..))
-import State.Viewport exposing (Viewport)
-import Ui
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
+import Ui.Button as Button
+import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import View.Analytics as AnalyticsView
+import Ui.Viewport as Viewport exposing (Viewport)
+import View.Analytics.Kpi as Kpi
+import View.Analytics.Legend as Legend
+import View.Analytics.Timeline as Timeline
+import View.Analytics.Types as AnalyticsTypes
 import View.States as States
 import View.Transaction as TransactionView
 
@@ -177,16 +182,16 @@ analysisConfig =
         , monthActivityTitle = "Asset activity"
         , yearActivityTitle = "Asset activity"
         , activityKind = Analytics.AssetActivity
-        , palette = AnalyticsView.AssetPalette
-        , tone = AnalyticsView.AssetTone
+        , palette = AnalyticsTypes.AssetPalette
+        , tone = AnalyticsTypes.AssetTone
         }
     , negative =
         { label = "Liabilities"
         , monthActivityTitle = "Liability activity"
         , yearActivityTitle = "Liability activity"
         , activityKind = Analytics.LiabilityActivity
-        , palette = AnalyticsView.LiabilityPalette
-        , tone = AnalyticsView.LiabilityTone
+        , palette = AnalyticsTypes.LiabilityPalette
+        , tone = AnalyticsTypes.LiabilityTone
         }
     }
 
@@ -230,83 +235,83 @@ isReportEffect effect =
 -- VIEW
 
 
-view : Theme -> Viewport -> Model -> Element Msg
-view theme viewport (Model data) =
+view : Env -> Model -> Element Msg
+view env (Model data) =
+    let
+        theme =
+            env.theme
+    in
     case Analysis.transaction data.analysis of
         Just transaction ->
             transactionView theme transaction
 
         Nothing ->
-            dashboard theme viewport data
+            dashboard env data
 
 
 transactionView : Theme -> Transaction -> Element Msg
 transactionView theme transaction =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
-                { leading =
-                    Just
-                        (Ui.backButton theme
-                            { onPress = AnalysisMsg Analysis.Back }
-                        )
-                , title = Typography.pageTitle theme "Transaction Detail"
-                , subtitle = Nothing
-                , actions = []
-                }
-        , Ui.pageContainer [ TransactionView.transactionDetail theme transaction ]
-        ]
+    Page.scaffold theme
+        { header =
+            { leading =
+                Just
+                    (Button.backButton theme
+                        { onPress = AnalysisMsg Analysis.Back }
+                    )
+            , title = Typography.pageTitle theme "Transaction Detail"
+            , subtitle = Nothing
+            , actions = []
+            }
+        , body = [ TransactionView.transactionDetail theme transaction ]
+        }
 
 
-dashboard : Theme -> Viewport -> ModelData -> Element Msg
-dashboard theme viewport data =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Typography.uiClass "page-scroll analytics-page"
-        ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
-                { leading = Nothing
-                , title = Typography.pageTitle theme "Net Worth"
-                , subtitle = Just "Assets, liabilities, performance, and activity"
-                , actions =
-                    [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                    , Ui.iconButton theme
-                        { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
-                    ]
-                }
-        , Ui.pageContainer
-            (dashboardContent theme viewport data)
-        ]
-
-
-dashboardContent : Theme -> Viewport -> ModelData -> List (Element Msg)
-dashboardContent theme viewport data =
+dashboard : Env -> ModelData -> Element Msg
+dashboard env data =
     let
+        theme =
+            env.theme
+    in
+    Page.scaffold theme
+        { header =
+            { leading = Nothing
+            , title = Typography.pageTitle theme "Net Worth"
+            , subtitle = Just "Assets, liabilities, performance, and activity"
+            , actions =
+                [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
+                , Button.iconButton theme
+                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                ]
+            }
+        , body = dashboardContent env data
+        }
+
+
+dashboardContent : Env -> ModelData -> List (Element Msg)
+dashboardContent env data =
+    let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         chartWidth =
             let
                 maxContainerWidth =
-                    1280 - 2 * Responsive.contentPadding - 40
+                    1280 - 2 * Viewport.contentPadding - 40
             in
-            min maxContainerWidth (max 320 (Responsive.usableContentWidth viewport - 40))
+            min maxContainerWidth (max 320 (Viewport.usableContentWidth viewport - 40))
     in
     case RemoteData.value data.response of
         Nothing ->
             case data.response of
                 Failure error _ ->
-                    [ Ui.errorBanner theme (ApiError.message error)
-                    , Ui.secondaryButton theme { label = "Retry", onPress = Refresh }
+                    [ Feedback.errorBanner theme (ApiError.message error)
+                    , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
                     ]
 
                 _ ->
@@ -315,7 +320,7 @@ dashboardContent theme viewport data =
         Just response ->
             [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , responsiveGrid layout
-                [ AnalyticsView.kpiCard theme
+                [ Kpi.kpiCard theme
                     { title = "Net worth"
                     , commodity = response.displayCommodity
                     , kpi = response.netWorth
@@ -323,7 +328,7 @@ dashboardContent theme viewport data =
                     , icon = Icon.TrendingUp
                     , decreaseIsPositive = False
                     }
-                , AnalyticsView.kpiCard theme
+                , Kpi.kpiCard theme
                     { title = "Assets"
                     , commodity = response.displayCommodity
                     , kpi = response.assets
@@ -331,7 +336,7 @@ dashboardContent theme viewport data =
                     , icon = Icon.Wallet
                     , decreaseIsPositive = False
                     }
-                , AnalyticsView.kpiCard theme
+                , Kpi.kpiCard theme
                     { title = "Liabilities"
                     , commodity = response.displayCommodity
                     , kpi = response.liabilities
@@ -341,25 +346,25 @@ dashboardContent theme viewport data =
                     }
                 ]
             , Typography.sectionTitle theme "Performance"
-            , Ui.card theme
+            , Surface.card theme
                 [ Element.row [ Element.width Element.fill ]
                     [ Typography.subsectionTitle theme "Net Investment vs Net Worth"
                     , if response.incompletePeriods > 0 then
-                        Ui.statusBadge theme
-                            Ui.StatusWarning
+                        Chip.statusBadge theme
+                            Chip.StatusWarning
                             (String.fromInt response.incompletePeriods ++ " incomplete")
 
                       else
                         Element.none
                     ]
-                , AnalyticsView.netWorthPerformanceChart theme
+                , Timeline.netWorthPerformanceChart theme
                     { commodity = response.displayCommodity
                     , points = response.performance
                     , selected = data.selectedPerformance
                     , onSelect = PerformanceSelected
                     , availableWidth = chartWidth
                     }
-                , chartLegend theme
+                , Legend.chartLegend theme
                     [ ( theme.positive, "Net investment" )
                     , ( theme.primary, "Net worth" )
                     , ( theme.positive, "Gain" )
@@ -368,8 +373,7 @@ dashboardContent theme viewport data =
                 ]
             , Element.map AnalysisMsg
                 (Analysis.view
-                    theme
-                    viewport
+                    env
                     analysisConfig
                     (analysisReport response)
                     data.analysis
@@ -377,9 +381,9 @@ dashboardContent theme viewport data =
             ]
 
 
-responsiveGrid : Responsive.ContentLayout -> List (Element msg) -> Element msg
+responsiveGrid : Viewport.ContentLayout -> List (Element msg) -> Element msg
 responsiveGrid layout items =
-    if Responsive.isCompact layout then
+    if Viewport.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
     else
@@ -390,13 +394,13 @@ netWorthSkeleton : Theme -> Viewport -> Element Msg
 netWorthSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ responsiveGrid layout
-            [ Skeleton.kpiCard theme
-            , Skeleton.kpiCard theme
-            , Skeleton.kpiCard theme
+            [ Skeleton.summaryCard theme
+            , Skeleton.summaryCard theme
+            , Skeleton.summaryCard theme
             ]
         , Typography.sectionTitle theme "Performance"
         , Skeleton.chartCard theme
@@ -408,17 +412,3 @@ netWorthSkeleton theme viewport =
                 ]
             ]
         ]
-
-
-chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
-chartLegend theme items =
-    Element.wrappedRow [ Element.spacing Tokens.space14 ]
-        (List.map
-            (\( color, label ) ->
-                Element.row [ Element.spacing Tokens.space5 ]
-                    [ Ui.accentDot color
-                    , Element.el [ Font.color theme.textMuted ] (Element.text label)
-                    ]
-            )
-            items
-        )

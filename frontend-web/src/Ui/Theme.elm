@@ -3,7 +3,7 @@ module Ui.Theme exposing
     , Theme
     , forMode
     , light
-    , modeFromString
+    , modeFromStringResult
     , modeToString
     , toggle
     , transparentColor
@@ -310,10 +310,14 @@ modeToString mode =
             "dark"
 
 
-modeFromString : String -> Mode
-modeFromString value =
-    if value == "dark" then
-        Dark
+modeFromStringResult : String -> Result String Mode
+modeFromStringResult value =
+    case value of
+        "light" ->
+            Ok Light
 
-    else
-        Light
+        "dark" ->
+            Ok Dark
+
+        _ ->
+            Err "Unknown theme mode."

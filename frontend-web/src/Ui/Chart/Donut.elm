@@ -7,7 +7,7 @@ import Shape
 import Svg
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
-import Ui.Css as Css
+import Ui.Common as Common
 
 
 view :
@@ -76,8 +76,8 @@ view config =
                 , Attr.attribute "aria-label" (config.itemLabel item)
                 ]
                 [ Path.element (Shape.arc arc)
-                    [ SvgA.fill (Css.toCssColor (config.color index item))
-                    , SvgA.stroke (Css.toCssColor config.backgroundColor)
+                    [ SvgA.fill (Common.toCssColor (config.color index item))
+                    , SvgA.stroke (Common.toCssColor config.backgroundColor)
                     , SvgA.strokeWidth
                         (if isSelected then
                             "3"

@@ -21,31 +21,8 @@
       })();
     </script>
     <style>
-      :root { --ui-page-bg:#f6f7ff; --ui-surface:#fff; --ui-primary:#703ee8; --ui-primary-soft:#f1ecff; --ui-focus-ring:#7c3aed; --ui-card-shadow:0 1px 2px rgba(76,29,149,.04),0 10px 30px rgba(76,29,149,.07); }
+      :root { --ui-page-bg:#f6f7ff; --ui-surface:#fff; --ui-primary:#5b2ec4; --ui-primary-soft:#f1ecff; --ui-focus-ring:#7c3aed; --ui-card-shadow:0 1px 2px rgba(76,29,149,.04),0 10px 30px rgba(76,29,149,.07); }
       :root[data-theme="dark"] { --ui-page-bg:#0f172a; --ui-surface:#1e293b; --ui-primary:#60a5fa; --ui-primary-soft:#1e3a5f; --ui-focus-ring:#60a5fa; --ui-card-shadow:0 1px 2px rgba(0,0,0,.24),0 10px 28px rgba(0,0,0,.32); }
-      html,body,#app { min-height:100%; height:100%; overflow:hidden; }
-      body { margin:0; background:var(--ui-page-bg); padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overscroll-behavior:none; }
-      * { box-sizing:border-box; }
-      *:focus { outline:none; }
-
-      .app-shell { min-height:100dvh; height:100dvh!important; overflow:hidden; display:flex!important; flex-direction:column!important; }
-      .shell-body { min-height:0!important; height:0!important; flex:1 1 0!important; overflow:hidden; }
-      .app-content { min-width:0; min-height:0!important; height:100%!important; overflow-x:hidden!important; overflow-y:auto!important; scrollbar-gutter:stable; background:var(--ui-page-bg); }
-      .accounts-wide-layout,.transactions-wide-layout { min-height:0!important; height:100%!important; flex:1 1 0!important; }
-      .page-scroll { min-width:0; min-height:100%; height:auto!important; overflow:visible!important; }
-      .ui-card-shadow { box-shadow:var(--ui-card-shadow); }
-      .ui-text-ellipsis { min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .ui-text-wrap { min-width:0; max-width:100%; white-space:normal; overflow-wrap:anywhere; }
-      .ui-motion,.ui-surface { transition:background-color 160ms ease,border-color 160ms ease,color 160ms ease,box-shadow 180ms ease,opacity 180ms ease,transform 180ms ease; }
-      .ui-chart-motion { transition:transform 150ms ease; }
-      @media (hover:hover) and (pointer:fine) {
-        .ui-hover-background:hover { background-color:var(--ui-hover-background)!important; }
-        .ui-hover-border:hover { border-color:var(--ui-hover-border)!important; }
-      }
-      .ui-skeleton { position:relative; overflow:hidden; }
-      .ui-skeleton::after { content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg,transparent,rgba(255,255,255,.36),transparent); animation:ui-shimmer 1.5s ease-in-out infinite; }
-      @keyframes ui-shimmer { 100% { transform:translateX(100%); } }
-      @media (prefers-reduced-motion:reduce) { .ui-motion,.ui-surface,.ui-chart-motion,.ui-skeleton::after { animation:none!important; transition:none!important; } }
     </style>
   </head>
   <body><div id="app"></div><script type="module" src="/src/main.js"></script></body>

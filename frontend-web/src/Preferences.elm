@@ -1,49 +1,30 @@
 module Preferences exposing
     ( Preferences
-    , ThemeMode(..)
     , current
     , decoder
     , encode
     , setTheme
-    , theme
-    , themeModeFromString
-    , themeModeToString
     )
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
-import Ui.Theme
-
-
-type ThemeMode
-    = Light
-    | Dark
+import Ui.Theme exposing (Mode)
 
 
 type alias Preferences =
     { version : Int
-    , themeMode : ThemeMode
+    , mode : Mode
     }
 
 
-current : ThemeMode -> Preferences
+current : Mode -> Preferences
 current mode =
-    { version = 1, themeMode = mode }
+    { version = 1, mode = mode }
 
 
-setTheme : ThemeMode -> Preferences -> Preferences
+setTheme : Mode -> Preferences -> Preferences
 setTheme mode preferences =
-    { preferences | version = 1, themeMode = mode }
-
-
-theme : Preferences -> Ui.Theme.Theme
-theme preferences =
-    case preferences.themeMode of
-        Light ->
-            Ui.Theme.forMode Ui.Theme.Light
-
-        Dark ->
-            Ui.Theme.forMode Ui.Theme.Dark
+    { preferences | version = 1, mode = mode }
 
 
 decoder : Decoder Preferences
@@ -52,7 +33,7 @@ decoder =
         (Decode.oneOf [ Decode.field "version" Decode.int, Decode.succeed 1 ])
         (Decode.field "themeMode" Decode.string
             |> Decode.andThen
-                (themeModeFromString
+                (Ui.Theme.modeFromStringResult
                     >> Result.map Decode.succeed
                     >> Result.withDefault (Decode.fail "Unknown theme mode.")
                 )
@@ -64,28 +45,5 @@ encode : Preferences -> Encode.Value
 encode preferences =
     Encode.object
         [ ( "version", Encode.int 1 )
-        , ( "themeMode", Encode.string (themeModeToString preferences.themeMode) )
+        , ( "themeMode", Encode.string (Ui.Theme.modeToString preferences.mode) )
         ]
-
-
-themeModeFromString : String -> Result String ThemeMode
-themeModeFromString value =
-    case value of
-        "light" ->
-            Ok Light
-
-        "dark" ->
-            Ok Dark
-
-        _ ->
-            Err "Unknown theme mode."
-
-
-themeModeToString : ThemeMode -> String
-themeModeToString mode =
-    case mode of
-        Light ->
-            "light"
-
-        Dark ->
-            "dark"

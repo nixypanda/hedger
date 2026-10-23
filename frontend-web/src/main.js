@@ -1,3 +1,4 @@
+import "./main.css";
 import { Elm } from "./Main.elm";
 
 const CONFIG_KEY = "hedger-preferences-v1";
@@ -14,11 +15,11 @@ const applyTheme = (mode) => {
 };
 
 const saved = readSaved();
-const initialThemeMode = normalizeTheme(saved?.themeMode);
-applyTheme(initialThemeMode);
+const initialMode = normalizeTheme(saved?.themeMode);
+applyTheme(initialMode);
 const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const isStandalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-const app = Elm.Main.init({ node: document.getElementById("app"), flags: { isIos, isStandalone, viewportWidth: innerWidth, viewportHeight: innerHeight, initialThemeMode } });
+const app = Elm.Main.init({ node: document.getElementById("app"), flags: { isIos, isStandalone, viewportWidth: innerWidth, viewportHeight: innerHeight, initialMode } });
 
 app.ports.storeConfig.subscribe((preferences) => {
   try { localStorage.setItem(CONFIG_KEY, JSON.stringify(preferences)); } catch (_) {}

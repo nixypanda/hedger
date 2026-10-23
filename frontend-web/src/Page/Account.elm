@@ -22,6 +22,7 @@ import Data.Account as Account exposing (AccountNode(..), AccountPath)
 import Data.AccountType as AccountType
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date
+import Data.Formatting as Formatting
 import Data.Freshness exposing (Freshness)
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Element)
@@ -32,17 +33,22 @@ import Element.Input as Input
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import Set exposing (Set)
-import State.Viewport exposing (Viewport)
 import String
-import Ui
+import Ui.Button as Button
+import Ui.Chip as Chip
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport
+import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
-import View.Formatting as Formatting
 import View.States as States
 
 
@@ -131,7 +137,7 @@ type OutMsg
 
 
 type alias UpdateProps =
-    { viewport : Viewport }
+    { env : Env }
 
 
 fetchAccounts : Cmd Msg
@@ -149,7 +155,7 @@ update props msg (Model model) =
             ( Model model, Cmd.none, Navigate (Account (Account.accountPathToString path)) )
 
         OpenAccountValue path ->
-            if Responsive.usesMasterDetail props.viewport then
+            if Viewport.usesMasterDetail props.env.viewport then
                 ( selectValue path (Model model), Cmd.none, NoOutMsg )
 
             else
@@ -264,68 +270,50 @@ clearValue (Model model) =
 
 
 view :
-    Theme
-    -> Viewport
+    Env
     -> Model
     -> Element Msg
-view theme viewport (Model model) =
+view env (Model model) =
     let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         page =
-            Element.column
-                [ Element.width Element.fill
-                , Element.spacing Tokens.space16
-                , Typography.uiClass "page-scroll"
-                ]
-                [ Ui.pageHeaderBand theme <|
-                    Ui.pageHeader theme
-                        { leading = Nothing
-                        , title = Typography.pageTitle theme "Accounts"
-                        , subtitle = Nothing
-                        , actions = []
-                        }
-                , Ui.pageContainer [ content theme model ]
-                ]
+            Page.scaffold theme
+                { header =
+                    { leading = Nothing
+                    , title = Typography.pageTitle theme "Accounts"
+                    , subtitle = Nothing
+                    , actions = []
+                    }
+                , body = [ content theme model ]
+                }
 
         wideSelected =
-            Responsive.usesMasterDetail viewport && detailAccount model.detail /= Nothing
+            Viewport.usesMasterDetail viewport && detailAccount model.detail /= Nothing
     in
     if wideSelected then
         case detailAccount model.detail of
             Just account ->
-                wideLayout theme page account
+                Workspace.view env
+                    [ { key = "accounts"
+                      , width = Workspace.Portion Tokens.layoutPortionDouble
+                      , content = page
+                      }
+                    , { key = "account-detail"
+                      , width = Workspace.Portion Tokens.layoutPortionTriple
+                      , content = accountDetailPage theme (Just BackToAccounts) account
+                      }
+                    ]
 
             _ ->
                 page
 
     else
         page
-
-
-wideLayout :
-    Theme
-    -> Element Msg
-    -> AccountNode
-    -> Element Msg
-wideLayout theme page account =
-    Element.row
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Element.clip
-        , Typography.uiClass "accounts-wide-layout"
-        ]
-        [ Element.el
-            [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
-            , Element.height Element.fill
-            , Element.scrollbarY
-            ]
-            page
-        , Element.el
-            [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
-            , Element.height Element.fill
-            , Element.clipY
-            ]
-            (accountDetailPage theme (Just BackToAccounts) account)
-        ]
 
 
 content :
@@ -339,24 +327,24 @@ content :
 content theme model =
     case model.accounts of
         NotRequested ->
-            Ui.loading theme "Loading accounts…"
+            Feedback.loading theme "Loading accounts…"
 
         Loading ->
-            Ui.card theme
+            Surface.card theme
                 [ Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
-                , Ui.hairline theme
+                , Surface.hairline theme
                 , Skeleton.listRow theme
                 ]
 
         Refreshing response ->
-            Ui.card theme
-                [ Ui.statusBadge theme Ui.StatusPrimary "Refreshing accounts"
+            Surface.card theme
+                [ Chip.statusBadge theme Chip.StatusPrimary "Refreshing accounts"
                 , accountTree theme model.expanded response.accounts
                 ]
 
@@ -366,22 +354,22 @@ content theme model =
                 (accountTree theme model.expanded response.accounts)
 
         FailedWithStale error response ->
-            Ui.card theme
-                [ Ui.errorBanner theme
+            Surface.card theme
+                [ Feedback.errorBanner theme
                     ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
                 , accountTree theme model.expanded response.accounts
                 ]
 
         Failed error ->
-            Ui.card theme
-                [ Ui.errorBanner theme
+            Surface.card theme
+                [ Feedback.errorBanner theme
                     ("Accounts failed to load: " ++ ApiError.message error)
                 ]
 
 
 stateCard : Theme -> Freshness -> Element msg -> Element msg
 stateCard theme freshness tree =
-    Ui.card theme
+    Surface.card theme
         [ States.freshnessBanner theme freshness
         , tree
         ]
@@ -394,7 +382,7 @@ accountTree :
     -> Element Msg
 accountTree theme expanded accounts =
     if List.isEmpty accounts then
-        Ui.emptyState theme "No accounts were found in the journal."
+        Feedback.emptyState theme "No accounts were found in the journal."
 
     else
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
@@ -440,7 +428,7 @@ accountRow theme expanded depth (AccountNode account) =
             if Quantity.hasMultipleCommodities account.subtreeBalances then
                 Input.button
                     [ Element.width Element.fill
-                    , Ui.touchTargetHeight
+                    , Common.touchTargetHeight
                     , Element.alignRight
                     , Font.color theme.textPrimary
                     ]
@@ -457,7 +445,7 @@ accountRow theme expanded depth (AccountNode account) =
         accountAction =
             Input.button
                 [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
-                , Ui.touchTargetHeight
+                , Common.touchTargetHeight
                 , Font.color theme.textPrimary
                 ]
                 { onPress =
@@ -538,13 +526,13 @@ balanceText theme valuation symbolCount =
         [ Element.width Element.fill
         , Element.spacing Tokens.space2
         , Element.alignRight
-        , Typography.minWidthZero
+        , Common.minWidthZero
         ]
         [ Element.el
             [ Element.alignRight
             , Font.color theme.textPrimary
             , Font.semiBold
-            , Typography.minWidthZero
+            , Common.minWidthZero
             ]
             (Element.text
                 (case amount of
@@ -569,8 +557,12 @@ balanceText theme valuation symbolCount =
         ]
 
 
-valueView : Theme -> String -> Model -> Element Msg
-valueView theme path (Model model) =
+valueView : Env -> String -> Model -> Element Msg
+valueView env path (Model model) =
+    let
+        theme =
+            env.theme
+    in
     case model.accounts of
         Loaded response ->
             detailForPath theme path response
@@ -582,45 +574,31 @@ valueView theme path (Model model) =
             detailForPath theme path response
 
         _ ->
-            Element.column
-                [ Element.width Element.fill
-                , Element.height Element.fill
-                , Background.color theme.pageBg
-                , Element.scrollbarY
-                , Typography.uiClass "page-scroll account-detail-page"
-                ]
-                [ Ui.pageHeaderBand theme <|
-                    accountDetailHeader theme (Just BackToAccounts)
-                , Ui.pageContainer [ Ui.card theme [ Ui.loading theme "Loading account value…" ] ]
-                ]
+            Page.scaffold theme
+                { header = accountDetailHeader theme (Just BackToAccounts)
+                , body =
+                    [ Surface.card theme [ Feedback.loading theme "Loading account value…" ] ]
+                }
 
 
 accountDetailPage : Theme -> Maybe Msg -> AccountNode -> Element Msg
 accountDetailPage theme onBack account =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Typography.uiClass "page-scroll account-detail-page"
-        ]
-        [ Ui.pageHeaderBand theme <|
-            accountDetailHeader theme onBack
-        , Ui.pageContainer [ Ui.card theme (valuePanel theme account) ]
-        ]
+    Page.scaffold theme
+        { header = accountDetailHeader theme onBack
+        , body = [ Surface.card theme (valuePanel theme account) ]
+        }
 
 
-accountDetailHeader : Theme -> Maybe Msg -> Element Msg
+accountDetailHeader : Theme -> Maybe Msg -> Page.Header Msg
 accountDetailHeader theme onBack =
-    Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-        [ case onBack of
-            Just message ->
-                Ui.backButton theme { onPress = message }
-
-            Nothing ->
-                Element.none
-        , Typography.sectionTitle theme "Account Detail"
-        ]
+    { leading =
+        Maybe.map
+            (\message -> Button.backButton theme { onPress = message })
+            onBack
+    , title = Typography.sectionTitle theme "Account Detail"
+    , subtitle = Nothing
+    , actions = []
+    }
 
 
 valuePanel : Theme -> AccountNode -> List (Element Msg)
@@ -636,7 +614,7 @@ valuePanel theme (AccountNode account) =
         ]
     , balanceText theme account.valuation Nothing
     , completenessBadge theme account.valuation.completeness
-    , Ui.hairline theme
+    , Surface.hairline theme
     , Typography.subsectionTitle theme "Balances included"
     , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (List.map (detailBalance theme) account.subtreeBalances)
@@ -658,22 +636,15 @@ detailForPath theme path response =
             accountDetailPage theme (Just BackToAccounts) account
 
         Nothing ->
-            Element.column
-                [ Element.width Element.fill
-                , Element.height Element.fill
-                , Background.color theme.pageBg
-                , Element.scrollbarY
-                , Typography.uiClass "page-scroll account-detail-page"
-                ]
-                [ Ui.pageHeaderBand theme <|
-                    accountDetailHeader theme (Just BackToAccounts)
-                , Ui.pageContainer
-                    [ Ui.card theme
-                        [ Ui.errorBanner theme
+            Page.scaffold theme
+                { header = accountDetailHeader theme (Just BackToAccounts)
+                , body =
+                    [ Surface.card theme
+                        [ Feedback.errorBanner theme
                             "That account is no longer present in the current snapshot."
                         ]
                     ]
-                ]
+                }
 
 
 detailAccount : DetailState -> Maybe AccountNode
@@ -690,13 +661,13 @@ completenessBadge : Theme -> Completeness -> Element msg
 completenessBadge theme completeness =
     case completeness of
         Completeness.Complete ->
-            Ui.statusBadge theme Ui.StatusSuccess "Complete valuation"
+            Chip.statusBadge theme Chip.StatusSuccess "Complete valuation"
 
         Completeness.Partial ->
-            Ui.statusBadge theme Ui.StatusWarning "Partial valuation"
+            Chip.statusBadge theme Chip.StatusWarning "Partial valuation"
 
         Completeness.Unavailable ->
-            Ui.statusBadge theme Ui.StatusDanger "Valuation unavailable"
+            Chip.statusBadge theme Chip.StatusDanger "Valuation unavailable"
 
 
 detailBalance : Theme -> Quantity -> Element msg
@@ -711,9 +682,9 @@ detailBalance theme balance =
         [ Element.text (Quantity.commodity balance)
             |> Element.el
                 [ Element.width Element.fill
-                , Typography.minWidthZero
+                , Common.minWidthZero
                 , Element.clip
-                , Typography.uiClass "ui-text-ellipsis"
+                , Common.uiClass "ui-text-ellipsis"
                 , Font.color theme.textMedium
                 ]
         , Element.text (Formatting.formatBalance balance)

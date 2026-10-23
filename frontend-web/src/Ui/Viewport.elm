@@ -1,5 +1,6 @@
-module Ui.Responsive exposing
+module Ui.Viewport exposing
     ( ContentLayout(..)
+    , Viewport
     , contentLayout
     , contentPadding
     , isCompact
@@ -8,7 +9,13 @@ module Ui.Responsive exposing
     , usesMasterDetail
     )
 
-import State.Viewport exposing (Viewport)
+import Ui.DesignTokens as DesignTokens
+
+
+type alias Viewport =
+    { width : Int
+    , height : Int
+    }
 
 
 type ContentLayout
@@ -24,7 +31,7 @@ usesBottomNavigation viewport =
 
 contentPadding : Int
 contentPadding =
-    16
+    DesignTokens.space16
 
 
 usableContentWidth : Viewport -> Int
@@ -35,7 +42,7 @@ usableContentWidth viewport =
                 0
 
             else
-                232
+                DesignTokens.sidebarWidth
     in
     min 1280 (max 0 (viewport.width - navigationWidth - 2 * contentPadding))
 

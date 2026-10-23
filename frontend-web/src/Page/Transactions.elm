@@ -32,24 +32,29 @@ import Data.Date as Date
 import Data.Freshness exposing (Freshness(..))
 import Data.Paginated as Paginated exposing (Paginated)
 import Data.Revision as Revision
-import Data.Transaction exposing (Posting, Transaction)
+import Data.Transaction exposing (Posting, Transaction, TransactionEffect(..))
 import Element exposing (Element)
-import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
 import Html.Attributes
+import Lib.RemoteData exposing (RemoteData(..))
 import Lib.Time as TimeExtra
-import Page.Shared.QueryPanel as QueryPanel
-import RemoteData exposing (RemoteData(..))
-import State.Viewport exposing (Viewport)
-import Ui
+import Ui.Button as Button
+import Ui.Chip as Chip
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon
-import Ui.Responsive as Responsive
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport
+import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
+import View.QueryPanel as QueryPanel
 import View.Transaction as TransactionView
 
 
@@ -486,12 +491,17 @@ canBeginLoadingMore (Model data) =
 
 
 view :
-    Theme
-    -> Viewport
+    Env
     -> Model
     -> Element Msg
-view theme viewport model =
+view env model =
     let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+
         response =
             visibleResponse model
 
@@ -499,15 +509,24 @@ view theme viewport model =
             selectedTransaction model
 
         compact =
-            Responsive.isCompact (Responsive.contentLayout viewport)
+            Viewport.isCompact (Viewport.contentLayout viewport)
 
         wideSelected =
-            Responsive.usesMasterDetail viewport && currentSelection /= Nothing
+            Viewport.usesMasterDetail viewport && currentSelection /= Nothing
     in
     if wideSelected then
         case ( response, currentSelection ) of
-            ( Just current, Just selected ) ->
-                wideLayout theme model current selected
+            ( Just _, Just selected ) ->
+                Workspace.view env
+                    [ { key = "transactions"
+                      , width = Workspace.Portion Tokens.layoutPortionDouble
+                      , content = listPage theme True model
+                      }
+                    , { key = "transaction-detail"
+                      , width = Workspace.Portion Tokens.layoutPortionTriple
+                      , content = detailPage theme (Just Back) selected
+                      }
+                    ]
 
             _ ->
                 listPage theme compact model
@@ -530,75 +549,25 @@ listPage :
     -> Model
     -> Element Msg
 listPage theme compact model =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Typography.uiClass "page-scroll transactions-page"
-        ]
-        [ transactionsHeader theme
-        , Ui.pageContainer
+    Page.scaffold theme
+        { header = transactionsHeaderConfig theme
+        , body =
             [ queryPanel theme compact model
             , remoteContent theme compact model
             ]
+        }
+
+
+transactionsHeaderConfig : Theme -> Page.Header Msg
+transactionsHeaderConfig theme =
+    { leading = Nothing
+    , title = Typography.pageTitle theme "Transactions"
+    , subtitle = Just "Browse your ledger activity"
+    , actions =
+        [ Button.iconButton theme
+            { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
         ]
-
-
-wideLayout :
-    Theme
-    -> Model
-    -> Response
-    -> Transaction
-    -> Element Msg
-wideLayout theme model response selected =
-    Element.row
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Element.clip
-        , Typography.uiClass "transactions-wide-layout"
-        ]
-        [ Element.column
-            [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
-            , Element.height Element.fill
-            , Element.scrollbarY
-            , Background.color theme.pageBg
-            , Typography.uiClass "transactions-master-pane transactions-page"
-            ]
-            [ transactionsHeader theme
-            , Ui.pageContainer
-                [ queryPanel theme True model
-                , remoteNotice theme (remoteData model) response
-                , transactionCount theme response.transactions
-                , transactionsList theme
-                    True
-                    (selectedTransaction model)
-                    response.transactions
-                , pagingControls theme model response
-                ]
-            ]
-        , Element.el
-            [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
-            , Element.height Element.fill
-            , Element.clipY
-            , Typography.uiClass "transactions-detail-pane"
-            ]
-            (detailPage theme (Just Back) selected)
-        ]
-
-
-transactionsHeader : Theme -> Element Msg
-transactionsHeader theme =
-    Ui.pageHeaderBand theme <|
-        Ui.pageHeader theme
-            { leading = Nothing
-            , title = Typography.pageTitle theme "Transactions"
-            , subtitle = Just "Browse your ledger activity"
-            , actions =
-                [ Ui.iconButton theme
-                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
-                ]
-            }
+    }
 
 
 queryPanel : Theme -> Bool -> Model -> Element Msg
@@ -610,7 +579,7 @@ queryPanel theme compact model =
         , onDraftChanged = DraftChanged
         , onApply = ApplyDraft
         , onClear = ClearDraft
-        , queryError = queryError (remoteData model)
+        , queryError = Maybe.map ApiError.message (queryError (remoteData model))
         , helpText =
             "Type an hledger query below. Terms separated by spaces combine with AND. "
                 ++ "Prefix terms with acct:, desc:, date:, amt:, cur:, payee:, note:, status:, "
@@ -652,7 +621,7 @@ remoteContent :
 remoteContent theme compact model =
     case remoteData model of
         NotAsked ->
-            Ui.card theme [ Ui.loading theme "Loading transactions…" ]
+            Surface.card theme [ Feedback.loading theme "Loading transactions…" ]
 
         Loading Nothing ->
             transactionsSkeleton theme
@@ -670,14 +639,14 @@ remoteContent theme compact model =
 
                 Nothing ->
                     if queryError (remoteData model) /= Nothing then
-                        Ui.card theme
+                        Surface.card theme
                             [ Typography.mutedParagraph theme
                                 "Correct the query above, then apply it again."
                             ]
 
                     else
-                        Ui.card theme
-                            [ Ui.errorBanner theme
+                        Surface.card theme
+                            [ Feedback.errorBanner theme
                                 ("Transactions failed to load: " ++ ApiError.message error)
                             ]
 
@@ -706,7 +675,7 @@ transactionContent theme compact model response =
 
 noMatches : Theme -> Model -> Element Msg
 noMatches theme model =
-    Ui.card theme
+    Surface.card theme
         [ Typography.mutedParagraph theme
             (if String.isEmpty (appliedQuery model) then
                 "No transactions are available."
@@ -727,19 +696,19 @@ pagingControls theme model response =
         ]
         [ case loadMoreError model of
             Just error ->
-                Ui.errorBanner theme
+                Feedback.errorBanner theme
                     ("Could not load more transactions: " ++ ApiError.message error)
 
             Nothing ->
                 Element.none
         , if status model == LoadingMoreStatus then
-            Ui.loading theme "Loading more transactions…"
+            Feedback.loading theme "Loading more transactions…"
 
           else
             case response.nextCursor of
                 Just _ ->
                     if canBeginLoadingMore model then
-                        Ui.secondaryButton theme { label = "Load more", onPress = LoadMore }
+                        Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
 
                     else
                         Typography.mutedCaption theme "Finish refreshing before loading more."
@@ -762,10 +731,10 @@ remoteNotice : Theme -> RemoteData ApiError Response -> Response -> Element msg
 remoteNotice theme remote response =
     case remote of
         Loading _ ->
-            Ui.statusBadge theme Ui.StatusPrimary "Refreshing transactions"
+            Chip.statusBadge theme Chip.StatusPrimary "Refreshing transactions"
 
         Failure error _ ->
-            Ui.errorBanner theme
+            Feedback.errorBanner theme
                 ("Refresh failed; showing stale transactions: " ++ ApiError.message error)
 
         _ ->
@@ -774,16 +743,16 @@ remoteNotice theme remote response =
                     Element.none
 
                 Refreshing ->
-                    Ui.statusBadge theme Ui.StatusPrimary "Refreshing transactions"
+                    Chip.statusBadge theme Chip.StatusPrimary "Refreshing transactions"
 
                 Stale ->
-                    Ui.statusBadge theme Ui.StatusWarning "Showing a stale journal snapshot"
+                    Chip.statusBadge theme Chip.StatusWarning "Showing a stale journal snapshot"
 
                 Partial ->
-                    Ui.statusBadge theme Ui.StatusWarning "Transaction data is partial"
+                    Chip.statusBadge theme Chip.StatusWarning "Transaction data is partial"
 
                 Unavailable ->
-                    Ui.errorBanner theme "Transaction data is unavailable."
+                    Feedback.errorBanner theme "Transaction data is unavailable."
 
 
 transactionCount : Theme -> List Transaction -> Element msg
@@ -840,7 +809,7 @@ transactionRow theme compact selected transaction =
     let
         rowContent =
             Element.column
-                (Ui.rowSurfaceAttrs theme (selected == Just transaction)
+                (Surface.rowSurfaceAttrs theme (selected == Just transaction)
                     ++ [ Element.spacing Tokens.space8
                        ]
                 )
@@ -897,8 +866,8 @@ desktopPrimaryRow theme transaction =
             , Font.semiBold
             , Element.width Element.fill
             , Font.color theme.textPrimary
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-ellipsis"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-ellipsis"
             ]
             (Element.text transaction.description)
         , trailingSummary theme transaction
@@ -917,8 +886,8 @@ phonePrimaryRow theme transaction =
                 , Font.semiBold
                 , Element.width Element.fill
                 , Font.color theme.textPrimary
-                , Typography.minWidthZero
-                , Typography.uiClass "ui-text-wrap"
+                , Common.minWidthZero
+                , Common.uiClass "ui-text-wrap"
                 ]
                 [ Element.text transaction.description ]
             , trailingSummary theme transaction
@@ -938,10 +907,10 @@ trailingSummary theme transaction =
     in
     Element.wrappedRow [ Element.alignRight, Element.spacing Tokens.space2 ]
         (effects
-            |> List.filter ((/=) "unclassified")
+            |> List.filter ((/=) Unclassified)
             |> List.map
                 (\effect ->
-                    Ui.financialBadge theme
+                    Chip.financialBadge theme
                         (TransactionView.classificationTone effect)
                         (TransactionView.effectLabel effect)
                 )
@@ -960,8 +929,8 @@ postingPreviewRow theme posting =
             [ Typography.rowMetadata
             , Font.color theme.textMuted
             , Element.width Element.fill
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-wrap"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-wrap"
             ]
             [ Element.text posting.account ]
         , Element.el
@@ -969,8 +938,8 @@ postingPreviewRow theme posting =
             , Font.color theme.textMuted
             , Element.alignRight
             , Element.width (Element.shrink |> Element.maximum Tokens.narrowContentWidth)
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-ellipsis"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-ellipsis"
             , Typography.financeNumber
             ]
             (Element.text (TransactionView.amountsText posting.amounts))
@@ -979,31 +948,28 @@ postingPreviewRow theme posting =
 
 detailPage : Theme -> Maybe Msg -> Transaction -> Element Msg
 detailPage theme onBack transaction =
-    Element.column
+    Element.el
         [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Element.scrollbarY
-        , Typography.uiClass "page-scroll transaction-detail-page"
         , Element.htmlAttribute (Html.Attributes.id "transaction-detail")
         ]
-        [ Ui.pageHeaderBand theme <|
-            Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                [ case onBack of
-                    Just message ->
-                        Ui.backButton theme { onPress = message }
-
-                    Nothing ->
-                        Element.none
-                , Typography.sectionTitle theme "Transaction Detail"
-                ]
-        , Ui.pageContainer [ TransactionView.transactionDetail theme transaction ]
-        ]
+        (Page.scaffold theme
+            { header =
+                { leading =
+                    Maybe.map
+                        (\message -> Button.backButton theme { onPress = message })
+                        onBack
+                , title = Typography.sectionTitle theme "Transaction Detail"
+                , subtitle = Nothing
+                , actions = []
+                }
+            , body = [ TransactionView.transactionDetail theme transaction ]
+            }
+        )
 
 
 transactionsSkeleton : Theme -> Element Msg
 transactionsSkeleton theme =
-    Ui.card theme
+    Surface.card theme
         [ Typography.mutedBody theme "Loading transactions…"
         , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
             [ Element.el
@@ -1016,9 +982,9 @@ transactionsSkeleton theme =
                 ]
                 (Typography.subsectionTitle theme "January 2026")
             , Skeleton.listRow theme
-            , Ui.hairline theme
+            , Surface.hairline theme
             , Skeleton.listRow theme
-            , Ui.hairline theme
+            , Surface.hairline theme
             , Skeleton.listRow theme
             ]
         ]

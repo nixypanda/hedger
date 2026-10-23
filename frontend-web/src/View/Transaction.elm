@@ -1,72 +1,79 @@
 module View.Transaction exposing
     ( amountsText
-    , classificationLabel
     , classificationTone
     , effectLabel
     , transactionDetail
     )
 
 import Data.Date as Date
+import Data.Formatting as Formatting
 import Data.Status as Status
-import Data.Transaction exposing (Amount, Posting, Tag, Transaction)
+import Data.Transaction exposing (Amount, Posting, Tag, Transaction, TransactionEffect(..))
 import Element exposing (Element)
 import Element.Font as Font
-import Ui
+import Ui.Chip as Chip
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.AccountPresentation as AccountPresentation
-import View.Formatting as Formatting
 
 
-classificationTone : String -> Ui.FinancialTone
+classificationTone : TransactionEffect -> Chip.FinancialTone
 classificationTone classification =
     case classification of
-        "income" ->
-            Ui.FinancialIncome
+        TransactionIncome ->
+            Chip.FinancialIncome
 
-        "expense" ->
-            Ui.FinancialExpense
+        IncomeReversal ->
+            Chip.FinancialIncome
 
-        "opening_balance" ->
-            Ui.FinancialEquity
+        TransactionExpense ->
+            Chip.FinancialExpense
 
-        "borrowing" ->
-            Ui.FinancialBorrowing
+        ExpenseReversal ->
+            Chip.FinancialExpense
 
-        "repayment" ->
-            Ui.FinancialRepayment
+        OpeningBalance ->
+            Chip.FinancialEquity
 
-        "asset_acquisition" ->
-            Ui.FinancialAsset
+        Borrowing ->
+            Chip.FinancialBorrowing
 
-        "asset_disposal" ->
-            Ui.FinancialAsset
+        Refinancing ->
+            Chip.FinancialBorrowing
 
-        "asset_reallocation" ->
-            Ui.FinancialAsset
+        Repayment ->
+            Chip.FinancialRepayment
 
-        "asset_transfer" ->
-            Ui.FinancialAsset
+        DebtForgiveness ->
+            Chip.FinancialRepayment
 
-        "refinancing" ->
-            Ui.FinancialBorrowing
+        BorrowingReversal ->
+            Chip.FinancialRepayment
 
-        "debt_forgiveness" ->
-            Ui.FinancialRepayment
+        AssetAcquisition ->
+            Chip.FinancialAsset
 
-        "borrowing_reversal" ->
-            Ui.FinancialRepayment
+        AssetDisposal ->
+            Chip.FinancialAsset
 
-        "income_reversal" ->
-            Ui.FinancialIncome
+        AssetReallocation ->
+            Chip.FinancialAsset
 
-        "expense_reversal" ->
-            Ui.FinancialExpense
+        AssetTransfer ->
+            Chip.FinancialAsset
 
-        _ ->
-            Ui.FinancialNeutral
+        TransactionTransfer ->
+            Chip.FinancialNeutral
+
+        Unclassified ->
+            Chip.FinancialNeutral
+
+        Unknown _ ->
+            Chip.FinancialNeutral
 
 
 classificationLabel : Transaction -> String
@@ -74,88 +81,87 @@ classificationLabel transaction =
     effectLabel transaction.presentation.classification
 
 
-effectLabel : String -> String
-effectLabel classification =
-    case classification of
-        "income" ->
+effectLabel : TransactionEffect -> String
+effectLabel effect =
+    case effect of
+        TransactionIncome ->
             "Income"
 
-        "expense" ->
+        TransactionExpense ->
             "Expense"
 
-        "opening_balance" ->
+        TransactionTransfer ->
+            "Transfer"
+
+        OpeningBalance ->
             "Opening balance"
 
-        "borrowing" ->
+        Borrowing ->
             "Borrowing"
 
-        "repayment" ->
+        Repayment ->
             "Repayment"
 
-        "asset_acquisition" ->
+        AssetAcquisition ->
             "Asset acquisition"
 
-        "asset_disposal" ->
+        AssetDisposal ->
             "Asset disposal"
 
-        "asset_reallocation" ->
+        AssetReallocation ->
             "Asset reallocation"
 
-        "asset_transfer" ->
+        AssetTransfer ->
             "Asset transfer"
 
-        "refinancing" ->
+        Refinancing ->
             "Refinancing"
 
-        "debt_forgiveness" ->
+        DebtForgiveness ->
             "Debt forgiven"
 
-        "borrowing_reversal" ->
+        BorrowingReversal ->
             "Borrowing reversed"
 
-        "income_reversal" ->
+        IncomeReversal ->
             "Income reversed"
 
-        "expense_reversal" ->
+        ExpenseReversal ->
             "Expense reversed"
 
-        "unclassified" ->
+        Unclassified ->
             "Unclassified"
 
-        _ ->
+        Unknown _ ->
             "Transfer"
 
 
 transactionDetail : Theme -> Transaction -> Element msg
 transactionDetail theme transaction =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-        [ Ui.card theme
-            (List.concat
-                [ [ detailRow theme "Date" (Date.toString transaction.primaryDate) ]
+        [ Surface.card theme
+            (List.filterMap identity
+                [ Just (detailRow theme "Date" (Date.toString transaction.primaryDate))
                 , maybeDetailRow
                     theme
                     "Secondary date"
                     (Maybe.map Date.toString transaction.secondaryDate)
-                , [ detailRow theme "Status" (Status.toString transaction.status) ]
+                , Just (detailRow theme "Status" (Status.toString transaction.status))
                 , maybeDetailRow theme "Code" transaction.code
-                , [ detailRow theme "Description" transaction.description ]
-                , [ detailRow theme "Effects" (effectSummary transaction) ]
+                , Just (detailRow theme "Description" transaction.description)
+                , Just (detailRow theme "Effects" (effectSummary transaction))
                 , maybeDetailRow theme "Comment" transaction.comment
-                , if List.isEmpty transaction.tags then
-                    []
-
-                  else
-                    [ detailRow theme "Tags" (tagsText transaction.tags) ]
+                , tagsDetailRow theme transaction
                 ]
             )
-        , Ui.section theme
+        , Surface.section theme
             { header = Just (Typography.sectionTitle theme "Postings")
             , body =
                 if List.isEmpty transaction.postings then
                     [ Typography.mutedParagraph theme "No postings" ]
 
                 else
-                    List.intersperse (Ui.hairline theme)
+                    List.intersperse (Surface.hairline theme)
                         (List.map (postingDetailRow theme) transaction.postings)
             , footer = Nothing
             }
@@ -178,7 +184,7 @@ detailRow theme label value =
         [ Element.width Element.fill
         , Element.spacing Tokens.space16
         , Element.alignTop
-        , Typography.minWidthZero
+        , Common.minWidthZero
         ]
         [ Element.el
             [ Element.width (Element.px Tokens.postingAccountWidth)
@@ -193,16 +199,25 @@ detailRow theme label value =
             , Typography.detailValue
             , Font.alignRight
             , Font.color theme.textPrimary
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-wrap"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-wrap"
             ]
             [ Element.text value ]
         ]
 
 
-maybeDetailRow : Theme -> String -> Maybe String -> List (Element msg)
+maybeDetailRow : Theme -> String -> Maybe String -> Maybe (Element msg)
 maybeDetailRow theme label value =
-    value |> Maybe.map (\current -> [ detailRow theme label current ]) |> Maybe.withDefault []
+    Maybe.map (detailRow theme label) value
+
+
+tagsDetailRow : Theme -> Transaction -> Maybe (Element msg)
+tagsDetailRow theme transaction =
+    if List.isEmpty transaction.tags then
+        Nothing
+
+    else
+        Just (detailRow theme "Tags" (tagsText transaction.tags))
 
 
 postingDetailRow : Theme -> Posting -> Element msg
@@ -212,13 +227,13 @@ postingDetailRow theme posting =
         , Element.spacing Tokens.space12
         , Element.paddingXY Tokens.space0 Tokens.space10
         , Element.alignTop
-        , Typography.minWidthZero
+        , Common.minWidthZero
         ]
         [ Element.row
             [ Element.width Element.fill
             , Element.spacing Tokens.space8
             , Element.alignTop
-            , Typography.minWidthZero
+            , Common.minWidthZero
             ]
             [ Icon.view
                 { icon = AccountPresentation.iconForAccount posting.accountType posting.account
@@ -263,8 +278,8 @@ postingAmountLine theme amount =
             , Font.alignRight
             , Font.semiBold
             , Font.color theme.textPrimary
-            , Typography.minWidthZero
-            , Typography.uiClass "ui-text-wrap"
+            , Common.minWidthZero
+            , Common.uiClass "ui-text-wrap"
             ]
             [ Element.text (amountText amount) ]
         , case amount.cost of

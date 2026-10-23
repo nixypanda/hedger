@@ -16,6 +16,7 @@ import Api.Error as ApiError exposing (ApiError)
 import Api.Investments as Investments
 import Data.Completeness exposing (Completeness(..))
 import Data.Decimal as Decimal exposing (Decimal)
+import Data.Formatting as Formatting
 import Data.Granularity exposing (Granularity(..))
 import Element exposing (Element)
 import Element.Background as Background
@@ -24,18 +25,31 @@ import Element.Font as Font
 import Element.Input as Input
 import Element.Region as Region
 import Html.Attributes as Attr
-import RemoteData exposing (RemoteData(..))
-import State.Viewport exposing (Viewport)
-import Ui
+import Lib.ListExtra as ListExtra
+import Lib.Number as Number
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
+import Ui.Button as Button
 import Ui.Chart.Cartesian as Cartesian
+import Ui.Chip as Chip
+import Ui.Color as Color
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Env exposing (Env)
+import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
-import Ui.Responsive as Responsive
+import Ui.Input
+import Ui.Page as Page
 import Ui.Skeleton as Skeleton
+import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import View.Formatting as Formatting
+import Ui.Viewport as Viewport exposing (Viewport)
+import View.Analytics.Kpi as Kpi
 import View.States as States
+
+
+
+-- MODEL
 
 
 type Model
@@ -72,6 +86,10 @@ init =
             }
     in
     ( Model data, fetch data.activeRequestToken data )
+
+
+
+-- UPDATE
 
 
 type Msg
@@ -210,36 +228,47 @@ latestPeriod =
     List.reverse >> List.head >> Maybe.map .period
 
 
-view : Theme -> Viewport -> Model -> Element Msg
-view theme viewport (Model data) =
+
+-- VIEW
+
+
+view : Env -> Model -> Element Msg
+view env (Model data) =
+    let
+        theme =
+            env.theme
+
+        viewport =
+            env.viewport
+    in
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
         , Background.color theme.pageBg
         , Element.scrollbarY
-        , Typography.uiClass "page-scroll analytics-page"
+        , Common.uiClass "page-scroll analytics-page"
         ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
+        [ Page.pageHeaderBand theme <|
+            Page.pageHeader theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Investments"
                 , subtitle = Just "Value, invested capital, and investment performance"
                 , actions =
                     [ granularityControl theme data.granularity
-                    , Ui.iconButton theme
+                    , Button.iconButton theme
                         { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
                     ]
                 }
-        , Ui.pageContainer (content theme viewport data)
+        , Page.pageContainer (content theme viewport data)
         ]
 
 
 granularityControl : Theme -> Granularity -> Element Msg
 granularityControl theme selected =
-    Ui.segmentedControl theme
-        [ Ui.segmentedOption theme
+    Ui.Input.segmentedControl theme
+        [ Ui.Input.segmentedOption theme
             { label = "M", selected = selected == Monthly, onPress = GranularitySelected Monthly }
-        , Ui.segmentedOption theme
+        , Ui.Input.segmentedOption theme
             { label = "Y", selected = selected == Yearly, onPress = GranularitySelected Yearly }
         ]
 
@@ -250,8 +279,8 @@ content theme viewport data =
         Nothing ->
             case data.response of
                 Failure error _ ->
-                    [ Ui.errorBanner theme (ApiError.message error)
-                    , Ui.secondaryButton theme { label = "Retry", onPress = Refresh }
+                    [ Feedback.errorBanner theme (ApiError.message error)
+                    , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
                     ]
 
                 _ ->
@@ -260,7 +289,7 @@ content theme viewport data =
         Just response ->
             [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
             , if isEmpty response then
-                Ui.emptyState theme "No investment holdings were found in this account scope."
+                Feedback.emptyState theme "No investment holdings were found in this account scope."
 
               else
                 investmentDashboard theme viewport data.chartMode data.selectedPeriod response
@@ -285,14 +314,14 @@ investmentDashboard :
 investmentDashboard theme viewport selectedMode selected response =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         chartWidth =
-            if Responsive.isCompact layout then
-                min 1200 (max 320 (Responsive.usableContentWidth viewport - 40))
+            if Viewport.isCompact layout then
+                min 1200 (max 320 (Viewport.usableContentWidth viewport - 40))
 
             else
-                min 1200 (max 320 (Responsive.usableContentWidth viewport - 376))
+                min 1200 (max 320 (Viewport.usableContentWidth viewport - 376))
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ investmentSummaryGrid layout theme response.displayCommodity response.summary
@@ -314,7 +343,7 @@ investmentDashboard theme viewport selectedMode selected response =
 
 
 assetClassAllocationCard :
-    Responsive.ContentLayout
+    Viewport.ContentLayout
     -> Theme
     -> String
     -> List Investments.AssetClassAllocation
@@ -324,14 +353,14 @@ assetClassAllocationCard layout theme commodity allocations =
         Element.none
 
     else
-        Ui.card theme
+        Surface.card theme
             [ Typography.subsectionTitle theme "Asset allocation"
             , allocationGrid layout theme commodity allocations
             ]
 
 
 allocationGrid :
-    Responsive.ContentLayout
+    Viewport.ContentLayout
     -> Theme
     -> String
     -> List Investments.AssetClassAllocation
@@ -340,22 +369,22 @@ allocationGrid layout theme commodity allocations =
     let
         columnCount =
             case layout of
-                Responsive.Compact ->
+                Viewport.Compact ->
                     1
 
-                Responsive.Medium ->
+                Viewport.Medium ->
                     2
 
-                Responsive.Wide ->
+                Viewport.Wide ->
                     3
 
         cells =
             allocations
                 |> List.map Just
-                |> padToMultiple columnCount Nothing
+                |> ListExtra.padToMultiple columnCount Nothing
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        (chunksOf columnCount cells
+        (ListExtra.chunksOf columnCount cells
             |> List.map (allocationGridRow theme commodity)
         )
 
@@ -407,23 +436,6 @@ allocationGridItem theme commodity allocation =
         (assetClassAllocationRow theme commodity allocation)
 
 
-chunksOf : Int -> List value -> List (List value)
-chunksOf size values =
-    if List.isEmpty values then
-        []
-
-    else
-        List.take size values :: chunksOf size (List.drop size values)
-
-
-padToMultiple : Int -> value -> List value -> List value
-padToMultiple size padding values =
-    values
-        ++ List.repeat
-            (modBy size (size - modBy size (List.length values)))
-            padding
-
-
 assetClassAllocationRow :
     Theme
     -> String
@@ -459,7 +471,8 @@ assetClassAllocationRow theme commodity allocation =
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space2 ]
                 [ Element.el [ Font.semiBold ]
                     (Element.text (assetClassLabel allocation.assetClass))
-                , Typography.mutedCaption theme (investmentMoney commodity allocation.marketValue)
+                , Typography.mutedCaption theme
+                    (Formatting.formatMaybeDecimalDisplay commodity allocation.marketValue)
                 ]
             , Element.column [ Element.alignRight, Element.spacing Tokens.space2 ]
                 [ Element.el [ Typography.financeNumber, Font.semiBold ]
@@ -566,7 +579,7 @@ allocationDeltaLabel color current target =
                         ""
             in
             Element.el [ Font.color color, Typography.caption, Font.semiBold ]
-                (Element.text (sign ++ Formatting.roundedString delta 2 ++ " pp"))
+                (Element.text (sign ++ Number.roundedString delta 2 ++ " pp"))
 
 
 allocationPerformanceColor :
@@ -585,29 +598,10 @@ allocationPerformanceColor theme current target =
                     clamp 0 1 (deviation / 15)
             in
             if distance <= 0.5 then
-                mixColor theme.positive theme.warningSolid (distance * 2)
+                Color.mix theme.positive theme.warningSolid (distance * 2)
 
             else
-                mixColor theme.warningSolid theme.negative ((distance - 0.5) * 2)
-
-
-mixColor : Element.Color -> Element.Color -> Float -> Element.Color
-mixColor start finish amount =
-    let
-        from =
-            Element.toRgb start
-
-        to =
-            Element.toRgb finish
-
-        mix first second =
-            first + (second - first) * clamp 0 1 amount
-    in
-    Element.rgba
-        (mix from.red to.red)
-        (mix from.green to.green)
-        (mix from.blue to.blue)
-        (mix from.alpha to.alpha)
+                Color.mix theme.warningSolid theme.negative ((distance - 0.5) * 2)
 
 
 allocationPercentageLabel : Maybe Decimal -> String
@@ -641,7 +635,7 @@ assetClassLabel assetClass =
 
 
 investmentMasterDetail :
-    Responsive.ContentLayout
+    Viewport.ContentLayout
     -> Theme
     -> String
     -> Int
@@ -664,7 +658,7 @@ investmentMasterDetail layout theme commodity chartWidth selectedMode selected r
                 response.summary
                 response.timeline
     in
-    if Responsive.isCompact layout then
+    if Viewport.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
             [ navigator, history ]
 
@@ -690,7 +684,7 @@ investmentHistoryCard :
     -> List Investments.TimelinePoint
     -> Element Msg
 investmentHistoryCard theme commodity chartWidth selectedMode selected summary timeline =
-    Ui.card theme
+    Surface.card theme
         [ Element.row [ Element.width Element.fill ]
             [ Element.column [ Element.spacing Tokens.space2 ]
                 [ Typography.subsectionTitle theme "Portfolio history"
@@ -706,13 +700,13 @@ investmentHistoryCard theme commodity chartWidth selectedMode selected summary t
 
 chartModeControl : Theme -> ChartMode -> Element Msg
 chartModeControl theme selectedMode =
-    Ui.segmentedControl theme
-        [ Ui.segmentedOption theme
+    Ui.Input.segmentedControl theme
+        [ Ui.Input.segmentedOption theme
             { label = "Value"
             , selected = selectedMode == ValueChart
             , onPress = ChartModeSelected ValueChart
             }
-        , Ui.segmentedOption theme
+        , Ui.Input.segmentedOption theme
             { label = "Returns"
             , selected = selectedMode == ReturnsChart
             , onPress = ChartModeSelected ReturnsChart
@@ -770,7 +764,7 @@ investmentValueChart theme commodity availableWidth selected points =
             , xLabel =
                 \point ->
                     if List.member point.period visiblePeriods then
-                        Just (shortInvestmentPeriod point.period)
+                        Just (Formatting.shortPeriodWithYear point.period)
 
                     else
                         Nothing
@@ -779,12 +773,12 @@ investmentValueChart theme commodity availableWidth selected points =
                     "Select "
                         ++ point.period
                         ++ ": portfolio value "
-                        ++ investmentMoney commodity point.summary.marketValue
+                        ++ Formatting.formatMaybeDecimalDisplay commodity point.summary.marketValue
                         ++ ", invested capital "
-                        ++ investmentMoney commodity point.summary.purchaseCost
+                        ++ Formatting.formatMaybeDecimalDisplay commodity point.summary.purchaseCost
             , selected = selected
             , onSelect = PeriodSelected
-            , formatTick = investmentAxisMoney commodity
+            , formatTick = Formatting.formatDecimalAxis commodity
             , domain = Cartesian.PaddedExtent { ratio = 0.12, minimum = 1 }
             , series =
                 [ Cartesian.AreaBetween
@@ -810,7 +804,7 @@ investmentValueChart theme commodity availableWidth selected points =
             }
 
     else
-        Ui.emptyState theme "No historical valuations are available for this scope."
+        Feedback.emptyState theme "No historical valuations are available for this scope."
 
 
 investmentReturnsChart :
@@ -838,7 +832,7 @@ investmentReturnsChart theme availableWidth selected points =
             , xLabel =
                 \point ->
                     if List.member point.period visiblePeriods then
-                        Just (shortInvestmentPeriod point.period)
+                        Just (Formatting.shortPeriodWithYear point.period)
 
                     else
                         Nothing
@@ -863,7 +857,7 @@ investmentReturnsChart theme availableWidth selected points =
             }
 
     else
-        Ui.emptyState theme "No XIRR history is available for this scope."
+        Feedback.emptyState theme "No XIRR history is available for this scope."
 
 
 investmentChartLabelPeriods : List Investments.TimelinePoint -> List String
@@ -895,12 +889,12 @@ investmentBreakdownMetric theme commodity label value =
         ]
         [ Typography.mutedCaption theme label
         , Element.el [ Typography.financeNumber, Font.semiBold ]
-            (Element.text (investmentMoney commodity value))
+            (Element.text (Formatting.formatMaybeDecimalDisplay commodity value))
         ]
 
 
 investmentSummaryGrid :
-    Responsive.ContentLayout
+    Viewport.ContentLayout
     -> Theme
     -> String
     -> Investments.Summary
@@ -908,61 +902,28 @@ investmentSummaryGrid :
 investmentSummaryGrid layout theme commodity summary =
     let
         cards =
-            [ investmentMetricCard theme
+            [ Kpi.metricCard theme
                 "Portfolio value"
-                (investmentMoney commodity summary.marketValue)
+                (Formatting.formatMaybeDecimalDisplay commodity summary.marketValue)
                 Icon.Wallet
                 theme.primary
-            , investmentMetricCard theme
+            , Kpi.metricCard theme
                 "XIRR since inception"
                 (investmentRate summary.xirr)
                 Icon.TrendingUp
                 theme.textMedium
-            , investmentMetricCard theme
+            , Kpi.metricCard theme
                 "Total profit"
-                (investmentMoney commodity summary.totalProfit)
+                (Formatting.formatMaybeDecimalDisplay commodity summary.totalProfit)
                 Icon.ChartBar
                 (investmentTone summary.totalProfit theme)
             ]
     in
-    if Responsive.isCompact layout then
+    if Viewport.isCompact layout then
         Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] cards
 
     else
         Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] cards
-
-
-investmentMetricCard :
-    Theme
-    -> String
-    -> String
-    -> Icon
-    -> Element.Color
-    -> Element Msg
-investmentMetricCard theme title value icon color =
-    Ui.cardWith [ Element.width (Element.fillPortion Tokens.layoutPortionSingle) ]
-        theme
-        [ Element.row
-            [ Element.width Element.fill
-            , Element.spacing Tokens.space12
-            , Element.alignTop
-            ]
-            [ Element.el
-                [ Element.width (Element.px Tokens.compactControlVisualHeight)
-                , Element.height (Element.px Tokens.compactControlVisualHeight)
-                , Background.color theme.primarySoft
-                , Border.rounded Tokens.radiusMedium
-                ]
-                (Element.el [ Element.centerX, Element.centerY ]
-                    (Icon.view { icon = icon, size = Tokens.iconSizeNavigation, color = color })
-                )
-            , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
-                [ Typography.mutedCaption theme title
-                , Element.el [ Typography.kpiValue, Typography.financeNumber, Font.bold ]
-                    (Element.text value)
-                ]
-            ]
-        ]
 
 
 investmentNavigator :
@@ -972,7 +933,7 @@ investmentNavigator :
     -> List Investments.Child
     -> Element Msg
 investmentNavigator theme commodity breadcrumbs children =
-    Ui.cardWith
+    Surface.cardWith
         [ Element.width Element.fill
         , Element.height Element.fill
         , Region.navigation
@@ -981,7 +942,7 @@ investmentNavigator theme commodity breadcrumbs children =
         theme
         [ Typography.mutedCaption theme "Current scope"
         , investmentNavigatorPath theme breadcrumbs
-        , Ui.hairline theme
+        , Surface.hairline theme
         , Typography.mutedCaption theme "Accounts in this scope"
         , if List.isEmpty children then
             Typography.mutedParagraph theme "No accounts below this level."
@@ -1032,13 +993,13 @@ investmentNavigatorPathButton : Theme -> String -> Msg -> Element Msg
 investmentNavigatorPathButton theme label onPress =
     Input.button
         ([ Element.htmlAttribute (Attr.title ("Open " ++ label))
-         , Ui.touchTargetHeight
+         , Common.touchTargetHeight
          , Element.paddingXY Tokens.space10 Tokens.space8
          , Border.rounded Tokens.radiusSmall
          , Font.color theme.primary
          , Font.medium
          ]
-            ++ Ui.hoverBackground theme.primarySoft
+            ++ Common.hoverBackground theme.primarySoft
         )
         { onPress = Just onPress, label = Element.text label }
 
@@ -1077,7 +1038,12 @@ investmentNavigatorChild theme commodity child =
                     ]
                 , Element.column [ Element.alignRight, Element.spacing Tokens.space3 ]
                     [ Element.el [ Typography.financeNumber, Font.semiBold ]
-                        (Element.text (investmentMoney commodity child.summary.marketValue))
+                        (Element.text
+                            (Formatting.formatMaybeDecimalDisplay
+                                commodity
+                                child.summary.marketValue
+                            )
+                        )
                     , child.allocationPercentage
                         |> Maybe.map Formatting.formatPercentage
                         |> Maybe.map (Typography.mutedCaption theme)
@@ -1131,7 +1097,7 @@ investmentWarnings theme warnings =
             (Typography.sectionTitle theme "Data notes"
                 :: List.map
                     (\warning ->
-                        Ui.errorBanner theme
+                        Feedback.errorBanner theme
                             (warning.account
                                 |> Maybe.map (\account -> account ++ ": " ++ warning.message)
                                 |> Maybe.withDefault warning.message
@@ -1148,10 +1114,10 @@ investmentCompletenessBadge theme completeness =
             Element.none
 
         Partial ->
-            Ui.statusBadge theme Ui.StatusWarning "Partial"
+            Chip.statusBadge theme Chip.StatusWarning "Partial"
 
         Unavailable ->
-            Ui.statusBadge theme Ui.StatusDanger "Unavailable"
+            Chip.statusBadge theme Chip.StatusDanger "Unavailable"
 
 
 selectedInvestmentPeriod :
@@ -1238,22 +1204,22 @@ investmentChartLegend theme selectedMode points =
             ValueChart ->
                 Element.wrappedRow [ Element.spacing Tokens.space16 ]
                     [ Element.row [ Element.spacing Tokens.space6 ]
-                        [ Ui.accentDot theme.primary
+                        [ Surface.accentDot theme.primary
                         , Typography.mutedCaption theme "Portfolio value"
                         ]
                     , Element.row [ Element.spacing Tokens.space6 ]
-                        [ Ui.accentDot theme.textMuted
+                        [ Surface.accentDot theme.textMuted
                         , Typography.mutedCaption theme "Invested capital"
                         ]
                     , Element.row [ Element.spacing Tokens.space6 ]
-                        [ Ui.accentDot theme.positive, Typography.mutedCaption theme "Gain" ]
+                        [ Surface.accentDot theme.positive, Typography.mutedCaption theme "Gain" ]
                     , Element.row [ Element.spacing Tokens.space6 ]
-                        [ Ui.accentDot theme.negative, Typography.mutedCaption theme "Loss" ]
+                        [ Surface.accentDot theme.negative, Typography.mutedCaption theme "Loss" ]
                     ]
 
             ReturnsChart ->
                 Element.row [ Element.spacing Tokens.space6 ]
-                    [ Ui.accentDot theme.primary, Typography.mutedCaption theme "XIRR" ]
+                    [ Surface.accentDot theme.primary, Typography.mutedCaption theme "XIRR" ]
 
 
 investmentTone : Maybe Decimal -> Theme -> Element.Color
@@ -1270,37 +1236,14 @@ investmentTone value theme =
             theme.textMuted
 
 
-investmentMoney : String -> Maybe Decimal -> String
-investmentMoney commodity value =
-    value
-        |> investmentDecimalFloat
-        |> Maybe.map (Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity))
-        |> Maybe.withDefault "—"
-
-
 investmentRate : Maybe Decimal -> String
 investmentRate =
     Maybe.map Formatting.formatRatePercentage >> Maybe.withDefault "—"
 
 
-investmentAxisMoney : String -> Float -> String
-investmentAxisMoney commodity =
-    Formatting.formatAmountDisplay (Formatting.commodityDisplaySymbol commodity)
-
-
 investmentAxisRate : Float -> String
 investmentAxisRate value =
-    Formatting.roundedString value 1 ++ "%"
-
-
-shortInvestmentPeriod : String -> String
-shortInvestmentPeriod period =
-    case String.split "-" period of
-        [ year, month ] ->
-            month ++ "/" ++ String.right 2 year
-
-        _ ->
-            period
+    Number.roundedString value 1 ++ "%"
 
 
 investmentPeriodLabel : String -> String
@@ -1310,7 +1253,7 @@ investmentPeriodLabel period =
 
 investmentDecimalFloat : Maybe Decimal -> Maybe Float
 investmentDecimalFloat =
-    Maybe.andThen (Decimal.toString >> String.toFloat)
+    Maybe.map Decimal.toFloat
 
 
 investmentRateFloat : Maybe Decimal -> Maybe Float
@@ -1322,10 +1265,10 @@ investmentsSkeleton : Theme -> Viewport -> Element Msg
 investmentsSkeleton theme viewport =
     let
         layout =
-            Responsive.contentLayout viewport
+            Viewport.contentLayout viewport
 
         isCompact =
-            Responsive.isCompact layout
+            Viewport.isCompact layout
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space6 ]
@@ -1334,7 +1277,7 @@ investmentsSkeleton theme viewport =
                 , Element.height (Element.px Tokens.iconSizeTiny)
                 , Background.color theme.inputFill
                 , Border.rounded Tokens.radiusControl
-                , Typography.uiClass "ui-skeleton"
+                , Common.uiClass "ui-skeleton"
                 ]
                 Element.none
             , Element.el
@@ -1342,22 +1285,22 @@ investmentsSkeleton theme viewport =
                 , Element.height (Element.px Tokens.iconSizeTiny)
                 , Background.color theme.inputFill
                 , Border.rounded Tokens.radiusControl
-                , Typography.uiClass "ui-skeleton"
+                , Common.uiClass "ui-skeleton"
                 ]
                 Element.none
             ]
         , if isCompact then
             Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-                [ Skeleton.kpiCard theme
-                , Skeleton.kpiCard theme
-                , Skeleton.kpiCard theme
+                [ Skeleton.summaryCard theme
+                , Skeleton.summaryCard theme
+                , Skeleton.summaryCard theme
                 ]
 
           else
             Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-                [ Skeleton.kpiCard theme
-                , Skeleton.kpiCard theme
-                , Skeleton.kpiCard theme
+                [ Skeleton.summaryCard theme
+                , Skeleton.summaryCard theme
+                , Skeleton.summaryCard theme
                 ]
         , if isCompact then
             Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
@@ -1381,13 +1324,13 @@ investmentsSkeleton theme viewport =
 
 investmentNavigatorSkeleton : Theme -> Element msg
 investmentNavigatorSkeleton theme =
-    Ui.card theme
+    Surface.card theme
         [ Element.el
             [ Element.width (Element.px Tokens.periodMonthLabelWidth)
             , Element.height (Element.px Tokens.iconSizeCaption)
             , Background.color theme.inputFill
             , Border.rounded Tokens.radiusControl
-            , Typography.uiClass "ui-skeleton"
+            , Common.uiClass "ui-skeleton"
             ]
             Element.none
         , Element.el
@@ -1395,11 +1338,11 @@ investmentNavigatorSkeleton theme =
             , Element.height (Element.px Tokens.iconSizeTiny)
             , Background.color theme.inputFill
             , Border.rounded Tokens.radiusControl
-            , Typography.uiClass "ui-skeleton"
+            , Common.uiClass "ui-skeleton"
             ]
             Element.none
-        , Ui.hairline theme
+        , Surface.hairline theme
         , Skeleton.listRow theme
-        , Ui.hairline theme
+        , Surface.hairline theme
         , Skeleton.listRow theme
         ]

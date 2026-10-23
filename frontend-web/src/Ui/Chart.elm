@@ -20,7 +20,7 @@ import Html.Attributes as Attr
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
-import Ui.Css as Css
+import Ui.Common as Common
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 
@@ -82,7 +82,7 @@ ringDayLabel : Theme -> String -> Html msg
 ringDayLabel theme label =
     Html.div
         [ Typography.htmlCaption
-        , Attr.style "color" (Css.toCssColor theme.textPrimary)
+        , Attr.style "color" (Common.toCssColor theme.textPrimary)
         ]
         [ Html.text label ]
 
@@ -99,7 +99,7 @@ ringMonthCenter theme label values =
         (Html.div
             [ Typography.htmlCaption
             , Attr.style "font-weight" "600"
-            , Attr.style "color" (Css.toCssColor theme.textMuted)
+            , Attr.style "color" (Common.toCssColor theme.textMuted)
             , Attr.style "line-height" "1"
             ]
             [ Html.text label ]
@@ -112,7 +112,7 @@ ringValueText color content =
     Html.div
         [ Typography.htmlCaption
         , Attr.style "font-weight" "600"
-        , Attr.style "color" (Css.toCssColor color)
+        , Attr.style "color" (Common.toCssColor color)
         , Attr.style "line-height" "1.25"
         , Attr.style "white-space" "nowrap"
         ]
@@ -148,7 +148,7 @@ fixedAxis theme formatTick chartLayout ticks y plot =
                             [ SvgA.x (String.fromInt (chartLayout.axisWidth - 8))
                             , SvgA.y (float (y tick + 4))
                             , SvgA.textAnchor "end"
-                            , SvgA.fill (Css.toCssColor theme.textMuted)
+                            , SvgA.fill (Common.toCssColor theme.textMuted)
                             , SvgA.fontSize "11"
                             ]
                             [ Svg.text (formatTick tick) ]
@@ -156,7 +156,7 @@ fixedAxis theme formatTick chartLayout ticks y plot =
                     ticks
                 )
     in
-    Element.el [ Element.width Element.fill, Typography.minWidthZero ]
+    Element.el [ Element.width Element.fill, Common.minWidthZero ]
         (Element.html
             (Html.div
                 [ Attr.style "display" "grid"
@@ -206,7 +206,7 @@ gridLines theme chartLayout y ticks =
                 , SvgA.x2 (float chartLayout.plotWidth)
                 , SvgA.y1 (float (y tick))
                 , SvgA.y2 (float (y tick))
-                , SvgA.stroke (Css.toCssColor theme.divider)
+                , SvgA.stroke (Common.toCssColor theme.divider)
                 , SvgA.strokeWidth
                     (if tick == 0 then
                         "1.5"
@@ -229,7 +229,7 @@ activeBand theme chartLayout selected center =
             , SvgA.width (float (chartLayout.slotWidth * 0.9))
             , SvgA.height (float chartLayout.plotHeight)
             , SvgA.rx "8"
-            , SvgA.fill (Css.toCssColor theme.selectedBg)
+            , SvgA.fill (Common.toCssColor theme.selectedBg)
             ]
             []
 
@@ -252,7 +252,7 @@ roundedBar color barWidth center zeroY valueY value =
         , SvgA.width (float barWidth)
         , SvgA.height (float height)
         , SvgA.rx "2"
-        , SvgA.fill (Css.toCssColor color)
+        , SvgA.fill (Common.toCssColor color)
         , SvgA.opacity
             (if abs value < 0.0001 then
                 "0"
@@ -270,7 +270,7 @@ xAxisLabel theme chartLayout center label =
         [ SvgA.x (float center)
         , SvgA.y (float (chartLayout.plotBottom + 28))
         , SvgA.textAnchor "middle"
-        , SvgA.fill (Css.toCssColor theme.textMuted)
+        , SvgA.fill (Common.toCssColor theme.textMuted)
         , SvgA.fontSize "11"
         ]
         [ Svg.text label ]
@@ -300,8 +300,8 @@ marker theme color x y =
         [ SvgA.cx (float x)
         , SvgA.cy (float y)
         , SvgA.r "4.5"
-        , SvgA.fill (Css.toCssColor theme.cardBg)
-        , SvgA.stroke (Css.toCssColor color)
+        , SvgA.fill (Common.toCssColor theme.cardBg)
+        , SvgA.stroke (Common.toCssColor color)
         , SvgA.strokeWidth "3"
         ]
         []

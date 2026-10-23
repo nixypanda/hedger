@@ -93,20 +93,31 @@ See [backend.md](backend.md) for module-by-module detail.
 The Elm app follows a strict ownership model:
 
 ```text
-Main -> Route / Page
-Page -> Data / Api / Ui / View
-View -> Ui / Data
-Api -> Client / Data decoders
-Data -> other Data
-Ui -> Theme / DesignTokens
+Main -> Chrome / Route / Page
+Chrome -> View.Chrome / Pwa / Ui / Route
+Page -> Component / Data / Api / Ui / View / Lib
+Component -> Data / Api / Ui / View / Lib
+View -> Ui / Data / Lib
+Api -> Api.Client / Api.Json / Data decoders
+Data -> other Data / Lib
+Ui -> Theme / DesignTokens / Common / Viewport / Data
+Lib -> no Data, Api, Page, or View
 ```
 
-`Main.elm` owns URL changes, bootstrap, page lifting, theme state, PWA
-integration, and the live-refresh subscription. `Route.elm` is the single source
-of truth for routes. `Page.*` modules own page-local TEA. `Api.*` modules own
+`Main.elm` is the composition root: URL changes, bootstrap, page lifting, the
+`Ui.Env` environment (theme, device, viewport), PWA integration, and the
+live-refresh subscription. `Chrome.elm` assembles navigation and PWA notices for
+`View.Chrome`. `Route.elm` is the single source of truth for routes and document
+titles, and `Page.elm` composes route-specific page models and messages.
+`Page.*` modules own page-local TEA and receive `Ui.Env`. `Component.*` holds
+reusable stateful hosts such as `Component.Analysis`. `Api.*` modules own
 request construction, decoding, and transport errors. `Data.*` modules own
-domain-facing types and pure helpers. `Ui.*` and `View.*` own shared
-presentation. See [frontend.md](frontend.md) for detail.
+domain-facing types, pure helpers, and `Data.Formatting` for display strings.
+`Lib.*` holds generic helpers only (`Lib.Number`, `Lib.ListExtra`,
+`Lib.RemoteData`, `Lib.Time`) and never imports `Data`. `Ui.*` owns reusable
+primitives, layout, theme, `Ui.Page`, `Ui.Workspace`, and `Ui.Env`; `View.*`
+composes them into stateless presentation. See [frontend.md](frontend.md) for
+detail.
 
 ## Snapshot and freshness
 

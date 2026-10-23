@@ -1,5 +1,6 @@
 module AnalysisTest exposing (suite)
 
+import Component.Analysis as Analysis exposing (Timeline(..))
 import Data.Analytics as Analytics exposing (ActivityResponse, TimelinePoint)
 import Data.Completeness exposing (Completeness(..))
 import Data.Date exposing (Date(..))
@@ -7,12 +8,11 @@ import Data.Decimal as Decimal
 import Data.Freshness exposing (Freshness(..))
 import Data.Granularity exposing (Granularity(..))
 import Data.Status exposing (Status(..))
-import Data.Transaction exposing (Transaction)
+import Data.Transaction exposing (Transaction, TransactionEffect(..))
 import Expect
 import Fuzz
-import Page.Shared.Analysis as Analysis exposing (Timeline(..))
 import Test exposing (Test, describe, fuzz, test)
-import View.Analytics exposing (ActivityTone(..), CalendarDisplay(..), Palette(..))
+import View.Analytics.Types exposing (ActivityTone(..), CalendarDisplay(..), Palette(..))
 
 
 {-| Two domain rules of the analysis views: an out-of-date report or activity
@@ -106,7 +106,7 @@ selectedTransaction =
     , comment = Nothing
     , tags = []
     , postings = []
-    , presentation = { classification = "income", effects = [ "income" ] }
+    , presentation = { classification = TransactionIncome, effects = [ TransactionIncome ] }
     }
 
 

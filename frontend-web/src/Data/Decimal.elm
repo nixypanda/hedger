@@ -1,4 +1,4 @@
-module Data.Decimal exposing (Decimal, decoder, fromString, toString, zero)
+module Data.Decimal exposing (Decimal, decoder, fromString, toFloat, toString, zero)
 
 import Json.Decode as Decode exposing (Decoder)
 
@@ -53,6 +53,11 @@ fromString raw =
 toString : Decimal -> String
 toString (Decimal value) =
     value
+
+
+toFloat : Decimal -> Float
+toFloat amount =
+    amount |> toString |> String.toFloat |> Maybe.withDefault 0
 
 
 decoder : Decoder Decimal

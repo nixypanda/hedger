@@ -1,9 +1,11 @@
 module Page.Settings exposing (Model, Msg(..), OutMsg(..), init, update, view)
 
 import Element exposing (Element)
-import Preferences exposing (ThemeMode(..))
-import Ui
-import Ui.Theme exposing (Theme)
+import Ui.Env exposing (Env)
+import Ui.Input
+import Ui.Page as Page
+import Ui.Surface as Surface
+import Ui.Theme exposing (Mode(..), Theme)
 import Ui.Typography as Typography
 
 
@@ -12,12 +14,12 @@ import Ui.Typography as Typography
 
 
 type alias Model =
-    { themeMode : ThemeMode }
+    { mode : Mode }
 
 
-init : ThemeMode -> Model
-init themeMode =
-    { themeMode = themeMode }
+init : Mode -> Model
+init mode =
+    { mode = mode }
 
 
 
@@ -25,20 +27,20 @@ init themeMode =
 
 
 type Msg
-    = ThemeModeSelected ThemeMode
+    = ModeSelected Mode
 
 
 type OutMsg
-    = SetThemeMode ThemeMode
+    = SetTheme Mode
 
 
 update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
 update msg model =
     case msg of
-        ThemeModeSelected mode ->
-            ( { model | themeMode = mode }
+        ModeSelected mode ->
+            ( { model | mode = mode }
             , Cmd.none
-            , SetThemeMode mode
+            , SetTheme mode
             )
 
 
@@ -46,43 +48,41 @@ update msg model =
 -- VIEW
 
 
-view : Theme -> Model -> Element Msg
-view theme model =
-    Element.column
-        [ Element.width Element.fill
-        , Typography.uiClass "page-scroll"
-        ]
-        [ Ui.pageHeaderBand theme <|
-            Ui.pageHeader theme
-                { leading = Nothing
-                , title = Typography.pageTitle theme "Settings"
-                , subtitle = Nothing
-                , actions = []
-                }
-        , Ui.pageContainer
-            [ appearanceSection theme model
-            ]
-        ]
+view : Env -> Model -> Element Msg
+view env model =
+    let
+        theme =
+            env.theme
+    in
+    Page.scaffold theme
+        { header =
+            { leading = Nothing
+            , title = Typography.pageTitle theme "Settings"
+            , subtitle = Nothing
+            , actions = []
+            }
+        , body = [ appearanceSection theme model ]
+        }
 
 
 appearanceSection : Theme -> Model -> Element Msg
 appearanceSection theme model =
-    Ui.formSection theme
+    Surface.formSection theme
         "Appearance"
         [ themeToggle theme model ]
 
 
 themeToggle : Theme -> Model -> Element Msg
 themeToggle theme model =
-    Ui.segmentedControl theme
-        [ Ui.segmentedOption theme
+    Ui.Input.segmentedControl theme
+        [ Ui.Input.segmentedOption theme
             { label = "Light"
-            , selected = model.themeMode == Light
-            , onPress = ThemeModeSelected Light
+            , selected = model.mode == Light
+            , onPress = ModeSelected Light
             }
-        , Ui.segmentedOption theme
+        , Ui.Input.segmentedOption theme
             { label = "Dark"
-            , selected = model.themeMode == Dark
-            , onPress = ThemeModeSelected Dark
+            , selected = model.mode == Dark
+            , onPress = ModeSelected Dark
             }
         ]

@@ -5,11 +5,12 @@ import Data.Revision as Revision
 import Expect
 import Fuzz
 import Json.Decode as Decode
-import Preferences exposing (ThemeMode(..))
-import RemoteData exposing (RemoteData(..))
+import Lib.RemoteData as RemoteData exposing (RemoteData(..))
+import Preferences
 import Route exposing (Route(..))
 import Test exposing (Test, describe, fuzz2, test)
-import Ui.Responsive as Responsive
+import Ui.Theme exposing (Mode(..))
+import Ui.Viewport as Viewport exposing (Viewport)
 import Url
 
 
@@ -60,19 +61,76 @@ suite =
         , test "legacy theme preference migrates to version one" <|
             \_ ->
                 Decode.decodeString Preferences.decoder "{\"themeMode\":\"dark\"}"
-                    |> Result.map (\preferences -> ( preferences.version, preferences.themeMode ))
-                    |> Expect.equal (Ok ( 1, Dark ))
+                    |> Result.map (\preferences -> ( preferences.version, preferences.mode ))
+                    |> Expect.equal (Ok ( 1, Ui.Theme.Dark ))
+        , describe "theme mode decoding"
+            [ test "accepts light" <|
+                \_ ->
+                    decodeMode "light"
+                        |> Expect.equal (Ok Light)
+            , test "accepts dark" <|
+                \_ ->
+                    decodeMode "dark"
+                        |> Expect.equal (Ok Dark)
+            , test "rejects unknown values" <|
+                \_ ->
+                    decodeMode "sepia"
+                        |> Expect.err
+            ]
         , fuzz2 (Fuzz.maybe Fuzz.string)
             (Fuzz.maybe Fuzz.string)
             "snapshots are compatible only when revisions match or are absent"
             revisionCompatibility
         , test "responsive layouts use available width efficiently" <|
             responsiveLayoutsUseWidth
+        , test "content layout switches at usable-width boundaries" <|
+            contentLayoutBoundaries
+        , test "usable content width matches layout boundaries" <|
+            usableContentWidthBoundaries
+        , test "master/detail starts at wide layouts" <|
+            masterDetailBoundaries
         , test "viewport height does not change structural layout" <|
             responsiveLayoutIgnoresHeight
         , test "full navigation does not shrink usable content" <|
             navigationTransitionPreservesContentWidth
         ]
+
+
+viewportAt : Int -> Viewport
+viewportAt width =
+    { width = width, height = 900 }
+
+
+decodeMode : String -> Result Decode.Error Mode
+decodeMode value =
+    Decode.decodeString Preferences.decoder ("{\"themeMode\":\"" ++ value ++ "\"}")
+        |> Result.map .mode
+
+
+contentLayoutBoundaries : () -> Expect.Expectation
+contentLayoutBoundaries _ =
+    [ 731, 732, 991, 992 ]
+        |> List.map (viewportAt >> Viewport.contentLayout)
+        |> Expect.equal
+            [ Viewport.Compact
+            , Viewport.Medium
+            , Viewport.Medium
+            , Viewport.Wide
+            ]
+
+
+usableContentWidthBoundaries : () -> Expect.Expectation
+usableContentWidthBoundaries _ =
+    [ 732, 992 ]
+        |> List.map (viewportAt >> Viewport.usableContentWidth)
+        |> Expect.equal [ 700, 960 ]
+
+
+masterDetailBoundaries : () -> Expect.Expectation
+masterDetailBoundaries _ =
+    [ 991, 992 ]
+        |> List.map (viewportAt >> Viewport.usesMasterDetail)
+        |> Expect.equal [ False, True ]
 
 
 responsiveLayoutsUseWidth : () -> Expect.Expectation
@@ -81,11 +139,11 @@ responsiveLayoutsUseWidth _ =
     , { width = 768, height = 1024 }
     , { width = 1024, height = 768 }
     ]
-        |> List.map Responsive.contentLayout
+        |> List.map Viewport.contentLayout
         |> Expect.equal
-            [ Responsive.Compact
-            , Responsive.Medium
-            , Responsive.Wide
+            [ Viewport.Compact
+            , Viewport.Medium
+            , Viewport.Wide
             ]
 
 
@@ -96,13 +154,13 @@ responsiveLayoutIgnoresHeight _ =
     ]
         |> List.map
             (\viewport ->
-                ( Responsive.contentLayout viewport
-                , Responsive.usesMasterDetail viewport
+                ( Viewport.contentLayout viewport
+                , Viewport.usesMasterDetail viewport
                 )
             )
         |> Expect.equal
-            [ ( Responsive.Medium, False )
-            , ( Responsive.Medium, False )
+            [ ( Viewport.Medium, False )
+            , ( Viewport.Medium, False )
             ]
 
 
@@ -110,15 +168,15 @@ navigationTransitionPreservesContentWidth : () -> Expect.Expectation
 navigationTransitionPreservesContentWidth _ =
     let
         before =
-            { width = 1543, height = 900 }
+            viewportAt 1543
 
         after =
-            { width = 1544, height = 900 }
+            viewportAt 1544
     in
-    { beforeUsesBottomNavigation = Responsive.usesBottomNavigation before
-    , afterUsesBottomNavigation = Responsive.usesBottomNavigation after
-    , beforeContentWidth = Responsive.usableContentWidth before
-    , afterContentWidth = Responsive.usableContentWidth after
+    { beforeUsesBottomNavigation = Viewport.usesBottomNavigation before
+    , afterUsesBottomNavigation = Viewport.usesBottomNavigation after
+    , beforeContentWidth = Viewport.usableContentWidth before
+    , afterContentWidth = Viewport.usableContentWidth after
     }
         |> Expect.equal
             { beforeUsesBottomNavigation = True
