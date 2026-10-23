@@ -618,7 +618,7 @@ valuePanel theme (AccountNode account) =
     , balanceText theme account.valuation Nothing
     , completenessBadge theme account.valuation.completeness
     , Surface.hairline theme
-    , Typography.subsectionTitle theme "Balances included"
+    , Typography.cardTitle theme "Balances included"
     , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (List.map (detailBalance theme) account.subtreeBalances)
     , Element.text

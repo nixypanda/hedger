@@ -422,12 +422,16 @@ component-internal chip and skeleton paddings may use explicit values. Layout
 and component sizes (sidebar width, navigation height, chart sizes, column
 widths, and similar) are separate constants, not scale steps.
 
-- Spacing (`Ui.DesignTokens`): `0, 2, 4, 8, 12, 16, 20, 24`.
+- Spacing (`Ui.DesignTokens`): `0, 2, 4, 8, 12, 16, 20, 24, 32`.
 - Radius (`Ui.DesignTokens`): `2` hairline, `8` small, `12` control, `20` card,
   `999` pill.
 - Type (`Ui.Typography`): `12, 14, 16, 20, 24, 32, 44`.
+  - `32` is the page title.
+  - `24` is the section heading.
+  - `20` is the list/month subsection label.
+  - `16` is the card and in-card header step (`cardTitle`); it is also
+    available for emphasized body and detail text via `bodyLarge`.
   - `14` is body text.
-  - `16` is used for detail values and other emphasized body text.
   - `12` is the small-text step for captions, metadata, chips, and compact
     labels.
   - `44` is reserved for future display text and is currently unused.
@@ -435,7 +439,7 @@ widths, and similar) are separate constants, not scale steps.
   `fontWeight`, `fontFamily`) and app-agnostic roles (`display`, `headline`,
   `heading`, `subheading`, `body`, `bodyLarge`, `label`, `labelSmall`,
   `caption`, `numeric`). Document roles (`pageTitle`, `sectionTitle`,
-  `subsectionTitle`) and muted text helpers also live there.
+  `subsectionTitle`, `cardTitle`) and muted text helpers also live there.
 - Do not add app-specific roles such as KPI, row, brand, tab, or detail styles
   to `Ui.Typography`; compose the generic roles in the owning `Ui.*`,
   `Component.*`, or `View.*` module.

@@ -21,7 +21,8 @@ import Ui.DesignTokens
         , periodFiscalYearLabelWidth
         , periodMonthLabelWidth
         , space12
-        , space16
+        , space24
+        , space32
         , space4
         , space8
         )
@@ -51,7 +52,7 @@ pageContainer children =
     Element.column
         [ Element.centerX
         , Element.width (Element.fill |> Element.maximum 1280)
-        , Element.spacing space16
+        , Element.spacing space24
         , Element.padding Ui.Viewport.contentPadding
         ]
         children
@@ -88,7 +89,12 @@ pageHeaderBand theme content =
         (Element.el
             [ Element.centerX
             , Element.width (Element.fill |> Element.maximum 1280)
-            , Element.padding Ui.Viewport.contentPadding
+            , Element.paddingEach
+                { top = space32
+                , right = Ui.Viewport.contentPadding
+                , bottom = space24
+                , left = Ui.Viewport.contentPadding
+                }
             ]
             content
         )

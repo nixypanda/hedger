@@ -40,6 +40,7 @@ module Ui.DesignTokens exposing
     , space2
     , space20
     , space24
+    , space32
     , space4
     , space8
     , splitPaneControlWidth
@@ -252,6 +253,11 @@ space20 =
 space24 : Int
 space24 =
     24
+
+
+space32 : Int
+space32 =
+    32
 
 
 

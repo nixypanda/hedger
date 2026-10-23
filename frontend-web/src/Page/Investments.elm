@@ -287,13 +287,19 @@ content theme viewport data =
                     [ investmentsSkeleton theme viewport ]
 
         Just response ->
-            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
-            , if isEmpty response then
-                Feedback.emptyState theme "No investment holdings were found in this account scope."
+            States.remoteNotice ApiError.message theme response.metadata.freshness data.response
+                ++ [ if isEmpty response then
+                        Feedback.emptyState theme
+                            "No investment holdings were found in this account scope."
 
-              else
-                investmentDashboard theme viewport data.chartMode data.selectedPeriod response
-            ]
+                     else
+                        investmentDashboard
+                            theme
+                            viewport
+                            data.chartMode
+                            data.selectedPeriod
+                            response
+                   ]
 
 
 isEmpty : Investments.Response -> Bool
@@ -354,7 +360,7 @@ assetClassAllocationCard layout theme commodity allocations =
 
     else
         Surface.card theme
-            [ Typography.subsectionTitle theme "Asset allocation"
+            [ Typography.cardTitle theme "Asset allocation"
             , allocationGrid layout theme commodity allocations
             ]
 
@@ -697,7 +703,7 @@ investmentHistoryCard theme commodity chartWidth selectedMode selected summary t
     Surface.card theme
         [ Element.row [ Element.width Element.fill ]
             [ Element.column [ Element.spacing Tokens.space2 ]
-                [ Typography.subsectionTitle theme "Portfolio history"
+                [ Typography.cardTitle theme "Portfolio history"
                 , investmentCompletenessBadge theme summary.completeness
                 ]
             , Element.el [ Element.alignRight ] (chartModeControl theme selectedMode)

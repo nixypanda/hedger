@@ -654,11 +654,15 @@ view env config report (Model data) =
                 6
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-        [ Typography.sectionTitle theme config.timelineSectionTitle
-        , timelineView theme chartWidth config report data
+        [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+            [ Typography.sectionTitle theme config.timelineSectionTitle
+            , timelineView theme chartWidth config report data
+            ]
         , Feedback.warningList theme report.warnings
-        , compositionHeader theme layout data
-        , breakdownsView theme layout config report data
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+            [ compositionHeader theme layout data
+            , breakdownsView theme layout config report data
+            ]
         , activityViews theme layout activityColumns config report data
         ]
 
@@ -738,7 +742,7 @@ timelineView theme chartWidth config report data =
     case report.timeline of
         TimelineAvailable points ->
             Surface.card theme
-                [ Typography.subsectionTitle theme config.timelineTitle
+                [ Typography.cardTitle theme config.timelineTitle
                 , Timeline.positiveNegativeTimelineChart theme
                     { commodity = report.displayCommodity
                     , points = points

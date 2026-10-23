@@ -4,6 +4,7 @@ module Ui.Typography exposing
     , body
     , bodyLarge
     , caption
+    , cardTitle
     , display
     , fontFamily
     , fontSize
@@ -32,7 +33,6 @@ import Element.Region as Region
 import Html
 import Html.Attributes
 import Ui.Common as Common
-import Ui.DesignTokens exposing (space4)
 import Ui.Theme exposing (Theme)
 
 
@@ -86,6 +86,25 @@ fontFamily =
     Font.family [ Font.typeface "Inter", Font.sansSerif ]
 
 
+letterSpacing : Float -> Element.Attribute msg
+letterSpacing value =
+    Element.htmlAttribute
+        (Html.Attributes.style "letter-spacing" (String.fromFloat value ++ "em"))
+
+
+{-| Apply leading to the text node itself. elm-ui gives text nodes a
+line-height of 1, so setting line-height on an `Element.el` wrapper does not
+affect the rendered text.
+-}
+styledText : Float -> String -> Element msg
+styledText leading value =
+    Element.html
+        (Html.span
+            [ Html.Attributes.style "line-height" (String.fromFloat leading) ]
+            [ Html.text value ]
+        )
+
+
 
 -- Generic text roles
 --
@@ -108,12 +127,12 @@ headline =
 
 heading : List (Element.Attribute msg)
 heading =
-    [ fontSize Xl, fontWeight Bold ]
+    [ fontSize Xl, fontWeight SemiBold ]
 
 
 subheading : List (Element.Attribute msg)
 subheading =
-    [ fontSize Lg, fontWeight Bold ]
+    [ fontSize Lg, fontWeight SemiBold ]
 
 
 body : List (Element.Attribute msg)
@@ -163,7 +182,13 @@ htmlFontWeight weight =
 pageTitle : Theme -> String -> Element msg
 pageTitle theme text =
     naturalWrapText
-        (headline ++ [ Font.color theme.textPrimary, Region.heading 1 ])
+        1.15
+        (headline
+            ++ [ Font.color theme.textPrimary
+               , Region.heading 1
+               , letterSpacing -0.02
+               ]
+        )
         ""
         text
 
@@ -171,7 +196,13 @@ pageTitle theme text =
 pageTitleWithDelimiter : Theme -> String -> String -> Element msg
 pageTitleWithDelimiter theme delimiter text =
     naturalWrapText
-        (headline ++ [ Font.color theme.textPrimary, Region.heading 1 ])
+        1.15
+        (headline
+            ++ [ Font.color theme.textPrimary
+               , Region.heading 1
+               , letterSpacing -0.02
+               ]
+        )
         delimiter
         text
 
@@ -179,15 +210,35 @@ pageTitleWithDelimiter theme delimiter text =
 sectionTitle : Theme -> String -> Element msg
 sectionTitle theme text =
     Element.el
-        (heading ++ [ Font.color theme.textPrimary, Region.heading 2 ])
-        (Element.text text)
+        (heading
+            ++ [ Font.color theme.textPrimary
+               , Region.heading 2
+               , letterSpacing -0.01
+               ]
+        )
+        (styledText 1.25 text)
 
 
 subsectionTitle : Theme -> String -> Element msg
 subsectionTitle theme text =
     Element.el
-        (subheading ++ [ Font.color theme.textPrimary, Region.heading 3 ])
-        (Element.text text)
+        (subheading
+            ++ [ Font.color theme.textPrimary
+               , Region.heading 3
+               ]
+        )
+        (styledText 1.25 text)
+
+
+cardTitle : Theme -> String -> Element msg
+cardTitle theme text =
+    Element.el
+        [ fontSize Md
+        , fontWeight SemiBold
+        , Font.color theme.textPrimary
+        , Region.heading 3
+        ]
+        (styledText 1.3 text)
 
 
 mutedBody : Theme -> String -> Element msg
@@ -207,16 +258,12 @@ mutedCaption theme text =
 mutedParagraph : Theme -> String -> Element msg
 mutedParagraph theme text =
     Element.paragraph
-        (body
-            ++ [ Font.color theme.textMuted
-               , Element.spacing space4
-               ]
-        )
-        [ Element.text text ]
+        (body ++ [ Font.color theme.textMuted ])
+        [ styledText 1.5 text ]
 
 
-naturalWrapText : List (Element.Attribute msg) -> String -> String -> Element msg
-naturalWrapText attributes delimiter value =
+naturalWrapText : Float -> List (Element.Attribute msg) -> String -> String -> Element msg
+naturalWrapText leading attributes delimiter value =
     if delimiter == "" then
         Element.paragraph
             ([ Element.width Element.fill
@@ -224,7 +271,7 @@ naturalWrapText attributes delimiter value =
              ]
                 ++ attributes
             )
-            [ Element.text value ]
+            [ styledText leading value ]
 
     else
         Element.wrappedRow
@@ -234,11 +281,11 @@ naturalWrapText attributes delimiter value =
              ]
                 ++ attributes
             )
-            (delimitedTextSegments delimiter value)
+            (delimitedTextSegments leading delimiter value)
 
 
-delimitedTextSegments : String -> String -> List (Element msg)
-delimitedTextSegments delimiter value =
+delimitedTextSegments : Float -> String -> String -> List (Element msg)
+delimitedTextSegments leading delimiter value =
     let
         segments =
             String.split delimiter value
@@ -250,7 +297,8 @@ delimitedTextSegments delimiter value =
         |> List.indexedMap
             (\index segment ->
                 Element.el [ Element.width Element.shrink ]
-                    (Element.text
+                    (styledText
+                        leading
                         (if index == lastIndex then
                             segment
 

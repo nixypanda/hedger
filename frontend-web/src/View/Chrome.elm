@@ -205,11 +205,11 @@ brand theme =
                 )
             )
         , Element.el
-            (Typography.subheading
-                ++ [ Font.color theme.navigationFg
-                   , Element.centerY
-                   ]
-            )
+            [ Typography.fontSize Typography.Lg
+            , Typography.fontWeight Typography.Bold
+            , Font.color theme.navigationFg
+            , Element.centerY
+            ]
             (Element.text "Hedger")
         ]
 

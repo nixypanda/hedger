@@ -49,7 +49,7 @@ categoryCard theme config =
         , Element.height Element.fill
         ]
         theme
-        [ Typography.subsectionTitle theme config.title
+        [ Typography.cardTitle theme config.title
         , if List.isEmpty config.breakdown.items then
             Feedback.emptyState theme "No categories for this period"
 
@@ -57,12 +57,6 @@ categoryCard theme config =
             Element.wrappedRow
                 [ Element.width Element.fill
                 , Element.spacing Tokens.space24
-                , Element.paddingEach
-                    { top = Tokens.space12
-                    , right = Tokens.space0
-                    , bottom = Tokens.space0
-                    , left = Tokens.space0
-                    }
                 ]
                 [ categoryBreakdownDonut theme
                     config.palette

@@ -318,67 +318,72 @@ dashboardContent env data =
                     [ netWorthSkeleton theme viewport ]
 
         Just response ->
-            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
-            , responsiveGrid layout
-                [ Kpi.kpiCard theme
-                    { title = "Net worth"
-                    , commodity = response.displayCommodity
-                    , kpi = response.netWorth
-                    , color = theme.primary
-                    , icon = Icon.TrendingUp
-                    , decreaseIsPositive = False
-                    }
-                , Kpi.kpiCard theme
-                    { title = "Assets"
-                    , commodity = response.displayCommodity
-                    , kpi = response.assets
-                    , color = theme.asset
-                    , icon = Icon.Wallet
-                    , decreaseIsPositive = False
-                    }
-                , Kpi.kpiCard theme
-                    { title = "Liabilities"
-                    , commodity = response.displayCommodity
-                    , kpi = response.liabilities
-                    , color = theme.liability
-                    , icon = Icon.Receipt
-                    , decreaseIsPositive = True
-                    }
-                ]
-            , Typography.sectionTitle theme "Performance"
-            , Surface.card theme
-                [ Element.row [ Element.width Element.fill ]
-                    [ Typography.subsectionTitle theme "Net Investment vs Net Worth"
-                    , if response.incompletePeriods > 0 then
-                        Chip.statusBadge theme
-                            Chip.StatusWarning
-                            (String.fromInt response.incompletePeriods ++ " incomplete")
+            States.remoteNotice ApiError.message theme response.metadata.freshness data.response
+                ++ [ responsiveGrid layout
+                        [ Kpi.kpiCard theme
+                            { title = "Net worth"
+                            , commodity = response.displayCommodity
+                            , kpi = response.netWorth
+                            , color = theme.primary
+                            , icon = Icon.TrendingUp
+                            , decreaseIsPositive = False
+                            }
+                        , Kpi.kpiCard theme
+                            { title = "Assets"
+                            , commodity = response.displayCommodity
+                            , kpi = response.assets
+                            , color = theme.asset
+                            , icon = Icon.Wallet
+                            , decreaseIsPositive = False
+                            }
+                        , Kpi.kpiCard theme
+                            { title = "Liabilities"
+                            , commodity = response.displayCommodity
+                            , kpi = response.liabilities
+                            , color = theme.liability
+                            , icon = Icon.Receipt
+                            , decreaseIsPositive = True
+                            }
+                        ]
+                   , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+                        [ Typography.sectionTitle theme "Performance"
+                        , Surface.card theme
+                            [ Element.wrappedRow
+                                [ Element.width Element.fill
+                                , Element.spacing Tokens.space8
+                                ]
+                                [ Typography.cardTitle theme "Net Investment vs Net Worth"
+                                , if response.incompletePeriods > 0 then
+                                    Chip.statusBadge theme
+                                        Chip.StatusWarning
+                                        (String.fromInt response.incompletePeriods ++ " incomplete")
 
-                      else
-                        Element.none
-                    ]
-                , Timeline.netWorthPerformanceChart theme
-                    { commodity = response.displayCommodity
-                    , points = response.performance
-                    , selected = data.selectedPerformance
-                    , onSelect = PerformanceSelected
-                    , availableWidth = chartWidth
-                    }
-                , Legend.chartLegend theme
-                    [ ( theme.positive, "Net investment" )
-                    , ( theme.primary, "Net worth" )
-                    , ( theme.positive, "Gain" )
-                    , ( theme.negative, "Loss" )
-                    ]
-                ]
-            , Element.map AnalysisMsg
-                (Analysis.view
-                    env
-                    analysisConfig
-                    (analysisReport response)
-                    data.analysis
-                )
-            ]
+                                  else
+                                    Element.none
+                                ]
+                            , Timeline.netWorthPerformanceChart theme
+                                { commodity = response.displayCommodity
+                                , points = response.performance
+                                , selected = data.selectedPerformance
+                                , onSelect = PerformanceSelected
+                                , availableWidth = chartWidth
+                                }
+                            , Legend.chartLegend theme
+                                [ ( theme.positive, "Net investment" )
+                                , ( theme.primary, "Net worth" )
+                                , ( theme.positive, "Gain" )
+                                , ( theme.negative, "Loss" )
+                                ]
+                            ]
+                        ]
+                   , Element.map AnalysisMsg
+                        (Analysis.view
+                            env
+                            analysisConfig
+                            (analysisReport response)
+                            data.analysis
+                        )
+                   ]
 
 
 responsiveGrid : Viewport.ContentLayout -> List (Element msg) -> Element msg
@@ -396,14 +401,16 @@ netWorthSkeleton theme viewport =
         layout =
             Viewport.contentLayout viewport
     in
-    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space24 ]
         [ responsiveGrid layout
             [ Skeleton.summaryCard theme
             , Skeleton.summaryCard theme
             , Skeleton.summaryCard theme
             ]
-        , Typography.sectionTitle theme "Performance"
-        , Skeleton.chartCard theme
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+            [ Typography.sectionTitle theme "Performance"
+            , Skeleton.chartCard theme
+            ]
         , Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
             [ Skeleton.chartCard theme
             , responsiveGrid layout

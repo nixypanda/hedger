@@ -17,6 +17,7 @@ import Element exposing (Element)
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Element.Region as Region
 import Html.Attributes as Attr
 import Lib.ListExtra as ListExtra
 import List
@@ -107,7 +108,7 @@ activityMonth theme config =
         , Element.height Element.fill
         ]
         theme
-        [ Typography.subsectionTitle theme config.title
+        [ Typography.cardTitle theme config.title
         , calendar
         , Legend.activityLegend theme
             config.calendarDisplay
@@ -301,7 +302,14 @@ addCategoryTotal category totals =
 activityTransactionList : Theme -> String -> List Transaction -> (Transaction -> msg) -> Element msg
 activityTransactionList theme title transactions onSelect =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-        [ Typography.subsectionTitle theme title
+        [ Element.el
+            (Typography.body
+                ++ [ Typography.fontWeight Typography.SemiBold
+                   , Font.color theme.textPrimary
+                   , Region.heading 4
+                   ]
+            )
+            (Element.text title)
         , if List.isEmpty transactions then
             Typography.mutedCaption theme "No transactions for this period"
 
@@ -362,7 +370,7 @@ activityYear theme config =
         , Element.height Element.fill
         ]
         theme
-        [ Typography.subsectionTitle theme config.title
+        [ Typography.cardTitle theme config.title
         , case config.response of
             Nothing ->
                 Feedback.loading theme "Loading activity"

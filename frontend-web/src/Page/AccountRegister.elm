@@ -788,7 +788,7 @@ detailPage theme onClose commodity entry =
 valueDetails : Theme -> String -> String -> Value -> Element msg
 valueDetails theme commodity label value =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-        [ Typography.subsectionTitle theme label
+        [ Typography.cardTitle theme label
         , Element.text (displayValue commodity value)
             |> Element.el Typography.headline
         , States.registerCompletenessBadge theme value.completeness

@@ -350,21 +350,21 @@ dashboardContent env data =
                     [ cashflowSkeleton theme viewport ]
 
         Just response ->
-            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
-            , Typography.mutedBody theme
-                (String.fromInt response.filteredCount
-                    ++ " of "
-                    ++ String.fromInt response.totalCount
-                    ++ " transactions"
-                )
-            , Element.map AnalysisMsg
-                (Analysis.view
-                    env
-                    analysisConfig
-                    (analysisReport response)
-                    data.analysis
-                )
-            ]
+            States.remoteNotice ApiError.message theme response.metadata.freshness data.response
+                ++ [ Typography.mutedBody theme
+                        (String.fromInt response.filteredCount
+                            ++ " of "
+                            ++ String.fromInt response.totalCount
+                            ++ " transactions"
+                        )
+                   , Element.map AnalysisMsg
+                        (Analysis.view
+                            env
+                            analysisConfig
+                            (analysisReport response)
+                            data.analysis
+                        )
+                   ]
 
 
 queryError : RemoteData ApiError value -> Maybe ApiError

@@ -51,22 +51,22 @@ remoteNotice :
     -> Theme
     -> Freshness
     -> RemoteData error value
-    -> Element msg
+    -> List (Element msg)
 remoteNotice errorMessage theme freshness remote =
     case remote of
         Loading _ ->
-            noticeSlot (Chip.statusBadge theme Chip.StatusPrimary "Refreshing")
+            [ noticeSlot (Chip.statusBadge theme Chip.StatusPrimary "Refreshing") ]
 
         Failure error _ ->
-            Feedback.errorBanner theme (errorMessage error)
+            [ Feedback.errorBanner theme (errorMessage error) ]
 
         _ ->
             case freshness of
                 Fresh ->
-                    noticeSlot Element.none
+                    []
 
                 _ ->
-                    noticeSlot (freshnessBanner theme freshness)
+                    [ noticeSlot (freshnessBanner theme freshness) ]
 
 
 noticeSlot : Element msg -> Element msg

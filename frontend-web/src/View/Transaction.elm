@@ -243,6 +243,7 @@ postingDetailRow theme posting =
                 }
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
                 ([ Typography.naturalWrapText
+                    1.4
                     (Typography.bodyLarge ++ [ Font.color theme.textMedium ])
                     ":"
                     posting.account

@@ -14,7 +14,7 @@ import Element.Border as Border
 import Ui.Common as Common
 import Ui.DesignTokens exposing (radiusCard, radiusControl, radiusHairline, space12, space20)
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (subsectionTitle)
+import Ui.Typography exposing (cardTitle)
 
 
 card : Theme -> List (Element msg) -> Element msg
@@ -58,7 +58,7 @@ section theme config =
 formSection : Theme -> String -> List (Element msg) -> Element msg
 formSection theme title children =
     section theme
-        { header = Just (subsectionTitle theme title)
+        { header = Just (cardTitle theme title)
         , body = children
         , footer = Nothing
         }
