@@ -402,7 +402,8 @@ compose them.
 
 - `elm-ui` layout primitives, not CSS utility classes.
 - System sans-serif typography.
-- Light and dark themes with theme-owned surfaces, borders, radii, and shadows.
+- Light and dark themes with theme-owned colors, borders, and shadows; radii are
+  `Ui.DesignTokens` constants.
 
 ### Environment and layout
 
@@ -415,9 +416,23 @@ compose them.
 
 ### Type and tokens
 
-- `Ui.Typography` — the type scale (page title, section, body, caption, KPI
-  value, and so on).
-- `Ui.DesignTokens` — layout, sizing, and spacing tokens.
+The spacing, radius, and type scales follow CalCo's scales. Layout spacing
+follows the scale; component-internal chip and skeleton paddings may use
+explicit values. Layout and component sizes (sidebar width, navigation height,
+chart sizes, column widths, and similar) are separate constants, not scale
+steps.
+
+- Spacing (`Ui.DesignTokens`): `0, 2, 4, 8, 12, 16, 20, 24`.
+- Radius (`Ui.DesignTokens`): `2` hairline, `8` small, `12` control, `20` card,
+  `999` pill.
+- Type (`Ui.Typography`): `13, 16, 20, 24, 32, 44`; control text is `14`
+  (`Typography.controlLabel`) for buttons, segmented controls, and period
+  navigation. Text inputs and navigation items intentionally use body `16`.
+  The `44` hero stat is reserved and currently unused.
+- `Ui.Typography` — role-based type styles (page title, section, body, caption,
+  KPI value, hero stat, and so on).
+- `Ui.DesignTokens` — layout and component constants plus the spacing and
+  radius scales.
 - `Ui.Theme` — light/dark theme records and mode parsing; the settings page
   toggles between them.
 - `Ui.Common` / `Ui.Color` — shared attributes, CSS color conversion, blending,

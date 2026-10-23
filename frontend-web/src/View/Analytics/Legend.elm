@@ -33,10 +33,10 @@ import View.Analytics.Types
 
 chartLegend : Theme -> List ( Element.Color, String ) -> Element msg
 chartLegend theme items =
-    Element.wrappedRow [ Element.spacing Tokens.space14 ]
+    Element.wrappedRow [ Element.spacing Tokens.space16 ]
         (List.map
             (\( color, label ) ->
-                Element.row [ Element.spacing Tokens.space5 ]
+                Element.row [ Element.spacing Tokens.space8 ]
                     [ Surface.accentDot color
                     , Element.el [ Font.color theme.textMuted ] (Element.text label)
                     ]
@@ -93,7 +93,7 @@ activityCategoryLegend config =
                     , selected = config.highlightedCategory == Just index
                     , onPress = config.onCategoryHighlight index
                     , label =
-                        Element.row [ Element.spacing Tokens.space5 ]
+                        Element.row [ Element.spacing Tokens.space8 ]
                             [ Surface.accentDot dotColor
                             , Typography.mutedCaption theme (categoryLabel category.account)
                             ]
@@ -107,7 +107,7 @@ activityCategoryLegend config =
         in
         if isExpanded then
             Element.wrappedRow
-                [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+                [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 (List.map chip indexedCategories
                     ++ (if hiddenCount > 0 then
                             [ toggle "show less" ]
@@ -119,14 +119,14 @@ activityCategoryLegend config =
 
         else
             Element.row
-                [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+                [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ Element.el
                     [ Element.width Element.fill
                     , Element.clip
                     , Common.minWidthZero
                     ]
                     (Element.row
-                        [ Element.spacing Tokens.space10 ]
+                        [ Element.spacing Tokens.space8 ]
                         (List.map chip (List.take config.maxVisible indexedCategories))
                     )
                 , if hiddenCount > 0 then
@@ -189,10 +189,10 @@ activityMeaningLegend theme tone =
                     in
                     [ ( "Posted", postedColor ), ( "Reversed", reversedColor ) ]
     in
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (List.map
             (\( label, color ) ->
-                Element.row [ Element.spacing Tokens.space5 ]
+                Element.row [ Element.spacing Tokens.space8 ]
                     [ Surface.accentDot color, Typography.mutedCaption theme label ]
             )
             meanings
@@ -201,7 +201,7 @@ activityMeaningLegend theme tone =
 
 activityDirectionLegend : Theme -> List DirectionSpec -> Maybe Int -> (Int -> msg) -> Element msg
 activityDirectionLegend theme specs highlighted onHighlight =
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (List.indexedMap
             (\index spec ->
                 Chip.legendButton theme
@@ -209,7 +209,7 @@ activityDirectionLegend theme specs highlighted onHighlight =
                     , selected = highlighted == Just index
                     , onPress = onHighlight index
                     , label =
-                        Element.row [ Element.spacing Tokens.space5 ]
+                        Element.row [ Element.spacing Tokens.space8 ]
                             [ Surface.accentDot (scaleColor spec.scale 0)
                             , Typography.mutedCaption theme spec.label
                             ]

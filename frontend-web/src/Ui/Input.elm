@@ -21,10 +21,15 @@ import Ui.DesignTokens
         , radiusSmall
         , space12
         , space2
-        , space3
+        , space4
         )
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (body, caption)
+import Ui.Typography exposing (caption, controlLabel)
+
+
+fieldVerticalPadding : Int
+fieldVerticalPadding =
+    14
 
 
 fieldLabel : Theme -> String -> Element msg
@@ -77,8 +82,8 @@ segmentedControl : Theme -> List (Element msg) -> Element msg
 segmentedControl theme segments =
     Element.row
         [ Element.spacing space2
-        , Element.padding space3
-        , Border.rounded radiusSmall
+        , Element.padding space4
+        , Border.rounded radiusControl
         , Background.color theme.chipBg
         , Border.width 1
         , Border.color theme.divider
@@ -94,8 +99,8 @@ wideSegmentedControl theme options =
     Element.row
         [ Element.width Element.fill
         , Element.spacing space2
-        , Element.padding space3
-        , Border.rounded radiusSmall
+        , Element.padding space4
+        , Border.rounded radiusControl
         , Background.color theme.chipBg
         , Border.width 1
         , Border.color theme.divider
@@ -113,7 +118,7 @@ wideSegmentedControl theme options =
                         )
                     , Font.medium
                     , Font.center
-                    , body
+                    , controlLabel
                     , Common.uiClass "ui-motion"
                     , Element.htmlAttribute
                         (Html.Attributes.attribute
@@ -150,7 +155,7 @@ segmentedOption theme config =
             )
         , Font.medium
         , Font.center
-        , body
+        , controlLabel
         , Common.uiClass "ui-motion"
         , Element.htmlAttribute
             (Html.Attributes.attribute
@@ -174,7 +179,7 @@ segmentedSurface theme selected label =
         [ Element.width Element.fill
         , Element.height (Element.px compactControlVisualHeight)
         , Element.paddingXY space12 0
-        , Border.rounded radiusControl
+        , Border.rounded radiusSmall
         , Background.color
             (if selected then
                 theme.cardBg
@@ -188,7 +193,7 @@ segmentedSurface theme selected label =
 
 inputAttrs : Theme -> List (Attribute msg)
 inputAttrs theme =
-    Element.padding 10 :: inputBaseAttrs theme
+    Element.paddingXY space12 fieldVerticalPadding :: inputBaseAttrs theme
 
 
 inputBaseAttrs : Theme -> List (Attribute msg)

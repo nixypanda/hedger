@@ -820,7 +820,7 @@ transactionRow theme compact selected transaction =
                     desktopPrimaryRow theme transaction
                 , Element.column
                     [ Element.width Element.fill
-                    , Element.spacing Tokens.space3
+                    , Element.spacing Tokens.space4
                     , Element.paddingEach
                         { top = Tokens.space0
                         , right = Tokens.space0
@@ -862,13 +862,13 @@ desktopPrimaryRow theme transaction =
             ]
             (Element.text (Date.toString transaction.primaryDate))
         , Element.el
-            [ Typography.rowTitle
-            , Font.semiBold
-            , Element.width Element.fill
-            , Font.color theme.textPrimary
-            , Common.minWidthZero
-            , Common.uiClass "ui-text-ellipsis"
-            ]
+            (Typography.rowTitle
+                ++ [ Element.width Element.fill
+                   , Font.color theme.textPrimary
+                   , Common.minWidthZero
+                   , Common.uiClass "ui-text-ellipsis"
+                   ]
+            )
             (Element.text transaction.description)
         , trailingSummary theme transaction
         ]
@@ -876,19 +876,19 @@ desktopPrimaryRow theme transaction =
 
 phonePrimaryRow : Theme -> Transaction -> Element msg
 phonePrimaryRow theme transaction =
-    Element.column [ Element.width Element.fill, Element.spacing Tokens.space3 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
         [ Element.el
             [ Typography.rowDate, Font.color theme.textMuted ]
             (Element.text (Date.toString transaction.primaryDate))
         , Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             [ Element.paragraph
-                [ Typography.rowTitle
-                , Font.semiBold
-                , Element.width Element.fill
-                , Font.color theme.textPrimary
-                , Common.minWidthZero
-                , Common.uiClass "ui-text-wrap"
-                ]
+                (Typography.rowTitle
+                    ++ [ Element.width Element.fill
+                       , Font.color theme.textPrimary
+                       , Common.minWidthZero
+                       , Common.uiClass "ui-text-wrap"
+                       ]
+                )
                 [ Element.text transaction.description ]
             , trailingSummary theme transaction
             ]
@@ -958,7 +958,7 @@ detailPage theme onBack transaction =
                     Maybe.map
                         (\message -> Button.backButton theme { onPress = message })
                         onBack
-                , title = Typography.sectionTitle theme "Transaction Detail"
+                , title = Typography.pageTitle theme "Transaction Detail"
                 , subtitle = Nothing
                 , actions = []
                 }

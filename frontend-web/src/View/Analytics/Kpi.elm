@@ -48,10 +48,9 @@ kpiCard theme config =
             ]
         , Typography.mutedBody theme config.title
         , Element.el
-            [ Typography.kpiValue
-            , Typography.financeNumber
-            , Font.bold
-            ]
+            (Typography.kpiValue
+                ++ [ Typography.financeNumber ]
+            )
             (Element.text (Formatting.formatDecimalDisplay config.commodity config.kpi.value))
         , comparison theme config.commodity config.decreaseIsPositive config.kpi
         ]
@@ -81,7 +80,7 @@ metricCard theme title value icon color =
                 }
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
                 [ Typography.mutedCaption theme title
-                , Element.el [ Typography.kpiValue, Typography.financeNumber, Font.bold ]
+                , Element.el (Typography.kpiValue ++ [ Typography.financeNumber ])
                     (Element.text value)
                 ]
             ]
@@ -101,7 +100,7 @@ iconTile config =
         [ Element.width (Element.px config.size)
         , Element.height (Element.px config.size)
         , Background.color config.background
-        , Border.rounded Tokens.radiusMedium
+        , Border.rounded Tokens.radiusControl
         ]
         (Element.el [ Element.centerX, Element.centerY ]
             (Icon.view

@@ -631,6 +631,7 @@ entryRow theme compact model commodity entry =
                         ]
                         [ Element.el
                             [ Element.width (Element.px Tokens.registerDateWidth)
+                            , Typography.rowDate
                             ]
                             date
                         , Element.el
@@ -690,6 +691,8 @@ valueDisplay theme commodity isMovement color value =
         [ Common.truncatedText (fullDisplayValue commodity value)
             |> Element.el
                 ([ Element.width Element.fill
+                 , Typography.rowAmount
+                 , Typography.financeNumber
                  , Font.alignRight
                  , Font.color color
                  ]
@@ -763,7 +766,7 @@ detailPage theme onClose commodity entry =
     Page.scaffold theme
         { header =
             { leading = Just (Button.backButton theme { onPress = onClose })
-            , title = Typography.sectionTitle theme "Details"
+            , title = Typography.pageTitle theme "Details"
             , subtitle = Nothing
             , actions = []
             }
@@ -786,9 +789,7 @@ valueDetails theme commodity label value =
         [ Typography.subsectionTitle theme label
         , Element.text (displayValue commodity value)
             |> Element.el
-                [ Typography.detailHeroValue
-                , Font.semiBold
-                ]
+                Typography.detailHeroValue
         , States.registerCompletenessBadge theme value.completeness
         , Typography.mutedCaption theme "Raw amounts included"
         , Element.column
@@ -807,7 +808,7 @@ rawRow : Theme -> Quantity -> Element msg
 rawRow theme quantity =
     Element.row
         [ Element.width Element.fill
-        , Element.paddingXY Tokens.space10 Tokens.space8
+        , Element.paddingXY Tokens.space8 Tokens.space12
         , Background.color theme.inputFill
         , Border.rounded Tokens.radiusControl
         ]

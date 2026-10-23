@@ -26,11 +26,8 @@ module Ui.DesignTokens exposing
     , radiusCard
     , radiusControl
     , radiusHairline
-    , radiusIcon
-    , radiusMedium
     , radiusPill
     , radiusSmall
-    , radiusTight
     , registerAmountWidth
     , registerDateWidth
     , sidebarWidth
@@ -38,18 +35,12 @@ module Ui.DesignTokens exposing
     , skeletonLineShort
     , skeletonLineTiny
     , space0
-    , space10
     , space12
-    , space14
     , space16
-    , space18
     , space2
     , space20
     , space24
-    , space3
     , space4
-    , space5
-    , space6
     , space8
     , splitPaneControlWidth
     , treeIndentWidth
@@ -73,7 +64,7 @@ borderHairline =
 
 analyticsChartHeight : Int
 analyticsChartHeight =
-    184
+    200
 
 
 analyticsRingSize : Int
@@ -218,6 +209,9 @@ periodFiscalYearLabelWidth =
 
 
 -- Spacing scale
+--
+-- The scale is intentionally coarse: use these steps for layout gaps and
+-- padding. Fixed layout/component dimensions stay in the constants above.
 
 
 space0 : Int
@@ -230,24 +224,9 @@ space2 =
     2
 
 
-space3 : Int
-space3 =
-    3
-
-
 space4 : Int
 space4 =
     4
-
-
-space5 : Int
-space5 =
-    5
-
-
-space6 : Int
-space6 =
-    6
 
 
 space8 : Int
@@ -255,29 +234,14 @@ space8 =
     8
 
 
-space10 : Int
-space10 =
-    10
-
-
 space12 : Int
 space12 =
     12
 
 
-space14 : Int
-space14 =
-    14
-
-
 space16 : Int
 space16 =
     16
-
-
-space18 : Int
-space18 =
-    18
 
 
 space20 : Int
@@ -299,34 +263,19 @@ radiusHairline =
     2
 
 
-radiusTight : Int
-radiusTight =
-    4
-
-
-radiusIcon : Int
-radiusIcon =
-    9
-
-
-radiusMedium : Int
-radiusMedium =
-    10
-
-
-radiusControl : Int
-radiusControl =
-    6
-
-
 radiusSmall : Int
 radiusSmall =
     8
 
 
+radiusControl : Int
+radiusControl =
+    12
+
+
 radiusCard : Int
 radiusCard =
-    12
+    20
 
 
 radiusPill : Int

@@ -193,7 +193,7 @@ brand theme =
         [ Element.el
             [ Element.width (Element.px Tokens.navigationBrandSize)
             , Element.height (Element.px Tokens.navigationBrandSize)
-            , Border.rounded Tokens.radiusMedium
+            , Border.rounded Tokens.radiusControl
             , Background.color theme.navigationBrandBg
             ]
             (Element.el [ Element.centerX, Element.centerY ]
@@ -205,11 +205,11 @@ brand theme =
                 )
             )
         , Element.el
-            [ Typography.brandLabel
-            , Font.semiBold
-            , Font.color theme.navigationFg
-            , Element.centerY
-            ]
+            (Typography.brandLabel
+                ++ [ Font.color theme.navigationFg
+                   , Element.centerY
+                   ]
+            )
             (Element.text "Hedger")
         ]
 
@@ -235,7 +235,7 @@ navItem theme destination =
              else
                 theme.transparent
             )
-        , Border.rounded Tokens.radiusMedium
+        , Border.rounded Tokens.radiusControl
         , Font.color foreground
         , Common.uiClass "ui-motion"
         ]

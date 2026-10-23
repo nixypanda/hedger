@@ -23,6 +23,7 @@ import Ui.DesignTokens
         )
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Theme exposing (Theme)
+import Ui.Typography exposing (controlLabel)
 
 
 primaryButton : Theme -> { label : String, onPress : msg } -> Element msg
@@ -125,6 +126,7 @@ buttonBase _ config =
          , Font.color config.foreground
          , Font.medium
          , Font.center
+         , controlLabel
          , Common.uiClass "ui-motion"
          ]
             ++ Common.hoverBackground config.hoverBackground

@@ -13,6 +13,8 @@ import Ui.Common exposing (uiClass)
 import Ui.DesignTokens
     exposing
         ( radiusCard
+        , radiusControl
+        , radiusPill
         , radiusSmall
         , space12
         , space20
@@ -30,7 +32,7 @@ summaryCard theme =
                 [ Element.width (Element.px 42)
                 , Element.height (Element.px 42)
                 , Background.color theme.inputFill
-                , Border.rounded 10
+                , Border.rounded radiusControl
                 ]
                 Element.none
             , Element.el
@@ -63,7 +65,7 @@ chartCard theme =
                 [ Element.width (Element.px 8)
                 , Element.height (Element.px 8)
                 , Background.color theme.inputFill
-                , Border.rounded 4
+                , Border.rounded radiusPill
                 ]
                 Element.none
             , Element.el
@@ -77,7 +79,7 @@ chartCard theme =
                 [ Element.width (Element.px 8)
                 , Element.height (Element.px 8)
                 , Background.color theme.inputFill
-                , Border.rounded 4
+                , Border.rounded radiusPill
                 ]
                 Element.none
             , Element.el
@@ -96,13 +98,13 @@ listRow theme =
     Element.row
         [ Element.width Element.fill
         , Element.spacing space12
-        , Element.paddingXY 12 10
+        , Element.paddingXY 12 12
         ]
         [ Element.el
             [ Element.width (Element.px 18)
             , Element.height (Element.px 18)
             , Background.color theme.inputFill
-            , Border.rounded 4
+            , Border.rounded radiusSmall
             ]
             Element.none
         , Element.column [ Element.width Element.fill, Element.spacing space4 ]

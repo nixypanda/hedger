@@ -27,7 +27,7 @@ import Ui.DesignTokens
         )
 import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (body, mutedParagraph)
+import Ui.Typography exposing (body, controlLabel, mutedParagraph)
 import Ui.Viewport
 
 
@@ -148,7 +148,7 @@ periodNavigation theme config =
             , Element.centerY
             ]
             (Element.el
-                [ Element.centerX, Element.centerY, body, Font.medium ]
+                [ Element.centerX, Element.centerY, controlLabel, Font.medium ]
                 (Element.text config.label)
             )
         , Button.iconButton theme

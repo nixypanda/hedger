@@ -187,12 +187,12 @@ detailRow theme label value =
         , Common.minWidthZero
         ]
         [ Element.el
-            [ Element.width (Element.px Tokens.postingAccountWidth)
-            , Typography.detailLabel
-            , Font.semiBold
-            , Font.color theme.textMedium
-            , Element.alignTop
-            ]
+            (Typography.detailLabel
+                ++ [ Element.width (Element.px Tokens.postingAccountWidth)
+                   , Font.color theme.textMedium
+                   , Element.alignTop
+                   ]
+            )
             (Element.text (label ++ ":"))
         , Element.paragraph
             [ Element.width Element.fill
@@ -225,7 +225,7 @@ postingDetailRow theme posting =
     Element.row
         [ Element.width Element.fill
         , Element.spacing Tokens.space12
-        , Element.paddingXY Tokens.space0 Tokens.space10
+        , Element.paddingXY Tokens.space0 Tokens.space8
         , Element.alignTop
         , Common.minWidthZero
         ]

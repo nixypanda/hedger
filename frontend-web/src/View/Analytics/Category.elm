@@ -162,7 +162,7 @@ categoryRow theme commodity palette total index isHighlighted item =
         [ Element.width Element.fill
         , Element.spacing Tokens.space8
         , Element.paddingXY Tokens.space4 Tokens.space2
-        , Border.rounded Tokens.radiusTight
+        , Border.rounded Tokens.radiusHairline
         , Background.color theme.transparent
         , Border.color
             (if isHighlighted then
@@ -251,7 +251,7 @@ categoryRows theme config =
                                 , label =
                                     Element.row
                                         [ Element.width Element.fill
-                                        , Element.spacing Tokens.space6
+                                        , Element.spacing Tokens.space8
                                         ]
                                         [ Element.el
                                             [ Element.width Element.fill ]

@@ -699,7 +699,7 @@ compositionHeader theme layout data =
                         }
                     ]
                 ]
-            , Element.row [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+            , Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
                 [ Element.el
                     [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
                     , Element.alignLeft
@@ -845,7 +845,7 @@ activityViews theme layout columns config report data =
 
 calendarDisplayControl : Theme -> AnalyticsTypes.CalendarDisplay -> Element Msg
 calendarDisplayControl theme selected =
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ Typography.mutedBody theme "Show calendar by"
         , Ui.Input.segmentedControl theme
             [ Ui.Input.segmentedOption theme

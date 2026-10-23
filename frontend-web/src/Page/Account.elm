@@ -484,7 +484,7 @@ accountRow theme expanded depth (AccountNode account) =
         row =
             Element.row
                 [ Element.width Element.fill
-                , Element.paddingXY Tokens.space12 Tokens.space10
+                , Element.paddingXY Tokens.space12 Tokens.space8
                 , Background.color theme.cardBg
                 , Border.color theme.divider
                 , Border.width Tokens.borderHairline
@@ -503,7 +503,7 @@ accountRow theme expanded depth (AccountNode account) =
                     valueAction
                 ]
     in
-    Element.column [ Element.width Element.fill, Element.spacing Tokens.space6 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (row
             :: (if isExpanded then
                     List.map (accountRow theme expanded (depth + 1)) account.children
@@ -595,7 +595,7 @@ accountDetailHeader theme onBack =
         Maybe.map
             (\message -> Button.backButton theme { onPress = message })
             onBack
-    , title = Typography.sectionTitle theme "Account Detail"
+    , title = Typography.pageTitle theme "Account Detail"
     , subtitle = Nothing
     , actions = []
     }
@@ -674,7 +674,7 @@ detailBalance : Theme -> Quantity -> Element msg
 detailBalance theme balance =
     Element.row
         [ Element.width Element.fill
-        , Element.paddingXY Tokens.space10 Tokens.space8
+        , Element.paddingXY Tokens.space8 Tokens.space12
         , Background.color theme.inputFill
         , Border.rounded Tokens.radiusControl
         , Element.spacing Tokens.space8

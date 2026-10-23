@@ -421,7 +421,7 @@ allocationCardAttributes =
     , Element.height Element.fill
     , Element.padding Tokens.space12
     , Border.width Tokens.borderHairline
-    , Border.rounded Tokens.radiusMedium
+    , Border.rounded Tokens.radiusControl
     ]
 
 
@@ -458,7 +458,7 @@ assetClassAllocationRow theme commodity allocation =
                 [ Element.width (Element.px Tokens.iconSizeCompact)
                 , Element.height (Element.px Tokens.iconSizeCompact)
                 , Background.color theme.primarySoft
-                , Border.rounded Tokens.radiusIcon
+                , Border.rounded Tokens.radiusSmall
                 ]
                 (Element.el [ Element.centerX, Element.centerY ]
                     (Icon.view
@@ -477,7 +477,7 @@ assetClassAllocationRow theme commodity allocation =
             , Element.column [ Element.alignRight, Element.spacing Tokens.space2 ]
                 [ Element.el [ Typography.financeNumber, Font.semiBold ]
                     (Element.text (allocationPercentageLabel allocation.currentPercentage))
-                , Element.row [ Element.spacing Tokens.space6 ]
+                , Element.row [ Element.spacing Tokens.space8 ]
                     [ Typography.mutedCaption theme
                         ("Target " ++ allocationPercentageLabel allocation.targetPercentage)
                     , allocationDeltaLabel performanceColor current target
@@ -527,7 +527,7 @@ allocationBarSegments color percentage =
                 [ Element.width (Element.fillPortion filled)
                 , Element.height Element.fill
                 , Background.color color
-                , Border.rounded Tokens.radiusTight
+                , Border.rounded Tokens.radiusPill
                 ]
                 Element.none
             , Element.el [ Element.width (Element.fillPortion (1000 - filled)) ] Element.none
@@ -959,7 +959,7 @@ investmentNavigatorPath theme breadcrumbs =
         lastIndex =
             List.length breadcrumbs - 1
     in
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space6 ]
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (investmentNavigatorPathButton theme "Portfolio" PortfolioSelected
             :: List.concatMap
                 (\( index, crumb ) ->
@@ -970,7 +970,7 @@ investmentNavigatorPath theme breadcrumbs =
                         }
                     , if index == lastIndex then
                         Element.el
-                            [ Element.paddingXY Tokens.space10 Tokens.space8
+                            [ Element.paddingXY Tokens.space8 Tokens.space8
                             , Background.color theme.selectedBg
                             , Border.rounded Tokens.radiusSmall
                             , Font.color theme.textPrimary
@@ -994,7 +994,7 @@ investmentNavigatorPathButton theme label onPress =
     Input.button
         ([ Element.htmlAttribute (Attr.title ("Open " ++ label))
          , Common.touchTargetHeight
-         , Element.paddingXY Tokens.space10 Tokens.space8
+         , Element.paddingXY Tokens.space8 Tokens.space8
          , Border.rounded Tokens.radiusSmall
          , Font.color theme.primary
          , Font.medium
@@ -1008,23 +1008,23 @@ investmentNavigatorChild : Theme -> String -> Investments.Child -> Element Msg
 investmentNavigatorChild theme commodity child =
     Input.button
         [ Element.width Element.fill
-        , Element.padding Tokens.space10
+        , Element.padding Tokens.space8
         , Border.rounded Tokens.radiusSmall
         , Element.htmlAttribute (Attr.title ("Open " ++ child.label))
         ]
         { onPress = Just (AccountSelected child.account)
         , label =
-            Element.row [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+            Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ Icon.view
                     { icon = investmentAssetClassIcon child.assetClass
                     , size = Tokens.iconSizeSmall
                     , color = theme.primary
                     }
-                , Element.column [ Element.width Element.fill, Element.spacing Tokens.space3 ]
+                , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
                     [ Element.el [ Font.semiBold ] (Element.text child.label)
                     , Element.wrappedRow
                         [ Element.width Element.fill
-                        , Element.spacing Tokens.space6
+                        , Element.spacing Tokens.space8
                         ]
                         [ investmentCompletenessBadge theme child.summary.completeness
                         , child.summary.xirr
@@ -1036,7 +1036,7 @@ investmentNavigatorChild theme commodity child =
                             |> Maybe.withDefault Element.none
                         ]
                     ]
-                , Element.column [ Element.alignRight, Element.spacing Tokens.space3 ]
+                , Element.column [ Element.alignRight, Element.spacing Tokens.space4 ]
                     [ Element.el [ Typography.financeNumber, Font.semiBold ]
                         (Element.text
                             (Formatting.formatMaybeDecimalDisplay
@@ -1143,6 +1143,7 @@ selectedInvestmentPeriod theme commodity selected points =
                 , Element.spacing Tokens.space8
                 , Element.padding Tokens.space12
                 , Background.color theme.primarySoft
+                , Border.rounded Tokens.radiusControl
                 ]
                 [ Element.row [ Element.width Element.fill ]
                     [ Element.el [ Font.semiBold ]
@@ -1151,7 +1152,7 @@ selectedInvestmentPeriod theme commodity selected points =
                         (investmentCompletenessBadge theme point.summary.completeness)
                     ]
                 , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                    [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space18 ]
+                    [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                         [ investmentBreakdownMetric
                             theme
                             commodity
@@ -1163,7 +1164,7 @@ selectedInvestmentPeriod theme commodity selected points =
                             "Unrealised gain"
                             point.summary.gainLoss
                         ]
-                    , Element.row [ Element.width Element.fill, Element.spacing Tokens.space18 ]
+                    , Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
                         [ investmentBreakdownMetric theme
                             commodity
                             "Attributed income"
@@ -1203,22 +1204,22 @@ investmentChartLegend theme selectedMode points =
         case selectedMode of
             ValueChart ->
                 Element.wrappedRow [ Element.spacing Tokens.space16 ]
-                    [ Element.row [ Element.spacing Tokens.space6 ]
+                    [ Element.row [ Element.spacing Tokens.space8 ]
                         [ Surface.accentDot theme.primary
                         , Typography.mutedCaption theme "Portfolio value"
                         ]
-                    , Element.row [ Element.spacing Tokens.space6 ]
+                    , Element.row [ Element.spacing Tokens.space8 ]
                         [ Surface.accentDot theme.textMuted
                         , Typography.mutedCaption theme "Invested capital"
                         ]
-                    , Element.row [ Element.spacing Tokens.space6 ]
+                    , Element.row [ Element.spacing Tokens.space8 ]
                         [ Surface.accentDot theme.positive, Typography.mutedCaption theme "Gain" ]
-                    , Element.row [ Element.spacing Tokens.space6 ]
+                    , Element.row [ Element.spacing Tokens.space8 ]
                         [ Surface.accentDot theme.negative, Typography.mutedCaption theme "Loss" ]
                     ]
 
             ReturnsChart ->
-                Element.row [ Element.spacing Tokens.space6 ]
+                Element.row [ Element.spacing Tokens.space8 ]
                     [ Surface.accentDot theme.primary, Typography.mutedCaption theme "XIRR" ]
 
 
@@ -1271,7 +1272,7 @@ investmentsSkeleton theme viewport =
             Viewport.isCompact layout
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-        [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space6 ]
+        [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             [ Element.el
                 [ Element.width (Element.px Tokens.skeletonLineTiny)
                 , Element.height (Element.px Tokens.iconSizeTiny)

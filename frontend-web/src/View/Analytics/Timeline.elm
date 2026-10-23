@@ -8,6 +8,7 @@ import Data.Decimal as Decimal
 import Data.Formatting as Formatting
 import Element exposing (Element)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Font as Font
 import Ui.Chart.Cartesian as Cartesian
 import Ui.DesignTokens as Tokens
@@ -224,11 +225,12 @@ selectedPeriodDetails theme period metrics =
         , Element.spacing Tokens.space8
         , Element.padding Tokens.space12
         , Background.color theme.primarySoft
+        , Border.rounded Tokens.radiusControl
         ]
         [ Element.el [ Font.semiBold ] (Element.text period)
         , Element.wrappedRow
             [ Element.width Element.fill
-            , Element.spacing Tokens.space18
+            , Element.spacing Tokens.space16
             ]
             (List.map (selectedPeriodMetric theme) metrics)
         ]

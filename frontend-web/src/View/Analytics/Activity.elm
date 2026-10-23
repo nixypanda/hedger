@@ -317,8 +317,7 @@ activityTransactionList theme title transactions onSelect =
                             , label =
                                 Element.row
                                     [ Element.width Element.fill
-                                    , Element.spacing Tokens.space14
-                                    , Element.paddingXY Tokens.space4 Tokens.space10
+                                    , Element.spacing Tokens.space12
                                     ]
                                     [ Element.paragraph
                                         [ Element.width Element.fill

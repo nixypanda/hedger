@@ -12,7 +12,7 @@ import Element exposing (Attribute, Element)
 import Element.Background as Background
 import Element.Border as Border
 import Ui.Common as Common
-import Ui.DesignTokens exposing (radiusCard, radiusHairline, space12, space20)
+import Ui.DesignTokens exposing (radiusCard, radiusControl, radiusHairline, space12, space20)
 import Ui.Theme exposing (Theme)
 import Ui.Typography exposing (subsectionTitle)
 
@@ -77,7 +77,7 @@ hairline theme =
 rowSurfaceAttrs : Theme -> Bool -> List (Attribute msg)
 rowSurfaceAttrs theme selected =
     [ Element.width Element.fill
-    , Element.padding 10
+    , Element.padding space12
     , Background.color
         (if selected then
             theme.selectedBg
@@ -85,7 +85,7 @@ rowSurfaceAttrs theme selected =
          else
             theme.cardBg
         )
-    , Border.rounded radiusCard
+    , Border.rounded radiusControl
     , Border.width 1
     , Border.color
         (if selected then
