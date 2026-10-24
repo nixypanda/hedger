@@ -76,6 +76,7 @@ frontend-web/
       Feedback.elm            # loading, empty, error, and warning states
       Icon.elm                # icon set
       Input.elm               # text, date, and segmented controls
+      Notice.elm              # fixed-position transient notices
       Page.elm                # page scaffold, header, and period navigation
       Skeleton.elm            # skeleton loading shapes
       Surface.elm             # cards, sections, and surfaces
@@ -91,9 +92,9 @@ frontend-web/
       Chart/Sparkline.elm     # KPI sparklines
     View/
       AccountPresentation.elm # account display helpers
-      Chrome.elm              # app shell, navigation, banners
+      Chrome.elm              # app shell, navigation, fixed-position notices
       QueryPanel.elm          # stateless hledger query input panel
-      States.elm              # loading/empty/error state views
+      States.elm              # freshness status and completeness badges
       Transaction.elm         # transaction rendering
       Analytics/
         Activity.elm          # month/year calendars and transaction lists
@@ -388,7 +389,10 @@ The frontend is a Progressive Web App:
   clears it in development.
 - `Pwa.elm` models service-worker state (installing, update-ready, controlling)
   and install-hint state; `Chrome` passes the corresponding notices to
-  `View.Chrome`, which renders the banners.
+  `View.Chrome`, which renders them as top-edge fixed-position notices. Page
+  and query errors use bottom-edge fixed-position notices above the bottom
+  navigation. Service-worker update prompts offer Update and Later; Later hides
+  the prompt until the next update-ready event.
 
 Offline support is limited to the app shell. Business data is not cached across
 sessions.
@@ -452,9 +456,9 @@ widths, and similar) are separate constants, not scale steps.
 
 ### Components
 
-- `Ui.Button`, `Ui.Input`, `Ui.Surface`, `Ui.Chip`, `Ui.Feedback`, and
-  `Ui.Skeleton` provide buttons, fields, cards, chips, state feedback, and
-  loading placeholders.
+- `Ui.Button`, `Ui.Input`, `Ui.Surface`, `Ui.Chip`, `Ui.Feedback`, `Ui.Notice`,
+  and `Ui.Skeleton` provide buttons, fields, cards, chips, state feedback,
+  fixed-position notices, and loading placeholders.
 - `Ui.Icon` provides the icon set.
 - `Ui.Page` provides the page scaffold, headers, and period navigation.
 - `Ui.Workspace` provides split-pane layout and scroll ownership.

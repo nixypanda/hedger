@@ -22,15 +22,16 @@ import Html.Attributes as Attr
 import Lib.ListExtra as ListExtra
 import List
 import Ui.Calendar.Month as MonthCalendar
+import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
-import Ui.Feedback as Feedback
+import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import View.Analytics.Activity.Ring as Ring
 import View.Analytics.Legend as Legend
-import View.Analytics.Types exposing (ActivityTone, CalendarDisplay, LegendState)
+import View.Analytics.Types exposing (ActivityTone, CalendarDisplay, LegendState(..))
 
 
 activityMonth :
@@ -81,7 +82,7 @@ activityMonth theme config =
                 { period = config.period
                 , weekdayLabels = [ "S", "M", "T", "W", "T", "F", "S" ]
                 , weekdayColor = theme.textMuted
-                , cellHeight = 72
+                , cellHeight = Tokens.calendarCellHeight
                 , viewDay =
                     \day attributes ->
                         dayCell
@@ -105,20 +106,27 @@ activityMonth theme config =
     Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         , Element.alignTop
-        , Element.height Element.fill
         ]
         theme
-        [ Typography.cardTitle theme config.title
+        [ activityTitleRow theme config.title (activityWarnings config.response)
         , calendar
-        , Legend.activityLegend theme
-            config.calendarDisplay
-            config.maxVisible
-            config.tone
-            categories
-            config.legendState
-            config.onLegendToggle
-            config.highlightedCategory
-            config.onCategoryHighlight
+        , case config.response of
+            Nothing ->
+                Skeleton.activityLegend theme
+
+            Just _ ->
+                activityLegendSlot
+                    config.legendState
+                    (Legend.activityLegend theme
+                        config.calendarDisplay
+                        config.maxVisible
+                        config.tone
+                        categories
+                        config.legendState
+                        config.onLegendToggle
+                        config.highlightedCategory
+                        config.onCategoryHighlight
+                    )
         , case config.selectedBucket of
             Nothing ->
                 Element.el
@@ -132,9 +140,6 @@ activityMonth theme config =
                     ("Transactions · " ++ bucket.key)
                     bucket.transactions
                     (config.onTransaction bucket)
-        , config.response
-            |> Maybe.map (.warnings >> Feedback.warningList theme)
-            |> Maybe.withDefault Element.none
         ]
 
 
@@ -356,6 +361,8 @@ activityYear :
         , onSelect : ActivityBucket -> msg
         , onTransaction : ActivityBucket -> Transaction -> msg
         , columns : Int
+        , loading : Bool
+        , loadingMonths : Int
         , legendState : LegendState
         , onLegendToggle : msg
         , highlightedCategory : Maybe Int
@@ -367,15 +374,20 @@ activityYear theme config =
     Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         , Element.alignTop
-        , Element.height Element.fill
         ]
         theme
-        [ Typography.cardTitle theme config.title
-        , case config.response of
-            Nothing ->
-                Feedback.loading theme "Loading activity"
+        [ activityTitleRow
+            theme
+            config.title
+            (activityWarnings config.response)
+        , case ( config.loading, config.response ) of
+            ( True, _ ) ->
+                yearLoadingSkeleton theme config.columns config.loadingMonths
 
-            Just response ->
+            ( False, Nothing ) ->
+                yearLoadingSkeleton theme config.columns config.loadingMonths
+
+            ( False, Just response ) ->
                 let
                     categories =
                         activityCategories response
@@ -446,15 +458,18 @@ activityYear theme config =
                                         )
                                 )
                         )
-                    , Legend.activityLegend theme
-                        config.calendarDisplay
-                        config.maxVisible
-                        config.tone
-                        categories
+                    , activityLegendSlot
                         config.legendState
-                        config.onLegendToggle
-                        config.highlightedCategory
-                        config.onCategoryHighlight
+                        (Legend.activityLegend theme
+                            config.calendarDisplay
+                            config.maxVisible
+                            config.tone
+                            categories
+                            config.legendState
+                            config.onLegendToggle
+                            config.highlightedCategory
+                            config.onCategoryHighlight
+                        )
                     , case selected of
                         Nothing ->
                             Element.el
@@ -468,6 +483,130 @@ activityYear theme config =
                                 ("Transactions · " ++ bucket.key)
                                 bucket.transactions
                                 (config.onTransaction bucket)
-                    , Feedback.warningList theme response.warnings
                     ]
         ]
+
+
+activityTitleRow : Theme -> String -> List String -> Element msg
+activityTitleRow theme title warnings =
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing Tokens.space12
+        , Element.alignTop
+        ]
+        [ Element.el [ Element.width Element.fill ]
+            (Typography.cardTitle theme title)
+        , warningIndicator theme warnings
+        ]
+
+
+warningIndicator : Theme -> List String -> Element msg
+warningIndicator theme warnings =
+    if List.isEmpty warnings then
+        Element.el
+            [ Element.height (Element.px Tokens.chartTitleHeight) ]
+            Element.none
+
+    else
+        let
+            count =
+                List.length warnings
+
+            description =
+                String.join " · " warnings
+
+            label =
+                String.fromInt count
+                    ++ (if count == 1 then
+                            " warning"
+
+                        else
+                            " warnings"
+                       )
+        in
+        Element.el
+            [ Element.height (Element.px Tokens.chartTitleHeight)
+            , Element.alignRight
+            , Element.htmlAttribute (Attr.tabindex 0)
+            , Element.htmlAttribute (Attr.attribute "role" "status")
+            , Element.htmlAttribute (Attr.attribute "aria-live" "polite")
+            , Element.htmlAttribute (Attr.title description)
+            , Element.htmlAttribute (Attr.attribute "aria-label" description)
+            ]
+            (Element.el [ Element.centerY ]
+                (Chip.statusBadge theme Chip.StatusWarning label)
+            )
+
+
+activityLegendSlot : LegendState -> Element msg -> Element msg
+activityLegendSlot state legend =
+    case state of
+        LegendExpanded ->
+            legend
+
+        LegendCollapsed ->
+            Element.el
+                [ Element.width Element.fill
+                , Element.height (Element.shrink |> Element.minimum Tokens.minimumTouchTarget)
+                ]
+                legend
+
+
+activityWarnings : Maybe ActivityResponse -> List String
+activityWarnings response =
+    response
+        |> Maybe.map .warnings
+        |> Maybe.withDefault []
+
+
+yearLoadingSkeleton : Theme -> Int -> Int -> Element msg
+yearLoadingSkeleton theme columns loadingMonths =
+    let
+        rows =
+            (loadingMonths + columns - 1) // columns
+    in
+    Element.column
+        [ Element.width Element.fill
+        , Element.spacing Tokens.space12
+        ]
+        [ Element.column
+            [ Element.width Element.fill
+            , Element.spacing Tokens.space16
+            ]
+            (List.map
+                (\_ -> yearLoadingRow theme columns)
+                (List.range 1 rows)
+            )
+        , Skeleton.activityLegend theme
+        , activityDetailsSkeleton theme
+        ]
+
+
+yearLoadingRow : Theme -> Int -> Element msg
+yearLoadingRow theme columns =
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing Tokens.space16
+        ]
+        (List.map
+            (\_ ->
+                Element.el
+                    [ Element.width
+                        (Element.fillPortion Tokens.layoutPortionSingle)
+                    , Element.paddingXY Tokens.space0 Tokens.space8
+                    ]
+                    (Skeleton.activityRing theme)
+            )
+            (List.range 1 columns)
+        )
+
+
+activityDetailsSkeleton : Theme -> Element msg
+activityDetailsSkeleton theme =
+    Element.el
+        [ Element.width Element.fill
+        , Element.height
+            (Element.px (Tokens.iconSizeTiny + 2 * Tokens.space12))
+        , Element.paddingXY Tokens.space0 Tokens.space12
+        ]
+        (Skeleton.block theme Tokens.skeletonLineShort Tokens.iconSizeTiny)

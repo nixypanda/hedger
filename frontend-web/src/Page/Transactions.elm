@@ -46,6 +46,7 @@ import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
@@ -55,6 +56,7 @@ import Ui.Viewport as Viewport
 import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
 import View.QueryPanel as QueryPanel
+import View.States as States
 import View.Transaction as TransactionView
 
 
@@ -520,7 +522,7 @@ view env model =
                 Workspace.view env
                     [ { key = "transactions"
                       , width = Workspace.Portion Tokens.layoutPortionDouble
-                      , content = listPage theme True model
+                      , content = listPage theme True viewport.height model
                       }
                     , { key = "transaction-detail"
                       , width = Workspace.Portion Tokens.layoutPortionTriple
@@ -529,7 +531,7 @@ view env model =
                     ]
 
             _ ->
-                listPage theme compact model
+                listPage theme compact viewport.height model
 
     else if currentSelection /= Nothing then
         case currentSelection of
@@ -537,37 +539,136 @@ view env model =
                 detailPage theme (Just Back) selected
 
             Nothing ->
-                listPage theme compact model
+                listPage theme compact viewport.height model
 
     else
-        listPage theme compact model
+        listPage theme compact viewport.height model
 
 
 listPage :
     Theme
     -> Bool
+    -> Int
     -> Model
     -> Element Msg
-listPage theme compact model =
+listPage theme compact viewportHeight model =
     Page.scaffold theme
-        { header = transactionsHeaderConfig theme
+        { header = transactionsHeaderConfig theme model
         , body =
             [ queryPanel theme compact model
-            , remoteContent theme compact model
+            , remoteContent theme compact viewportHeight model
             ]
+                ++ failureNotices theme model
+                ++ queryErrorNotices theme model
         }
 
 
-transactionsHeaderConfig : Theme -> Page.Header Msg
-transactionsHeaderConfig theme =
+transactionsHeaderConfig : Theme -> Model -> Page.Header Msg
+transactionsHeaderConfig theme model =
     { leading = Nothing
     , title = Typography.pageTitle theme "Transactions"
     , subtitle = Just "Browse your ledger activity"
     , actions =
-        [ Button.iconButton theme
-            { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+        [ States.refreshStatus theme
+            { freshness = responseFreshness model
+            , loading = responseLoading model
+            }
+        , Button.refreshButton theme
+            { loading = responseLoading model
+            , onPress = Refresh
+            }
         ]
     }
+
+
+responseLoading : Model -> Bool
+responseLoading model =
+    case status model of
+        InitialLoadingStatus ->
+            True
+
+        RefreshingStatus ->
+            True
+
+        _ ->
+            False
+
+
+responseFreshness : Model -> Freshness
+responseFreshness model =
+    case ( status model, visibleResponse model ) of
+        ( _, Nothing ) ->
+            Unavailable
+
+        ( RefreshFailureStatus, Just _ ) ->
+            Stale
+
+        ( InitialFailureStatus, _ ) ->
+            Unavailable
+
+        ( _, Just response ) ->
+            response.metadata.freshness
+
+
+failureNotices : Theme -> Model -> List (Element Msg)
+failureNotices theme model =
+    case status model of
+        RefreshFailureStatus ->
+            [ failureNotice theme
+                "transaction-refresh-error"
+                ("Refresh failed; showing stale transactions: " ++ activeErrorMessage model)
+            ]
+
+        LoadMoreFailureStatus ->
+            [ failureNotice theme
+                "transaction-load-more-error"
+                ("Could not load more transactions: " ++ loadMoreErrorMessage model)
+            ]
+
+        _ ->
+            []
+
+
+failureNotice : Theme -> String -> String -> Element Msg
+failureNotice theme id message =
+    Notice.view theme
+        { placement = Notice.Bottom
+        , tone = Notice.Danger
+        , icon = Icon.AlertTriangle
+        , message = message
+        , actions = []
+        , id = Just id
+        }
+
+
+queryErrorNotices : Theme -> Model -> List (Element Msg)
+queryErrorNotices theme model =
+    case queryError (remoteData model) of
+        Just _ ->
+            [ Notice.view theme
+                { placement = Notice.Bottom
+                , tone = Notice.Danger
+                , icon = Icon.AlertTriangle
+                , message = "Invalid query. Correct it above."
+                , actions = []
+                , id = Nothing
+                }
+            ]
+
+        Nothing ->
+            []
+
+
+activeErrorMessage : Model -> String
+activeErrorMessage (Model data) =
+    activeError data.paginated |> ApiError.message
+
+
+loadMoreErrorMessage : Model -> String
+loadMoreErrorMessage model =
+    loadMoreError model
+        |> Maybe.map ApiError.message
+        |> Maybe.withDefault "Unknown error"
 
 
 queryPanel : Theme -> Bool -> Model -> Element Msg
@@ -579,7 +680,7 @@ queryPanel theme compact model =
         , onDraftChanged = DraftChanged
         , onApply = ApplyDraft
         , onClear = ClearDraft
-        , queryError = Maybe.map ApiError.message (queryError (remoteData model))
+        , queryError = Nothing
         , helpText =
             "Type an hledger query below. Terms separated by spaces combine with AND. "
                 ++ "Prefix terms with acct:, desc:, date:, amt:, cur:, payee:, note:, status:, "
@@ -616,31 +717,38 @@ queryError remote =
 remoteContent :
     Theme
     -> Bool
+    -> Int
     -> Model
     -> Element Msg
-remoteContent theme compact model =
+remoteContent theme compact viewportHeight model =
     case remoteData model of
         NotAsked ->
-            Surface.card theme [ Feedback.loading theme "Loading transactions…" ]
+            transactionsSkeleton theme compact viewportHeight
 
         Loading Nothing ->
-            transactionsSkeleton theme
+            transactionsSkeleton theme compact viewportHeight
 
         Loading (Just response) ->
-            transactionContent theme compact model response
+            transactionContent theme compact viewportHeight model response
 
         Success response ->
-            transactionContent theme compact model response
+            transactionContent theme compact viewportHeight model response
 
         Failure error stale ->
             case stale of
                 Just response ->
-                    transactionContent theme compact model response
+                    transactionContent theme compact viewportHeight model response
 
                 Nothing ->
                     if queryError (remoteData model) /= Nothing then
                         Surface.card theme
-                            [ Typography.mutedParagraph theme
+                            [ Element.el
+                                [ Element.width Element.fill
+                                , Element.htmlAttribute
+                                    (Html.Attributes.id "transaction-query-error")
+                                ]
+                                (Feedback.errorBanner theme (ApiError.message error))
+                            , Typography.mutedParagraph theme
                                 "Correct the query above, then apply it again."
                             ]
 
@@ -654,15 +762,15 @@ remoteContent theme compact model =
 transactionContent :
     Theme
     -> Bool
+    -> Int
     -> Model
     -> Response
     -> Element Msg
-transactionContent theme compact model response =
+transactionContent theme compact viewportHeight model response =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        [ remoteNotice theme (remoteData model) response
-        , transactionCount theme response.transactions
+        [ transactionCount theme response.transactions
         , if List.isEmpty response.transactions then
-            noMatches theme model
+            listRegion viewportHeight (noMatches theme compact model)
 
           else
             transactionsList theme
@@ -673,9 +781,13 @@ transactionContent theme compact model response =
         ]
 
 
-noMatches : Theme -> Model -> Element Msg
-noMatches theme model =
-    Surface.card theme
+noMatches : Theme -> Bool -> Model -> Element Msg
+noMatches theme compact model =
+    Surface.cardWith
+        [ Element.height
+            (Element.minimum (emptyListMinHeight compact) Element.shrink)
+        ]
+        theme
         [ Typography.mutedParagraph theme
             (if String.isEmpty (appliedQuery model) then
                 "No transactions are available."
@@ -694,65 +806,48 @@ pagingControls theme model response =
         , Element.spacing Tokens.space8
         , Element.htmlAttribute (Html.Attributes.id "transaction-list-end")
         ]
-        [ case loadMoreError model of
-            Just error ->
-                Feedback.errorBanner theme
-                    ("Could not load more transactions: " ++ ApiError.message error)
-
-            Nothing ->
-                Element.none
-        , if status model == LoadingMoreStatus then
-            Feedback.loading theme "Loading more transactions…"
-
-          else
-            case response.nextCursor of
-                Just _ ->
-                    if canBeginLoadingMore model then
-                        Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
-
-                    else
-                        Typography.mutedCaption theme "Finish refreshing before loading more."
-
-                Nothing ->
-                    Typography.mutedCaption theme "All matching transactions are loaded."
-        , if retainedPageCount model == 5 && response.nextCursor /= Nothing then
-            Typography.mutedCaption theme
-                ("Keeping a bounded window of "
-                    ++ "5"
-                    ++ " pages; loading more advances the visible window."
-                )
-
-          else
-            Element.none
+        [ Element.el
+            [ Element.width Element.fill
+            , Element.height (Element.px Tokens.minimumTouchTarget)
+            ]
+            (Element.el [ Element.centerY ] (pagingControl theme model response))
+        , Element.el
+            [ Element.width Element.fill
+            , Element.height (Element.px (Tokens.bodyTextHeight + Tokens.space2))
+            ]
+            (boundedWindowNote theme model response)
         ]
 
 
-remoteNotice : Theme -> RemoteData ApiError Response -> Response -> Element msg
-remoteNotice theme remote response =
-    case remote of
-        Loading _ ->
-            Chip.statusBadge theme Chip.StatusPrimary "Refreshing transactions"
+pagingControl : Theme -> Model -> Response -> Element Msg
+pagingControl theme model response =
+    if status model == LoadingMoreStatus then
+        Feedback.loading theme "Loading more transactions…"
 
-        Failure error _ ->
-            Feedback.errorBanner theme
-                ("Refresh failed; showing stale transactions: " ++ ApiError.message error)
+    else
+        case response.nextCursor of
+            Just _ ->
+                if canBeginLoadingMore model then
+                    Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
 
-        _ ->
-            case response.metadata.freshness of
-                Fresh ->
-                    Element.none
+                else
+                    Typography.mutedCaption theme "Finish refreshing before loading more."
 
-                Refreshing ->
-                    Chip.statusBadge theme Chip.StatusPrimary "Refreshing transactions"
+            Nothing ->
+                Typography.mutedCaption theme "All matching transactions are loaded."
 
-                Stale ->
-                    Chip.statusBadge theme Chip.StatusWarning "Showing a stale journal snapshot"
 
-                Partial ->
-                    Chip.statusBadge theme Chip.StatusWarning "Transaction data is partial"
+boundedWindowNote : Theme -> Model -> Response -> Element msg
+boundedWindowNote theme model response =
+    if retainedPageCount model == 5 && response.nextCursor /= Nothing then
+        Typography.mutedCaption theme
+            ("Keeping a bounded window of "
+                ++ "5"
+                ++ " pages; loading more advances the visible window."
+            )
 
-                Unavailable ->
-                    Feedback.errorBanner theme "Transaction data is unavailable."
+    else
+        Element.none
 
 
 transactionCount : Theme -> List Transaction -> Element msg
@@ -767,15 +862,21 @@ transactionsList :
     -> List Transaction
     -> Element Msg
 transactionsList theme compact selected transactions =
+    listContainer
+        (List.map
+            (monthSection theme compact selected)
+            (TimeExtra.groupByKey (Date.toString << .primaryDate) transactions)
+        )
+
+
+listContainer : List (Element msg) -> Element msg
+listContainer sections =
     Element.column
         [ Element.width Element.fill
         , Element.spacing Tokens.space12
         , Element.htmlAttribute (Html.Attributes.id "transaction-list")
         ]
-        (List.map
-            (monthSection theme compact selected)
-            (TimeExtra.groupByKey (Date.toString << .primaryDate) transactions)
-        )
+        sections
 
 
 monthSection :
@@ -785,18 +886,28 @@ monthSection :
     -> ( String, List Transaction )
     -> Element Msg
 monthSection theme compact selected ( month, transactions ) =
-    Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
-        (Element.el
-            [ Element.paddingEach
-                { top = Tokens.space8
-                , right = Tokens.space0
-                , bottom = Tokens.space4
-                , left = Tokens.space4
-                }
-            ]
-            (Typography.subsectionTitle theme (TimeExtra.monthLabel month))
+    monthColumn
+        (monthHeading (Typography.subsectionTitle theme (TimeExtra.monthLabel month))
             :: List.map (transactionRow theme compact selected) transactions
         )
+
+
+monthColumn : List (Element msg) -> Element msg
+monthColumn children =
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ] children
+
+
+monthHeading : Element msg -> Element msg
+monthHeading content =
+    Element.el
+        [ Element.paddingEach
+            { top = Tokens.space8
+            , right = Tokens.space0
+            , bottom = Tokens.space4
+            , left = Tokens.space4
+            }
+        ]
+        content
 
 
 transactionRow :
@@ -807,10 +918,18 @@ transactionRow :
     -> Element Msg
 transactionRow theme compact selected transaction =
     let
+        omitted =
+            max 0 (List.length transaction.postings - previewPostingLimit)
+
         rowContent =
             Element.column
                 (Surface.rowSurfaceAttrs theme (selected == Just transaction)
                     ++ [ Element.spacing Tokens.space8
+                       , Element.height
+                            (Element.minimum
+                                (transactionRowHeight compact)
+                                Element.shrink
+                            )
                        ]
                 )
                 [ if compact then
@@ -828,28 +947,24 @@ transactionRow theme compact selected transaction =
                         , left = Tokens.space12
                         }
                     ]
-                    (List.map (postingPreviewRow theme) (List.take 5 transaction.postings))
-                , let
-                    omitted =
-                        max 0 (List.length transaction.postings - 5)
-                  in
-                  if omitted > 0 then
-                    Element.el
-                        [ Element.paddingEach
-                            { top = Tokens.space0
-                            , right = Tokens.space0
-                            , bottom = Tokens.space0
-                            , left = Tokens.space12
-                            }
-                        ]
-                        (Typography.mutedCaption theme ("+" ++ String.fromInt omitted ++ " more"))
-
-                  else
-                    Element.none
+                    (List.map
+                        (postingPreviewRow theme)
+                        (List.take previewPostingLimit transaction.postings)
+                        ++ [ omittedPostings theme omitted ]
+                    )
                 ]
     in
     Input.button [ Element.width Element.fill, Element.padding Tokens.space0 ]
         { onPress = Just (Select transaction), label = rowContent }
+
+
+omittedPostings : Theme -> Int -> Element msg
+omittedPostings theme omitted =
+    if omitted > 0 then
+        Typography.mutedCaption theme ("+" ++ String.fromInt omitted ++ " more")
+
+    else
+        Element.el [ Element.height (Element.px Tokens.space12) ] Element.none
 
 
 rowTitleStyle : List (Element.Attribute msg)
@@ -887,15 +1002,15 @@ phonePrimaryRow theme transaction =
             (Typography.caption ++ [ Font.color theme.textMuted ])
             (Element.text (Date.toString transaction.primaryDate))
         , Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-            [ Element.paragraph
+            [ Element.el
                 (rowTitleStyle
                     ++ [ Element.width Element.fill
                        , Font.color theme.textPrimary
                        , Common.minWidthZero
-                       , Common.uiClass "ui-text-wrap"
+                       , Common.uiClass "ui-text-ellipsis"
                        ]
                 )
-                [ Element.text transaction.description ]
+                (Element.text transaction.description)
             , trailingSummary theme transaction
             ]
         ]
@@ -905,21 +1020,46 @@ trailingSummary : Theme -> Transaction -> Element msg
 trailingSummary theme transaction =
     let
         effects =
-            if List.isEmpty transaction.presentation.effects then
+            (if List.isEmpty transaction.presentation.effects then
                 [ transaction.presentation.classification ]
 
-            else
+             else
                 transaction.presentation.effects
-    in
-    Element.wrappedRow [ Element.alignRight, Element.spacing Tokens.space2 ]
-        (effects
-            |> List.filter ((/=) Unclassified)
-            |> List.map
+            )
+                |> List.filter ((/=) Unclassified)
+
+        visibleEffects =
+            List.take previewEffectLimit effects
+
+        omittedEffects =
+            max 0 (List.length effects - previewEffectLimit)
+
+        badges =
+            List.map
                 (\effect ->
                     Chip.financialBadge theme
                         (TransactionView.classificationTone effect)
                         (TransactionView.effectLabel effect)
                 )
+                visibleEffects
+    in
+    Element.row
+        [ Element.alignRight
+        , Element.spacing Tokens.space2
+        , Element.width (Element.shrink |> Element.maximum Tokens.narrowContentWidth)
+        , Common.minWidthZero
+        , Element.clip
+        ]
+        (badges
+            ++ (if omittedEffects > 0 then
+                    [ Chip.financialBadge theme
+                        Chip.FinancialNeutral
+                        ("+" ++ String.fromInt omittedEffects)
+                    ]
+
+                else
+                    []
+               )
         )
 
 
@@ -931,15 +1071,15 @@ postingPreviewRow theme posting =
             , size = Tokens.iconSizeTinyGlyph
             , color = theme.textMuted
             }
-        , Element.paragraph
+        , Element.el
             (Typography.caption
                 ++ [ Font.color theme.textMuted
                    , Element.width Element.fill
                    , Common.minWidthZero
-                   , Common.uiClass "ui-text-wrap"
+                   , Common.uiClass "ui-text-ellipsis"
                    ]
             )
-            [ Element.text posting.account ]
+            (Element.text posting.account)
         , Element.el
             (Typography.caption
                 ++ Typography.numeric
@@ -975,24 +1115,219 @@ detailPage theme onBack transaction =
         )
 
 
-transactionsSkeleton : Theme -> Element Msg
-transactionsSkeleton theme =
-    Surface.card theme
-        [ Typography.mutedBody theme "Loading transactions…"
-        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
-            [ Element.el
-                [ Element.paddingEach
-                    { top = Tokens.space8
-                    , right = Tokens.space0
-                    , bottom = Tokens.space4
-                    , left = Tokens.space4
-                    }
+previewPostingLimit : Int
+previewPostingLimit =
+    2
+
+
+previewEffectLimit : Int
+previewEffectLimit =
+    1
+
+
+emptyListRowCount : Int
+emptyListRowCount =
+    2
+
+
+transactionRowHeight : Bool -> Int
+transactionRowHeight compact =
+    2
+        * Tokens.space12
+        + 2
+        * Tokens.borderHairline
+        + (if compact then
+            2
+                * Tokens.space12
+                + 2
+                * Tokens.space4
+
+           else
+            Tokens.space12 + Tokens.space4
+          )
+        + Tokens.space8
+        + (2
+            * Tokens.iconSizeTinyGlyph
+            + 2
+            * Tokens.space4
+            + Tokens.space12
+          )
+
+
+monthHeadingHeight : Int
+monthHeadingHeight =
+    Tokens.subsectionTitleHeight + Tokens.space8 + Tokens.space4
+
+
+listRegionTopOffset : Int
+listRegionTopOffset =
+    300
+
+
+listRegionMaxHeight : Int
+listRegionMaxHeight =
+    760
+
+
+listRegionMinHeight : Int -> Int
+listRegionMinHeight viewportHeight =
+    clamp 360 listRegionMaxHeight (viewportHeight - listRegionTopOffset)
+
+
+{-| Reserve the first-screen list region for empty results. Skeleton rows are
+sized from this region and normal loaded pages are taller, so the footer stays
+below the fold without making the empty card itself tall.
+-}
+listRegion : Int -> Element msg -> Element msg
+listRegion viewportHeight content =
+    Element.el
+        [ Element.width Element.fill
+        , Element.height (Element.px (listRegionMinHeight viewportHeight))
+        ]
+        content
+
+
+emptyListMinHeight : Bool -> Int
+emptyListMinHeight compact =
+    monthHeadingHeight
+        + emptyListRowCount
+        * transactionRowHeight compact
+        + emptyListRowCount
+        * Tokens.space4
+
+
+skeletonRowCount : Bool -> Int -> Int
+skeletonRowCount compact viewportHeight =
+    let
+        rowStride =
+            transactionRowHeight compact + Tokens.space4
+
+        rowsNeeded =
+            (listRegionMinHeight viewportHeight - monthHeadingHeight)
+                // rowStride
+    in
+    clamp 1 8 rowsNeeded
+
+
+transactionsSkeleton : Theme -> Bool -> Int -> Element Msg
+transactionsSkeleton theme compact viewportHeight =
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+        [ Skeleton.block theme Tokens.skeletonLineShort Tokens.bodyTextHeight
+        , listRegion viewportHeight
+            (listContainer
+                [ monthColumn
+                    (monthHeading
+                        (Skeleton.block
+                            theme
+                            Tokens.skeletonLineShort
+                            Tokens.subsectionTitleHeight
+                        )
+                        :: List.repeat
+                            (skeletonRowCount compact viewportHeight)
+                            (transactionRowSkeleton theme compact)
+                    )
                 ]
-                (Typography.subsectionTitle theme "January 2026")
-            , Skeleton.listRow theme
-            , Surface.hairline theme
-            , Skeleton.listRow theme
-            , Surface.hairline theme
-            , Skeleton.listRow theme
+            )
+        , pagingSkeleton theme
+        ]
+
+
+transactionRowSkeleton : Theme -> Bool -> Element msg
+transactionRowSkeleton theme compact =
+    Element.column
+        (Surface.rowSurfaceAttrs theme False
+            ++ [ Element.spacing Tokens.space8
+               , Element.height
+                    (Element.minimum
+                        (transactionRowHeight compact)
+                        Element.shrink
+                    )
+               ]
+        )
+        [ if compact then
+            compactPrimarySkeleton theme
+
+          else
+            desktopPrimarySkeleton theme
+        , Element.column
+            [ Element.width Element.fill
+            , Element.spacing Tokens.space4
+            , Element.paddingEach
+                { top = Tokens.space0
+                , right = Tokens.space0
+                , bottom = Tokens.space0
+                , left = Tokens.space12
+                }
             ]
+            (List.repeat 2 (postingSkeleton theme)
+                ++ [ omittedSkeleton theme ]
+            )
+        ]
+
+
+desktopPrimarySkeleton : Theme -> Element msg
+desktopPrimarySkeleton theme =
+    Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+        [ Skeleton.block theme Tokens.registerDateWidth Tokens.space12
+        , Element.el [ Element.width Element.fill ]
+            (Skeleton.fillBlock theme Tokens.bodyTextHeight)
+        , Skeleton.block
+            theme
+            Tokens.skeletonLineShort
+            (Tokens.space12 + Tokens.space4)
+        ]
+
+
+compactPrimarySkeleton : Theme -> Element msg
+compactPrimarySkeleton theme =
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
+        [ Skeleton.block theme Tokens.skeletonLineShort Tokens.space12
+        , Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+            [ Element.el [ Element.width Element.fill ]
+                (Skeleton.fillBlock theme Tokens.bodyTextHeight)
+            , Skeleton.block
+                theme
+                Tokens.skeletonLineShort
+                (Tokens.space12 + Tokens.space4)
+            ]
+        ]
+
+
+postingSkeleton : Theme -> Element msg
+postingSkeleton theme =
+    Element.row [ Element.width Element.fill, Element.spacing Tokens.space4 ]
+        [ Skeleton.block
+            theme
+            Tokens.iconSizeTinyGlyph
+            Tokens.iconSizeTinyGlyph
+        , Element.el [ Element.width Element.fill ]
+            (Skeleton.fillBlock theme Tokens.space12)
+        , Skeleton.block theme Tokens.skeletonLineTiny Tokens.space12
+        ]
+
+
+omittedSkeleton : Theme -> Element msg
+omittedSkeleton theme =
+    Skeleton.block theme Tokens.skeletonLineShort Tokens.space12
+
+
+pagingSkeleton : Theme -> Element msg
+pagingSkeleton theme =
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+        [ Element.el
+            [ Element.width Element.fill
+            , Element.height (Element.px Tokens.minimumTouchTarget)
+            ]
+            (Element.el [ Element.centerY ]
+                (Skeleton.block
+                    theme
+                    Tokens.skeletonLineLong
+                    Tokens.minimumTouchTarget
+                )
+            )
+        , Element.el
+            [ Element.width Element.fill
+            , Element.height (Element.px (Tokens.bodyTextHeight + Tokens.space2))
+            ]
+            Element.none
         ]

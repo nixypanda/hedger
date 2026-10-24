@@ -2,6 +2,7 @@ module ActivityCalendarTest exposing (suite)
 
 import Data.ActivityCalendar as ActivityCalendar
 import Data.Analytics exposing (ActivityBucket, ActivityKind(..), ActivityMovement(..))
+import Data.Calendar as Calendar
 import Data.Date exposing (Date(..))
 import Data.Decimal as Decimal
 import Expect
@@ -41,7 +42,78 @@ suite =
                         , Just IncomeActivity
                         , Just ExpenseActivity
                         ]
+        , test "month grids contain only their real week rows" <|
+            \_ -> monthGridsUseRealWeekRows ()
+        , test "December 2025 uses five real week rows" <|
+            \_ ->
+                Calendar.monthWeeks "2025-12"
+                    |> List.length
+                    |> Expect.equal 5
+        , test "February 2015 uses four real week rows" <|
+            \_ ->
+                Calendar.monthWeeks "2015-02"
+                    |> List.length
+                    |> Expect.equal 4
         ]
+
+
+monthGridsUseRealWeekRows : () -> Expect.Expectation
+monthGridsUseRealWeekRows _ =
+    [ 2024, 2025 ]
+        |> List.concatMap monthsOfYear
+        |> List.map monthGridSummary
+        |> List.all realWeekRows
+        |> Expect.equal True
+
+
+monthGridSummary :
+    String
+    ->
+        { rows : Int
+        , widths : List Int
+        , hasEmptyRow : Bool
+        , cells : Int
+        }
+monthGridSummary period =
+    let
+        weeks =
+            Calendar.monthWeeks period
+    in
+    { rows = List.length weeks
+    , widths = List.map List.length weeks
+    , hasEmptyRow = List.any (List.all ((==) Nothing)) weeks
+    , cells = List.length (Calendar.monthCells period)
+    }
+
+
+realWeekRows :
+    { rows : Int
+    , widths : List Int
+    , hasEmptyRow : Bool
+    , cells : Int
+    }
+    -> Bool
+realWeekRows summary =
+    summary.rows
+        >= 4
+        && summary.rows
+        <= 6
+        && List.all ((==) 7) summary.widths
+        && not summary.hasEmptyRow
+        && summary.cells
+        == 7
+        * summary.rows
+
+
+monthsOfYear : Int -> List String
+monthsOfYear year =
+    List.range 1 12
+        |> List.map
+            (\month ->
+                String.fromInt year
+                    ++ "-"
+                    ++ String.padLeft 2 '0' (String.fromInt month)
+            )
 
 
 sampleInput : Input

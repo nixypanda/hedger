@@ -47,6 +47,59 @@ body {
   background: var(--ui-page-bg);
 }
 
+.ui-scroll-stable {
+  scrollbar-gutter: stable;
+}
+
+.ui-notice {
+  animation: ui-notice-in 180ms ease-out;
+}
+
+@media (max-width: 1543px) {
+  .ui-notice-bottom {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px + 12px) !important;
+  }
+}
+
+@keyframes ui-notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.ui-spin {
+  display: inline-flex;
+  animation: ui-spin 900ms linear infinite;
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 1px !important;
+  min-height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
 .page-scroll {
   min-width: 0;
   min-height: 100%;
@@ -122,8 +175,13 @@ body {
   .ui-motion,
   .ui-surface,
   .ui-chart-motion,
+  .ui-notice,
   .ui-skeleton::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  .ui-spin {
+    animation: none !important;
   }
 }

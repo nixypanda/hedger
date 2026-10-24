@@ -4,6 +4,7 @@ module Ui.Button exposing
     , ghostButton
     , iconButton
     , primaryButton
+    , refreshButton
     , secondaryButton
     )
 
@@ -102,6 +103,93 @@ backButton theme config =
         { icon = Icon.ChevronLeft
         , title = "Back"
         , onPress = config.onPress
+        }
+
+
+refreshButton : Theme -> { loading : Bool, onPress : msg } -> Element msg
+refreshButton theme config =
+    let
+        title =
+            if config.loading then
+                "Refreshing"
+
+            else
+                "Refresh"
+
+        icon =
+            if config.loading then
+                Icon.LoaderCircle
+
+            else
+                Icon.Refresh
+
+        iconView =
+            Element.el
+                (Element.centerX
+                    :: Element.centerY
+                    :: (if config.loading then
+                            [ Common.uiClass "ui-spin" ]
+
+                        else
+                            []
+                       )
+                )
+                (Icon.view
+                    { icon = icon
+                    , size = 20
+                    , color = theme.textPrimary
+                    }
+                )
+    in
+    Input.button
+        ([ Element.width (Element.px minimumTouchTarget)
+         , Element.height (Element.px minimumTouchTarget)
+         , Background.color theme.cardBg
+         , Font.color theme.textPrimary
+         , Font.center
+         , Border.rounded radiusPill
+         , Border.width 1
+         , Border.color theme.divider
+         , Common.uiClass "ui-motion"
+         ]
+            ++ Common.hoverBackground theme.primarySoft
+            ++ Common.hoverBorder theme.primary
+            ++ [ Element.htmlAttribute (Html.Attributes.title title)
+               , Element.htmlAttribute (Html.Attributes.attribute "aria-label" title)
+               , Element.htmlAttribute
+                    (Html.Attributes.attribute "aria-busy"
+                        (if config.loading then
+                            "true"
+
+                         else
+                            "false"
+                        )
+                    )
+               , Element.htmlAttribute
+                    (Html.Attributes.attribute "aria-disabled"
+                        (if config.loading then
+                            "true"
+
+                         else
+                            "false"
+                        )
+                    )
+               , Region.description title
+               ]
+            ++ (if config.loading then
+                    [ Element.htmlAttribute (Html.Attributes.attribute "inert" "") ]
+
+                else
+                    []
+               )
+        )
+        { onPress =
+            if config.loading then
+                Nothing
+
+            else
+                Just config.onPress
+        , label = iconView
         }
 
 

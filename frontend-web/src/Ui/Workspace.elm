@@ -64,6 +64,7 @@ paneView theme pane =
         , overflowXHidden
         , Common.minWidthZero
         , minHeightZero
+        , Common.uiClass "ui-scroll-stable"
         , Background.color theme.pageBg
         ]
         pane.content

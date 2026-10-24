@@ -15,6 +15,7 @@ import Ports
 type alias Model =
     { serviceWorker : ServiceWorkerState
     , installation : InstallationState
+    , updateNoticeDismissed : Bool
     }
 
 
@@ -47,6 +48,7 @@ type Msg
     | PromptInstallReady
     | PromptInstall
     | DismissInstallPrompt
+    | DismissUpdateNotice
     | ApplyServiceWorkerUpdate
 
 
@@ -62,6 +64,7 @@ fromFlags isStandalone isIos =
 
         else
             OtherBrowser
+    , updateNoticeDismissed = False
     }
 
 
@@ -69,7 +72,21 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         SwStatus status ->
-            ( { model | serviceWorker = serviceWorkerStateFromStatus status }, Cmd.none )
+            let
+                serviceWorker =
+                    serviceWorkerStateFromStatus status
+            in
+            ( { model
+                | serviceWorker = serviceWorker
+                , updateNoticeDismissed =
+                    if serviceWorker == ServiceWorkerUpdateReady then
+                        False
+
+                    else
+                        model.updateNoticeDismissed
+              }
+            , Cmd.none
+            )
 
         PromptInstallReady ->
             ( installPromptReady model, Cmd.none )
@@ -84,6 +101,9 @@ update msg model =
 
         DismissInstallPrompt ->
             ( dismissInstallPrompt model, Cmd.none )
+
+        DismissUpdateNotice ->
+            ( { model | updateNoticeDismissed = True }, Cmd.none )
 
         ApplyServiceWorkerUpdate ->
             ( model, Ports.skipWaiting () )

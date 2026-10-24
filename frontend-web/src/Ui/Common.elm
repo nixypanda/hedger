@@ -1,6 +1,7 @@
 module Ui.Common exposing
     ( hoverBackground
     , hoverBorder
+    , minHeightZero
     , minWidthZero
     , toCssColor
     , touchTargetHeight
@@ -21,6 +22,11 @@ uiClass className =
 minWidthZero : Element.Attribute msg
 minWidthZero =
     Element.htmlAttribute (Html.Attributes.style "min-width" "0")
+
+
+minHeightZero : Element.Attribute msg
+minHeightZero =
+    Element.htmlAttribute (Html.Attributes.style "min-height" "0")
 
 
 toCssColor : Element.Color -> String

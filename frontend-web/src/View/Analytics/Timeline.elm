@@ -39,7 +39,7 @@ positiveNegativeTimelineChart theme config =
         chart =
             Cartesian.view theme
                 { availableWidth = config.availableWidth
-                , height = 300
+                , height = Tokens.chartHeightTimeline
                 , targetSlotWidth = 40
                 , label = "Assets and liabilities timeline"
                 , items = config.points
@@ -125,7 +125,7 @@ netWorthPerformanceChart theme config =
         chart =
             Cartesian.view theme
                 { availableWidth = config.availableWidth
-                , height = 250
+                , height = Tokens.chartHeightStandard
                 , targetSlotWidth = 52
                 , label = "Net investment and net worth timeline"
                 , items = config.points

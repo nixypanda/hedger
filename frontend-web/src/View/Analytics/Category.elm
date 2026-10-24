@@ -18,12 +18,12 @@ import Lib.Number as Number
 import Ui.Chart.Donut as Donut
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
-import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Input
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
+import Ui.Viewport as Viewport
 import View.AccountPresentation as AccountPresentation
 import View.Analytics.Palette exposing (otherColor, paletteColor)
 import View.Analytics.Types exposing (Palette)
@@ -31,6 +31,8 @@ import View.Analytics.Types exposing (Palette)
 
 categoryCard :
     Theme
+    -> Viewport.ContentLayout
+    -> Int
     ->
         { title : String
         , commodity : String
@@ -42,35 +44,135 @@ categoryCard :
         , onSliceClick : Int -> msg
         }
     -> Element msg
-categoryCard theme config =
+categoryCard theme layout cardHeight config =
     Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         , Element.alignTop
-        , Element.height Element.fill
+        , Element.height (Element.px cardHeight)
         ]
         theme
         [ Typography.cardTitle theme config.title
-        , if List.isEmpty config.breakdown.items then
-            Feedback.emptyState theme "No categories for this period"
+        , categoryContent theme layout cardHeight config
+        ]
 
-          else
-            Element.wrappedRow
-                [ Element.width Element.fill
-                , Element.spacing Tokens.space24
-                ]
-                [ categoryBreakdownDonut theme
+
+categoryContent :
+    Theme
+    -> Viewport.ContentLayout
+    -> Int
+    ->
+        { config
+            | title : String
+            , commodity : String
+            , breakdown : CategoryBreakdown
+            , palette : Palette
+            , otherExpanded : Bool
+            , onOtherToggle : msg
+            , highlightedCategory : Maybe Int
+            , onSliceClick : Int -> msg
+        }
+    -> Element msg
+categoryContent theme layout cardHeight config =
+    let
+        contentHeight =
+            cardHeight
+                - 2
+                * Tokens.space20
+                - 2
+                * Tokens.borderHairline
+                - Tokens.chartTitleHeight
+                - Tokens.space12
+
+        rowsHeight =
+            if Viewport.isCompact layout then
+                contentHeight - Tokens.analyticsDonutSize - Tokens.space16
+
+            else
+                contentHeight
+    in
+    if List.isEmpty config.breakdown.items then
+        Element.el
+            [ Element.width Element.fill
+            , Element.height (Element.px contentHeight)
+            , Element.padding Tokens.space12
+            ]
+            (Typography.mutedParagraph theme "No categories for this period")
+
+    else
+        let
+            donut =
+                categoryBreakdownDonut theme
                     config.palette
                     config.highlightedCategory
                     config.onSliceClick
                     config.breakdown.items
-                , Element.column
-                    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
-                    , Element.spacing Tokens.space12
-                    , Element.alignTop
-                    ]
-                    (categoryRows theme config)
-                ]
+
+            rows =
+                categoryRowsViewport theme rowsHeight config
+
+            container =
+                if Viewport.isCompact layout then
+                    Element.column
+                        [ Element.width Element.fill
+                        , Element.height (Element.px contentHeight)
+                        , Element.spacing Tokens.space16
+                        , Element.alignTop
+                        , Common.minHeightZero
+                        ]
+
+                else
+                    Element.row
+                        [ Element.width Element.fill
+                        , Element.height (Element.px contentHeight)
+                        , Element.spacing Tokens.space24
+                        , Element.alignTop
+                        , Common.minHeightZero
+                        ]
+        in
+        container [ donut, rows ]
+
+
+categoryRowsViewport :
+    Theme
+    -> Int
+    ->
+        { config
+            | title : String
+            , commodity : String
+            , breakdown : CategoryBreakdown
+            , palette : Palette
+            , otherExpanded : Bool
+            , onOtherToggle : msg
+            , highlightedCategory : Maybe Int
+        }
+    -> Element msg
+categoryRowsViewport theme height config =
+    Element.el
+        [ Element.width Element.fill
+        , Element.height (Element.px height)
+        , Element.scrollbarY
+        , Common.minWidthZero
+        , Common.minHeightZero
+        , Element.htmlAttribute (Attr.tabindex 0)
+        , Element.htmlAttribute (Attr.attribute "role" "region")
+        , Element.htmlAttribute
+            (Attr.attribute "aria-label" (config.title ++ " category rows"))
+        , Element.focused
+            [ Border.shadow
+                { color = theme.primary
+                , offset = ( 0, 0 )
+                , blur = 3
+                , size = 0
+                }
+            ]
         ]
+        (Element.column
+            [ Element.width Element.fill
+            , Element.spacing Tokens.space12
+            , Element.alignTop
+            ]
+            (categoryRows theme config)
+        )
 
 
 depthControl : Theme -> Int -> (Int -> msg) -> Element msg
@@ -106,7 +208,7 @@ categoryBreakdownDonut theme palette highlightedCategory onSliceClick items =
     in
     Element.el [ Element.alignTop ]
         (Donut.view
-            { size = 240
+            { size = Tokens.analyticsDonutSize
             , outerRadius = 108
             , innerRadius = 64
             , padAngle = 0.035

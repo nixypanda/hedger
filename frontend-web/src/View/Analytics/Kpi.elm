@@ -33,12 +33,12 @@ kpiCard :
 kpiCard theme config =
     Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
-        , Element.height (Element.px Tokens.analyticsChartHeight)
+        , Element.height (Element.px Tokens.kpiCardHeight)
         ]
         theme
         [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
             [ iconTile
-                { size = Tokens.analyticsRingSize
+                { size = Tokens.kpiIconTileSize
                 , background = theme.primarySoft
                 , icon = config.icon
                 , iconSize = Tokens.iconSizeDetail
@@ -154,8 +154,8 @@ comparison theme commodity decreaseIsPositive kpi =
 kpiTrendSparkline : Element.Color -> List Float -> Element msg
 kpiTrendSparkline color values =
     Sparkline.view
-        { width = 126
-        , height = 48
+        { width = Tokens.kpiSparklineWidth
+        , height = Tokens.kpiSparklineHeight
         , color = color
         , label = "Recent trend"
         , values = values

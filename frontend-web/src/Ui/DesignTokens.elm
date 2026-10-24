@@ -1,7 +1,19 @@
 module Ui.DesignTokens exposing
-    ( analyticsChartHeight
-    , analyticsRingSize
+    ( activityYearRingMaxSize
+    , activityYearRingMinSize
+    , analysisActivityCardHeight
+    , analysisCategoryCardCompactHeight
+    , analysisCategoryCardHeight
+    , analysisTimelineCardHeight
+    , analyticsDonutSize
+    , bodyTextHeight
     , borderHairline
+    , calendarCellHeight
+    , chartHeightInvestment
+    , chartHeightStandard
+    , chartHeightTimeline
+    , chartLegendHeight
+    , chartTitleHeight
     , compactControlVisualHeight
     , iconSizeCaption
     , iconSizeCompact
@@ -11,11 +23,23 @@ module Ui.DesignTokens exposing
     , iconSizeSmallGlyph
     , iconSizeTiny
     , iconSizeTinyGlyph
+    , investmentAllocationCardCompactHeight
+    , investmentAllocationCardHeight
+    , investmentAllocationCardMediumHeight
+    , investmentHistoryCardHeight
+    , investmentNavigatorCompactHeight
     , investmentNavigatorWidth
     , investmentProgressWidth
+    , kpiCardHeight
+    , kpiComparisonHeight
+    , kpiIconTileSize
+    , kpiSparklineHeight
+    , kpiSparklineWidth
+    , kpiValueHeight
     , layoutPortionDouble
     , layoutPortionSingle
     , layoutPortionTriple
+    , metricCardHeight
     , minimumTouchTarget
     , narrowContentWidth
     , navigationBarHeight
@@ -44,6 +68,10 @@ module Ui.DesignTokens exposing
     , space4
     , space8
     , splitPaneControlWidth
+    , statusDotSize
+    , statusIndicatorHeight
+    , statusIndicatorWidth
+    , subsectionTitleHeight
     , treeIndentWidth
     )
 
@@ -63,14 +91,156 @@ borderHairline =
     1
 
 
-analyticsChartHeight : Int
-analyticsChartHeight =
+analyticsDonutSize : Int
+analyticsDonutSize =
+    240
+
+
+bodyTextHeight : Int
+bodyTextHeight =
+    14
+
+
+activityYearRingMinSize : Int
+activityYearRingMinSize =
+    70
+
+
+activityYearRingMaxSize : Int
+activityYearRingMaxSize =
+    110
+
+
+analysisTimelineCardHeight : Int
+analysisTimelineCardHeight =
+    499
+
+
+analysisCategoryCardHeight : Int
+analysisCategoryCardHeight =
+    357
+
+
+analysisCategoryCardCompactHeight : Int
+analysisCategoryCardCompactHeight =
+    540
+
+
+analysisActivityCardHeight : Int
+analysisActivityCardHeight =
+    623
+
+
+calendarCellHeight : Int
+calendarCellHeight =
+    72
+
+
+chartHeightStandard : Int
+chartHeightStandard =
+    250
+
+
+chartHeightTimeline : Int
+chartHeightTimeline =
+    300
+
+
+chartHeightInvestment : Int
+chartHeightInvestment =
+    260
+
+
+chartLegendHeight : Int
+chartLegendHeight =
+    24
+
+
+chartTitleHeight : Int
+chartTitleHeight =
+    21
+
+
+kpiCardHeight : Int
+kpiCardHeight =
     200
 
 
-analyticsRingSize : Int
-analyticsRingSize =
+kpiIconTileSize : Int
+kpiIconTileSize =
     42
+
+
+kpiValueHeight : Int
+kpiValueHeight =
+    32
+
+
+kpiComparisonHeight : Int
+kpiComparisonHeight =
+    12
+
+
+kpiSparklineHeight : Int
+kpiSparklineHeight =
+    48
+
+
+kpiSparklineWidth : Int
+kpiSparklineWidth =
+    126
+
+
+metricCardHeight : Int
+metricCardHeight =
+    90
+
+
+investmentAllocationCardHeight : Int
+investmentAllocationCardHeight =
+    243
+
+
+investmentAllocationCardMediumHeight : Int
+investmentAllocationCardMediumHeight =
+    333
+
+
+investmentAllocationCardCompactHeight : Int
+investmentAllocationCardCompactHeight =
+    609
+
+
+investmentHistoryCardHeight : Int
+investmentHistoryCardHeight =
+    530
+
+
+investmentNavigatorCompactHeight : Int
+investmentNavigatorCompactHeight =
+    355
+
+
+statusIndicatorWidth : Int
+statusIndicatorWidth =
+    120
+
+
+statusIndicatorHeight : Int
+statusIndicatorHeight =
+    44
+
+
+statusDotSize : Int
+statusDotSize =
+    10
+
+
+{-| Rendered height of `Ui.Typography.subsectionTitle` (20px at 1.25 leading).
+-}
+subsectionTitleHeight : Int
+subsectionTitleHeight =
+    25
 
 
 layoutPortionSingle : Int
