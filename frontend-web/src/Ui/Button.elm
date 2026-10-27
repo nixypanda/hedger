@@ -35,7 +35,7 @@ primaryButton theme config =
         , background = theme.primary
         , foreground = theme.primaryButtonFg
         , border = theme.primary
-        , hoverBackground = theme.primaryPressed
+        , hoverBackground = Common.HoverPrimary
         }
 
 
@@ -47,7 +47,7 @@ secondaryButton theme config =
         , background = theme.primarySoft
         , foreground = theme.primary
         , border = theme.primarySoft
-        , hoverBackground = theme.selectedBg
+        , hoverBackground = Common.HoverSelected
         }
 
 
@@ -59,7 +59,7 @@ dangerButton theme config =
         , background = theme.dangerSolid
         , foreground = theme.dangerSolidFg
         , border = theme.dangerSolid
-        , hoverBackground = theme.dangerFg
+        , hoverBackground = Common.HoverDanger
         }
 
 
@@ -79,7 +79,7 @@ ghostButtonWithLabel theme config =
         , background = theme.cardBg
         , foreground = theme.textPrimary
         , border = theme.divider
-        , hoverBackground = theme.hoverBg
+        , hoverBackground = Common.HoverSurface
         }
 
 
@@ -92,8 +92,7 @@ iconButton theme config =
         , background = theme.cardBg
         , foreground = theme.textPrimary
         , border = theme.divider
-        , hoverBackground = theme.primarySoft
-        , hoverBorder = theme.primary
+        , hoverBackground = Common.HoverPrimarySoft
         }
 
 
@@ -152,8 +151,8 @@ refreshButton theme config =
          , Border.color theme.divider
          , Common.uiClass "ui-motion"
          ]
-            ++ Common.hoverBackground theme.primarySoft
-            ++ Common.hoverBorder theme.primary
+            ++ Common.hoverBackground Common.HoverPrimarySoft
+            ++ Common.hoverBorderPrimary
             ++ [ Element.htmlAttribute (Html.Attributes.title title)
                , Element.htmlAttribute (Html.Attributes.attribute "aria-label" title)
                , Element.htmlAttribute
@@ -201,7 +200,7 @@ buttonBase :
         , background : Element.Color
         , foreground : Element.Color
         , border : Element.Color
-        , hoverBackground : Element.Color
+        , hoverBackground : Common.HoverBackground
         }
     -> Element msg
 buttonBase _ config =
@@ -233,8 +232,7 @@ iconButtonBase :
         , background : Element.Color
         , foreground : Element.Color
         , border : Element.Color
-        , hoverBackground : Element.Color
-        , hoverBorder : Element.Color
+        , hoverBackground : Common.HoverBackground
         }
     -> Element msg
 iconButtonBase _ config =
@@ -250,7 +248,7 @@ iconButtonBase _ config =
          , Common.uiClass "ui-motion"
          ]
             ++ Common.hoverBackground config.hoverBackground
-            ++ Common.hoverBorder config.hoverBorder
+            ++ Common.hoverBorderPrimary
             ++ [ Element.htmlAttribute (Html.Attributes.title config.title)
                , Region.description config.title
                ]

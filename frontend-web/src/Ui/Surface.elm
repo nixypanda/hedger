@@ -95,7 +95,7 @@ rowSurfaceAttrs theme selected =
             theme.divider
         )
     ]
-        ++ Common.hoverBackground theme.hoverBg
+        ++ Common.hoverBackground Common.HoverSurface
         ++ [ Common.uiClass "ui-motion" ]
 
 

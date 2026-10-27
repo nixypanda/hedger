@@ -142,12 +142,28 @@ body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .ui-hover-background:hover {
-    background-color: var(--ui-hover-background) !important;
+  .ui-hover-primary:hover {
+    background-color: var(--ui-primary-pressed) !important;
   }
 
-  .ui-hover-border:hover {
-    border-color: var(--ui-hover-border) !important;
+  .ui-hover-primary-soft:hover {
+    background-color: var(--ui-primary-soft) !important;
+  }
+
+  .ui-hover-selected:hover {
+    background-color: var(--ui-selected-bg) !important;
+  }
+
+  .ui-hover-danger:hover {
+    background-color: var(--ui-danger-fg) !important;
+  }
+
+  .ui-hover-surface:hover {
+    background-color: var(--ui-hover-bg) !important;
+  }
+
+  .ui-hover-border-primary:hover {
+    border-color: var(--ui-primary) !important;
   }
 }
 

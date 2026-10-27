@@ -1183,7 +1183,7 @@ investmentNavigatorPathButton theme label onPress =
                , Border.rounded Tokens.radiusSmall
                , Font.color theme.primary
                ]
-            ++ Common.hoverBackground theme.primarySoft
+            ++ Common.hoverBackground Common.HoverPrimarySoft
         )
         { onPress = Just onPress, label = Element.text label }
 
