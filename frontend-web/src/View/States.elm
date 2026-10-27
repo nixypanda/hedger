@@ -1,36 +1,117 @@
 module View.States exposing
-    ( freshnessBanner
+    ( refreshStatus
     , registerCompletenessBadge
-    , remoteNotice
     )
 
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Freshness exposing (Freshness(..))
 import Element exposing (Element)
-import Lib.RemoteData exposing (RemoteData(..))
+import Element.Background as Background
+import Element.Border as Border
+import Element.Font as Font
+import Html.Attributes as Attr
 import Ui.Chip as Chip
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
-import Ui.Feedback as Feedback
 import Ui.Theme exposing (Theme)
+import Ui.Typography as Typography
 
 
-freshnessBanner : Theme -> Freshness -> Element msg
-freshnessBanner theme freshness =
+freshnessIndicator : Theme -> Freshness -> Element msg
+freshnessIndicator theme freshness =
+    statusIndicator theme (freshnessStatus theme freshness)
+
+
+refreshStatus : Theme -> { freshness : Freshness, loading : Bool } -> Element msg
+refreshStatus theme config =
+    freshnessIndicator theme
+        (if config.loading then
+            Refreshing
+
+         else
+            config.freshness
+        )
+
+
+type alias FreshnessStatus =
+    { color : Element.Color
+    , label : String
+    , shortLabel : String
+    }
+
+
+freshnessStatus : Theme -> Freshness -> FreshnessStatus
+freshnessStatus theme freshness =
     case freshness of
         Fresh ->
-            Element.none
+            { color = theme.positive
+            , label = "Up to date"
+            , shortLabel = "Live"
+            }
 
         Refreshing ->
-            Chip.statusBadge theme Chip.StatusPrimary "Refreshing"
+            { color = theme.primary
+            , label = "Refreshing"
+            , shortLabel = "Refreshing"
+            }
 
         Stale ->
-            Chip.statusBadge theme Chip.StatusWarning "Stale snapshot"
+            { color = theme.warningSolid
+            , label = "Stale snapshot"
+            , shortLabel = "Stale"
+            }
 
         Partial ->
-            Chip.statusBadge theme Chip.StatusWarning "Partial data"
+            { color = theme.warningSolid
+            , label = "Partial data"
+            , shortLabel = "Partial"
+            }
 
         Unavailable ->
-            Chip.statusBadge theme Chip.StatusDanger "Unavailable"
+            { color = theme.dangerSolid
+            , label = "Unavailable"
+            , shortLabel = "Unavailable"
+            }
+
+
+statusIndicator :
+    Theme
+    -> { color : Element.Color, label : String, shortLabel : String }
+    -> Element msg
+statusIndicator theme status =
+    Element.row
+        [ Element.width (Element.px Tokens.statusIndicatorWidth)
+        , Element.height (Element.px Tokens.statusIndicatorHeight)
+        , Element.paddingXY Tokens.space12 Tokens.space0
+        , Element.spacing Tokens.space8
+        , Background.color theme.chipBg
+        , Border.rounded Tokens.radiusPill
+        , Border.width Tokens.borderHairline
+        , Border.color theme.divider
+        , Element.htmlAttribute (Attr.title status.label)
+        , Element.htmlAttribute (Attr.attribute "role" "status")
+        , Element.htmlAttribute (Attr.attribute "aria-live" "polite")
+        , Element.htmlAttribute (Attr.attribute "aria-label" status.label)
+        ]
+        [ Element.el
+            [ Element.width (Element.px Tokens.statusDotSize)
+            , Element.height (Element.px Tokens.statusDotSize)
+            , Element.centerY
+            , Background.color status.color
+            , Border.rounded Tokens.radiusPill
+            ]
+            Element.none
+        , Element.el
+            (Typography.labelSmall
+                ++ [ Font.color theme.textMedium
+                   , Element.width Element.fill
+                   , Element.centerY
+                   , Element.clip
+                   , Common.minWidthZero
+                   ]
+            )
+            (Element.text status.shortLabel)
+        ]
 
 
 registerCompletenessBadge : Theme -> Completeness -> Element msg
@@ -44,35 +125,3 @@ registerCompletenessBadge theme completeness =
 
         Completeness.Unavailable ->
             Chip.statusBadge theme Chip.StatusDanger "Valuation unavailable"
-
-
-remoteNotice :
-    (error -> String)
-    -> Theme
-    -> Freshness
-    -> RemoteData error value
-    -> Element msg
-remoteNotice errorMessage theme freshness remote =
-    case remote of
-        Loading _ ->
-            noticeSlot (Chip.statusBadge theme Chip.StatusPrimary "Refreshing")
-
-        Failure error _ ->
-            Feedback.errorBanner theme (errorMessage error)
-
-        _ ->
-            case freshness of
-                Fresh ->
-                    noticeSlot Element.none
-
-                _ ->
-                    noticeSlot (freshnessBanner theme freshness)
-
-
-noticeSlot : Element msg -> Element msg
-noticeSlot notice =
-    Element.el
-        [ Element.width Element.fill
-        , Element.height (Element.px Tokens.iconSizeSmall)
-        ]
-        notice

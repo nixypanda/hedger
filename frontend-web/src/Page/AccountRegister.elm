@@ -28,6 +28,7 @@ import Data.Completeness exposing (Completeness(..))
 import Data.Date as Date
 import Data.Decimal as Decimal
 import Data.Formatting as Formatting
+import Data.Freshness as Freshness exposing (Freshness)
 import Data.Paginated as Paginated exposing (Paginated)
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Element)
@@ -45,6 +46,7 @@ import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Input
+import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
@@ -319,6 +321,11 @@ modelFilters (Model data) =
     ( data.from, data.to )
 
 
+modelPaginated : Model -> Paginated ApiError Criteria Response
+modelPaginated (Model data) =
+    data.paginated
+
+
 visibleResponse : Model -> Maybe Response
 visibleResponse (Model data) =
     Paginated.currentPage data.paginated
@@ -348,13 +355,13 @@ view env (Model data) =
     if Viewport.usesMasterDetail viewport then
         case data.selection of
             NoSelection ->
-                listPage theme compact (Model data)
+                listPage theme compact viewport.height (Model data)
 
             Selected entry ->
                 Workspace.view env
                     [ { key = "register"
                       , width = Workspace.Portion Tokens.layoutPortionDouble
-                      , content = listPage theme True (Model data)
+                      , content = listPage theme True viewport.height (Model data)
                       }
                     , { key = "register-detail"
                       , width = Workspace.Portion Tokens.layoutPortionTriple
@@ -365,21 +372,24 @@ view env (Model data) =
     else
         case data.selection of
             NoSelection ->
-                listPage theme compact (Model data)
+                listPage theme compact viewport.height (Model data)
 
             Selected entry ->
                 detailPage theme CloseDetail commodity entry
 
 
-listPage : Theme -> Bool -> Model -> Element Msg
-listPage theme compact model =
+listPage : Theme -> Bool -> Int -> Model -> Element Msg
+listPage theme compact viewportHeight model =
     Element.column
         [ Element.width Element.fill
         , Background.color theme.pageBg
         ]
         [ Page.pageHeaderBand theme <|
             registerHeader theme compact model
-        , Page.pageContainer [ filters theme model, content theme compact model ]
+        , Page.pageContainer
+            ([ filters theme model, content theme compact viewportHeight model ]
+                ++ failureNotices theme model
+            )
         ]
 
 
@@ -388,6 +398,17 @@ registerHeader theme compact model =
     let
         account =
             modelAccount model
+
+        actions =
+            [ States.refreshStatus theme
+                { freshness = registerFreshness (modelPaginated model)
+                , loading = registerLoading (modelPaginated model)
+                }
+            , Button.refreshButton theme
+                { loading = registerLoading (modelPaginated model)
+                , onPress = Refresh
+                }
+            ]
     in
     if compact then
         Element.column
@@ -398,16 +419,14 @@ registerHeader theme compact model =
             [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ Button.backButton theme { onPress = BackToAccounts }
                 , Element.el [ Element.alignRight ]
-                    (Button.iconButton theme
-                        { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
-                    )
+                    (Element.row [ Element.spacing Tokens.space8 ] actions)
                 ]
             , Element.column
                 [ Element.width Element.fill
                 , Element.spacing Tokens.space8
                 , Common.minWidthZero
                 ]
-                [ Typography.delimitedPageTitle theme ":" account
+                [ Typography.pageTitleWithDelimiter theme ":" account
                 , Typography.mutedParagraph theme "Account register"
                 ]
             ]
@@ -415,12 +434,9 @@ registerHeader theme compact model =
     else
         Page.pageHeader theme
             { leading = Just (Button.backButton theme { onPress = BackToAccounts })
-            , title = Typography.delimitedPageTitle theme ":" account
+            , title = Typography.pageTitleWithDelimiter theme ":" account
             , subtitle = Just "Account register"
-            , actions =
-                [ Button.iconButton theme
-                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
-                ]
+            , actions = actions
             }
 
 
@@ -449,46 +465,20 @@ filters theme model =
         ]
 
 
-content : Theme -> Bool -> Model -> Element Msg
-content theme compact (Model data) =
+content : Theme -> Bool -> Int -> Model -> Element Msg
+content theme compact viewportHeight (Model data) =
     case ( Paginated.status data.paginated, visibleResponse (Model data) ) of
-        ( Paginated.NotAsked, _ ) ->
-            Surface.card theme [ Feedback.loading theme "Loading register…" ]
-
-        ( Paginated.LoadingFirst, _ ) ->
-            Surface.card theme
-                [ Skeleton.listRow theme
-                , Surface.hairline theme
-                , Skeleton.listRow theme
-                , Surface.hairline theme
-                , Skeleton.listRow theme
-                ]
-
         ( Paginated.LoadFailure, _ ) ->
             Surface.card theme
                 [ Feedback.errorBanner theme
                     ("Register failed to load: " ++ failureMessage data.paginated)
                 ]
 
-        ( Paginated.RefreshFailure, Just response ) ->
-            Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-                [ Feedback.errorBanner theme
-                    ("Refresh failed; showing stale register: " ++ failureMessage data.paginated)
-                , registerContent theme compact (Model data) response
-                ]
-
-        ( Paginated.LoadMoreFailure, Just response ) ->
-            Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-                [ Feedback.errorBanner theme
-                    ("Loading more entries failed: " ++ failureMessage data.paginated)
-                , registerContent theme compact (Model data) response
-                ]
-
         ( _, Just response ) ->
-            registerContent theme compact (Model data) response
+            registerContent theme compact viewportHeight (Model data) response
 
         ( _, Nothing ) ->
-            Surface.card theme [ Feedback.loading theme "Loading register…" ]
+            registerSkeleton theme compact viewportHeight
 
 
 failureMessage : Paginated ApiError Criteria Response -> String
@@ -498,13 +488,75 @@ failureMessage paginated =
         |> Maybe.withDefault "Unknown error"
 
 
-registerContent : Theme -> Bool -> Model -> Response -> Element Msg
-registerContent theme compact model response =
+registerFreshness : Paginated ApiError Criteria Response -> Freshness
+registerFreshness paginated =
+    case ( Paginated.status paginated, Paginated.currentPage paginated ) of
+        ( Paginated.LoadFailure, _ ) ->
+            Freshness.Unavailable
+
+        ( Paginated.RefreshFailure, Just _ ) ->
+            Freshness.Stale
+
+        ( _, Just response ) ->
+            response.metadata.freshness
+
+        ( _, Nothing ) ->
+            Freshness.Unavailable
+
+
+registerLoading : Paginated ApiError Criteria Response -> Bool
+registerLoading paginated =
+    case Paginated.status paginated of
+        Paginated.LoadingFirst ->
+            True
+
+        Paginated.Refreshing_ ->
+            True
+
+        _ ->
+            False
+
+
+failureNotices : Theme -> Model -> List (Element Msg)
+failureNotices theme model =
+    case Paginated.status (modelPaginated model) of
+        Paginated.RefreshFailure ->
+            [ failureNotice theme
+                "register-refresh-error"
+                ("Refresh failed; showing stale register: "
+                    ++ failureMessage (modelPaginated model)
+                )
+            ]
+
+        Paginated.LoadMoreFailure ->
+            [ failureNotice theme
+                "register-load-more-error"
+                ("Loading more entries failed: "
+                    ++ failureMessage (modelPaginated model)
+                )
+            ]
+
+        _ ->
+            []
+
+
+failureNotice : Theme -> String -> String -> Element Msg
+failureNotice theme id message =
+    Notice.view theme
+        { placement = Notice.Bottom
+        , tone = Notice.Danger
+        , icon = Icon.AlertTriangle
+        , message = message
+        , actions = []
+        , id = Just id
+        }
+
+
+registerContent : Theme -> Bool -> Int -> Model -> Response -> Element Msg
+registerContent theme compact viewportHeight model response =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        [ States.freshnessBanner theme response.metadata.freshness
-        , if List.isEmpty response.entries then
-            Surface.card theme
-                [ Feedback.emptyState theme "No register entries match this date range." ]
+        [ if List.isEmpty response.entries then
+            listRegion viewportHeight (registerEmptyState theme compact)
 
           else
             registerRows theme compact model response.displayCommodity response.entries
@@ -512,9 +564,43 @@ registerContent theme compact model response =
         ]
 
 
+{-| Reserve the first-screen list region for empty results. Skeleton rows are
+sized from this region and normal loaded pages are taller, so the footer stays
+below the fold without making the empty card itself tall.
+-}
+listRegion : Int -> Element msg -> Element msg
+listRegion viewportHeight body =
+    Element.el
+        [ Element.width Element.fill
+        , Element.height (Element.px (registerListRegionMinHeight viewportHeight))
+        ]
+        body
+
+
+registerEmptyState : Theme -> Bool -> Element msg
+registerEmptyState theme compact =
+    Surface.cardWith
+        [ Element.height
+            (Element.minimum (registerEmptyMinHeight compact) Element.shrink)
+        ]
+        theme
+        [ Typography.mutedParagraph theme
+            "No register entries match this date range."
+        ]
+
+
 paging : Theme -> Model -> Response -> Element Msg
 paging theme (Model data) response =
-    if Paginated.status data.paginated == Paginated.LoadingMore_ then
+    Element.el
+        [ Element.width Element.fill
+        , Element.height (Element.px Tokens.minimumTouchTarget)
+        ]
+        (Element.el [ Element.centerY ] (pagingControl theme data.paginated response))
+
+
+pagingControl : Theme -> Paginated ApiError Criteria Response -> Response -> Element Msg
+pagingControl theme paginated response =
+    if Paginated.status paginated == Paginated.LoadingMore_ then
         Feedback.loading theme "Loading more entries…"
 
     else
@@ -524,6 +610,213 @@ paging theme (Model data) response =
 
             Nothing ->
                 Typography.mutedCaption theme "All matching entries are loaded."
+
+
+registerRowHeight : Bool -> Int
+registerRowHeight compact =
+    2
+        * Tokens.space12
+        + 2
+        * Tokens.borderHairline
+        + (if compact then
+            compactRowContentHeight
+
+           else
+            Tokens.iconSizeSmallGlyph
+          )
+
+
+compactRowContentHeight : Int
+compactRowContentHeight =
+    Tokens.space12
+        + Tokens.space8
+        + (Tokens.space12 + Tokens.space4)
+        + Tokens.space8
+        + Tokens.space12
+        + Tokens.space8
+        + (2 * (Tokens.space12 + Tokens.space4) + Tokens.space4)
+
+
+registerMonthHeadingHeight : Int
+registerMonthHeadingHeight =
+    Tokens.subsectionTitleHeight + Tokens.space8 + Tokens.space4
+
+
+registerEmptyRowCount : Int
+registerEmptyRowCount =
+    2
+
+
+registerEmptyMinHeight : Bool -> Int
+registerEmptyMinHeight compact =
+    registerMonthHeadingHeight
+        + registerEmptyRowCount
+        * registerRowHeight compact
+        + registerEmptyRowCount
+        * Tokens.space4
+
+
+registerListTopOffset : Int
+registerListTopOffset =
+    160
+
+
+registerListMaxHeight : Int
+registerListMaxHeight =
+    900
+
+
+registerListRegionMinHeight : Int -> Int
+registerListRegionMinHeight viewportHeight =
+    clamp 400 registerListMaxHeight (viewportHeight - registerListTopOffset)
+
+
+registerSkeletonRowCount : Bool -> Int -> Int
+registerSkeletonRowCount compact viewportHeight =
+    let
+        rowStride =
+            registerRowHeight compact + Tokens.space4
+
+        rowsNeeded =
+            (registerListRegionMinHeight viewportHeight
+                - registerMonthHeadingHeight
+            )
+                // rowStride
+    in
+    clamp 1 20 rowsNeeded
+
+
+registerSkeleton : Theme -> Bool -> Int -> Element msg
+registerSkeleton theme compact viewportHeight =
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+        [ listRegion viewportHeight
+            (Element.column
+                [ Element.width Element.fill, Element.spacing Tokens.space4 ]
+                (monthHeadingSkeleton theme
+                    :: List.repeat
+                        (registerSkeletonRowCount compact viewportHeight)
+                        (registerRowSkeleton theme compact)
+                )
+            )
+        , pagingSkeleton theme
+        ]
+
+
+monthHeadingSkeleton : Theme -> Element msg
+monthHeadingSkeleton theme =
+    Element.el
+        [ Element.paddingEach
+            { top = Tokens.space8
+            , right = Tokens.space0
+            , bottom = Tokens.space4
+            , left = Tokens.space4
+            }
+        ]
+        (Skeleton.block theme Tokens.skeletonLineShort Tokens.subsectionTitleHeight)
+
+
+registerRowSkeleton : Theme -> Bool -> Element msg
+registerRowSkeleton theme compact =
+    if compact then
+        compactRowSkeleton theme
+
+    else
+        desktopRowSkeleton theme
+
+
+desktopRowSkeleton : Theme -> Element msg
+desktopRowSkeleton theme =
+    Element.row
+        (Surface.rowSurfaceAttrs theme False
+            ++ [ Element.spacing Tokens.space12
+               , Common.minWidthZero
+               , Element.height
+                    (Element.minimum (registerRowHeight False) Element.shrink)
+               ]
+        )
+        [ Element.el
+            [ Element.width (Element.px Tokens.registerDateWidth) ]
+            (Skeleton.block theme Tokens.skeletonLineShort Tokens.space12)
+        , Element.el [ Element.width Element.fill, Common.minWidthZero ]
+            (Skeleton.fillBlock theme Tokens.bodyTextHeight)
+        , Element.el
+            [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+            , Common.minWidthZero
+            ]
+            (Skeleton.fillBlock theme Tokens.space12)
+        , Element.el
+            [ Element.width (Element.px Tokens.registerAmountWidth) ]
+            (Skeleton.fillBlock theme Tokens.space12)
+        , Element.el
+            [ Element.width (Element.px Tokens.registerAmountWidth) ]
+            (Skeleton.fillBlock theme Tokens.space12)
+        , Skeleton.block
+            theme
+            Tokens.iconSizeSmallGlyph
+            Tokens.iconSizeSmallGlyph
+        ]
+
+
+compactRowSkeleton : Theme -> Element msg
+compactRowSkeleton theme =
+    Element.column
+        (Surface.rowSurfaceAttrs theme False
+            ++ [ Element.spacing Tokens.space8
+               , Element.height
+                    (Element.minimum (registerRowHeight True) Element.shrink)
+               ]
+        )
+        [ Skeleton.block theme Tokens.skeletonLineShort Tokens.space12
+        , Element.row
+            [ Element.width Element.fill
+            , Element.spacing Tokens.space8
+            , Common.minWidthZero
+            ]
+            [ Element.el [ Element.width Element.fill ]
+                (Skeleton.fillBlock theme Tokens.bodyTextHeight)
+            , Skeleton.block
+                theme
+                Tokens.iconSizeSmallGlyph
+                Tokens.iconSizeSmallGlyph
+            ]
+        , Skeleton.block theme Tokens.skeletonLineLong Tokens.space12
+        , Element.column
+            [ Element.width Element.fill, Element.spacing Tokens.space4 ]
+            [ labeledSkeleton theme, labeledSkeleton theme ]
+        ]
+
+
+labeledSkeleton : Theme -> Element msg
+labeledSkeleton theme =
+    Element.row
+        [ Element.width Element.fill
+        , Element.spacing Tokens.space8
+        , Common.minWidthZero
+        , Element.height
+            (Element.minimum
+                (Tokens.space12 + Tokens.space4)
+                Element.shrink
+            )
+        ]
+        [ Skeleton.block theme Tokens.skeletonLineTiny Tokens.space12
+        , Element.el [ Element.width Element.fill ]
+            (Skeleton.fillBlock theme Tokens.space12)
+        ]
+
+
+pagingSkeleton : Theme -> Element msg
+pagingSkeleton theme =
+    Element.el
+        [ Element.width Element.fill
+        , Element.height (Element.px Tokens.minimumTouchTarget)
+        ]
+        (Element.el [ Element.centerY ]
+            (Skeleton.block
+                theme
+                Tokens.skeletonLineLong
+                Tokens.minimumTouchTarget
+            )
+        )
 
 
 registerRows : Theme -> Bool -> Model -> String -> List Entry -> Element Msg
@@ -591,10 +884,18 @@ entryRow theme compact model commodity entry =
 
         rowContent =
             Element.column
-                (Surface.rowSurfaceAttrs theme False ++ [ Element.spacing Tokens.space8 ])
+                (Surface.rowSurfaceAttrs theme False
+                    ++ [ Element.spacing Tokens.space8
+                       , Element.height
+                            (Element.minimum
+                                (registerRowHeight compact)
+                                Element.shrink
+                            )
+                       ]
+                )
                 [ if compact then
                     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                        [ Element.el [ Typography.caption ] date
+                        [ Element.el Typography.caption date
                         , Element.row
                             [ Element.width Element.fill
                             , Element.spacing Tokens.space8
@@ -608,10 +909,11 @@ entryRow theme compact model commodity entry =
                             , chevron
                             ]
                         , Element.el
-                            [ Typography.caption
-                            , Font.color theme.textMuted
-                            , Common.minWidthZero
-                            ]
+                            (Typography.caption
+                                ++ [ Font.color theme.textMuted
+                                   , Common.minWidthZero
+                                   ]
+                            )
                             account
                         , Element.column
                             [ Element.width Element.fill
@@ -630,8 +932,9 @@ entryRow theme compact model commodity entry =
                         , Common.minWidthZero
                         ]
                         [ Element.el
-                            [ Element.width (Element.px Tokens.registerDateWidth)
-                            ]
+                            (Typography.caption
+                                ++ [ Element.width (Element.px Tokens.registerDateWidth) ]
+                            )
                             date
                         , Element.el
                             [ Element.width (Element.fillPortion Tokens.layoutPortionDouble)
@@ -639,11 +942,12 @@ entryRow theme compact model commodity entry =
                             ]
                             description
                         , Element.el
-                            [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
-                            , Typography.caption
-                            , Font.color theme.textMuted
-                            , Common.minWidthZero
-                            ]
+                            (Typography.caption
+                                ++ [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+                                   , Font.color theme.textMuted
+                                   , Common.minWidthZero
+                                   ]
+                            )
                             account
                         , Element.el
                             [ Element.width (Element.px Tokens.registerAmountWidth)
@@ -673,9 +977,14 @@ labeledValue theme label valueEl =
         [ Element.width Element.fill
         , Element.spacing Tokens.space8
         , Common.minWidthZero
+        , Element.height
+            (Element.minimum
+                (Tokens.space12 + Tokens.space4)
+                Element.shrink
+            )
         ]
         [ Element.text label
-            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+            |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
         , Element.el [ Element.width Element.fill, Common.minWidthZero ] valueEl
         ]
 
@@ -689,12 +998,14 @@ valueDisplay theme commodity isMovement color value =
         ]
         [ Common.truncatedText (fullDisplayValue commodity value)
             |> Element.el
-                ([ Element.width Element.fill
-                 , Font.alignRight
-                 , Font.color color
-                 ]
+                (Typography.caption
+                    ++ Typography.numeric
+                    ++ [ Element.width Element.fill
+                       , Font.alignRight
+                       , Font.color color
+                       ]
                     ++ (if isMovement then
-                            [ Font.semiBold ]
+                            [ Typography.fontWeight Typography.SemiBold ]
 
                         else
                             []
@@ -763,7 +1074,7 @@ detailPage theme onClose commodity entry =
     Page.scaffold theme
         { header =
             { leading = Just (Button.backButton theme { onPress = onClose })
-            , title = Typography.sectionTitle theme "Details"
+            , title = Typography.pageTitle theme "Details"
             , subtitle = Nothing
             , actions = []
             }
@@ -771,7 +1082,7 @@ detailPage theme onClose commodity entry =
             [ Surface.card theme
                 [ Typography.sectionTitle theme entry.description
                 , Element.text (Date.toString entry.date ++ " · " ++ entry.account)
-                    |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+                    |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
                 , valueDetails theme commodity "Movement" entry.amount
                 , Surface.hairline theme
                 , valueDetails theme commodity "Balance" entry.balance
@@ -783,12 +1094,9 @@ detailPage theme onClose commodity entry =
 valueDetails : Theme -> String -> String -> Value -> Element msg
 valueDetails theme commodity label value =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-        [ Typography.subsectionTitle theme label
+        [ Typography.cardTitle theme label
         , Element.text (displayValue commodity value)
-            |> Element.el
-                [ Typography.detailHeroValue
-                , Font.semiBold
-                ]
+            |> Element.el Typography.headline
         , States.registerCompletenessBadge theme value.completeness
         , Typography.mutedCaption theme "Raw amounts included"
         , Element.column
@@ -807,12 +1115,12 @@ rawRow : Theme -> Quantity -> Element msg
 rawRow theme quantity =
     Element.row
         [ Element.width Element.fill
-        , Element.paddingXY Tokens.space10 Tokens.space8
+        , Element.paddingXY Tokens.space8 Tokens.space12
         , Background.color theme.inputFill
         , Border.rounded Tokens.radiusControl
         ]
         [ Element.text (Quantity.commodity quantity)
             |> Element.el [ Element.width Element.fill, Font.color theme.textMedium ]
         , Element.text (Formatting.formatFullValue (Quantity.quantity quantity))
-            |> Element.el [ Font.semiBold ]
+            |> Element.el (Typography.body ++ [ Typography.fontWeight Typography.SemiBold ])
         ]

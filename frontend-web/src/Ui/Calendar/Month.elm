@@ -4,6 +4,7 @@ import Data.Calendar as Calendar
 import Element exposing (Element)
 import Element.Font as Font
 import Html.Attributes as Attr
+import Ui.Typography as Typography
 
 
 view :
@@ -18,7 +19,7 @@ view config =
     let
         attributes =
             [ Element.width (Element.fillPortion 1)
-            , Element.height (Element.px config.cellHeight)
+            , Element.height Element.fill
             , equalColumn
             ]
 
@@ -31,11 +32,13 @@ view config =
                     config.viewDay day attributes
 
         rows =
-            Calendar.monthCells config.period
-                |> chunks 7
+            Calendar.monthWeeks config.period
                 |> List.map
                     (List.map cell
-                        >> Element.row [ Element.width Element.fill ]
+                        >> Element.row
+                            [ Element.width Element.fill
+                            , Element.height Element.fill
+                            ]
                     )
     in
     Element.column [ Element.width Element.fill ]
@@ -43,28 +46,25 @@ view config =
             (List.map
                 (\label ->
                     Element.el
-                        [ Element.width (Element.fillPortion 1)
-                        , equalColumn
-                        , Font.center
-                        , Font.color config.weekdayColor
-                        ]
+                        (Typography.caption
+                            ++ [ Element.width (Element.fillPortion 1)
+                               , equalColumn
+                               , Font.center
+                               , Font.color config.weekdayColor
+                               ]
+                        )
                         (Element.text label)
                 )
                 config.weekdayLabels
             )
-        , Element.column [ Element.width Element.fill ] rows
+        , Element.column
+            [ Element.width Element.fill
+            , Element.height (Element.px (6 * config.cellHeight))
+            ]
+            rows
         ]
 
 
 equalColumn : Element.Attribute msg
 equalColumn =
     Element.htmlAttribute (Attr.attribute "style" "flex: 1 1 0; min-width: 0")
-
-
-chunks : Int -> List value -> List (List value)
-chunks size values =
-    if List.isEmpty values then
-        []
-
-    else
-        List.take size values :: chunks size (List.drop size values)

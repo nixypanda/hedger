@@ -21,19 +21,21 @@ import Ui.DesignTokens
         , radiusSmall
         , space12
         , space2
-        , space3
+        , space4
         )
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (body, caption)
+import Ui.Typography as Typography
+
+
+fieldVerticalPadding : Int
+fieldVerticalPadding =
+    14
 
 
 fieldLabel : Theme -> String -> Element msg
 fieldLabel theme label =
     Element.el
-        [ caption
-        , Font.medium
-        , Font.color theme.textPrimary
-        ]
+        (Typography.labelSmall ++ [ Font.color theme.textPrimary ])
         (Element.text label)
 
 
@@ -77,8 +79,8 @@ segmentedControl : Theme -> List (Element msg) -> Element msg
 segmentedControl theme segments =
     Element.row
         [ Element.spacing space2
-        , Element.padding space3
-        , Border.rounded radiusSmall
+        , Element.padding space4
+        , Border.rounded radiusControl
         , Background.color theme.chipBg
         , Border.width 1
         , Border.color theme.divider
@@ -94,8 +96,8 @@ wideSegmentedControl theme options =
     Element.row
         [ Element.width Element.fill
         , Element.spacing space2
-        , Element.padding space3
-        , Border.rounded radiusSmall
+        , Element.padding space4
+        , Border.rounded radiusControl
         , Background.color theme.chipBg
         , Border.width 1
         , Border.color theme.divider
@@ -103,29 +105,29 @@ wideSegmentedControl theme options =
         (List.map
             (\config ->
                 Input.button
-                    [ Element.width (Element.fillPortion 1)
-                    , Font.color
-                        (if config.selected then
-                            theme.primary
+                    (Typography.label
+                        ++ [ Element.width (Element.fillPortion 1)
+                           , Font.color
+                                (if config.selected then
+                                    theme.primary
 
-                         else
-                            theme.textMedium
-                        )
-                    , Font.medium
-                    , Font.center
-                    , body
-                    , Common.uiClass "ui-motion"
-                    , Element.htmlAttribute
-                        (Html.Attributes.attribute
-                            "aria-pressed"
-                            (if config.selected then
-                                "true"
+                                 else
+                                    theme.textMedium
+                                )
+                           , Font.center
+                           , Common.uiClass "ui-motion"
+                           , Element.htmlAttribute
+                                (Html.Attributes.attribute
+                                    "aria-pressed"
+                                    (if config.selected then
+                                        "true"
 
-                             else
-                                "false"
-                            )
-                        )
-                    ]
+                                     else
+                                        "false"
+                                    )
+                                )
+                           ]
+                    )
                     { onPress = Just config.onPress
                     , label = segmentedSurface theme config.selected config.label
                     }
@@ -140,29 +142,29 @@ segmentedOption :
     -> Element msg
 segmentedOption theme config =
     Input.button
-        [ Common.touchTargetHeight
-        , Font.color
-            (if config.selected then
-                theme.primary
+        (Typography.label
+            ++ [ Common.touchTargetHeight
+               , Font.color
+                    (if config.selected then
+                        theme.primary
 
-             else
-                theme.textMedium
-            )
-        , Font.medium
-        , Font.center
-        , body
-        , Common.uiClass "ui-motion"
-        , Element.htmlAttribute
-            (Html.Attributes.attribute
-                "aria-pressed"
-                (if config.selected then
-                    "true"
+                     else
+                        theme.textMedium
+                    )
+               , Font.center
+               , Common.uiClass "ui-motion"
+               , Element.htmlAttribute
+                    (Html.Attributes.attribute
+                        "aria-pressed"
+                        (if config.selected then
+                            "true"
 
-                 else
-                    "false"
-                )
-            )
-        ]
+                         else
+                            "false"
+                        )
+                    )
+               ]
+        )
         { onPress = Just config.onPress
         , label = segmentedSurface theme config.selected config.label
         }
@@ -174,7 +176,7 @@ segmentedSurface theme selected label =
         [ Element.width Element.fill
         , Element.height (Element.px compactControlVisualHeight)
         , Element.paddingXY space12 0
-        , Border.rounded radiusControl
+        , Border.rounded radiusSmall
         , Background.color
             (if selected then
                 theme.cardBg
@@ -188,7 +190,7 @@ segmentedSurface theme selected label =
 
 inputAttrs : Theme -> List (Attribute msg)
 inputAttrs theme =
-    Element.padding 10 :: inputBaseAttrs theme
+    Element.paddingXY space12 fieldVerticalPadding :: inputBaseAttrs theme
 
 
 inputBaseAttrs : Theme -> List (Attribute msg)

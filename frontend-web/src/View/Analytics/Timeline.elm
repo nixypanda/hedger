@@ -8,6 +8,7 @@ import Data.Decimal as Decimal
 import Data.Formatting as Formatting
 import Element exposing (Element)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Font as Font
 import Ui.Chart.Cartesian as Cartesian
 import Ui.DesignTokens as Tokens
@@ -38,7 +39,7 @@ positiveNegativeTimelineChart theme config =
         chart =
             Cartesian.view theme
                 { availableWidth = config.availableWidth
-                , height = 300
+                , height = Tokens.chartHeightTimeline
                 , targetSlotWidth = 40
                 , label = "Assets and liabilities timeline"
                 , items = config.points
@@ -124,7 +125,7 @@ netWorthPerformanceChart theme config =
         chart =
             Cartesian.view theme
                 { availableWidth = config.availableWidth
-                , height = 250
+                , height = Tokens.chartHeightStandard
                 , targetSlotWidth = 52
                 , label = "Net investment and net worth timeline"
                 , items = config.points
@@ -224,11 +225,14 @@ selectedPeriodDetails theme period metrics =
         , Element.spacing Tokens.space8
         , Element.padding Tokens.space12
         , Background.color theme.primarySoft
+        , Border.rounded Tokens.radiusControl
         ]
-        [ Element.el [ Font.semiBold ] (Element.text period)
+        [ Element.el
+            (Typography.body ++ [ Typography.fontWeight Typography.SemiBold ])
+            (Element.text period)
         , Element.wrappedRow
             [ Element.width Element.fill
-            , Element.spacing Tokens.space18
+            , Element.spacing Tokens.space16
             ]
             (List.map (selectedPeriodMetric theme) metrics)
         ]
@@ -245,9 +249,11 @@ selectedPeriodMetric theme metric =
         ]
         [ Typography.mutedCaption theme metric.label
         , Element.el
-            [ Typography.financeNumber
-            , Font.semiBold
-            , Font.color metric.color
-            ]
+            (Typography.body
+                ++ Typography.numeric
+                ++ [ Typography.fontWeight Typography.SemiBold
+                   , Font.color metric.color
+                   ]
+            )
             (Element.text metric.value)
         ]

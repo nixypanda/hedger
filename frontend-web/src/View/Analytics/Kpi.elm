@@ -33,12 +33,12 @@ kpiCard :
 kpiCard theme config =
     Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
-        , Element.height (Element.px Tokens.analyticsChartHeight)
+        , Element.height (Element.px Tokens.kpiCardHeight)
         ]
         theme
         [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
             [ iconTile
-                { size = Tokens.analyticsRingSize
+                { size = Tokens.kpiIconTileSize
                 , background = theme.primarySoft
                 , icon = config.icon
                 , iconSize = Tokens.iconSizeDetail
@@ -48,10 +48,7 @@ kpiCard theme config =
             ]
         , Typography.mutedBody theme config.title
         , Element.el
-            [ Typography.kpiValue
-            , Typography.financeNumber
-            , Font.bold
-            ]
+            (Typography.headline ++ Typography.numeric)
             (Element.text (Formatting.formatDecimalDisplay config.commodity config.kpi.value))
         , comparison theme config.commodity config.decreaseIsPositive config.kpi
         ]
@@ -81,7 +78,7 @@ metricCard theme title value icon color =
                 }
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space4 ]
                 [ Typography.mutedCaption theme title
-                , Element.el [ Typography.kpiValue, Typography.financeNumber, Font.bold ]
+                , Element.el (Typography.headline ++ Typography.numeric)
                     (Element.text value)
                 ]
             ]
@@ -101,7 +98,7 @@ iconTile config =
         [ Element.width (Element.px config.size)
         , Element.height (Element.px config.size)
         , Background.color config.background
-        , Border.rounded Tokens.radiusMedium
+        , Border.rounded Tokens.radiusControl
         ]
         (Element.el [ Element.centerX, Element.centerY ]
             (Icon.view
@@ -140,11 +137,12 @@ comparison theme commodity decreaseIsPositive kpi =
                         |> Maybe.withDefault ""
             in
             Element.el
-                [ Font.color color
-                , Font.semiBold
-                , Typography.caption
-                , Typography.financeNumber
-                ]
+                (Typography.caption
+                    ++ [ Font.color color
+                       , Typography.fontWeight Typography.SemiBold
+                       ]
+                    ++ Typography.numeric
+                )
                 (Element.text
                     ("vs previous  "
                         ++ Formatting.formatDecimalDisplay commodity change
@@ -156,8 +154,8 @@ comparison theme commodity decreaseIsPositive kpi =
 kpiTrendSparkline : Element.Color -> List Float -> Element msg
 kpiTrendSparkline color values =
     Sparkline.view
-        { width = 126
-        , height = 48
+        { width = Tokens.kpiSparklineWidth
+        , height = Tokens.kpiSparklineHeight
         , color = color
         , label = "Recent trend"
         , values = values

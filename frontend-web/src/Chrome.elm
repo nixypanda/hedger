@@ -68,13 +68,18 @@ shellNotice : (Pwa.Msg -> msg) -> Pwa.Model -> Maybe (View.Chrome.Notice msg)
 shellNotice onPwa pwa =
     case pwa.serviceWorker of
         Pwa.ServiceWorkerUpdateReady ->
-            Just
-                { icon = Icon.Refresh
-                , message = "A new version of Hedger is ready."
-                , actions =
-                    [ shellAction onPwa "Update" Pwa.ApplyServiceWorkerUpdate
-                    ]
-                }
+            if pwa.updateNoticeDismissed then
+                Nothing
+
+            else
+                Just
+                    { icon = Icon.Refresh
+                    , message = "A new version of Hedger is ready."
+                    , actions =
+                        [ shellAction onPwa "Update" Pwa.ApplyServiceWorkerUpdate
+                        , updateDismissAction onPwa
+                        ]
+                    }
 
         _ ->
             installationNotice onPwa pwa.installation
@@ -123,5 +128,13 @@ dismissAction : (Pwa.Msg -> msg) -> View.Chrome.NoticeAction msg
 dismissAction onPwa =
     { label = "Dismiss"
     , onPress = onPwa Pwa.DismissInstallPrompt
+    , style = View.Chrome.GhostAction
+    }
+
+
+updateDismissAction : (Pwa.Msg -> msg) -> View.Chrome.NoticeAction msg
+updateDismissAction onPwa =
+    { label = "Later"
+    , onPress = onPwa Pwa.DismissUpdateNotice
     , style = View.Chrome.GhostAction
     }

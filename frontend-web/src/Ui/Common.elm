@@ -1,6 +1,8 @@
 module Ui.Common exposing
-    ( hoverBackground
-    , hoverBorder
+    ( HoverBackground(..)
+    , hoverBackground
+    , hoverBorderPrimary
+    , minHeightZero
     , minWidthZero
     , toCssColor
     , touchTargetHeight
@@ -21,6 +23,11 @@ uiClass className =
 minWidthZero : Element.Attribute msg
 minWidthZero =
     Element.htmlAttribute (Html.Attributes.style "min-width" "0")
+
+
+minHeightZero : Element.Attribute msg
+minHeightZero =
+    Element.htmlAttribute (Html.Attributes.style "min-height" "0")
 
 
 toCssColor : Element.Color -> String
@@ -56,17 +63,35 @@ truncatedText value =
         (Element.text value)
 
 
-hoverBackground : Element.Color -> List (Element.Attribute msg)
-hoverBackground color =
-    [ Element.htmlAttribute (Html.Attributes.class "ui-hover-background")
-    , Element.htmlAttribute
-        (Html.Attributes.style "--ui-hover-background" (toCssColor color))
+type HoverBackground
+    = HoverPrimary
+    | HoverPrimarySoft
+    | HoverSelected
+    | HoverDanger
+    | HoverSurface
+
+
+hoverBackground : HoverBackground -> List (Element.Attribute msg)
+hoverBackground tone =
+    [ uiClass <|
+        case tone of
+            HoverPrimary ->
+                "ui-hover-primary"
+
+            HoverPrimarySoft ->
+                "ui-hover-primary-soft"
+
+            HoverSelected ->
+                "ui-hover-selected"
+
+            HoverDanger ->
+                "ui-hover-danger"
+
+            HoverSurface ->
+                "ui-hover-surface"
     ]
 
 
-hoverBorder : Element.Color -> List (Element.Attribute msg)
-hoverBorder color =
-    [ Element.htmlAttribute (Html.Attributes.class "ui-hover-border")
-    , Element.htmlAttribute
-        (Html.Attributes.style "--ui-hover-border" (toCssColor color))
-    ]
+hoverBorderPrimary : List (Element.Attribute msg)
+hoverBorderPrimary =
+    [ uiClass "ui-hover-border-primary" ]

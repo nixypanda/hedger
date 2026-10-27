@@ -76,11 +76,12 @@ frontend-web/
       Feedback.elm            # loading, empty, error, and warning states
       Icon.elm                # icon set
       Input.elm               # text, date, and segmented controls
+      Notice.elm              # fixed-position transient notices
       Page.elm                # page scaffold, header, and period navigation
       Skeleton.elm            # skeleton loading shapes
       Surface.elm             # cards, sections, and surfaces
       Theme.elm               # light/dark theme tokens and mode parsing
-      Typography.elm          # font sizes and styles
+      Typography.elm          # generic type scale and roles
       Viewport.elm            # width-driven layout thresholds
       Workspace.elm           # independently scrolling master/detail panes
       Calendar/Month.elm      # month grid
@@ -91,9 +92,9 @@ frontend-web/
       Chart/Sparkline.elm     # KPI sparklines
     View/
       AccountPresentation.elm # account display helpers
-      Chrome.elm              # app shell, navigation, banners
+      Chrome.elm              # app shell, navigation, fixed-position notices
       QueryPanel.elm          # stateless hledger query input panel
-      States.elm              # loading/empty/error state views
+      States.elm              # freshness status and completeness badges
       Transaction.elm         # transaction rendering
       Analytics/
         Activity.elm          # month/year calendars and transaction lists
@@ -388,7 +389,10 @@ The frontend is a Progressive Web App:
   clears it in development.
 - `Pwa.elm` models service-worker state (installing, update-ready, controlling)
   and install-hint state; `Chrome` passes the corresponding notices to
-  `View.Chrome`, which renders the banners.
+  `View.Chrome`, which renders them as top-edge fixed-position notices. Page
+  and query errors use bottom-edge fixed-position notices above the bottom
+  navigation. Service-worker update prompts offer Update and Later; Later hides
+  the prompt until the next update-ready event.
 
 Offline support is limited to the app shell. Business data is not cached across
 sessions.
@@ -402,7 +406,8 @@ compose them.
 
 - `elm-ui` layout primitives, not CSS utility classes.
 - System sans-serif typography.
-- Light and dark themes with theme-owned surfaces, borders, radii, and shadows.
+- Light and dark themes with theme-owned colors, borders, and shadows; radii are
+  `Ui.DesignTokens` constants.
 
 ### Environment and layout
 
@@ -415,9 +420,35 @@ compose them.
 
 ### Type and tokens
 
-- `Ui.Typography` — the type scale (page title, section, body, caption, KPI
-  value, and so on).
-- `Ui.DesignTokens` — layout, sizing, and spacing tokens.
+The spacing and radius scales follow CalCo's scales. Typography uses its own
+coarse scale. Layout spacing follows the scale;
+component-internal chip and skeleton paddings may use explicit values. Layout
+and component sizes (sidebar width, navigation height, chart sizes, column
+widths, and similar) are separate constants, not scale steps.
+
+- Spacing (`Ui.DesignTokens`): `0, 2, 4, 8, 12, 16, 20, 24, 32`.
+- Radius (`Ui.DesignTokens`): `2` hairline, `8` small, `12` control, `20` card,
+  `999` pill.
+- Type (`Ui.Typography`): `12, 14, 16, 20, 24, 32, 44`.
+  - `32` is the page title.
+  - `24` is the section heading.
+  - `20` is the list/month subsection label.
+  - `16` is the card and in-card header step (`cardTitle`); it is also
+    available for emphasized body and detail text via `bodyLarge`.
+  - `14` is body text.
+  - `12` is the small-text step for captions, metadata, chips, and compact
+    labels.
+  - `44` is reserved for future display text and is currently unused.
+- `Ui.Typography` owns the generic scale (`Size`, `Weight`, `fontSize`,
+  `fontWeight`, `fontFamily`) and app-agnostic roles (`display`, `headline`,
+  `heading`, `subheading`, `body`, `bodyLarge`, `label`, `labelSmall`,
+  `caption`, `numeric`). Document roles (`pageTitle`, `sectionTitle`,
+  `subsectionTitle`, `cardTitle`) and muted text helpers also live there.
+- Do not add app-specific roles such as KPI, row, brand, tab, or detail styles
+  to `Ui.Typography`; compose the generic roles in the owning `Ui.*`,
+  `Component.*`, or `View.*` module.
+- `Ui.DesignTokens` — layout and component constants plus the spacing and
+  radius scales.
 - `Ui.Theme` — light/dark theme records and mode parsing; the settings page
   toggles between them.
 - `Ui.Common` / `Ui.Color` — shared attributes, CSS color conversion, blending,
@@ -425,9 +456,9 @@ compose them.
 
 ### Components
 
-- `Ui.Button`, `Ui.Input`, `Ui.Surface`, `Ui.Chip`, `Ui.Feedback`, and
-  `Ui.Skeleton` provide buttons, fields, cards, chips, state feedback, and
-  loading placeholders.
+- `Ui.Button`, `Ui.Input`, `Ui.Surface`, `Ui.Chip`, `Ui.Feedback`, `Ui.Notice`,
+  and `Ui.Skeleton` provide buttons, fields, cards, chips, state feedback,
+  fixed-position notices, and loading placeholders.
 - `Ui.Icon` provides the icon set.
 - `Ui.Page` provides the page scaffold, headers, and period navigation.
 - `Ui.Workspace` provides split-pane layout and scroll ownership.

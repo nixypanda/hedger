@@ -18,6 +18,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Notice as Notice
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
@@ -106,10 +107,14 @@ noticeView : Theme -> Maybe (Notice msg) -> Element msg
 noticeView theme maybeNotice =
     case maybeNotice of
         Just notice ->
-            banner theme
-                notice.icon
-                notice.message
-                (List.map (noticeAction theme) notice.actions)
+            Notice.view theme
+                { placement = Notice.Top
+                , tone = Notice.Info
+                , icon = notice.icon
+                , message = notice.message
+                , actions = List.map (noticeAction theme) notice.actions
+                , id = Nothing
+                }
 
         Nothing ->
             Element.none
@@ -125,28 +130,6 @@ noticeAction theme action =
         GhostAction ->
             Button.ghostButton theme
                 { label = action.label, onPress = action.onPress }
-
-
-banner : Theme -> Icon -> String -> List (Element msg) -> Element msg
-banner theme icon message actions =
-    Element.row
-        [ Element.width Element.fill
-        , Element.paddingXY Tokens.space16 Tokens.space12
-        , Element.spacing Tokens.space12
-        , Background.color theme.primarySoft
-        , Border.color theme.divider
-        , Border.widthEach
-            { top = Tokens.space0
-            , right = Tokens.space0
-            , bottom = Tokens.borderHairline
-            , left = Tokens.space0
-            }
-        ]
-        ([ Icon.view { icon = icon, size = Tokens.iconSizeSmall, color = theme.primary }
-         , Element.paragraph [ Element.width Element.fill ] [ Element.text message ]
-         ]
-            ++ actions
-        )
 
 
 sidebar : Env -> Config msg -> Element msg
@@ -193,7 +176,7 @@ brand theme =
         [ Element.el
             [ Element.width (Element.px Tokens.navigationBrandSize)
             , Element.height (Element.px Tokens.navigationBrandSize)
-            , Border.rounded Tokens.radiusMedium
+            , Border.rounded Tokens.radiusControl
             , Background.color theme.navigationBrandBg
             ]
             (Element.el [ Element.centerX, Element.centerY ]
@@ -205,8 +188,8 @@ brand theme =
                 )
             )
         , Element.el
-            [ Typography.brandLabel
-            , Font.semiBold
+            [ Typography.fontSize Typography.Lg
+            , Typography.fontWeight Typography.Bold
             , Font.color theme.navigationFg
             , Element.centerY
             ]
@@ -235,7 +218,7 @@ navItem theme destination =
              else
                 theme.transparent
             )
-        , Border.rounded Tokens.radiusMedium
+        , Border.rounded Tokens.radiusControl
         , Font.color foreground
         , Common.uiClass "ui-motion"
         ]
@@ -313,10 +296,11 @@ tabItem theme destination =
                     , color = foreground
                     }
                 , Element.el
-                    [ Typography.tabLabel
-                    , Font.center
-                    , Element.width Element.fill
-                    ]
+                    (Typography.caption
+                        ++ [ Font.center
+                           , Element.width Element.fill
+                           ]
+                    )
                     (Element.text destination.label)
                 ]
         }

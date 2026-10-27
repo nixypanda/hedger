@@ -4,6 +4,7 @@ module Ui.Button exposing
     , ghostButton
     , iconButton
     , primaryButton
+    , refreshButton
     , secondaryButton
     )
 
@@ -23,6 +24,7 @@ import Ui.DesignTokens
         )
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Theme exposing (Theme)
+import Ui.Typography as Typography
 
 
 primaryButton : Theme -> { label : String, onPress : msg } -> Element msg
@@ -33,7 +35,7 @@ primaryButton theme config =
         , background = theme.primary
         , foreground = theme.primaryButtonFg
         , border = theme.primary
-        , hoverBackground = theme.primaryPressed
+        , hoverBackground = Common.HoverPrimary
         }
 
 
@@ -45,7 +47,7 @@ secondaryButton theme config =
         , background = theme.primarySoft
         , foreground = theme.primary
         , border = theme.primarySoft
-        , hoverBackground = theme.selectedBg
+        , hoverBackground = Common.HoverSelected
         }
 
 
@@ -57,7 +59,7 @@ dangerButton theme config =
         , background = theme.dangerSolid
         , foreground = theme.dangerSolidFg
         , border = theme.dangerSolid
-        , hoverBackground = theme.dangerFg
+        , hoverBackground = Common.HoverDanger
         }
 
 
@@ -77,7 +79,7 @@ ghostButtonWithLabel theme config =
         , background = theme.cardBg
         , foreground = theme.textPrimary
         , border = theme.divider
-        , hoverBackground = theme.hoverBg
+        , hoverBackground = Common.HoverSurface
         }
 
 
@@ -90,8 +92,7 @@ iconButton theme config =
         , background = theme.cardBg
         , foreground = theme.textPrimary
         , border = theme.divider
-        , hoverBackground = theme.primarySoft
-        , hoverBorder = theme.primary
+        , hoverBackground = Common.HoverPrimarySoft
         }
 
 
@@ -104,6 +105,93 @@ backButton theme config =
         }
 
 
+refreshButton : Theme -> { loading : Bool, onPress : msg } -> Element msg
+refreshButton theme config =
+    let
+        title =
+            if config.loading then
+                "Refreshing"
+
+            else
+                "Refresh"
+
+        icon =
+            if config.loading then
+                Icon.LoaderCircle
+
+            else
+                Icon.Refresh
+
+        iconView =
+            Element.el
+                (Element.centerX
+                    :: Element.centerY
+                    :: (if config.loading then
+                            [ Common.uiClass "ui-spin" ]
+
+                        else
+                            []
+                       )
+                )
+                (Icon.view
+                    { icon = icon
+                    , size = 20
+                    , color = theme.textPrimary
+                    }
+                )
+    in
+    Input.button
+        ([ Element.width (Element.px minimumTouchTarget)
+         , Element.height (Element.px minimumTouchTarget)
+         , Background.color theme.cardBg
+         , Font.color theme.textPrimary
+         , Font.center
+         , Border.rounded radiusPill
+         , Border.width 1
+         , Border.color theme.divider
+         , Common.uiClass "ui-motion"
+         ]
+            ++ Common.hoverBackground Common.HoverPrimarySoft
+            ++ Common.hoverBorderPrimary
+            ++ [ Element.htmlAttribute (Html.Attributes.title title)
+               , Element.htmlAttribute (Html.Attributes.attribute "aria-label" title)
+               , Element.htmlAttribute
+                    (Html.Attributes.attribute "aria-busy"
+                        (if config.loading then
+                            "true"
+
+                         else
+                            "false"
+                        )
+                    )
+               , Element.htmlAttribute
+                    (Html.Attributes.attribute "aria-disabled"
+                        (if config.loading then
+                            "true"
+
+                         else
+                            "false"
+                        )
+                    )
+               , Region.description title
+               ]
+            ++ (if config.loading then
+                    [ Element.htmlAttribute (Html.Attributes.attribute "inert" "") ]
+
+                else
+                    []
+               )
+        )
+        { onPress =
+            if config.loading then
+                Nothing
+
+            else
+                Just config.onPress
+        , label = iconView
+        }
+
+
 buttonBase :
     Theme
     ->
@@ -112,7 +200,7 @@ buttonBase :
         , background : Element.Color
         , foreground : Element.Color
         , border : Element.Color
-        , hoverBackground : Element.Color
+        , hoverBackground : Common.HoverBackground
         }
     -> Element msg
 buttonBase _ config =
@@ -123,10 +211,10 @@ buttonBase _ config =
          , Border.color config.border
          , Background.color config.background
          , Font.color config.foreground
-         , Font.medium
          , Font.center
          , Common.uiClass "ui-motion"
          ]
+            ++ Typography.label
             ++ Common.hoverBackground config.hoverBackground
             ++ [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget) ]
         )
@@ -144,8 +232,7 @@ iconButtonBase :
         , background : Element.Color
         , foreground : Element.Color
         , border : Element.Color
-        , hoverBackground : Element.Color
-        , hoverBorder : Element.Color
+        , hoverBackground : Common.HoverBackground
         }
     -> Element msg
 iconButtonBase _ config =
@@ -161,7 +248,7 @@ iconButtonBase _ config =
          , Common.uiClass "ui-motion"
          ]
             ++ Common.hoverBackground config.hoverBackground
-            ++ Common.hoverBorder config.hoverBorder
+            ++ Common.hoverBorderPrimary
             ++ [ Element.htmlAttribute (Html.Attributes.title config.title)
                , Region.description config.title
                ]

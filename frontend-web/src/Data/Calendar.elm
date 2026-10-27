@@ -3,12 +3,14 @@ module Data.Calendar exposing
     , fiscalPeriodForMonth
     , fiscalPeriodLabel
     , monthCells
+    , monthWeeks
     , periodLabel
     , shiftMonth
     , shiftPeriod
     )
 
 import Data.Granularity exposing (Granularity(..))
+import Lib.ListExtra as ListExtra
 import Lib.Time as Time
 
 
@@ -84,6 +86,10 @@ periodLabel granularity period =
             period
 
 
+{-| The real cells for a month, padded only enough to complete the final week.
+The calendar view decides how many week rows to render and how to share a fixed
+height between them.
+-}
 monthCells : String -> List (Maybe Int)
 monthCells period =
     case parseMonth period of
@@ -100,6 +106,13 @@ monthCells period =
 
         Nothing ->
             []
+
+
+{-| The actual week rows for a month, without a blank trailing week.
+-}
+monthWeeks : String -> List (List (Maybe Int))
+monthWeeks period =
+    monthCells period |> ListExtra.chunksOf 7
 
 
 daysInMonth : Int -> Int -> Int

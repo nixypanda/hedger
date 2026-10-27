@@ -4,6 +4,7 @@ import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Component.Analysis as Analysis
 import Data.Analytics as Analytics
+import Data.Freshness exposing (Freshness(..))
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
 import Lib.RemoteData as RemoteData exposing (RemoteData(..))
@@ -12,6 +13,7 @@ import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Theme exposing (Theme)
@@ -295,8 +297,14 @@ dashboard env data =
             , subtitle = Just "Income, expenses, categories, and daily activity"
             , actions =
                 [ Element.map AnalysisMsg (Analysis.controlsView theme data.analysis)
-                , Button.iconButton theme
-                    { icon = Icon.Refresh, title = "Refresh", onPress = Refresh }
+                , States.refreshStatus theme
+                    { freshness = responseFreshness data.response
+                    , loading = responseLoading data.response
+                    }
+                , Button.refreshButton theme
+                    { loading = responseLoading data.response
+                    , onPress = Refresh
+                    }
                 ]
             }
         , body =
@@ -334,9 +342,6 @@ dashboardContent env data =
     let
         theme =
             env.theme
-
-        viewport =
-            env.viewport
     in
     case RemoteData.value data.response of
         Nothing ->
@@ -347,11 +352,12 @@ dashboardContent env data =
                     ]
 
                 _ ->
-                    [ cashflowSkeleton theme viewport ]
+                    [ filteredCountSkeleton theme
+                    , Analysis.skeleton env analysisConfig
+                    ]
 
         Just response ->
-            [ States.remoteNotice ApiError.message theme response.metadata.freshness data.response
-            , Typography.mutedBody theme
+            [ Typography.mutedBody theme
                 (String.fromInt response.filteredCount
                     ++ " of "
                     ++ String.fromInt response.totalCount
@@ -365,6 +371,7 @@ dashboardContent env data =
                     data.analysis
                 )
             ]
+                ++ refreshFailureNotice theme data.response
 
 
 queryError : RemoteData ApiError value -> Maybe ApiError
@@ -381,41 +388,56 @@ queryError remote =
             Nothing
 
 
-cashflowSkeleton : Theme -> Viewport -> Element Msg
-cashflowSkeleton theme viewport =
-    let
-        layout =
-            Viewport.contentLayout viewport
+filteredCountSkeleton : Theme -> Element msg
+filteredCountSkeleton theme =
+    Skeleton.block theme Tokens.skeletonLineLong Tokens.bodyTextHeight
 
-        isCompact =
-            Viewport.isCompact layout
-    in
-    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-        [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-            [ Skeleton.inputBar theme
-            , Skeleton.chipRow theme
-            ]
-        , Skeleton.chartCard theme
-        , if isCompact then
-            Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-                [ Skeleton.chartCard theme
-                , Skeleton.chartCard theme
+
+responseLoading : RemoteData error value -> Bool
+responseLoading remote =
+    case remote of
+        Loading _ ->
+            True
+
+        _ ->
+            False
+
+
+responseFreshness : RemoteData ApiError Analytics.CashflowResponse -> Freshness
+responseFreshness remote =
+    case ( remote, RemoteData.value remote ) of
+        ( Failure _ (Just _), _ ) ->
+            Stale
+
+        ( Failure _ Nothing, _ ) ->
+            Unavailable
+
+        ( _, Just response ) ->
+            response.metadata.freshness
+
+        ( _, Nothing ) ->
+            Unavailable
+
+
+refreshFailureNotice : Theme -> RemoteData ApiError Analytics.CashflowResponse -> List (Element Msg)
+refreshFailureNotice theme remote =
+    case remote of
+        Failure error (Just _) ->
+            if ApiError.isQueryError error then
+                []
+
+            else
+                [ Notice.view theme
+                    { placement = Notice.Bottom
+                    , tone = Notice.Danger
+                    , icon = Icon.AlertTriangle
+                    , message =
+                        "Refresh failed; showing stale data: "
+                            ++ ApiError.message error
+                    , actions = []
+                    , id = Just "cashflow-refresh-error"
+                    }
                 ]
 
-          else
-            Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-                [ Skeleton.chartCard theme
-                , Skeleton.chartCard theme
-                ]
-        , if isCompact then
-            Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-                [ Skeleton.chartCard theme
-                , Skeleton.chartCard theme
-                ]
-
-          else
-            Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-                [ Skeleton.chartCard theme
-                , Skeleton.chartCard theme
-                ]
-        ]
+        _ ->
+            []

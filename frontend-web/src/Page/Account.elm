@@ -23,7 +23,7 @@ import Data.AccountType as AccountType
 import Data.Completeness as Completeness exposing (Completeness)
 import Data.Date as Date
 import Data.Formatting as Formatting
-import Data.Freshness exposing (Freshness)
+import Data.Freshness exposing (Freshness(..))
 import Data.Quantity as Quantity exposing (Quantity)
 import Element exposing (Element)
 import Element.Background as Background
@@ -41,6 +41,7 @@ import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
@@ -123,7 +124,8 @@ beginLoading (Model model) =
 
 
 type Msg
-    = ToggleAccount AccountPath
+    = Refresh
+    | ToggleAccount AccountPath
     | OpenAccount AccountPath
     | OpenAccountValue AccountPath
     | CloseAccountValue
@@ -148,6 +150,9 @@ fetchAccounts =
 update : UpdateProps -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
 update props msg (Model model) =
     case msg of
+        Refresh ->
+            ( beginLoading (Model model), fetchAccounts, NoOutMsg )
+
         ToggleAccount path ->
             ( toggle path (Model model), Cmd.none, NoOutMsg )
 
@@ -287,9 +292,20 @@ view env (Model model) =
                     { leading = Nothing
                     , title = Typography.pageTitle theme "Accounts"
                     , subtitle = Nothing
-                    , actions = []
+                    , actions =
+                        [ States.refreshStatus theme
+                            { freshness = accountsFreshness model.accounts
+                            , loading = accountsLoading model.accounts
+                            }
+                        , Button.refreshButton theme
+                            { loading = accountsLoading model.accounts
+                            , onPress = Refresh
+                            }
+                        ]
                     }
-                , body = [ content theme model ]
+                , body =
+                    content theme model
+                        :: failureNotices theme model.accounts
                 }
 
         wideSelected =
@@ -327,38 +343,19 @@ content :
 content theme model =
     case model.accounts of
         NotRequested ->
-            Feedback.loading theme "Loading accounts…"
+            accountsSkeleton theme
 
         Loading ->
-            Surface.card theme
-                [ Skeleton.listRow theme
-                , Surface.hairline theme
-                , Skeleton.listRow theme
-                , Surface.hairline theme
-                , Skeleton.listRow theme
-                , Surface.hairline theme
-                , Skeleton.listRow theme
-                , Surface.hairline theme
-                , Skeleton.listRow theme
-                ]
+            accountsSkeleton theme
 
         Refreshing response ->
-            Surface.card theme
-                [ Chip.statusBadge theme Chip.StatusPrimary "Refreshing accounts"
-                , accountTree theme model.expanded response.accounts
-                ]
+            accountCard theme model.expanded response
 
         Loaded response ->
-            stateCard theme
-                response.metadata.freshness
-                (accountTree theme model.expanded response.accounts)
+            accountCard theme model.expanded response
 
-        FailedWithStale error response ->
-            Surface.card theme
-                [ Feedback.errorBanner theme
-                    ("Refresh failed; showing stale accounts: " ++ ApiError.message error)
-                , accountTree theme model.expanded response.accounts
-                ]
+        FailedWithStale _ response ->
+            accountCard theme model.expanded response
 
         Failed error ->
             Surface.card theme
@@ -367,12 +364,14 @@ content theme model =
                 ]
 
 
-stateCard : Theme -> Freshness -> Element msg -> Element msg
-stateCard theme freshness tree =
-    Surface.card theme
-        [ States.freshnessBanner theme freshness
-        , tree
-        ]
+accountCard : Theme -> Set String -> Response -> Element Msg
+accountCard theme expanded response =
+    if List.isEmpty response.accounts then
+        accountsEmptyCard theme
+
+    else
+        Surface.card theme
+            [ accountTree theme expanded response.accounts ]
 
 
 accountTree :
@@ -381,12 +380,144 @@ accountTree :
     -> List AccountNode
     -> Element Msg
 accountTree theme expanded accounts =
-    if List.isEmpty accounts then
-        Feedback.emptyState theme "No accounts were found in the journal."
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+        (List.map (accountRow theme expanded 0) accounts)
 
-    else
-        Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-            (List.map (accountRow theme expanded 0) accounts)
+
+accountsEmptyCard : Theme -> Element msg
+accountsEmptyCard theme =
+    Surface.cardWith
+        [ Element.height
+            (Element.minimum accountsCardHeight Element.shrink)
+        ]
+        theme
+        [ Typography.mutedParagraph theme "No accounts were found in the journal." ]
+
+
+failureNotices : Theme -> AccountsState -> List (Element Msg)
+failureNotices theme accounts =
+    case accounts of
+        FailedWithStale error _ ->
+            [ Notice.view theme
+                { placement = Notice.Bottom
+                , tone = Notice.Danger
+                , icon = Icon.AlertTriangle
+                , message =
+                    "Refresh failed; showing stale accounts: " ++ ApiError.message error
+                , actions = []
+                , id = Just "accounts-refresh-error"
+                }
+            ]
+
+        _ ->
+            []
+
+
+accountsLoading : AccountsState -> Bool
+accountsLoading accounts =
+    case accounts of
+        Loading ->
+            True
+
+        Refreshing _ ->
+            True
+
+        _ ->
+            False
+
+
+accountsFreshness : AccountsState -> Freshness
+accountsFreshness accounts =
+    case accounts of
+        Loaded response ->
+            response.metadata.freshness
+
+        Refreshing response ->
+            response.metadata.freshness
+
+        FailedWithStale _ _ ->
+            Stale
+
+        _ ->
+            Unavailable
+
+
+accountRowHeight : Int
+accountRowHeight =
+    Tokens.minimumTouchTarget
+        + 2
+        * Tokens.space8
+        + 2
+        * Tokens.borderHairline
+
+
+accountsListContentHeight : Int
+accountsListContentHeight =
+    5
+        * accountRowHeight
+        + 4
+        * Tokens.space8
+
+
+accountsCardHeight : Int
+accountsCardHeight =
+    accountsListContentHeight
+        + 2
+        * Tokens.space20
+        + 2
+        * Tokens.borderHairline
+
+
+accountsSkeleton : Theme -> Element msg
+accountsSkeleton theme =
+    Surface.card theme
+        [ Element.column
+            [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+            (List.repeat 5 (accountRowSkeleton theme))
+        ]
+
+
+accountRowSkeleton : Theme -> Element msg
+accountRowSkeleton theme =
+    Element.row
+        (Surface.rowSurfaceAttrs theme False
+            ++ [ Element.paddingXY Tokens.space12 Tokens.space8
+               , Element.spacing Tokens.space4
+               ]
+        )
+        [ Element.el
+            [ Element.width (Element.px Tokens.minimumTouchTarget) ]
+            Element.none
+        , Element.row
+            [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
+            , Common.touchTargetHeight
+            , Element.spacing Tokens.space8
+            ]
+            [ Skeleton.block
+                theme
+                Tokens.iconSizeCaption
+                Tokens.iconSizeCaption
+            , Element.column
+                [ Element.width Element.fill, Element.spacing Tokens.space2 ]
+                [ Skeleton.block theme Tokens.skeletonLineLong Tokens.bodyTextHeight
+                , Skeleton.block theme Tokens.skeletonLineShort Tokens.space12
+                ]
+            ]
+        , Element.el
+            [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+            , Element.alignRight
+            ]
+            (Element.column
+                [ Element.width Element.fill
+                , Element.spacing Tokens.space2
+                ]
+                [ Element.el [ Element.alignRight ]
+                    (Skeleton.block theme Tokens.skeletonLineShort Tokens.bodyTextHeight)
+                , Element.el [ Element.alignRight ]
+                    (Skeleton.block theme Tokens.skeletonLineTiny Tokens.space12)
+                ]
+            )
+        ]
 
 
 accountRow :
@@ -470,13 +601,13 @@ accountRow theme expanded depth (AccountNode account) =
                             [ Element.width Element.fill
                             , Element.spacing Tokens.space2
                             ]
-                            [ Element.text account.name
+                            [ Common.truncatedText account.name
                             , Element.text
                                 (account.accountType
                                     |> Maybe.map AccountType.toString
                                     |> Maybe.withDefault "account"
                                 )
-                                |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+                                |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
                             ]
                         ]
                 }
@@ -484,7 +615,7 @@ accountRow theme expanded depth (AccountNode account) =
         row =
             Element.row
                 [ Element.width Element.fill
-                , Element.paddingXY Tokens.space12 Tokens.space10
+                , Element.paddingXY Tokens.space12 Tokens.space8
                 , Background.color theme.cardBg
                 , Border.color theme.divider
                 , Border.width Tokens.borderHairline
@@ -503,7 +634,7 @@ accountRow theme expanded depth (AccountNode account) =
                     valueAction
                 ]
     in
-    Element.column [ Element.width Element.fill, Element.spacing Tokens.space6 ]
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (row
             :: (if isExpanded then
                     List.map (accountRow theme expanded (depth + 1)) account.children
@@ -529,11 +660,14 @@ balanceText theme valuation symbolCount =
         , Common.minWidthZero
         ]
         [ Element.el
-            [ Element.alignRight
-            , Font.color theme.textPrimary
-            , Font.semiBold
-            , Common.minWidthZero
-            ]
+            (Typography.body
+                ++ [ Element.alignRight
+                   , Font.color theme.textPrimary
+                   , Typography.fontWeight Typography.SemiBold
+                   , Common.minWidthZero
+                   , Common.uiClass "ui-text-ellipsis"
+                   ]
+            )
             (Element.text
                 (case amount of
                     Just value ->
@@ -546,10 +680,11 @@ balanceText theme valuation symbolCount =
         , case symbolCount of
             Just count ->
                 Element.el
-                    [ Element.alignRight
-                    , Typography.caption
-                    , Font.color theme.textMuted
-                    ]
+                    (Typography.caption
+                        ++ [ Element.alignRight
+                           , Font.color theme.textMuted
+                           ]
+                    )
                     (Element.text (String.fromInt count ++ " symbols"))
 
             Nothing ->
@@ -595,7 +730,7 @@ accountDetailHeader theme onBack =
         Maybe.map
             (\message -> Button.backButton theme { onPress = message })
             onBack
-    , title = Typography.sectionTitle theme "Account Detail"
+    , title = Typography.pageTitle theme "Account Detail"
     , subtitle = Nothing
     , actions = []
     }
@@ -610,12 +745,12 @@ valuePanel theme (AccountNode account) =
                 |> Maybe.map AccountType.toString
                 |> Maybe.withDefault "account"
             )
-            |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+            |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
         ]
     , balanceText theme account.valuation Nothing
     , completenessBadge theme account.valuation.completeness
     , Surface.hairline theme
-    , Typography.subsectionTitle theme "Balances included"
+    , Typography.cardTitle theme "Balances included"
     , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (List.map (detailBalance theme) account.subtreeBalances)
     , Element.text
@@ -625,7 +760,7 @@ valuePanel theme (AccountNode account) =
          in
          "Valued as of " ++ TimeExtra.formatDate date
         )
-        |> Element.el [ Typography.caption, Font.color theme.textMuted ]
+        |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
     ]
 
 
@@ -674,7 +809,7 @@ detailBalance : Theme -> Quantity -> Element msg
 detailBalance theme balance =
     Element.row
         [ Element.width Element.fill
-        , Element.paddingXY Tokens.space10 Tokens.space8
+        , Element.paddingXY Tokens.space8 Tokens.space12
         , Background.color theme.inputFill
         , Border.rounded Tokens.radiusControl
         , Element.spacing Tokens.space8
@@ -688,7 +823,13 @@ detailBalance theme balance =
                 , Font.color theme.textMedium
                 ]
         , Element.text (Formatting.formatBalance balance)
-            |> Element.el [ Element.alignRight, Font.semiBold, Font.color theme.textPrimary ]
+            |> Element.el
+                (Typography.body
+                    ++ [ Element.alignRight
+                       , Typography.fontWeight Typography.SemiBold
+                       , Font.color theme.textPrimary
+                       ]
+                )
         ]
 
 

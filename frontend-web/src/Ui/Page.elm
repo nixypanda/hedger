@@ -21,27 +21,29 @@ import Ui.DesignTokens
         , periodFiscalYearLabelWidth
         , periodMonthLabelWidth
         , space12
-        , space16
+        , space24
+        , space32
         , space4
         , space8
         )
 import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
-import Ui.Typography exposing (body, mutedParagraph)
+import Ui.Typography as Typography
 import Ui.Viewport
 
 
 layout : Theme -> Element msg -> Element msg
 layout theme content =
     Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color theme.pageBg
-        , Font.family [ Font.typeface "Inter", Font.sansSerif ]
-        , Font.color theme.textPrimary
-        , body
-        , uiClass "ui-theme-root"
-        ]
+        (Typography.body
+            ++ [ Element.width Element.fill
+               , Element.height Element.fill
+               , Background.color theme.pageBg
+               , Typography.fontFamily
+               , Font.color theme.textPrimary
+               , uiClass "ui-theme-root"
+               ]
+        )
         [ content ]
 
 
@@ -50,7 +52,7 @@ pageContainer children =
     Element.column
         [ Element.centerX
         , Element.width (Element.fill |> Element.maximum 1280)
-        , Element.spacing space16
+        , Element.spacing space24
         , Element.padding Ui.Viewport.contentPadding
         ]
         children
@@ -87,7 +89,12 @@ pageHeaderBand theme content =
         (Element.el
             [ Element.centerX
             , Element.width (Element.fill |> Element.maximum 1280)
-            , Element.padding Ui.Viewport.contentPadding
+            , Element.paddingEach
+                { top = space32
+                , right = Ui.Viewport.contentPadding
+                , bottom = space24
+                , left = Ui.Viewport.contentPadding
+                }
             ]
             content
         )
@@ -112,7 +119,7 @@ pageHeader theme config =
             (config.title
                 :: (case config.subtitle of
                         Just subtitle ->
-                            [ mutedParagraph theme subtitle ]
+                            [ Typography.mutedParagraph theme subtitle ]
 
                         Nothing ->
                             []
@@ -148,7 +155,7 @@ periodNavigation theme config =
             , Element.centerY
             ]
             (Element.el
-                [ Element.centerX, Element.centerY, body, Font.medium ]
+                (Typography.labelSmall ++ [ Element.centerX, Element.centerY ])
                 (Element.text config.label)
             )
         , Button.iconButton theme

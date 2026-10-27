@@ -17,6 +17,7 @@ module Component.Analysis exposing
     , reportLoaded
     , reportRequest
     , requestReport
+    , skeleton
     , transaction
     , update
     , view
@@ -35,11 +36,15 @@ import Data.Granularity exposing (Granularity(..))
 import Data.Time as Time exposing (Depth(..), FiscalYearStartMonth(..), Month(..), Period(..))
 import Data.Transaction exposing (Transaction)
 import Element exposing (Element)
+import Html.Attributes as Attr
+import Ui.Chip as Chip
+import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Input
 import Ui.Page as Page
+import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -65,6 +70,7 @@ type alias ModelData =
     , calendarDisplay : AnalyticsTypes.CalendarDisplay
     , period : Maybe Period
     , calendarMonth : Maybe Month
+    , latestActivityMonth : Maybe Month
     , timeline : List TimelinePoint
     , positive : SideState
     , negative : SideState
@@ -154,6 +160,7 @@ init =
         , calendarDisplay = AnalyticsTypes.ByCategory
         , period = Nothing
         , calendarMonth = Nothing
+        , latestActivityMonth = Nothing
         , timeline = []
         , positive = initialSide
         , negative = initialSide
@@ -485,11 +492,24 @@ reportLoaded token context report (Model data) =
                     |> orElse pointMonth
                     |> orElse (Just (Month { year = 1970, month = 1 }))
 
+            latestActivityMonth =
+                if data.granularity == Monthly then
+                    case List.reverse points |> List.head of
+                        Just point ->
+                            Just (Time.monthFromDate point.startDate)
+
+                        Nothing ->
+                            data.latestActivityMonth
+
+                else
+                    data.latestActivityMonth
+
             next =
                 { data
                     | timeline = points
                     , period = period
                     , calendarMonth = calendarMonth
+                    , latestActivityMonth = latestActivityMonth
                     , activeReportToken = Nothing
                 }
         in
@@ -652,19 +672,141 @@ view env config report (Model data) =
 
             else
                 6
+
+        sections =
+            [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+                [ Typography.sectionTitle theme config.timelineSectionTitle
+                , timelineView theme chartWidth config report data
+                ]
+            , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+                [ compositionHeader theme layout report.warnings data
+                , breakdownsView theme layout config report data
+                ]
+            , activityViews theme layout activityColumns config report data
+            ]
+
+        warningSections =
+            if List.isEmpty report.warnings then
+                []
+
+            else
+                [ Feedback.warningList theme report.warnings ]
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
-        [ Typography.sectionTitle theme config.timelineSectionTitle
-        , timelineView theme chartWidth config report data
-        , Feedback.warningList theme report.warnings
-        , compositionHeader theme layout data
-        , breakdownsView theme layout config report data
-        , activityViews theme layout activityColumns config report data
+        (sections ++ warningSections)
+
+
+skeleton : Env -> Config -> Element msg
+skeleton env config =
+    let
+        theme =
+            env.theme
+
+        layout =
+            Viewport.contentLayout env.viewport
+    in
+    Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
+        [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+            [ Typography.sectionTitle theme config.timelineSectionTitle
+            , Skeleton.timelineCard theme config.timelineTitle
+            ]
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+            [ compositionHeaderSkeleton theme layout
+            , responsiveGrid layout
+                [ Skeleton.categoryCard
+                    theme
+                    layout
+                    (categoryCardHeight layout)
+                    config.positive.label
+                , Skeleton.categoryCard
+                    theme
+                    layout
+                    (categoryCardHeight layout)
+                    config.negative.label
+                ]
+            ]
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+            [ if config.showCalendarDisplayControl then
+                calendarDisplayControlSkeleton theme
+
+              else
+                Element.none
+            , responsiveGrid layout
+                [ Skeleton.activityCard theme config.positive.monthActivityTitle
+                , Skeleton.activityCard theme config.negative.monthActivityTitle
+                ]
+            ]
         ]
 
 
-compositionHeader : Theme -> Viewport.ContentLayout -> ModelData -> Element Msg
-compositionHeader theme layout data =
+compositionHeaderSkeleton : Theme -> Viewport.ContentLayout -> Element msg
+compositionHeaderSkeleton theme layout =
+    let
+        container =
+            if Viewport.isCompact layout then
+                Element.wrappedRow
+
+            else
+                Element.row
+
+        controlHeight =
+            Tokens.minimumTouchTarget
+                + 2
+                * Tokens.space4
+                + 2
+                * Tokens.borderHairline
+    in
+    container [ Element.width Element.fill, Element.spacing Tokens.space12, Element.alignTop ]
+        [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+            [ Element.el [ Element.width Element.fill ]
+                (Typography.sectionTitle theme "Composition and activity")
+            , compositionWarningSlot theme []
+            ]
+        , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+            [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+                [ Element.el
+                    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+                    , Element.alignLeft
+                    ]
+                    (Typography.mutedBody theme "Period")
+                , Element.row [ Element.width (Element.fillPortion Tokens.layoutPortionDouble) ]
+                    [ Element.el [ Element.width Element.fill ] Element.none
+                    , Skeleton.block theme Tokens.skeletonLineLong Tokens.minimumTouchTarget
+                    ]
+                ]
+            , Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+                [ Element.el
+                    [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+                    , Element.alignLeft
+                    ]
+                    (Typography.mutedBody theme "Account depth")
+                , Element.row [ Element.width (Element.fillPortion Tokens.layoutPortionDouble) ]
+                    [ Element.el [ Element.width Element.fill ] Element.none
+                    , Skeleton.block theme Tokens.skeletonLineLong controlHeight
+                    ]
+                ]
+            ]
+        ]
+
+
+calendarDisplayControlSkeleton : Theme -> Element msg
+calendarDisplayControlSkeleton theme =
+    let
+        controlHeight =
+            Tokens.minimumTouchTarget
+                + 2
+                * Tokens.space4
+                + 2
+                * Tokens.borderHairline
+    in
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
+        [ Typography.mutedBody theme "Show calendar by"
+        , Skeleton.block theme Tokens.skeletonLineLong controlHeight
+        ]
+
+
+compositionHeader : Theme -> Viewport.ContentLayout -> List String -> ModelData -> Element Msg
+compositionHeader theme layout warnings data =
     let
         container =
             if Viewport.isCompact layout then
@@ -674,8 +816,11 @@ compositionHeader theme layout data =
                 Element.row
     in
     container [ Element.width Element.fill, Element.spacing Tokens.space12, Element.alignTop ]
-        [ Element.el [ Element.width Element.fill ]
-            (Typography.sectionTitle theme "Composition and activity")
+        [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+            [ Element.el [ Element.width Element.fill ]
+                (Typography.sectionTitle theme "Composition and activity")
+            , compositionWarningSlot theme warnings
+            ]
         , Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
             [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
                 [ Element.el
@@ -699,7 +844,7 @@ compositionHeader theme layout data =
                         }
                     ]
                 ]
-            , Element.row [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+            , Element.row [ Element.width Element.fill, Element.spacing Tokens.space12 ]
                 [ Element.el
                     [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
                     , Element.alignLeft
@@ -737,8 +882,15 @@ timelineView : Theme -> Int -> Config -> Report -> ModelData -> Element Msg
 timelineView theme chartWidth config report data =
     case report.timeline of
         TimelineAvailable points ->
-            Surface.card theme
-                [ Typography.subsectionTitle theme config.timelineTitle
+            Surface.cardWith
+                [ Element.height
+                    (Element.minimum
+                        Tokens.analysisTimelineCardHeight
+                        Element.shrink
+                    )
+                ]
+                theme
+                [ Typography.cardTitle theme config.timelineTitle
                 , Timeline.positiveNegativeTimelineChart theme
                     { commodity = report.displayCommodity
                     , points = points
@@ -757,14 +909,31 @@ timelineView theme chartWidth config report data =
                 ]
 
         TimelineUnavailable message _ ->
-            Feedback.errorBanner theme message
+            Surface.cardWith
+                [ Element.height (Element.px Tokens.analysisTimelineCardHeight) ]
+                theme
+                [ Typography.cardTitle theme config.timelineTitle
+                , Element.el
+                    [ Element.width Element.fill
+                    , Element.height Element.fill
+                    , Element.scrollbarY
+                    , Common.minHeightZero
+                    ]
+                    (Feedback.errorBanner theme message)
+                ]
 
 
 breakdownsView : Theme -> Viewport.ContentLayout -> Config -> Report -> ModelData -> Element Msg
 breakdownsView theme layout config report data =
+    let
+        cardHeight =
+            categoryCardHeight layout
+    in
     responsiveGrid layout
         [ categoryView
             theme
+            layout
+            cardHeight
             config.positive
             Positive
             report.displayCommodity
@@ -772,6 +941,8 @@ breakdownsView theme layout config report data =
             data.positive
         , categoryView
             theme
+            layout
+            cardHeight
             config.negative
             Negative
             report.displayCommodity
@@ -780,16 +951,29 @@ breakdownsView theme layout config report data =
         ]
 
 
+categoryCardHeight : Viewport.ContentLayout -> Int
+categoryCardHeight layout =
+    if Viewport.isCompact layout then
+        Tokens.analysisCategoryCardCompactHeight
+
+    else
+        Tokens.analysisCategoryCardHeight
+
+
 categoryView :
     Theme
+    -> Viewport.ContentLayout
+    -> Int
     -> SideConfig
     -> Side
     -> String
     -> CategoryBreakdown
     -> SideState
     -> Element Msg
-categoryView theme config side commodity breakdown sideState =
+categoryView theme layout cardHeight config side commodity breakdown sideState =
     Category.categoryCard theme
+        layout
+        cardHeight
         { title = config.label
         , commodity = commodity
         , breakdown = breakdown
@@ -843,9 +1027,47 @@ activityViews theme layout columns config report data =
         ]
 
 
+compositionWarningSlot : Theme -> List String -> Element msg
+compositionWarningSlot theme warnings =
+    if List.isEmpty warnings then
+        Element.el
+            [ Element.width (Element.px Tokens.skeletonLineShort)
+            , Element.height (Element.px Tokens.chartTitleHeight)
+            ]
+            Element.none
+
+    else
+        let
+            count =
+                List.length warnings
+
+            description =
+                String.join " · " warnings
+
+            label =
+                String.fromInt count
+                    ++ (if count == 1 then
+                            " warning"
+
+                        else
+                            " warnings"
+                       )
+        in
+        Element.el
+            [ Element.width (Element.px Tokens.skeletonLineShort)
+            , Element.height (Element.px Tokens.chartTitleHeight)
+            , Element.alignRight
+            , Element.htmlAttribute (Attr.title description)
+            , Element.htmlAttribute (Attr.attribute "aria-label" description)
+            ]
+            (Element.el [ Element.centerY ]
+                (Chip.statusBadge theme Chip.StatusWarning label)
+            )
+
+
 calendarDisplayControl : Theme -> AnalyticsTypes.CalendarDisplay -> Element Msg
 calendarDisplayControl theme selected =
-    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space10 ]
+    Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ Typography.mutedBody theme "Show calendar by"
         , Ui.Input.segmentedControl theme
             [ Ui.Input.segmentedOption theme
@@ -875,6 +1097,39 @@ legendCapacity layout =
             3
 
 
+yearLoadingMonths : ModelData -> Int
+yearLoadingMonths data =
+    case latestYearActivityMonth data of
+        Just (Month latest) ->
+            let
+                startMonth =
+                    Time.fiscalYearStartMonthValue data.fiscalYearStartMonth
+
+                monthsSinceStart =
+                    if latest.month >= startMonth then
+                        latest.month - startMonth + 1
+
+                    else
+                        latest.month + 13 - startMonth
+            in
+            clamp 1 12 monthsSinceStart
+
+        Nothing ->
+            12
+
+
+latestYearActivityMonth : ModelData -> Maybe Month
+latestYearActivityMonth data =
+    case data.latestActivityMonth of
+        Just month ->
+            Just month
+
+        Nothing ->
+            List.reverse data.timeline
+                |> List.head
+                |> Maybe.map (.startDate >> Time.monthFromDate)
+
+
 activityView :
     Theme
     -> Int
@@ -889,6 +1144,9 @@ activityView theme columns maxLegendItems granularity config side commodity data
     let
         sideState =
             sideFor side data
+
+        loading =
+            activityLoading sideState.activity
 
         month =
             data.calendarMonth
@@ -925,6 +1183,8 @@ activityView theme columns maxLegendItems granularity config side commodity data
                 , onSelect = YearBucketSelected side
                 , onTransaction = TransactionSelected side
                 , columns = columns
+                , loading = loading
+                , loadingMonths = yearLoadingMonths data
                 , legendState = sideState.legendState
                 , onLegendToggle = LegendToggled side
                 , highlightedCategory = sideState.calendarHighlight
@@ -1058,6 +1318,16 @@ activityValue activity =
 
         ActivityFailed _ stale ->
             stale
+
+
+activityLoading : ActivityState -> Bool
+activityLoading activity =
+    case activity of
+        ActivityLoading _ _ ->
+            True
+
+        _ ->
+            False
 
 
 beginActivityLoading : ActivityState -> ActivityState

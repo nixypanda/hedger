@@ -47,6 +47,59 @@ body {
   background: var(--ui-page-bg);
 }
 
+.ui-scroll-stable {
+  scrollbar-gutter: stable;
+}
+
+.ui-notice {
+  animation: ui-notice-in 180ms ease-out;
+}
+
+@media (max-width: 1543px) {
+  .ui-notice-bottom {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px + 12px) !important;
+  }
+}
+
+@keyframes ui-notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.ui-spin {
+  display: inline-flex;
+  animation: ui-spin 900ms linear infinite;
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 1px !important;
+  min-height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
 .page-scroll {
   min-width: 0;
   min-height: 100%;
@@ -89,12 +142,28 @@ body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .ui-hover-background:hover {
-    background-color: var(--ui-hover-background) !important;
+  .ui-hover-primary:hover {
+    background-color: var(--ui-primary-pressed) !important;
   }
 
-  .ui-hover-border:hover {
-    border-color: var(--ui-hover-border) !important;
+  .ui-hover-primary-soft:hover {
+    background-color: var(--ui-primary-soft) !important;
+  }
+
+  .ui-hover-selected:hover {
+    background-color: var(--ui-selected-bg) !important;
+  }
+
+  .ui-hover-danger:hover {
+    background-color: var(--ui-danger-fg) !important;
+  }
+
+  .ui-hover-surface:hover {
+    background-color: var(--ui-hover-bg) !important;
+  }
+
+  .ui-hover-border-primary:hover {
+    border-color: var(--ui-primary) !important;
   }
 }
 
@@ -122,8 +191,13 @@ body {
   .ui-motion,
   .ui-surface,
   .ui-chart-motion,
+  .ui-notice,
   .ui-skeleton::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  .ui-spin {
+    animation: none !important;
   }
 }

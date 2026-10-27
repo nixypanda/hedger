@@ -5,8 +5,9 @@ import Html.Attributes
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.DesignTokens as Tokens
-import Ui.Feedback as Feedback
+import Ui.Icon as Icon
 import Ui.Input
+import Ui.Notice as Notice
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -68,32 +69,41 @@ view config =
                     ]
                     [ searchInput, buttons ]
     in
-    Surface.card config.theme
-        [ Ui.Input.fieldLabel config.theme "hledger query"
-        , inputRow
-        , case config.queryError of
-            Just errorMessage ->
-                Element.el
-                    [ Element.width Element.fill
-                    , Element.htmlAttribute (Html.Attributes.id (config.baseId ++ "-error"))
-                    , Element.htmlAttribute (Html.Attributes.attribute "role" "alert")
-                    ]
-                    (Feedback.errorBanner config.theme errorMessage)
-
-            Nothing ->
-                Element.none
-        , Element.el [ Element.htmlAttribute (Html.Attributes.id (config.baseId ++ "-help")) ]
-            (Typography.mutedParagraph config.theme config.helpText)
-        , Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-            (Typography.mutedCaption config.theme "Examples:"
-                :: List.map
-                    (\example ->
-                        Chip.chip config.theme
-                            { label = example
-                            , selected = config.draftQuery == example
-                            , onClick = Just (config.onDraftChanged example)
-                            }
-                    )
-                    config.examples
-            )
+    Element.column [ Element.width Element.fill ]
+        [ Surface.card config.theme
+            [ Ui.Input.fieldLabel config.theme "hledger query"
+            , inputRow
+            , Element.el [ Element.htmlAttribute (Html.Attributes.id (config.baseId ++ "-help")) ]
+                (Typography.mutedParagraph config.theme config.helpText)
+            , Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+                (Typography.mutedCaption config.theme "Examples:"
+                    :: List.map
+                        (\example ->
+                            Chip.chip config.theme
+                                { label = example
+                                , selected = config.draftQuery == example
+                                , onClick = Just (config.onDraftChanged example)
+                                }
+                        )
+                        config.examples
+                )
+            ]
+        , queryErrorNotice config
         ]
+
+
+queryErrorNotice : Config msg -> Element msg
+queryErrorNotice config =
+    case config.queryError of
+        Just errorMessage ->
+            Notice.view config.theme
+                { placement = Notice.Bottom
+                , tone = Notice.Danger
+                , icon = Icon.AlertTriangle
+                , message = errorMessage
+                , actions = []
+                , id = Just (config.baseId ++ "-error")
+                }
+
+        Nothing ->
+            Element.none
