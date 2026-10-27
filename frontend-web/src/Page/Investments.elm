@@ -286,11 +286,9 @@ view env (Model data) =
 
 granularityControl : Theme -> Granularity -> Element Msg
 granularityControl theme selected =
-    Ui.Input.segmentedControl theme
-        [ Ui.Input.segmentedOption theme
-            { label = "M", selected = selected == Monthly, onPress = GranularitySelected Monthly }
-        , Ui.Input.segmentedOption theme
-            { label = "Y", selected = selected == Yearly, onPress = GranularitySelected Yearly }
+    Ui.Input.wideSegmentedControl theme
+        [ { label = "M", selected = selected == Monthly, onPress = GranularitySelected Monthly }
+        , { label = "Y", selected = selected == Yearly, onPress = GranularitySelected Yearly }
         ]
 
 

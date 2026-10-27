@@ -124,7 +124,8 @@ beginLoading (Model model) =
 
 
 type Msg
-    = ToggleAccount AccountPath
+    = Refresh
+    | ToggleAccount AccountPath
     | OpenAccount AccountPath
     | OpenAccountValue AccountPath
     | CloseAccountValue
@@ -149,6 +150,9 @@ fetchAccounts =
 update : UpdateProps -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
 update props msg (Model model) =
     case msg of
+        Refresh ->
+            ( beginLoading (Model model), fetchAccounts, NoOutMsg )
+
         ToggleAccount path ->
             ( toggle path (Model model), Cmd.none, NoOutMsg )
 
@@ -292,6 +296,10 @@ view env (Model model) =
                         [ States.refreshStatus theme
                             { freshness = accountsFreshness model.accounts
                             , loading = accountsLoading model.accounts
+                            }
+                        , Button.refreshButton theme
+                            { loading = accountsLoading model.accounts
+                            , onPress = Refresh
                             }
                         ]
                     }
