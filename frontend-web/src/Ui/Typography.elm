@@ -12,7 +12,9 @@ module Ui.Typography exposing
     , heading
     , headline
     , htmlCaption
+    , htmlFontSize
     , htmlFontWeight
+    , htmlNumeric
     , label
     , labelSmall
     , mutedBody
@@ -40,11 +42,12 @@ import Ui.Theme exposing (Theme)
 font sizes used by the application; add a new step here rather than a literal
 size in a component.
 
-    xs 12, sm 14, md 16, lg 20, xl 24, 2xl 32, 3xl 44
+    xxs 11, xs 12, sm 14, md 16, lg 20, xl 24, 2xl 32, 3xl 44
 
 -}
 type Size
-    = Xs
+    = Xxs
+    | Xs
     | Sm
     | Md
     | Lg
@@ -167,12 +170,22 @@ numeric =
 
 htmlCaption : Html.Attribute msg
 htmlCaption =
-    Html.Attributes.style "font-size" (String.fromInt (sizeValue Xs) ++ "px")
+    htmlFontSize Xs
+
+
+htmlFontSize : Size -> Html.Attribute msg
+htmlFontSize size =
+    Html.Attributes.style "font-size" (String.fromInt (sizeValue size) ++ "px")
 
 
 htmlFontWeight : Weight -> Html.Attribute msg
 htmlFontWeight weight =
     Html.Attributes.style "font-weight" (weightValue weight)
+
+
+htmlNumeric : Html.Attribute msg
+htmlNumeric =
+    Html.Attributes.style "font-variant-numeric" "tabular-nums"
 
 
 
@@ -312,6 +325,9 @@ delimitedTextSegments leading delimiter value =
 sizeValue : Size -> Int
 sizeValue size =
     case size of
+        Xxs ->
+            11
+
         Xs ->
             12
 
