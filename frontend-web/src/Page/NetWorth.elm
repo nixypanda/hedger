@@ -20,7 +20,7 @@ import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.Analytics.Kpi as Kpi
 import View.Analytics.Legend as Legend
 import View.Analytics.Timeline as Timeline
@@ -242,18 +242,22 @@ view env (Model data) =
     let
         theme =
             env.theme
+
+        viewport =
+            env.viewport
     in
     case Analysis.transaction data.analysis of
         Just transaction ->
-            transactionView theme transaction
+            transactionView viewport theme transaction
 
         Nothing ->
             dashboard env data
 
 
-transactionView : Theme -> Transaction -> Element Msg
-transactionView theme transaction =
-    Page.scaffold theme
+transactionView : Viewport -> Theme -> Transaction -> Element Msg
+transactionView viewport theme transaction =
+    Page.scaffold viewport
+        theme
         { header =
             { leading =
                 Just
@@ -274,7 +278,8 @@ dashboard env data =
         theme =
             env.theme
     in
-    Page.scaffold theme
+    Page.scaffold env.viewport
+        theme
         { header =
             { leading = Nothing
             , title = Typography.pageTitle theme "Net Worth"

@@ -13,6 +13,7 @@ import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
+import Html.Attributes as Attr
 import Ui.Button as Button
 import Ui.Common exposing (minWidthZero, uiClass)
 import Ui.DesignTokens
@@ -29,7 +30,7 @@ import Ui.DesignTokens
 import Ui.Icon as Icon
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport
+import Ui.Viewport as Viewport exposing (Viewport)
 
 
 layout : Theme -> Element msg -> Element msg
@@ -53,7 +54,7 @@ pageContainer children =
         [ Element.centerX
         , Element.width (Element.fill |> Element.maximum 1280)
         , Element.spacing space24
-        , Element.padding Ui.Viewport.contentPadding
+        , Element.padding Viewport.contentPadding
         ]
         children
 
@@ -67,13 +68,14 @@ type alias Header msg =
 
 
 scaffold :
-    Theme
+    Viewport
+    -> Theme
     -> { header : Header msg, body : List (Element msg) }
     -> Element msg
-scaffold theme config =
+scaffold viewport theme config =
     Element.column
         [ Element.width Element.fill ]
-        [ pageHeaderBand theme (pageHeader theme config.header)
+        [ pageHeaderBand theme (pageHeader viewport theme config.header)
         , pageContainer config.body
         ]
 
@@ -91,9 +93,9 @@ pageHeaderBand theme content =
             , Element.width (Element.fill |> Element.maximum 1280)
             , Element.paddingEach
                 { top = space32
-                , right = Ui.Viewport.contentPadding
+                , right = Viewport.contentPadding
                 , bottom = space24
-                , left = Ui.Viewport.contentPadding
+                , left = Viewport.contentPadding
                 }
             ]
             content
@@ -101,10 +103,52 @@ pageHeaderBand theme content =
 
 
 pageHeader :
-    Theme
+    Viewport
+    -> Theme
     -> Header msg
     -> Element msg
-pageHeader theme config =
+pageHeader viewport theme config =
+    if Viewport.isCompact (Viewport.contentLayout viewport) then
+        compactPageHeader theme config
+
+    else
+        widePageHeader theme config
+
+
+compactPageHeader : Theme -> Header msg -> Element msg
+compactPageHeader theme config =
+    Element.column
+        [ Element.width Element.fill
+        , Element.spacing space12
+        , minWidthZero
+        ]
+        [ Element.row
+            [ Element.width Element.fill
+            , Element.spacing space12
+            , minWidthZero
+            ]
+            [ Maybe.withDefault Element.none config.leading
+            , Element.column
+                [ Element.width Element.fill
+                , Element.spacing space8
+                , minWidthZero
+                ]
+                (headerTitles theme config)
+            ]
+        , if List.isEmpty config.actions then
+            Element.none
+
+          else
+            Element.wrappedRow
+                [ Element.width Element.fill
+                , Element.spacing space8
+                ]
+                config.actions
+        ]
+
+
+widePageHeader : Theme -> Header msg -> Element msg
+widePageHeader theme config =
     Element.wrappedRow
         [ Element.width Element.fill
         , Element.spacing space12
@@ -113,24 +157,42 @@ pageHeader theme config =
         [ Maybe.withDefault Element.none config.leading
         , Element.column
             [ Element.width Element.fill
+            , Element.htmlAttribute
+                (Attr.style
+                    "flex-basis"
+                    (String.fromInt pageHeaderTitleMinWidth ++ "px")
+                )
             , Element.spacing space8
             , minWidthZero
             ]
-            (config.title
-                :: (case config.subtitle of
-                        Just subtitle ->
-                            [ Typography.mutedParagraph theme subtitle ]
-
-                        Nothing ->
-                            []
-                   )
-            )
+            (headerTitles theme config)
         , if List.isEmpty config.actions then
             Element.none
 
           else
-            Element.row [ Element.spacing space8 ] config.actions
+            Element.row
+                [ Element.width Element.shrink
+                , Element.spacing space8
+                ]
+                config.actions
         ]
+
+
+pageHeaderTitleMinWidth : Int
+pageHeaderTitleMinWidth =
+    240
+
+
+headerTitles : Theme -> Header msg -> List (Element msg)
+headerTitles theme config =
+    config.title
+        :: (case config.subtitle of
+                Just subtitle ->
+                    [ Typography.mutedParagraph theme subtitle ]
+
+                Nothing ->
+                    []
+           )
 
 
 periodNavigation :

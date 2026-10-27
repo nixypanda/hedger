@@ -93,6 +93,12 @@ suite =
             responsiveLayoutIgnoresHeight
         , test "full navigation does not shrink usable content" <|
             navigationTransitionPreservesContentWidth
+        , test "navigation labels drop below 600px" <|
+            navigationLabelBoundaries
+        , test "two-column cards start at 1200 usable pixels" <|
+            twoColumnCardBoundaries
+        , test "yearly ring columns follow the actual card width" <|
+            activityCalendarColumnBoundaries
         ]
 
 
@@ -184,6 +190,27 @@ navigationTransitionPreservesContentWidth _ =
             , beforeContentWidth = 1280
             , afterContentWidth = 1280
             }
+
+
+navigationLabelBoundaries : () -> Expect.Expectation
+navigationLabelBoundaries _ =
+    [ 599, 600 ]
+        |> List.map (viewportAt >> Viewport.usesNavigationLabels)
+        |> Expect.equal [ False, True ]
+
+
+twoColumnCardBoundaries : () -> Expect.Expectation
+twoColumnCardBoundaries _ =
+    [ 1231, 1232 ]
+        |> List.map (viewportAt >> Viewport.usesTwoColumnCards)
+        |> Expect.equal [ False, True ]
+
+
+activityCalendarColumnBoundaries : () -> Expect.Expectation
+activityCalendarColumnBoundaries _ =
+    [ 375, 600, 1232 ]
+        |> List.map (viewportAt >> Viewport.activityCalendarColumns)
+        |> Expect.equal [ 3, 4, 6 ]
 
 
 {-| Two snapshots are compatible only when they name the same journal

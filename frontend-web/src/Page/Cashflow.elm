@@ -255,18 +255,22 @@ view env (Model data) =
     let
         theme =
             env.theme
+
+        viewport =
+            env.viewport
     in
     case Analysis.transaction data.analysis of
         Just selectedTransaction ->
-            transactionView theme selectedTransaction
+            transactionView viewport theme selectedTransaction
 
         Nothing ->
             dashboard env data
 
 
-transactionView : Theme -> Transaction -> Element Msg
-transactionView theme selectedTransaction =
-    Page.scaffold theme
+transactionView : Viewport -> Theme -> Transaction -> Element Msg
+transactionView viewport theme selectedTransaction =
+    Page.scaffold viewport
+        theme
         { header =
             { leading =
                 Just
@@ -290,7 +294,8 @@ dashboard env data =
         viewport =
             env.viewport
     in
-    Page.scaffold theme
+    Page.scaffold viewport
+        theme
         { header =
             { leading = Nothing
             , title = Typography.pageTitle theme "Cashflow"

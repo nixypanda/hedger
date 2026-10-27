@@ -45,10 +45,10 @@ import Ui.Feedback as Feedback
 import Ui.Input
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
-import Ui.Surface as Surface
+import Ui.Surface as Surface exposing (DonutLayout(..))
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport
+import Ui.Viewport as Viewport exposing (Viewport)
 import View.Analytics.Activity as Activity
 import View.Analytics.Category as Category
 import View.Analytics.Legend as Legend
@@ -656,22 +656,7 @@ view env config report (Model data) =
             min maxContainerWidth (max 320 (Viewport.usableContentWidth viewport - 40))
 
         activityColumns =
-            let
-                cardWidth =
-                    if Viewport.isCompact layout then
-                        Viewport.usableContentWidth viewport
-
-                    else
-                        (Viewport.usableContentWidth viewport - 16) // 2
-            in
-            if cardWidth < 360 then
-                3
-
-            else if cardWidth < 540 then
-                4
-
-            else
-                6
+            Viewport.activityCalendarColumns viewport
 
         sections =
             [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
@@ -680,9 +665,9 @@ view env config report (Model data) =
                 ]
             , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
                 [ compositionHeader theme layout report.warnings data
-                , breakdownsView theme layout config report data
+                , breakdownsView theme viewport config report data
                 ]
-            , activityViews theme layout activityColumns config report data
+            , activityViews theme viewport activityColumns config report data
             ]
 
         warningSections =
@@ -702,8 +687,20 @@ skeleton env config =
         theme =
             env.theme
 
+        viewport =
+            env.viewport
+
         layout =
-            Viewport.contentLayout env.viewport
+            Viewport.contentLayout viewport
+
+        donutLayout =
+            donutLayoutFor viewport
+
+        cardHeight =
+            categoryCardHeight donutLayout 6
+
+        maxLegendItems =
+            legendCapacity viewport
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ]
         [ Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
@@ -712,16 +709,16 @@ skeleton env config =
             ]
         , Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
             [ compositionHeaderSkeleton theme layout
-            , responsiveGrid layout
+            , responsiveGrid viewport
                 [ Skeleton.categoryCard
                     theme
-                    layout
-                    (categoryCardHeight layout)
+                    donutLayout
+                    cardHeight
                     config.positive.label
                 , Skeleton.categoryCard
                     theme
-                    layout
-                    (categoryCardHeight layout)
+                    donutLayout
+                    cardHeight
                     config.negative.label
                 ]
             ]
@@ -731,9 +728,9 @@ skeleton env config =
 
               else
                 Element.none
-            , responsiveGrid layout
-                [ Skeleton.activityCard theme config.positive.monthActivityTitle
-                , Skeleton.activityCard theme config.negative.monthActivityTitle
+            , responsiveGrid viewport
+                [ Skeleton.activityCard theme maxLegendItems config.positive.monthActivityTitle
+                , Skeleton.activityCard theme maxLegendItems config.negative.monthActivityTitle
                 ]
             ]
         ]
@@ -923,17 +920,22 @@ timelineView theme chartWidth config report data =
                 ]
 
 
-breakdownsView : Theme -> Viewport.ContentLayout -> Config -> Report -> ModelData -> Element Msg
-breakdownsView theme layout config report data =
+breakdownsView : Theme -> Viewport -> Config -> Report -> ModelData -> Element Msg
+breakdownsView theme viewport config report data =
     let
-        cardHeight =
-            categoryCardHeight layout
+        donutLayout =
+            donutLayoutFor viewport
+
+        cardHeightFor breakdown sideState =
+            categoryCardHeight
+                donutLayout
+                (categoryRowCount breakdown sideState)
     in
-    responsiveGrid layout
+    responsiveGrid viewport
         [ categoryView
             theme
-            layout
-            cardHeight
+            donutLayout
+            (cardHeightFor report.positiveBreakdown data.positive)
             config.positive
             Positive
             report.displayCommodity
@@ -941,8 +943,8 @@ breakdownsView theme layout config report data =
             data.positive
         , categoryView
             theme
-            layout
-            cardHeight
+            donutLayout
+            (cardHeightFor report.negativeBreakdown data.negative)
             config.negative
             Negative
             report.displayCommodity
@@ -951,18 +953,65 @@ breakdownsView theme layout config report data =
         ]
 
 
-categoryCardHeight : Viewport.ContentLayout -> Int
-categoryCardHeight layout =
-    if Viewport.isCompact layout then
-        Tokens.analysisCategoryCardCompactHeight
+donutLayoutFor : Viewport -> DonutLayout
+donutLayoutFor viewport =
+    case Viewport.contentLayout viewport of
+        Viewport.Wide ->
+            DonutBeside
 
-    else
-        Tokens.analysisCategoryCardHeight
+        _ ->
+            DonutStacked
+
+
+categoryCardHeight : DonutLayout -> Int -> Int
+categoryCardHeight donutLayout rowCount =
+    case donutLayout of
+        DonutStacked ->
+            min
+                Tokens.analysisCategoryCardCompactHeight
+                (stackedCategoryCardHeight rowCount)
+
+        DonutBeside ->
+            Tokens.analysisCategoryCardHeight
+
+
+stackedCategoryCardHeight : Int -> Int
+stackedCategoryCardHeight rowCount =
+    let
+        rows =
+            max 1 rowCount
+
+        rowsHeight =
+            rows
+                * Tokens.analysisCategoryRowHeight
+                + (rows - 1)
+                * Tokens.space12
+    in
+    2
+        * Tokens.space20
+        + 2
+        * Tokens.borderHairline
+        + Tokens.chartTitleHeight
+        + Tokens.space12
+        + Tokens.analyticsDonutSize
+        + Tokens.space16
+        + rowsHeight
+
+
+categoryRowCount : CategoryBreakdown -> SideState -> Int
+categoryRowCount breakdown sideState =
+    List.length breakdown.items
+        + (if sideState.otherExpanded then
+            List.length breakdown.otherItems
+
+           else
+            0
+          )
 
 
 categoryView :
     Theme
-    -> Viewport.ContentLayout
+    -> DonutLayout
     -> Int
     -> SideConfig
     -> Side
@@ -970,9 +1019,9 @@ categoryView :
     -> CategoryBreakdown
     -> SideState
     -> Element Msg
-categoryView theme layout cardHeight config side commodity breakdown sideState =
+categoryView theme donutLayout cardHeight config side commodity breakdown sideState =
     Category.categoryCard theme
-        layout
+        donutLayout
         cardHeight
         { title = config.label
         , commodity = commodity
@@ -987,16 +1036,16 @@ categoryView theme layout cardHeight config side commodity breakdown sideState =
 
 activityViews :
     Theme
-    -> Viewport.ContentLayout
+    -> Viewport
     -> Int
     -> Config
     -> Report
     -> ModelData
     -> Element Msg
-activityViews theme layout columns config report data =
+activityViews theme viewport columns config report data =
     let
         maxLegendItems =
-            legendCapacity layout
+            legendCapacity viewport
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ if config.showCalendarDisplayControl then
@@ -1004,7 +1053,7 @@ activityViews theme layout columns config report data =
 
           else
             Element.none
-        , responsiveGrid layout
+        , responsiveGrid viewport
             [ activityView
                 theme
                 columns
@@ -1084,17 +1133,13 @@ calendarDisplayControl theme selected =
         ]
 
 
-legendCapacity : Viewport.ContentLayout -> Int
-legendCapacity layout =
-    case layout of
-        Viewport.Compact ->
-            4
+legendCapacity : Viewport -> Int
+legendCapacity viewport =
+    if Viewport.usesTwoColumnCards viewport then
+        3
 
-        Viewport.Medium ->
-            2
-
-        Viewport.Wide ->
-            3
+    else
+        4
 
 
 yearLoadingMonths : ModelData -> Int
@@ -1445,10 +1490,10 @@ periodFromString granularity value =
                 Nothing
 
 
-responsiveGrid : Viewport.ContentLayout -> List (Element msg) -> Element msg
-responsiveGrid layout items =
-    if Viewport.isCompact layout then
-        Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
+responsiveGrid : Viewport -> List (Element msg) -> Element msg
+responsiveGrid viewport items =
+    if Viewport.usesTwoColumnCards viewport then
+        Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
 
     else
-        Element.row [ Element.width Element.fill, Element.spacing Tokens.space16 ] items
+        Element.column [ Element.width Element.fill, Element.spacing Tokens.space16 ] items

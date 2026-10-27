@@ -4,6 +4,7 @@ module Ui.DesignTokens exposing
     , analysisActivityCardHeight
     , analysisCategoryCardCompactHeight
     , analysisCategoryCardHeight
+    , analysisCategoryRowHeight
     , analysisTimelineCardHeight
     , analyticsDonutSize
     , bodyTextHeight
@@ -26,6 +27,7 @@ module Ui.DesignTokens exposing
     , investmentAllocationCardCompactHeight
     , investmentAllocationCardHeight
     , investmentAllocationCardMediumHeight
+    , investmentAllocationRowHeight
     , investmentHistoryCardHeight
     , investmentNavigatorCompactHeight
     , investmentNavigatorWidth
@@ -126,6 +128,11 @@ analysisCategoryCardCompactHeight =
     540
 
 
+analysisCategoryRowHeight : Int
+analysisCategoryRowHeight =
+    22
+
+
 analysisActivityCardHeight : Int
 analysisActivityCardHeight =
     623
@@ -209,6 +216,11 @@ investmentAllocationCardMediumHeight =
 investmentAllocationCardCompactHeight : Int
 investmentAllocationCardCompactHeight =
     609
+
+
+investmentAllocationRowHeight : Int
+investmentAllocationRowHeight =
+    78
 
 
 investmentHistoryCardHeight : Int

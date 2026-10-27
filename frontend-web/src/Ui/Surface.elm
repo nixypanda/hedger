@@ -1,5 +1,6 @@
 module Ui.Surface exposing
-    ( accentDot
+    ( DonutLayout(..)
+    , accentDot
     , card
     , cardWith
     , formSection
@@ -15,6 +16,14 @@ import Ui.Common as Common
 import Ui.DesignTokens exposing (radiusCard, radiusControl, radiusHairline, space12, space20)
 import Ui.Theme exposing (Theme)
 import Ui.Typography exposing (cardTitle)
+
+
+{-| How a donut and its legend share a card: stacked vertically or side by
+side.
+-}
+type DonutLayout
+    = DonutStacked
+    | DonutBeside
 
 
 card : Theme -> List (Element msg) -> Element msg

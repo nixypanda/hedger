@@ -52,7 +52,7 @@ import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport
+import Ui.Viewport as Viewport exposing (Viewport)
 import Ui.Workspace as Workspace
 import View.States as States
 
@@ -355,37 +355,37 @@ view env (Model data) =
     if Viewport.usesMasterDetail viewport then
         case data.selection of
             NoSelection ->
-                listPage theme compact viewport.height (Model data)
+                listPage viewport theme compact viewport.height (Model data)
 
             Selected entry ->
                 Workspace.view env
                     [ { key = "register"
                       , width = Workspace.Portion Tokens.layoutPortionDouble
-                      , content = listPage theme True viewport.height (Model data)
+                      , content = listPage viewport theme True viewport.height (Model data)
                       }
                     , { key = "register-detail"
                       , width = Workspace.Portion Tokens.layoutPortionTriple
-                      , content = detailPage theme CloseDetail commodity entry
+                      , content = detailPage viewport theme CloseDetail commodity entry
                       }
                     ]
 
     else
         case data.selection of
             NoSelection ->
-                listPage theme compact viewport.height (Model data)
+                listPage viewport theme compact viewport.height (Model data)
 
             Selected entry ->
-                detailPage theme CloseDetail commodity entry
+                detailPage viewport theme CloseDetail commodity entry
 
 
-listPage : Theme -> Bool -> Int -> Model -> Element Msg
-listPage theme compact viewportHeight model =
+listPage : Viewport -> Theme -> Bool -> Int -> Model -> Element Msg
+listPage viewport theme compact viewportHeight model =
     Element.column
         [ Element.width Element.fill
         , Background.color theme.pageBg
         ]
         [ Page.pageHeaderBand theme <|
-            registerHeader theme compact model
+            registerHeader viewport theme compact model
         , Page.pageContainer
             ([ filters theme model, content theme compact viewportHeight model ]
                 ++ failureNotices theme model
@@ -393,8 +393,8 @@ listPage theme compact viewportHeight model =
         ]
 
 
-registerHeader : Theme -> Bool -> Model -> Element Msg
-registerHeader theme compact model =
+registerHeader : Viewport -> Theme -> Bool -> Model -> Element Msg
+registerHeader viewport theme compact model =
     let
         account =
             modelAccount model
@@ -432,7 +432,8 @@ registerHeader theme compact model =
             ]
 
     else
-        Page.pageHeader theme
+        Page.pageHeader viewport
+            theme
             { leading = Just (Button.backButton theme { onPress = BackToAccounts })
             , title = Typography.pageTitleWithDelimiter theme ":" account
             , subtitle = Just "Account register"
@@ -1069,9 +1070,10 @@ fullDisplayValue commodity value =
         |> Maybe.withDefault "—"
 
 
-detailPage : Theme -> Msg -> String -> Entry -> Element Msg
-detailPage theme onClose commodity entry =
-    Page.scaffold theme
+detailPage : Viewport -> Theme -> Msg -> String -> Entry -> Element Msg
+detailPage viewport theme onClose commodity entry =
+    Page.scaffold viewport
+        theme
         { header =
             { leading = Just (Button.backButton theme { onPress = onClose })
             , title = Typography.pageTitle theme "Details"

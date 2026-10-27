@@ -1,5 +1,6 @@
 module Ui.Common exposing
     ( HoverBackground(..)
+    , gridCellMaxWidth
     , hoverBackground
     , hoverBorderPrimary
     , minHeightZero
@@ -12,7 +13,7 @@ module Ui.Common exposing
 
 import Element exposing (Element)
 import Html.Attributes
-import Ui.DesignTokens exposing (minimumTouchTarget)
+import Ui.DesignTokens exposing (minimumTouchTarget, space12)
 
 
 uiClass : String -> Element.Attribute msg
@@ -28,6 +29,24 @@ minWidthZero =
 minHeightZero : Element.Attribute msg
 minHeightZero =
     Element.htmlAttribute (Html.Attributes.style "min-height" "0")
+
+
+{-| Cap a flex child at one equal column of a row with the given number of
+columns and standard space12 gaps. This keeps short final rows aligned without
+rendering placeholder cells.
+-}
+gridCellMaxWidth : Int -> Element.Attribute msg
+gridCellMaxWidth columns =
+    Element.htmlAttribute
+        (Html.Attributes.style
+            "max-width"
+            ("calc((100% - "
+                ++ String.fromInt ((columns - 1) * space12)
+                ++ "px) / "
+                ++ String.fromInt columns
+                ++ ")"
+            )
+        )
 
 
 toCssColor : Element.Color -> String
