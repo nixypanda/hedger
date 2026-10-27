@@ -47,7 +47,7 @@ import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport
+import Ui.Viewport as Viewport exposing (Viewport)
 import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
 import View.States as States
@@ -287,7 +287,8 @@ view env (Model model) =
             env.viewport
 
         page =
-            Page.scaffold theme
+            Page.scaffold viewport
+                theme
                 { header =
                     { leading = Nothing
                     , title = Typography.pageTitle theme "Accounts"
@@ -321,7 +322,8 @@ view env (Model model) =
                       }
                     , { key = "account-detail"
                       , width = Workspace.Portion Tokens.layoutPortionTriple
-                      , content = accountDetailPage theme (Just BackToAccounts) account
+                      , content =
+                            accountDetailPage viewport theme (Just BackToAccounts) account
                       }
                     ]
 
@@ -700,25 +702,27 @@ valueView env path (Model model) =
     in
     case model.accounts of
         Loaded response ->
-            detailForPath theme path response
+            detailForPath env.viewport theme path response
 
         Refreshing response ->
-            detailForPath theme path response
+            detailForPath env.viewport theme path response
 
         FailedWithStale _ response ->
-            detailForPath theme path response
+            detailForPath env.viewport theme path response
 
         _ ->
-            Page.scaffold theme
+            Page.scaffold env.viewport
+                theme
                 { header = accountDetailHeader theme (Just BackToAccounts)
                 , body =
                     [ Surface.card theme [ Feedback.loading theme "Loading account value…" ] ]
                 }
 
 
-accountDetailPage : Theme -> Maybe Msg -> AccountNode -> Element Msg
-accountDetailPage theme onBack account =
-    Page.scaffold theme
+accountDetailPage : Viewport -> Theme -> Maybe Msg -> AccountNode -> Element Msg
+accountDetailPage viewport theme onBack account =
+    Page.scaffold viewport
+        theme
         { header = accountDetailHeader theme onBack
         , body = [ Surface.card theme (valuePanel theme account) ]
         }
@@ -764,14 +768,15 @@ valuePanel theme (AccountNode account) =
     ]
 
 
-detailForPath : Theme -> String -> Response -> Element Msg
-detailForPath theme path response =
+detailForPath : Viewport -> Theme -> String -> Response -> Element Msg
+detailForPath viewport theme path response =
     case findAccount (Account.accountPath path) response.accounts of
         Just account ->
-            accountDetailPage theme (Just BackToAccounts) account
+            accountDetailPage viewport theme (Just BackToAccounts) account
 
         Nothing ->
-            Page.scaffold theme
+            Page.scaffold viewport
+                theme
                 { header = accountDetailHeader theme (Just BackToAccounts)
                 , body =
                     [ Surface.card theme

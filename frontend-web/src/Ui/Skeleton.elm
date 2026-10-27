@@ -24,6 +24,7 @@ import Element.Border as Border
 import Html.Attributes as Attr
 import Ui.Common exposing (uiClass)
 import Ui.DesignTokens as Tokens
+import Ui.Surface exposing (DonutLayout(..))
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport
@@ -101,25 +102,28 @@ timelineCard theme title =
 
 
 {-| Category breakdown card: title, donut region, and the category row region,
-using the same compact/wide structure and fixed height as the real card.
+using the same stacked/side-by-side structure and fixed height as the real card.
 -}
 categoryCard :
     Theme
-    -> Viewport.ContentLayout
+    -> DonutLayout
     -> Int
     -> String
     -> Element msg
-categoryCard theme layout cardHeight title =
+categoryCard theme donutLayout cardHeight title =
     card theme
         cardHeight
         [ Typography.cardTitle theme title
-        , categoryContent theme layout cardHeight
+        , categoryContent theme donutLayout cardHeight
         ]
 
 
-categoryContent : Theme -> Viewport.ContentLayout -> Int -> Element msg
-categoryContent theme layout cardHeight =
+categoryContent : Theme -> DonutLayout -> Int -> Element msg
+categoryContent theme donutLayout cardHeight =
     let
+        stacked =
+            donutLayout == DonutStacked
+
         contentHeight =
             cardHeight
                 - cardChromeHeight
@@ -133,20 +137,20 @@ categoryContent theme layout cardHeight =
                 Tokens.analyticsDonutSize
 
         rowsHeight =
-            if Viewport.isCompact layout then
+            if stacked then
                 contentHeight - Tokens.analyticsDonutSize - Tokens.space16
 
             else
                 contentHeight
     in
-    if Viewport.isCompact layout then
+    if stacked then
         Element.column
             [ Element.width Element.fill
             , Element.height Element.fill
             , Element.spacing Tokens.space16
             , Element.alignTop
             ]
-            [ donut, fillBlock theme rowsHeight ]
+            [ Element.el [ Element.centerX ] donut, fillBlock theme rowsHeight ]
 
     else
         Element.row
@@ -160,13 +164,13 @@ categoryContent theme layout cardHeight =
 
 {-| Activity calendar card: title, calendar grid, legend, and details prompt.
 -}
-activityCard : Theme -> String -> Element msg
-activityCard theme title =
+activityCard : Theme -> Int -> String -> Element msg
+activityCard theme legendItems title =
     card theme
         Tokens.analysisActivityCardHeight
         [ Typography.cardTitle theme title
         , fillBlock theme activityCalendarHeight
-        , activityLegend theme
+        , activityLegend theme legendItems
         , fillBlock theme activityDetailsHeight
         ]
 
@@ -180,16 +184,16 @@ allocationCard theme layout =
         ( columns, rows ) =
             case layout of
                 Viewport.Compact ->
-                    ( 1, 6 )
+                    ( 1, 4 )
 
                 Viewport.Medium ->
-                    ( 2, 3 )
+                    ( 2, 2 )
 
                 Viewport.Wide ->
                     ( 3, 2 )
     in
     card theme
-        (allocationCardHeightFor layout)
+        (allocationCardHeight rows)
         [ Typography.cardTitle theme "Asset allocation"
         , Element.column
             [ Element.width Element.fill
@@ -199,17 +203,18 @@ allocationCard theme layout =
         ]
 
 
-allocationCardHeightFor : Viewport.ContentLayout -> Int
-allocationCardHeightFor layout =
-    case layout of
-        Viewport.Compact ->
-            Tokens.investmentAllocationCardCompactHeight
-
-        Viewport.Medium ->
-            Tokens.investmentAllocationCardMediumHeight
-
-        Viewport.Wide ->
-            Tokens.investmentAllocationCardHeight
+allocationCardHeight : Int -> Int
+allocationCardHeight rows =
+    2
+        * Tokens.space20
+        + 2
+        * Tokens.borderHairline
+        + Tokens.chartTitleHeight
+        + Tokens.space12
+        + rows
+        * Tokens.investmentAllocationRowHeight
+        + (rows - 1)
+        * Tokens.space12
 
 
 {-| Portfolio history card: header with chart-mode control, chart, selected
@@ -232,14 +237,14 @@ historyCard theme =
 
 {-| Activity legend placeholder at the real legend's minimum touch height.
 -}
-activityLegend : Theme -> Element msg
-activityLegend theme =
-    Element.row
+activityLegend : Theme -> Int -> Element msg
+activityLegend theme legendItems =
+    Element.wrappedRow
         [ Element.width Element.fill
         , Element.height (Element.px Tokens.minimumTouchTarget)
         , Element.spacing Tokens.space8
         ]
-        [ legendChip theme, legendChip theme, legendChip theme ]
+        (List.repeat (max 1 legendItems) (legendChip theme))
 
 
 {-| A circular placeholder that follows the real yearly activity ring's
@@ -367,17 +372,6 @@ investmentDetailsHeight =
         * Tokens.space12
 
 
-allocationRowHeight : Int
-allocationRowHeight =
-    (Tokens.investmentAllocationCardHeight
-        - cardChromeHeight
-        - Tokens.chartTitleHeight
-        - 2
-        * Tokens.space12
-    )
-        // 2
-
-
 chart : Theme -> Int -> Element msg
 chart theme height =
     fillBlock theme height
@@ -408,7 +402,7 @@ allocationCell : Theme -> Element msg
 allocationCell theme =
     Element.el
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
-        , Element.height (Element.px allocationRowHeight)
+        , Element.height (Element.px Tokens.investmentAllocationRowHeight)
         , Background.color theme.inputFill
         , Border.rounded Tokens.radiusControl
         , uiClass "ui-skeleton"
@@ -419,7 +413,7 @@ allocationCell theme =
 legendChip : Theme -> Element msg
 legendChip theme =
     Element.el
-        [ Element.width (Element.px Tokens.skeletonLineShort)
+        [ Element.width (Element.px Tokens.skeletonLineTiny)
         , Element.height (Element.px Tokens.minimumTouchTarget)
         , Background.color theme.inputFill
         , Border.rounded Tokens.radiusPill

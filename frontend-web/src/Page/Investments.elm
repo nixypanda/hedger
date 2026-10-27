@@ -264,7 +264,8 @@ view env (Model data) =
         , Common.uiClass "page-scroll analytics-page"
         ]
         [ Page.pageHeaderBand theme <|
-            Page.pageHeader theme
+            Page.pageHeader viewport
+                theme
                 { leading = Nothing
                 , title = Typography.pageTitle theme "Investments"
                 , subtitle = Just "Value, invested capital, and investment performance"
@@ -467,8 +468,11 @@ assetClassAllocationCard :
     -> Element Msg
 assetClassAllocationCard layout theme commodity allocations =
     let
+        cardHeight =
+            allocationCardHeightFor layout (List.length allocations)
+
         gridHeight =
-            allocationCardHeightFor layout
+            cardHeight
                 - 2
                 * Tokens.space20
                 - 2
@@ -477,7 +481,7 @@ assetClassAllocationCard layout theme commodity allocations =
                 - Tokens.space12
     in
     Surface.cardWith
-        [ Element.height (Element.px (allocationCardHeightFor layout)) ]
+        [ Element.height (Element.px cardHeight) ]
         theme
         [ Typography.cardTitle theme "Asset allocation"
         , if List.isEmpty allocations then
@@ -487,7 +491,7 @@ assetClassAllocationCard layout theme commodity allocations =
                 , Element.padding Tokens.space12
                 ]
                 (Typography.mutedParagraph theme
-                    "No asset allocation data is available for this scope."
+                    "No portfolio asset allocation data is available."
                 )
 
           else
@@ -512,8 +516,35 @@ assetClassAllocationCard layout theme commodity allocations =
         ]
 
 
-allocationCardHeightFor : Viewport.ContentLayout -> Int
-allocationCardHeightFor layout =
+allocationCardHeightFor : Viewport.ContentLayout -> Int -> Int
+allocationCardHeightFor layout allocationCount =
+    let
+        columns =
+            allocationColumnCount layout
+
+        rows =
+            max 1 ((allocationCount + columns - 1) // columns)
+
+        rowsHeight =
+            rows
+                * Tokens.investmentAllocationRowHeight
+                + (rows - 1)
+                * Tokens.space12
+
+        naturalHeight =
+            2
+                * Tokens.space20
+                + 2
+                * Tokens.borderHairline
+                + Tokens.chartTitleHeight
+                + Tokens.space12
+                + rowsHeight
+    in
+    min (allocationCardMaxHeightFor layout) naturalHeight
+
+
+allocationCardMaxHeightFor : Viewport.ContentLayout -> Int
+allocationCardMaxHeightFor layout =
     case layout of
         Viewport.Compact ->
             Tokens.investmentAllocationCardCompactHeight
@@ -525,6 +556,19 @@ allocationCardHeightFor layout =
             Tokens.investmentAllocationCardHeight
 
 
+allocationColumnCount : Viewport.ContentLayout -> Int
+allocationColumnCount layout =
+    case layout of
+        Viewport.Compact ->
+            1
+
+        Viewport.Medium ->
+            2
+
+        Viewport.Wide ->
+            3
+
+
 allocationGrid :
     Viewport.ContentLayout
     -> Theme
@@ -533,57 +577,30 @@ allocationGrid :
     -> Element Msg
 allocationGrid layout theme commodity allocations =
     let
-        columnCount =
-            case layout of
-                Viewport.Compact ->
-                    1
-
-                Viewport.Medium ->
-                    2
-
-                Viewport.Wide ->
-                    3
-
-        cells =
-            allocations
-                |> List.map Just
-                |> ListExtra.padToMultiple columnCount Nothing
+        columns =
+            allocationColumnCount layout
     in
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space12 ]
-        (ListExtra.chunksOf columnCount cells
-            |> List.map (allocationGridRow theme commodity)
+        (ListExtra.chunksOf columns allocations
+            |> List.map (allocationGridRow theme commodity columns)
         )
 
 
 allocationGridRow :
     Theme
     -> String
-    -> List (Maybe Investments.AssetClassAllocation)
+    -> Int
+    -> List Investments.AssetClassAllocation
     -> Element Msg
-allocationGridRow theme commodity cells =
+allocationGridRow theme commodity columns allocations =
     Element.row [ Element.width Element.fill, Element.spacing Tokens.space12, Element.alignTop ]
-        (List.map (allocationGridCell theme commodity) cells)
+        (List.map (allocationGridItem theme commodity columns) allocations)
 
 
-allocationGridCell :
-    Theme
-    -> String
-    -> Maybe Investments.AssetClassAllocation
-    -> Element Msg
-allocationGridCell theme commodity maybeAllocation =
-    case maybeAllocation of
-        Just allocation ->
-            allocationGridItem theme commodity allocation
-
-        Nothing ->
-            Element.el
-                (Border.color theme.transparent :: allocationCardAttributes)
-                Element.none
-
-
-allocationCardAttributes : List (Element.Attribute msg)
-allocationCardAttributes =
+allocationCardAttributes : Int -> List (Element.Attribute msg)
+allocationCardAttributes columns =
     [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
+    , Common.gridCellMaxWidth columns
     , Element.height Element.fill
     , Element.padding Tokens.space12
     , Border.width Tokens.borderHairline
@@ -594,11 +611,12 @@ allocationCardAttributes =
 allocationGridItem :
     Theme
     -> String
+    -> Int
     -> Investments.AssetClassAllocation
     -> Element Msg
-allocationGridItem theme commodity allocation =
+allocationGridItem theme commodity columns allocation =
     Element.el
-        (Border.color theme.divider :: allocationCardAttributes)
+        (Border.color theme.divider :: allocationCardAttributes columns)
         (assetClassAllocationRow theme commodity allocation)
 
 

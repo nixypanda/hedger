@@ -227,6 +227,7 @@ investmentsProjection app = do
     assertObjectFields
         ["summary", "children", "assetClassAllocations", "breadcrumbs", "warnings"]
         response
+    assertPortfolioAssetClassAllocations app response
     case field "summary" response of
         Just summary -> do
             assertEqual "market value" (Just (String "165000")) (field "marketValue" summary)
@@ -280,6 +281,29 @@ hasAssetClassAndAllocation :: Value -> Bool
 hasAssetClassAndAllocation child =
     field "assetClass" child == Just (String "equity")
         && field "allocationPercentage" child /= Nothing
+
+assertPortfolioAssetClassAllocations :: Wai.Application -> Value -> IO ()
+assertPortfolioAssetClassAllocations app scopedResponse = do
+    let requestBody =
+            object
+                [ "granularity" .= ("monthly" :: String)
+                , "displayCommodity" .= ("INR" :: String)
+                ]
+    (Just portfolioResponse, raw) <-
+        postJson "/api/v1/investments/query" (Aeson.encode requestBody) app
+    assertEqual "portfolio investments status" status200 raw.simpleStatus
+    let portfolioAllocations = field "assetClassAllocations" portfolioResponse
+        scopedAllocations = field "assetClassAllocations" scopedResponse
+    case portfolioAllocations of
+        Just (Array allocations) ->
+            assertBool
+                "portfolio asset class allocations are non-empty"
+                (not (Vector.null allocations))
+        _ -> assertFailure "expected portfolio asset class allocations"
+    assertEqual
+        "scoped asset class allocations match the portfolio"
+        portfolioAllocations
+        scopedAllocations
 
 analyticsRequest :: String -> Value
 analyticsRequest query =

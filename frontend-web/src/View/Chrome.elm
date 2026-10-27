@@ -21,7 +21,7 @@ import Ui.Icon as Icon exposing (Icon)
 import Ui.Notice as Notice
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport
+import Ui.Viewport as Viewport exposing (Viewport)
 
 
 type alias Config msg =
@@ -256,51 +256,68 @@ tabBar env config =
         , Region.navigation
         , Element.htmlAttribute (Attr.attribute "aria-label" "Primary navigation")
         ]
-        (List.map (tabItem theme) config.navigation)
+        (List.map (tabItem env.viewport theme) config.navigation)
 
 
-tabItem : Theme -> Destination msg -> Element msg
-tabItem theme destination =
+tabItem : Viewport -> Theme -> Destination msg -> Element msg
+tabItem viewport theme destination =
     let
+        showLabel =
+            Viewport.usesNavigationLabels viewport
+
         foreground =
             if destination.active then
                 theme.primary
 
             else
                 theme.textMuted
+
+        icon =
+            Icon.view
+                { icon = destination.icon
+                , size = Tokens.iconSizeCaption
+                , color = foreground
+                }
     in
     Input.button
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Background.color
+        ([ Element.width Element.fill
+         , Element.height Element.fill
+         , Background.color
             (if destination.active then
                 theme.selectedBg
 
              else
                 theme.transparent
             )
-        , Border.rounded Tokens.radiusControl
-        , Font.color foreground
-        , Region.description destination.label
-        ]
+         , Border.rounded Tokens.radiusControl
+         , Font.color foreground
+         , Region.description destination.label
+         ]
+            ++ (if showLabel then
+                    []
+
+                else
+                    [ Element.htmlAttribute (Attr.title destination.label) ]
+               )
+        )
         { onPress = Just destination.onPress
         , label =
-            Element.column
-                [ Element.centerX
-                , Element.centerY
-                , Element.spacing Tokens.space4
-                ]
-                [ Icon.view
-                    { icon = destination.icon
-                    , size = Tokens.iconSizeCaption
-                    , color = foreground
-                    }
-                , Element.el
-                    (Typography.caption
-                        ++ [ Font.center
-                           , Element.width Element.fill
-                           ]
-                    )
-                    (Element.text destination.label)
-                ]
+            if showLabel then
+                Element.column
+                    [ Element.centerX
+                    , Element.centerY
+                    , Element.spacing Tokens.space4
+                    ]
+                    [ icon
+                    , Element.el
+                        (Typography.caption
+                            ++ [ Font.center
+                               , Element.width Element.fill
+                               ]
+                        )
+                        (Element.text destination.label)
+                    ]
+
+            else
+                Element.el [ Element.centerX, Element.centerY ] icon
         }

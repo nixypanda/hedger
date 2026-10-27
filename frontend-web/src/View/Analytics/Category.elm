@@ -20,10 +20,9 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Input
-import Ui.Surface as Surface
+import Ui.Surface as Surface exposing (DonutLayout(..))
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport
 import View.AccountPresentation as AccountPresentation
 import View.Analytics.Palette exposing (otherColor, paletteColor)
 import View.Analytics.Types exposing (Palette)
@@ -31,7 +30,7 @@ import View.Analytics.Types exposing (Palette)
 
 categoryCard :
     Theme
-    -> Viewport.ContentLayout
+    -> DonutLayout
     -> Int
     ->
         { title : String
@@ -44,7 +43,7 @@ categoryCard :
         , onSliceClick : Int -> msg
         }
     -> Element msg
-categoryCard theme layout cardHeight config =
+categoryCard theme donutLayout cardHeight config =
     Surface.cardWith
         [ Element.width (Element.fillPortion Tokens.layoutPortionSingle)
         , Element.alignTop
@@ -52,13 +51,13 @@ categoryCard theme layout cardHeight config =
         ]
         theme
         [ Typography.cardTitle theme config.title
-        , categoryContent theme layout cardHeight config
+        , categoryContent theme donutLayout cardHeight config
         ]
 
 
 categoryContent :
     Theme
-    -> Viewport.ContentLayout
+    -> DonutLayout
     -> Int
     ->
         { config
@@ -72,8 +71,11 @@ categoryContent :
             , onSliceClick : Int -> msg
         }
     -> Element msg
-categoryContent theme layout cardHeight config =
+categoryContent theme donutLayout cardHeight config =
     let
+        stacked =
+            donutLayout == DonutStacked
+
         contentHeight =
             cardHeight
                 - 2
@@ -84,7 +86,7 @@ categoryContent theme layout cardHeight config =
                 - Tokens.space12
 
         rowsHeight =
-            if Viewport.isCompact layout then
+            if stacked then
                 contentHeight - Tokens.analyticsDonutSize - Tokens.space16
 
             else
@@ -110,8 +112,15 @@ categoryContent theme layout cardHeight config =
             rows =
                 categoryRowsViewport theme rowsHeight config
 
+            donutSlot =
+                if stacked then
+                    Element.el [ Element.centerX ] donut
+
+                else
+                    donut
+
             container =
-                if Viewport.isCompact layout then
+                if stacked then
                     Element.column
                         [ Element.width Element.fill
                         , Element.height (Element.px contentHeight)
@@ -129,7 +138,7 @@ categoryContent theme layout cardHeight config =
                         , Common.minHeightZero
                         ]
         in
-        container [ donut, rows ]
+        container [ donutSlot, rows ]
 
 
 categoryRowsViewport :

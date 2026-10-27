@@ -112,7 +112,7 @@ activityMonth theme config =
         , calendar
         , case config.response of
             Nothing ->
-                Skeleton.activityLegend theme
+                Skeleton.activityLegend theme config.maxVisible
 
             Just _ ->
                 activityLegendSlot
@@ -382,10 +382,10 @@ activityYear theme config =
             (activityWarnings config.response)
         , case ( config.loading, config.response ) of
             ( True, _ ) ->
-                yearLoadingSkeleton theme config.columns config.loadingMonths
+                yearLoadingSkeleton theme config.columns config.loadingMonths config.maxVisible
 
             ( False, Nothing ) ->
-                yearLoadingSkeleton theme config.columns config.loadingMonths
+                yearLoadingSkeleton theme config.columns config.loadingMonths config.maxVisible
 
             ( False, Just response ) ->
                 let
@@ -559,8 +559,8 @@ activityWarnings response =
         |> Maybe.withDefault []
 
 
-yearLoadingSkeleton : Theme -> Int -> Int -> Element msg
-yearLoadingSkeleton theme columns loadingMonths =
+yearLoadingSkeleton : Theme -> Int -> Int -> Int -> Element msg
+yearLoadingSkeleton theme columns loadingMonths legendItems =
     let
         rows =
             (loadingMonths + columns - 1) // columns
@@ -577,7 +577,7 @@ yearLoadingSkeleton theme columns loadingMonths =
                 (\_ -> yearLoadingRow theme columns)
                 (List.range 1 rows)
             )
-        , Skeleton.activityLegend theme
+        , Skeleton.activityLegend theme legendItems
         , activityDetailsSkeleton theme
         ]
 

@@ -68,6 +68,7 @@ view config =
                     , Attr.style "background" (Common.toCssColor config.centerColor)
                     , Attr.style "display" "grid"
                     , Attr.style "place-items" "center"
+                    , Attr.style "overflow" "hidden"
                     ]
                     [ config.center ]
                 ]

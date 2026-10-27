@@ -52,7 +52,7 @@ import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
-import Ui.Viewport as Viewport
+import Ui.Viewport as Viewport exposing (Viewport)
 import Ui.Workspace as Workspace
 import View.AccountPresentation as AccountPresentation
 import View.QueryPanel as QueryPanel
@@ -522,37 +522,40 @@ view env model =
                 Workspace.view env
                     [ { key = "transactions"
                       , width = Workspace.Portion Tokens.layoutPortionDouble
-                      , content = listPage theme True viewport.height model
+                      , content =
+                            listPage viewport theme True viewport.height model
                       }
                     , { key = "transaction-detail"
                       , width = Workspace.Portion Tokens.layoutPortionTriple
-                      , content = detailPage theme (Just Back) selected
+                      , content = detailPage viewport theme (Just Back) selected
                       }
                     ]
 
             _ ->
-                listPage theme compact viewport.height model
+                listPage viewport theme compact viewport.height model
 
     else if currentSelection /= Nothing then
         case currentSelection of
             Just selected ->
-                detailPage theme (Just Back) selected
+                detailPage viewport theme (Just Back) selected
 
             Nothing ->
-                listPage theme compact viewport.height model
+                listPage viewport theme compact viewport.height model
 
     else
-        listPage theme compact viewport.height model
+        listPage viewport theme compact viewport.height model
 
 
 listPage :
-    Theme
+    Viewport
+    -> Theme
     -> Bool
     -> Int
     -> Model
     -> Element Msg
-listPage theme compact viewportHeight model =
-    Page.scaffold theme
+listPage viewport theme compact viewportHeight model =
+    Page.scaffold viewport
+        theme
         { header = transactionsHeaderConfig theme model
         , body =
             [ queryPanel theme compact model
@@ -1094,13 +1097,14 @@ postingPreviewRow theme posting =
         ]
 
 
-detailPage : Theme -> Maybe Msg -> Transaction -> Element Msg
-detailPage theme onBack transaction =
+detailPage : Viewport -> Theme -> Maybe Msg -> Transaction -> Element Msg
+detailPage viewport theme onBack transaction =
     Element.el
         [ Element.width Element.fill
         , Element.htmlAttribute (Html.Attributes.id "transaction-detail")
         ]
-        (Page.scaffold theme
+        (Page.scaffold viewport
+            theme
             { header =
                 { leading =
                     Maybe.map

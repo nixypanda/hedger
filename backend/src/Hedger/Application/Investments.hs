@@ -129,9 +129,10 @@ investments request = do
                 )
         summaryScopes =
             List.nub
-                ( [scope | Map.notMember latest periodSummaries]
+                ( [Nothing | scope /= Nothing]
+                    <> [scope | Map.notMember latest periodSummaries]
                     <> [Just child | child <- childAccounts]
-                    <> [allocationScope | scope == Nothing, allocationScope <- allocationScopes]
+                    <> allocationScopes
                 )
         summaries = Map.fromList (summariesAtScopesPrepared performance latest summaryScopes)
         summaryFor selectedScope = Map.lookup selectedScope summaries
@@ -148,6 +149,10 @@ investments request = do
             (\child -> maybe (throwError InternalError) pure (summaryFor (Just child)))
             childAccounts
     let currentSummary = current
+        portfolioMarketValue =
+            if scope == Nothing
+                then summaryMarketValue current
+                else summaryFor Nothing >>= summaryMarketValue
         hasInvestments =
             summaryMarketValue current /= Nothing || summaryPurchaseCost current /= Nothing
         points =
@@ -160,13 +165,10 @@ investments request = do
                 else []
         children = zipWith childReport childAccounts childResults
         allocations =
-            if scope == Nothing
-                then
-                    assetClassAllocations
-                        summaryFor
-                        (summaryMarketValue current)
-                        config.assetClassMappings
-                else []
+            assetClassAllocations
+                summaryFor
+                portfolioMarketValue
+                config.assetClassMappings
         childReport child result =
             let childSummary = result
              in InvestmentChild

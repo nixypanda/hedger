@@ -54,7 +54,8 @@ view env model =
         theme =
             env.theme
     in
-    Page.scaffold theme
+    Page.scaffold env.viewport
+        theme
         { header =
             { leading = Nothing
             , title = Typography.pageTitle theme "Settings"

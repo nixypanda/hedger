@@ -17,6 +17,7 @@ import Ui.Common as Common
 import Ui.DesignTokens
     exposing
         ( compactControlVisualHeight
+        , minimumTouchTarget
         , radiusControl
         , radiusSmall
         , space12
@@ -93,47 +94,7 @@ wideSegmentedControl :
     -> List { label : String, selected : Bool, onPress : msg }
     -> Element msg
 wideSegmentedControl theme options =
-    Element.row
-        [ Element.width Element.fill
-        , Element.spacing space2
-        , Element.padding space4
-        , Border.rounded radiusControl
-        , Background.color theme.chipBg
-        , Border.width 1
-        , Border.color theme.divider
-        ]
-        (List.map
-            (\config ->
-                Input.button
-                    (Typography.label
-                        ++ [ Element.width (Element.fillPortion 1)
-                           , Font.color
-                                (if config.selected then
-                                    theme.primary
-
-                                 else
-                                    theme.textMedium
-                                )
-                           , Font.center
-                           , Common.uiClass "ui-motion"
-                           , Element.htmlAttribute
-                                (Html.Attributes.attribute
-                                    "aria-pressed"
-                                    (if config.selected then
-                                        "true"
-
-                                     else
-                                        "false"
-                                    )
-                                )
-                           ]
-                    )
-                    { onPress = Just config.onPress
-                    , label = segmentedSurface theme config.selected config.label
-                    }
-            )
-            options
-        )
+    segmentedControl theme (List.map (segmentedOption theme) options)
 
 
 segmentedOption :
@@ -144,6 +105,7 @@ segmentedOption theme config =
     Input.button
         (Typography.label
             ++ [ Common.touchTargetHeight
+               , Element.width (Element.shrink |> Element.minimum minimumTouchTarget)
                , Font.color
                     (if config.selected then
                         theme.primary

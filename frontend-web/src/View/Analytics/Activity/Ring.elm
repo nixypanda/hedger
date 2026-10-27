@@ -342,6 +342,25 @@ presentDirections specs bucket =
             )
 
 
+{-| Keep the ring center to the two external movements. A transfer is an
+internal reallocation and stays visible in the ring and its legend; it only
+takes the center when it is the month's sole movement.
+-}
+centerDirections : List ( DirectionSpec, Decimal ) -> List ( DirectionSpec, Decimal )
+centerDirections present =
+    let
+        external =
+            List.filter
+                (\( spec, _ ) -> spec.direction /= Reallocate)
+                present
+    in
+    if List.isEmpty external then
+        List.take 1 present
+
+    else
+        external
+
+
 monthRingCenter :
     Theme
     -> ActivityTone
@@ -360,7 +379,9 @@ monthRingCenter theme tone commodity isEmpty maxTotal bucket =
                     ]
 
                 present ->
-                    List.map (directionValueText theme maxTotal commodity) present
+                    present
+                        |> centerDirections
+                        |> List.map (directionValueText theme maxTotal commodity)
 
         Nothing ->
             [ Chart.ringValueText

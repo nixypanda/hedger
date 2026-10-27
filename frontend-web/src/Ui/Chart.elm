@@ -87,6 +87,9 @@ ringDayLabel theme label =
         [ Html.text label ]
 
 
+{-| Render a compact month label and up to two amounts. The center is sized
+for two value lines; longer breakdowns belong in the ring and its legend.
+-}
 ringMonthCenter : Theme -> String -> List (Html msg) -> Html msg
 ringMonthCenter theme label values =
     Html.div
@@ -94,10 +97,13 @@ ringMonthCenter theme label values =
         , Attr.style "flex-direction" "column"
         , Attr.style "align-items" "center"
         , Attr.style "justify-content" "center"
-        , Attr.style "gap" "2px"
+        , Attr.style "gap" "1px"
+        , Attr.style "max-width" "100%"
+        , Attr.style "min-width" "0"
+        , Attr.style "text-align" "center"
         ]
         (Html.div
-            [ Typography.htmlCaption
+            [ Typography.htmlFontSize Typography.Xxs
             , Typography.htmlFontWeight Typography.SemiBold
             , Attr.style "color" (Common.toCssColor theme.textMuted)
             , Attr.style "line-height" "1"
@@ -110,11 +116,14 @@ ringMonthCenter theme label values =
 ringValueText : Color -> String -> Html msg
 ringValueText color content =
     Html.div
-        [ Typography.htmlCaption
+        [ Typography.htmlFontSize Typography.Xxs
         , Typography.htmlFontWeight Typography.SemiBold
+        , Typography.htmlNumeric
         , Attr.style "color" (Common.toCssColor color)
-        , Attr.style "line-height" "1.25"
+        , Attr.style "line-height" "1.2"
         , Attr.style "white-space" "nowrap"
+        , Attr.style "max-width" "100%"
+        , Attr.style "overflow" "hidden"
         ]
         [ Html.text content ]
 
