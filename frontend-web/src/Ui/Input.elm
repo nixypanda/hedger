@@ -105,7 +105,7 @@ segmentedOption theme config =
     Input.button
         (Typography.label
             ++ [ Common.touchTargetHeight
-               , Element.width (Element.shrink |> Element.minimum minimumTouchTarget)
+               , Element.width Element.shrink
                , Font.color
                     (if config.selected then
                         theme.primary
@@ -135,7 +135,7 @@ segmentedOption theme config =
 segmentedSurface : Theme -> Bool -> String -> Element msg
 segmentedSurface theme selected label =
     Element.el
-        [ Element.width Element.fill
+        [ Element.width (Element.shrink |> Element.minimum minimumTouchTarget)
         , Element.height (Element.px compactControlVisualHeight)
         , Element.paddingXY space12 0
         , Border.rounded radiusSmall
