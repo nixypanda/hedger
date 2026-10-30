@@ -68,6 +68,22 @@ just dev-backend-perf 50000
 
 These build an optimized backend (`-O2`) against the chosen fixture.
 
+## README screenshots
+
+The feature screenshots in [`docs/images/readme/`](images/readme/) are
+generated from the example journal. Start the app with `just dev`, then run:
+
+```console
+just screenshots
+```
+
+The capture script drives Chrome through the DevTools protocol, captures the
+same states in light and dark mode, and writes them to `light/` and `dark/`
+subdirectories. It expects Chrome or Chromium; set `CHROME=/path/to/chrome` if
+it cannot find one. Use `HEDGER_URL` to capture from a different frontend
+address, or pass `--only=name[,name]` and `--theme=light|dark` after `just
+screenshots` for a partial refresh.
+
 ## Backend tasks
 
 Run from the repository root (or use the underlying commands in `backend/`):

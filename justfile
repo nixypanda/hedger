@@ -128,6 +128,10 @@ check-frontend-line-length:
 dev-frontend:
     npm run dev
 
+# Capture the README light/dark screenshots (run `just dev` first).
+screenshots *args:
+    node docs/scripts/capture-readme-screenshots.mjs {{args}}
+
 # Format Nix sources.
 format-nix:
     nix fmt
