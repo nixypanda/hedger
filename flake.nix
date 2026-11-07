@@ -27,17 +27,7 @@
         # import-from-derivation: evaluating the x86_64-linux package on a
         # Darwin host would try to execute a Linux cabal2nix. Regenerate the
         # file with `just update-backend-nix` after changing dependencies.
-        pkgs.haskell.lib.justStaticExecutables (
-          pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callPackage ./backend { }) (drv: {
-            # The .cabal file declares `license-file: ../LICENSE`, which points
-            # at the repository root. Only ./backend is copied into the build,
-            # so place the licence one directory above the package sources where
-            # Cabal's install phase expects to find it.
-            postUnpack = ''
-              cp ${./LICENSE} "$sourceRoot/../LICENSE"
-            '';
-          })
-        );
+        pkgs.haskell.lib.justStaticExecutables (pkgs.haskellPackages.callPackage ./backend { });
       frontendFor =
         system:
         let
@@ -164,6 +154,7 @@
               servant
               servant-server
               tasty-bench
+              uuid
               wai
               wai-extra
               warp
