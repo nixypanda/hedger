@@ -39,6 +39,7 @@ import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Input
+import Ui.Motion as Motion
 import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
@@ -1198,6 +1199,7 @@ investmentNavigatorPathButton theme label onPress =
                , Element.paddingXY Tokens.space8 Tokens.space8
                , Border.rounded Tokens.radiusSmall
                , Font.color theme.primary
+               , Motion.pressable
                ]
             ++ Common.hoverBackground Common.HoverPrimarySoft
         )
@@ -1211,6 +1213,7 @@ investmentNavigatorChild theme commodity child =
         , Element.padding Tokens.space8
         , Border.rounded Tokens.radiusSmall
         , Element.htmlAttribute (Attr.title ("Open " ++ child.label))
+        , Motion.pressable
         ]
         { onPress = Just (AccountSelected child.account)
         , label =

@@ -9,6 +9,7 @@ import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
+import Ui.Common as Common
 import Ui.DesignTokens exposing (radiusControl, space12, space8)
 import Ui.Icon as Icon
 import Ui.Surface as Surface
@@ -21,7 +22,8 @@ loading theme message =
         [ Element.spacing space8
         , Font.color theme.textMuted
         ]
-        [ Icon.view { icon = Icon.LoaderCircle, size = 18, color = theme.textMuted }
+        [ Element.el [ Common.uiClass "ui-spin" ]
+            (Icon.view { icon = Icon.LoaderCircle, size = 18, color = theme.textMuted })
         , Element.text message
         ]
 

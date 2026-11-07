@@ -24,6 +24,7 @@ import Ui.DesignTokens
         , space2
         , space4
         )
+import Ui.Motion as Motion
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 
@@ -115,6 +116,7 @@ segmentedOption theme config =
                     )
                , Font.center
                , Common.uiClass "ui-motion"
+               , Motion.pressable
                , Element.htmlAttribute
                     (Html.Attributes.attribute
                         "aria-pressed"

@@ -6,6 +6,8 @@ module Ui.Button exposing
     , primaryButton
     , refreshButton
     , secondaryButton
+    , unavailableButton
+    , unavailableIconButton
     )
 
 import Element exposing (Element)
@@ -23,6 +25,7 @@ import Ui.DesignTokens
         , radiusPill
         )
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Motion as Motion
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 
@@ -83,6 +86,39 @@ ghostButtonWithLabel theme config =
         }
 
 
+{-| A muted secondary action that still receives the click so the page can
+replay its refusal nudge.
+-}
+unavailableButton :
+    Theme
+    -> { label : String, reason : String, nudge : Maybe Int, onPress : msg }
+    -> Element msg
+unavailableButton theme config =
+    Input.button
+        ([ Element.paddingEach { top = 11, right = 16, bottom = 11, left = 16 }
+         , Border.rounded radiusControl
+         , Border.width 1
+         , Border.color theme.divider
+         , Background.color theme.cardBg
+         , Font.color theme.textMuted
+         , Font.center
+         , Common.uiClass "ui-motion"
+         , Motion.nudge config.nudge
+         , Element.htmlAttribute (Html.Attributes.title config.reason)
+         , Element.htmlAttribute
+            (Html.Attributes.attribute "aria-label"
+                (config.label ++ " (" ++ config.reason ++ ")")
+            )
+         ]
+            ++ Typography.label
+            ++ Motion.disabled
+            ++ [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget) ]
+        )
+        { onPress = Just config.onPress
+        , label = Element.el [ Element.centerX ] (Element.text config.label)
+        }
+
+
 iconButton : Theme -> { icon : Icon, title : String, onPress : msg } -> Element msg
 iconButton theme config =
     iconButtonBase theme
@@ -93,6 +129,44 @@ iconButton theme config =
         , foreground = theme.textPrimary
         , border = theme.divider
         , hoverBackground = Common.HoverPrimarySoft
+        }
+
+
+{-| A muted icon action that still receives the click so the page can replay its
+refusal nudge. The reason is used as the native title; the accessible name
+combines the icon title with the reason.
+-}
+unavailableIconButton :
+    Theme
+    -> { icon : Icon, title : String, reason : String, nudge : Maybe Int, onPress : msg }
+    -> Element msg
+unavailableIconButton theme config =
+    Input.button
+        ([ Element.width (Element.px minimumTouchTarget)
+         , Element.height (Element.px minimumTouchTarget)
+         , Background.color theme.cardBg
+         , Font.color theme.textMuted
+         , Font.center
+         , Border.rounded radiusPill
+         , Border.width 1
+         , Border.color theme.divider
+         , Common.uiClass "ui-motion"
+         , Motion.nudge config.nudge
+         , Element.htmlAttribute (Html.Attributes.title config.reason)
+         , Element.htmlAttribute
+            (Html.Attributes.attribute "aria-label"
+                (config.title ++ " (" ++ config.reason ++ ")")
+            )
+         ]
+            ++ Motion.disabled
+        )
+        { onPress = Just config.onPress
+        , label =
+            Icon.view
+                { icon = config.icon
+                , size = 20
+                , color = theme.textMuted
+                }
         }
 
 
@@ -150,6 +224,7 @@ refreshButton theme config =
          , Border.width 1
          , Border.color theme.divider
          , Common.uiClass "ui-motion"
+         , Motion.pressable
          ]
             ++ Common.hoverBackground Common.HoverPrimarySoft
             ++ Common.hoverBorderPrimary
@@ -176,7 +251,8 @@ refreshButton theme config =
                , Region.description title
                ]
             ++ (if config.loading then
-                    [ Element.htmlAttribute (Html.Attributes.attribute "inert" "") ]
+                    Element.htmlAttribute (Html.Attributes.attribute "inert" "")
+                        :: Motion.busy
 
                 else
                     []
@@ -213,6 +289,7 @@ buttonBase _ config =
          , Font.color config.foreground
          , Font.center
          , Common.uiClass "ui-motion"
+         , Motion.pressable
          ]
             ++ Typography.label
             ++ Common.hoverBackground config.hoverBackground
@@ -246,6 +323,7 @@ iconButtonBase _ config =
          , Border.width 1
          , Border.color config.border
          , Common.uiClass "ui-motion"
+         , Motion.pressable
          ]
             ++ Common.hoverBackground config.hoverBackground
             ++ Common.hoverBorderPrimary

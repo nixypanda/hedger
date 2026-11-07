@@ -60,6 +60,13 @@ view config =
 
                     else
                         0
+
+                classes =
+                    if config.selected == Nothing || isSelected then
+                        "ui-chart-motion"
+
+                    else
+                        "ui-chart-motion ui-donut-dimmed"
             in
             Svg.g
                 [ SvgA.transform
@@ -69,7 +76,7 @@ view config =
                         ++ String.fromFloat (offset * sin midAngle)
                     )
                 , SvgA.cursor "pointer"
-                , SvgA.class "ui-chart-motion"
+                , SvgA.class classes
                 , SvgE.onClick (config.onSelect index)
                 , Attr.tabindex 0
                 , Attr.attribute "role" "button"
