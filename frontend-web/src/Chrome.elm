@@ -5,6 +5,7 @@ import Pwa
 import Route exposing (Route(..))
 import Ui.Env exposing (Env)
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Notice as Notice
 import View.Chrome
 
 
@@ -66,50 +67,62 @@ routeIsActive currentRoute destinationRoute =
 
 shellNotice : (Pwa.Msg -> msg) -> Pwa.Model -> Maybe (View.Chrome.Notice msg)
 shellNotice onPwa pwa =
-    case pwa.serviceWorker of
-        Pwa.ServiceWorkerUpdateReady ->
-            if pwa.updateNoticeDismissed then
-                Nothing
-
-            else
-                Just
-                    { icon = Icon.Refresh
-                    , message = "A new version of Hedger is ready."
-                    , actions =
-                        [ shellAction onPwa "Update" Pwa.ApplyServiceWorkerUpdate
-                        , updateDismissAction onPwa
-                        ]
-                    }
-
-        _ ->
-            installationNotice onPwa pwa.installation
-
-
-installationNotice :
-    (Pwa.Msg -> msg)
-    -> Pwa.InstallationState
-    -> Maybe (View.Chrome.Notice msg)
-installationNotice onPwa installation =
-    case installation of
-        Pwa.IosBrowser Pwa.InstallHintVisible ->
-            Just
-                { icon = Icon.Info
-                , message = "Add Hedger to your Home Screen from Safari's Share menu."
-                , actions = [ dismissAction onPwa ]
-                }
-
-        Pwa.InstallableBrowser Pwa.InstallPromptAvailable ->
-            Just
-                { icon = Icon.Download
-                , message = "Install Hedger for quick offline access."
-                , actions =
-                    [ shellAction onPwa "Install" Pwa.PromptInstall
-                    , dismissAction onPwa
-                    ]
-                }
-
-        _ ->
+    case pwa.notice of
+        Pwa.NoNotice ->
             Nothing
+
+        Pwa.NoticeVisible kind ->
+            Just
+                (shellNoticeFor onPwa
+                    kind
+                    { transition = pwa.noticeVisibility
+                    , dismissing = False
+                    }
+                )
+
+        Pwa.NoticeDismissing kind ->
+            Just
+                (shellNoticeFor onPwa
+                    kind
+                    { transition = pwa.noticeVisibility
+                    , dismissing = True
+                    }
+                )
+
+
+shellNoticeFor :
+    (Pwa.Msg -> msg)
+    -> Pwa.NoticeKind
+    -> Notice.Motion
+    -> View.Chrome.Notice msg
+shellNoticeFor onPwa kind motion =
+    case kind of
+        Pwa.ServiceWorkerUpdate ->
+            { icon = Icon.Refresh
+            , message = "A new version of Hedger is ready."
+            , actions =
+                [ shellAction onPwa "Update" Pwa.ApplyServiceWorkerUpdate
+                , updateDismissAction onPwa
+                ]
+            , motion = motion
+            }
+
+        Pwa.IosInstallHint ->
+            { icon = Icon.Info
+            , message = "Add Hedger to your Home Screen from Safari's Share menu."
+            , actions = [ dismissAction onPwa ]
+            , motion = motion
+            }
+
+        Pwa.InstallPrompt ->
+            { icon = Icon.Download
+            , message = "Install Hedger for quick offline access."
+            , actions =
+                [ shellAction onPwa "Install" Pwa.PromptInstall
+                , dismissAction onPwa
+                ]
+            , motion = motion
+            }
 
 
 shellAction :

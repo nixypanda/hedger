@@ -66,6 +66,7 @@ frontend-web/
       RemoteData.elm          # loading/refreshing/partial data states
       Time.elm                # generic time helpers
     Ui/
+      Animation.elm           # elm-animator transition wrapper
       Button.elm              # buttons
       Chip.elm                # chips and status/financial badges
       Color.elm               # color blending and alpha helpers
@@ -78,6 +79,7 @@ frontend-web/
       Input.elm               # text, date, and segmented controls
       Notice.elm              # fixed-position transient notices
       Page.elm                # page scaffold, header, and period navigation
+      PushPop.elm             # compact list/detail push-pop transition
       Skeleton.elm            # skeleton loading shapes
       Surface.elm             # cards, sections, and surfaces
       Theme.elm               # light/dark theme tokens and mode parsing
@@ -387,12 +389,15 @@ The frontend is a Progressive Web App:
   fallback for navigation, and `/api/*` bypass (API responses are never cached).
 - `main.js` registers the service worker in production and unregisters/caches-
   clears it in development.
-- `Pwa.elm` models service-worker state (installing, update-ready, controlling)
-  and install-hint state; `Chrome` passes the corresponding notices to
-  `View.Chrome`, which renders them as top-edge fixed-position notices. Page
-  and query errors use bottom-edge fixed-position notices above the bottom
-  navigation. Service-worker update prompts offer Update and Later; Later hides
-  the prompt until the next update-ready event.
+- `Pwa.elm` models service-worker state (installing, update-ready, controlling),
+  install-hint state, and a notice state machine
+  (`NoNotice`/`NoticeVisible`/`NoticeDismissing`). `Chrome` passes the
+  corresponding notices to `View.Chrome`, which renders them as top-edge
+  fixed-position notices. Dismissed notices stay mounted through a
+  `Ui.Animation` opacity exit and are inert while leaving. Page and query
+  errors use bottom-edge fixed-position notices above the bottom navigation.
+  Service-worker update prompts offer Update and Later; Later hides the prompt
+  until the next update-ready event.
 
 Offline support is limited to the app shell. Business data is not cached across
 sessions.
@@ -411,7 +416,8 @@ compose them.
 
 ### Environment and layout
 
-- `Ui.Env` carries `{ theme, device, viewport }` through `Main` and pages.
+- `Ui.Env` carries `{ theme, device, viewport, reducedMotion }` through `Main`
+  and pages.
 - `Ui.Viewport` owns the width-driven content layout and responsive thresholds.
 - `Ui.Page.layout` provides the page background and theme root.
 - `Ui.Page.scaffold` renders the standard header band, header, and page container.
@@ -460,6 +466,12 @@ widths, and similar) are separate constants, not scale steps.
   and `Ui.Skeleton` provide buttons, fields, cards, chips, state feedback,
   fixed-position notices, and loading placeholders.
 - `Ui.Icon` provides the icon set.
+- `Ui.Animation` is the only module that imports `mdgriffith/elm-animator`; it
+  owns timelines, reduced-motion snapping, and generated stylesheets.
+- `Ui.Notice` uses a visibility timeline for exit-before-unmount; the fixed
+  toast keeps its centering transform and animates opacity only.
+- `Ui.PushPop` owns the compact list/detail push-pop state and renders the
+  outgoing pane as an inert overlay while the incoming pane stays in place.
 - `Ui.Page` provides the page scaffold, headers, and period navigation.
 - `Ui.Workspace` provides split-pane layout and scroll ownership.
 
@@ -481,6 +493,8 @@ not depend on the activity views.
 list/detail on wide layouts, a bottom navigation bar and
 replace-list-with-detail on narrow layouts. `Ui.Workspace` mounts only the panes
 a page selects, so narrow layouts drop the detail pane rather than hiding it.
+Transactions and Account Register use `Ui.PushPop` on compact/medium layouts so
+the outgoing pane stays mounted, inert, and animated out before it is dropped.
 Skeletons match the target layout.
 
 ## Known debt
@@ -501,11 +515,14 @@ Elm tests live in `frontend-web/tests/`:
 tests/
   ActivityCalendarTest.elm
   AnalysisTest.elm
+  AnimationTest.elm
   AnalyticsActivityTest.elm
   FormattingTest.elm
   FoundationTest.elm
   InvestmentsTest.elm
   PaginatedTest.elm
+  PushPopTest.elm
+  PwaTest.elm
   RegisterTest.elm
   ThemeTest.elm
   TransactionsTest.elm

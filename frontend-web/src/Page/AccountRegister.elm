@@ -8,12 +8,14 @@ module Page.AccountRegister exposing
     , clearDetail
     , fetch
     , init
+    , isAnimating
     , receive
     , requestAccount
     , requestCursor
     , requestFrom
     , requestTo
     , selectDetail
+    , selectedEntry
     , setFrom
     , setTo
     , update
@@ -24,6 +26,7 @@ module Page.AccountRegister exposing
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Register exposing (Entry, Response, Value)
+import Browser.Dom
 import Data.Completeness exposing (Completeness(..))
 import Data.Date as Date
 import Data.Decimal as Decimal
@@ -36,8 +39,11 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Html.Attributes
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
+import Task
+import Time
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
@@ -49,6 +55,7 @@ import Ui.Input
 import Ui.Motion as Motion
 import Ui.Notice as Notice
 import Ui.Page as Page
+import Ui.PushPop as PushPop
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -73,7 +80,14 @@ type alias ModelData =
     , to : String
     , selection : Selection
     , loadMoreBlockedAttempts : Int
+    , pushPop : PushPop.Transition
+    , pendingFocus : Maybe FocusTarget
     }
+
+
+type FocusTarget
+    = FocusDetailHeading
+    | FocusListControl
 
 
 {-| The applied scope carried through the pagination machine: which account we
@@ -120,6 +134,8 @@ init =
         , to = ""
         , selection = NoSelection
         , loadMoreBlockedAttempts = 0
+        , pushPop = PushPop.init PushPop.ListPane
+        , pendingFocus = Nothing
         }
 
 
@@ -136,6 +152,8 @@ type Msg
     | LoadMoreBlocked
     | SelectDetail Entry
     | CloseDetail
+    | AnimationTick Time.Posix
+    | FocusIgnored
     | Loaded Request (Result ApiError Response)
 
 
@@ -144,8 +162,8 @@ type OutMsg
     | Navigate Route
 
 
-update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
-update msg (Model data) =
+update : { env : Env } -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
+update props msg (Model data) =
     case msg of
         BackToAccounts ->
             ( Model data, Cmd.none, Navigate Accounts )
@@ -203,13 +221,169 @@ update msg (Model data) =
                 )
 
         SelectDetail entry ->
-            ( selectDetail entry (Model data), Cmd.none, NoOutMsg )
+            let
+                pushPop =
+                    if Viewport.usesMasterDetail props.env.viewport then
+                        PushPop.init PushPop.DetailPane
+
+                    else
+                        PushPop.open
+                            { reducedMotion = props.env.reducedMotion
+                            , distance = toFloat props.env.viewport.width
+                            }
+                            data.pushPop
+
+                animating =
+                    PushPop.isRunning pushPop
+            in
+            ( Model
+                { data
+                    | selection = Selected entry
+                    , pushPop = pushPop
+                    , pendingFocus =
+                        if animating then
+                            Just FocusDetailHeading
+
+                        else
+                            Nothing
+                }
+            , if animating then
+                Cmd.none
+
+              else
+                focusDetailHeading
+            , NoOutMsg
+            )
 
         CloseDetail ->
-            ( clearDetail (Model data), Cmd.none, NoOutMsg )
+            let
+                pushPop =
+                    if Viewport.usesMasterDetail props.env.viewport then
+                        PushPop.init PushPop.ListPane
+
+                    else
+                        PushPop.close
+                            { reducedMotion = props.env.reducedMotion
+                            , distance = toFloat props.env.viewport.width
+                            }
+                            data.pushPop
+
+                animating =
+                    PushPop.isRunning pushPop
+            in
+            ( Model
+                { data
+                    | selection =
+                        if animating then
+                            data.selection
+
+                        else
+                            NoSelection
+                    , pushPop = pushPop
+                    , pendingFocus =
+                        if animating then
+                            Just FocusListControl
+
+                        else
+                            Nothing
+                }
+            , if animating then
+                Cmd.none
+
+              else
+                focusListControl
+            , NoOutMsg
+            )
+
+        AnimationTick now ->
+            if not (PushPop.isRunning data.pushPop) then
+                ( Model data, Cmd.none, NoOutMsg )
+
+            else
+                let
+                    arrived =
+                        PushPop.arrivedAt PushPop.ListPane now data.pushPop
+
+                    pushPop =
+                        PushPop.update now data.pushPop
+
+                    pane =
+                        PushPop.current pushPop
+
+                    ( pendingFocus, focusCommand ) =
+                        nextFocus data.pendingFocus pane (PushPop.isRunning pushPop)
+                in
+                ( Model
+                    { data
+                        | pushPop = pushPop
+                        , selection =
+                            if arrived && pane == PushPop.ListPane then
+                                NoSelection
+
+                            else
+                                data.selection
+                        , pendingFocus = pendingFocus
+                    }
+                , focusCommand
+                , NoOutMsg
+                )
+
+        FocusIgnored ->
+            ( Model data, Cmd.none, NoOutMsg )
 
         Loaded request result ->
             ( receive request result (Model data), Cmd.none, NoOutMsg )
+
+
+nextFocus : Maybe FocusTarget -> PushPop.Pane -> Bool -> ( Maybe FocusTarget, Cmd Msg )
+nextFocus pending pane running =
+    if running then
+        ( pending, Cmd.none )
+
+    else
+        case pending of
+            Just FocusDetailHeading ->
+                if pane == PushPop.DetailPane then
+                    ( Nothing, focusDetailHeading )
+
+                else
+                    ( pending, Cmd.none )
+
+            Just FocusListControl ->
+                if pane == PushPop.ListPane then
+                    ( Nothing, focusListControl )
+
+                else
+                    ( pending, Cmd.none )
+
+            Nothing ->
+                ( Nothing, Cmd.none )
+
+
+focusDetailHeading : Cmd Msg
+focusDetailHeading =
+    focusElement detailHeadingId
+
+
+focusListControl : Cmd Msg
+focusListControl =
+    focusElement listFocusId
+
+
+focusElement : String -> Cmd Msg
+focusElement id =
+    Browser.Dom.focus id
+        |> Task.attempt (\_ -> FocusIgnored)
+
+
+detailHeadingId : String
+detailHeadingId =
+    "register-detail-heading"
+
+
+listFocusId : String
+listFocusId =
+    "register-list-heading"
 
 
 fetchAccountRegister : Request -> Cmd Msg
@@ -247,6 +421,8 @@ beginLoading account (Model data) =
             | paginated = nextPaginated
             , account = account
             , selection = NoSelection
+            , pushPop = PushPop.init PushPop.ListPane
+            , pendingFocus = Nothing
         }
     , request
     )
@@ -257,7 +433,15 @@ beginLoadingMore (Model data) =
     Paginated.beginLoadMore config data.paginated
         |> Maybe.map
             (\( nextPaginated, request ) ->
-                ( Model { data | paginated = nextPaginated, selection = NoSelection }, request )
+                ( Model
+                    { data
+                        | paginated = nextPaginated
+                        , selection = NoSelection
+                        , pushPop = PushPop.init PushPop.ListPane
+                        , pendingFocus = Nothing
+                    }
+                , request
+                )
             )
 
 
@@ -300,6 +484,21 @@ selectDetail entry (Model data) =
 clearDetail : Model -> Model
 clearDetail (Model data) =
     Model { data | selection = NoSelection }
+
+
+selectedEntry : Model -> Maybe Entry
+selectedEntry (Model data) =
+    case data.selection of
+        NoSelection ->
+            Nothing
+
+        Selected entry ->
+            Just entry
+
+
+isAnimating : Model -> Bool
+isAnimating (Model data) =
+    PushPop.isRunning data.pushPop
 
 
 requestAccount : Request -> String
@@ -395,12 +594,16 @@ view env (Model data) =
                     ]
 
     else
-        case data.selection of
-            NoSelection ->
-                listPage viewport theme compact viewport.height (Model data)
+        PushPop.view env
+            data.pushPop
+            (listPage viewport theme compact viewport.height (Model data))
+            (case data.selection of
+                NoSelection ->
+                    Nothing
 
-            Selected entry ->
-                detailPage viewport theme CloseDetail commodity entry
+                Selected entry ->
+                    Just (detailPage viewport theme CloseDetail commodity entry)
+            )
 
 
 listPage : Viewport -> Theme -> Bool -> Int -> Model -> Element Msg
@@ -416,6 +619,15 @@ listPage viewport theme compact viewportHeight model =
                 ++ failureNotices theme model
             )
         ]
+
+
+registerTitle : Theme -> String -> Element Msg
+registerTitle theme account =
+    Element.el
+        [ Element.htmlAttribute (Html.Attributes.id listFocusId)
+        , Element.htmlAttribute (Html.Attributes.tabindex -1)
+        ]
+        (Typography.pageTitleWithDelimiter theme ":" account)
 
 
 registerHeader : Viewport -> Theme -> Bool -> Model -> Element Msg
@@ -451,7 +663,7 @@ registerHeader viewport theme compact model =
                 , Element.spacing Tokens.space8
                 , Common.minWidthZero
                 ]
-                [ Typography.pageTitleWithDelimiter theme ":" account
+                [ registerTitle theme account
                 , Typography.mutedParagraph theme "Account register"
                 ]
             ]
@@ -460,7 +672,7 @@ registerHeader viewport theme compact model =
         Page.pageHeader viewport
             theme
             { leading = Just (Button.backButton theme { onPress = BackToAccounts })
-            , title = Typography.pageTitleWithDelimiter theme ":" account
+            , title = registerTitle theme account
             , subtitle = Just "Account register"
             , actions = actions
             }
@@ -472,7 +684,8 @@ filters theme model =
         ( from, to ) =
             modelFilters model
     in
-    Surface.card theme
+    Surface.card
+        theme
         [ Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
             [ Element.el
                 [ Element.width (Element.fill |> Element.maximum Tokens.splitPaneControlWidth) ]
@@ -1119,7 +1332,12 @@ detailPage viewport theme onClose commodity entry =
         theme
         { header =
             { leading = Just (Button.backButton theme { onPress = onClose })
-            , title = Typography.pageTitle theme "Details"
+            , title =
+                Element.el
+                    [ Element.htmlAttribute (Html.Attributes.id detailHeadingId)
+                    , Element.htmlAttribute (Html.Attributes.tabindex -1)
+                    ]
+                    (Typography.pageTitle theme "Details")
             , subtitle = Nothing
             , actions = []
             }

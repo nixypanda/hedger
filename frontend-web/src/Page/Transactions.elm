@@ -12,6 +12,7 @@ module Page.Transactions exposing
     , draftQuery
     , fetch
     , init
+    , isAnimating
     , receive
     , requestCursor
     , requestQuery
@@ -28,6 +29,7 @@ module Page.Transactions exposing
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
 import Api.Transaction exposing (Response)
+import Browser.Dom
 import Data.Date as Date
 import Data.Freshness exposing (Freshness(..))
 import Data.Paginated as Paginated exposing (Paginated)
@@ -39,6 +41,8 @@ import Element.Input as Input
 import Html.Attributes
 import Lib.RemoteData exposing (RemoteData(..))
 import Lib.Time as TimeExtra
+import Task
+import Time
 import Ui.Button as Button
 import Ui.Chip as Chip
 import Ui.Common as Common
@@ -49,6 +53,7 @@ import Ui.Icon as Icon
 import Ui.Motion as Motion
 import Ui.Notice as Notice
 import Ui.Page as Page
+import Ui.PushPop as PushPop
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -74,7 +79,14 @@ type alias ModelData =
     , draft : DraftQuery
     , selection : Maybe Transaction
     , loadMoreBlockedAttempts : Int
+    , pushPop : PushPop.Transition
+    , pendingFocus : Maybe FocusTarget
     }
+
+
+type FocusTarget
+    = FocusDetailHeading
+    | FocusListControl
 
 
 {-| The accumulated window plus a count of how many pages it spans, so the
@@ -177,6 +189,8 @@ init =
         , draft = DraftQuery ""
         , selection = Nothing
         , loadMoreBlockedAttempts = 0
+        , pushPop = PushPop.init PushPop.ListPane
+        , pendingFocus = Nothing
         }
 
 
@@ -193,6 +207,8 @@ type Msg
     | LoadMoreBlocked
     | Select Transaction
     | Back
+    | AnimationTick Time.Posix
+    | FocusIgnored
     | Loaded Request (Result ApiError Response)
 
 
@@ -200,8 +216,8 @@ type OutMsg
     = NoOutMsg
 
 
-update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
-update msg (Model data) =
+update : { env : Env } -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
+update props msg (Model data) =
     case msg of
         Refresh ->
             let
@@ -253,13 +269,186 @@ update msg (Model data) =
                 )
 
         Select transaction ->
-            ( select transaction (Model data), Cmd.none, NoOutMsg )
+            if isVisibleRow transaction (Model data) then
+                let
+                    pushPop =
+                        if Viewport.usesMasterDetail props.env.viewport then
+                            PushPop.init PushPop.DetailPane
+
+                        else
+                            PushPop.open
+                                { reducedMotion = props.env.reducedMotion
+                                , distance = toFloat props.env.viewport.width
+                                }
+                                data.pushPop
+
+                    animating =
+                        PushPop.isRunning pushPop
+                in
+                ( Model
+                    { data
+                        | selection = Just transaction
+                        , pushPop = pushPop
+                        , pendingFocus =
+                            if animating then
+                                Just FocusDetailHeading
+
+                            else
+                                Nothing
+                    }
+                , if animating then
+                    Cmd.none
+
+                  else
+                    focusDetailHeading
+                , NoOutMsg
+                )
+
+            else
+                ( Model data, Cmd.none, NoOutMsg )
 
         Back ->
-            ( clearSelection (Model data), Cmd.none, NoOutMsg )
+            let
+                pushPop =
+                    if Viewport.usesMasterDetail props.env.viewport then
+                        PushPop.init PushPop.ListPane
+
+                    else
+                        PushPop.close
+                            { reducedMotion = props.env.reducedMotion
+                            , distance = toFloat props.env.viewport.width
+                            }
+                            data.pushPop
+
+                animating =
+                    PushPop.isRunning pushPop
+            in
+            ( Model
+                { data
+                    | selection =
+                        if animating then
+                            data.selection
+
+                        else
+                            Nothing
+                    , pushPop = pushPop
+                    , pendingFocus =
+                        if animating then
+                            Just FocusListControl
+
+                        else
+                            Nothing
+                }
+            , if animating then
+                Cmd.none
+
+              else
+                focusListControl
+            , NoOutMsg
+            )
+
+        AnimationTick now ->
+            if not (PushPop.isRunning data.pushPop) then
+                ( Model data, Cmd.none, NoOutMsg )
+
+            else
+                let
+                    arrived =
+                        PushPop.arrivedAt PushPop.ListPane now data.pushPop
+
+                    pushPop =
+                        PushPop.update now data.pushPop
+
+                    pane =
+                        PushPop.current pushPop
+
+                    ( pendingFocus, focusCommand ) =
+                        nextFocus data.pendingFocus pane (PushPop.isRunning pushPop)
+                in
+                ( Model
+                    { data
+                        | pushPop = pushPop
+                        , selection =
+                            if arrived && pane == PushPop.ListPane then
+                                Nothing
+
+                            else
+                                data.selection
+                        , pendingFocus = pendingFocus
+                    }
+                , focusCommand
+                , NoOutMsg
+                )
+
+        FocusIgnored ->
+            ( Model data, Cmd.none, NoOutMsg )
 
         Loaded request result ->
-            ( receive request result (Model data), Cmd.none, NoOutMsg )
+            let
+                ( nextModel, focusCommand ) =
+                    resolveSettledFocus (receive request result (Model data))
+            in
+            ( nextModel, focusCommand, NoOutMsg )
+
+
+nextFocus : Maybe FocusTarget -> PushPop.Pane -> Bool -> ( Maybe FocusTarget, Cmd Msg )
+nextFocus pending pane running =
+    if running then
+        ( pending, Cmd.none )
+
+    else
+        case pending of
+            Just FocusDetailHeading ->
+                if pane == PushPop.DetailPane then
+                    ( Nothing, focusDetailHeading )
+
+                else
+                    ( pending, Cmd.none )
+
+            Just FocusListControl ->
+                if pane == PushPop.ListPane then
+                    ( Nothing, focusListControl )
+
+                else
+                    ( pending, Cmd.none )
+
+            Nothing ->
+                ( Nothing, Cmd.none )
+
+
+resolveSettledFocus : Model -> ( Model, Cmd Msg )
+resolveSettledFocus ((Model data) as model) =
+    if not (PushPop.isRunning data.pushPop) && data.pendingFocus == Just FocusListControl then
+        ( Model { data | pendingFocus = Nothing }, focusListControl )
+
+    else
+        ( model, Cmd.none )
+
+
+focusDetailHeading : Cmd Msg
+focusDetailHeading =
+    focusElement detailHeadingId
+
+
+focusListControl : Cmd Msg
+focusListControl =
+    focusElement listFocusId
+
+
+focusElement : String -> Cmd Msg
+focusElement id =
+    Browser.Dom.focus id
+        |> Task.attempt (\_ -> FocusIgnored)
+
+
+detailHeadingId : String
+detailHeadingId =
+    "transaction-detail-heading"
+
+
+listFocusId : String
+listFocusId =
+    "transaction-list-heading"
 
 
 fetchTransactions : Request -> Cmd Msg
@@ -317,17 +506,54 @@ applyDraft (Model data) =
         ( nextPaginated, request ) =
             Paginated.beginFresh (AppliedQuery query) data.paginated
     in
-    ( Model { data | draft = DraftQuery query, paginated = nextPaginated }, request )
+    ( Model
+        { data
+            | draft = DraftQuery query
+            , paginated = nextPaginated
+            , selection = Nothing
+            , pushPop = PushPop.init PushPop.ListPane
+            , pendingFocus = Nothing
+        }
+    , request
+    )
 
 
 receive : Request -> Result ApiError Response -> Model -> Model
 receive request result (Model data) =
-    Model
-        { data
-            | paginated =
-                Paginated.receive config request (Result.map wrap result) data.paginated
-            , loadMoreBlockedAttempts = 0
-        }
+    settlePushPop <|
+        Model
+            { data
+                | paginated =
+                    Paginated.receive config request (Result.map wrap result) data.paginated
+                , loadMoreBlockedAttempts = 0
+            }
+
+
+{-| A refresh or revision reset can drop the selected row. When that happens the
+detail pane must return to the list rather than staying on a missing selection.
+-}
+settlePushPop : Model -> Model
+settlePushPop ((Model data) as model) =
+    if
+        PushPop.target data.pushPop
+            == PushPop.DetailPane
+            && selectedTransaction model
+            == Nothing
+    then
+        Model
+            { data
+                | selection = Nothing
+                , pushPop = PushPop.init PushPop.ListPane
+                , pendingFocus = Just FocusListControl
+            }
+
+    else
+        model
+
+
+isAnimating : Model -> Bool
+isAnimating (Model data) =
+    PushPop.isRunning data.pushPop
 
 
 {-| Selection is validated against the visible window: only rows present in the
@@ -527,7 +753,7 @@ view :
     Env
     -> Model
     -> Element Msg
-view env model =
+view env ((Model data) as model) =
     let
         theme =
             env.theme
@@ -565,16 +791,11 @@ view env model =
             _ ->
                 listPage viewport theme compact viewport.height model
 
-    else if currentSelection /= Nothing then
-        case currentSelection of
-            Just selected ->
-                detailPage viewport theme (Just Back) selected
-
-            Nothing ->
-                listPage viewport theme compact viewport.height model
-
     else
-        listPage viewport theme compact viewport.height model
+        PushPop.view env
+            data.pushPop
+            (listPage viewport theme compact viewport.height model)
+            (Maybe.map (detailPage viewport theme (Just Back)) currentSelection)
 
 
 listPage :
@@ -600,7 +821,12 @@ listPage viewport theme compact viewportHeight model =
 transactionsHeaderConfig : Theme -> Model -> Page.Header Msg
 transactionsHeaderConfig theme model =
     { leading = Nothing
-    , title = Typography.pageTitle theme "Transactions"
+    , title =
+        Element.el
+            [ Element.htmlAttribute (Html.Attributes.id listFocusId)
+            , Element.htmlAttribute (Html.Attributes.tabindex -1)
+            ]
+            (Typography.pageTitle theme "Transactions")
     , subtitle = Just "Browse your ledger activity"
     , actions =
         [ States.refreshStatus theme
@@ -1150,7 +1376,12 @@ detailPage viewport theme onBack transaction =
                     Maybe.map
                         (\message -> Button.backButton theme { onPress = message })
                         onBack
-                , title = Typography.pageTitle theme "Transaction Detail"
+                , title =
+                    Element.el
+                        [ Element.htmlAttribute (Html.Attributes.id detailHeadingId)
+                        , Element.htmlAttribute (Html.Attributes.tabindex -1)
+                        ]
+                        (Typography.pageTitle theme "Transaction Detail")
                 , subtitle = Nothing
                 , actions = []
                 }

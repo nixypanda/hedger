@@ -9,6 +9,7 @@ type alias Env =
     { theme : Theme
     , device : Device
     , viewport : Viewport
+    , reducedMotion : Bool
     }
 
 

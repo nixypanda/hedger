@@ -2,12 +2,17 @@ module RegisterTest exposing (suite)
 
 import Api.Register as Register
 import Data.Completeness as Completeness
+import Data.Date as Date
 import Data.Freshness as Freshness
+import Element
 import Expect
 import Fuzz
 import Json.Decode as Decode
 import Page.AccountRegister as Page
 import Test exposing (Test, describe, fuzz, test)
+import Time
+import Ui.Env exposing (Env)
+import Ui.Theme as Theme
 
 
 {-| A register page may only be replaced or appended by the request that is
@@ -40,6 +45,112 @@ suite =
                             , nextCursor = Just "page-2"
                             }
                         )
+        , test "mobile detail stays open until the pop timeline arrives" <|
+            \_ ->
+                let
+                    loaded =
+                        loadRegister { sampleResponse | entries = [ fixtureEntry ] }
+
+                    ( opened, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.SelectDetail fixtureEntry)
+                            loaded
+
+                    ( openedFrame, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.AnimationTick (Time.millisToPosix 0))
+                            opened
+
+                    ( openedAtRest, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.AnimationTick (Time.millisToPosix 500))
+                            openedFrame
+
+                    ( closing, _, _ ) =
+                        Page.update { env = mobileEnv } Page.CloseDetail openedAtRest
+
+                    ( closingFrame, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.AnimationTick (Time.millisToPosix 1000))
+                            closing
+
+                    ( arrived, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.AnimationTick (Time.millisToPosix 2000))
+                            closingFrame
+                in
+                Expect.equal
+                    { openSelection = Page.selectedEntry opened
+                    , openAnimating = Page.isAnimating opened
+                    , closingSelection = Page.selectedEntry closing
+                    , closingAnimating = Page.isAnimating closing
+                    , arrivedSelection = Page.selectedEntry arrived
+                    , arrivedAnimating = Page.isAnimating arrived
+                    }
+                    { openSelection = Just fixtureEntry
+                    , openAnimating = True
+                    , closingSelection = Just fixtureEntry
+                    , closingAnimating = True
+                    , arrivedSelection = Nothing
+                    , arrivedAnimating = False
+                    }
+        , test "reduced motion clears the register detail without a transition" <|
+            \_ ->
+                let
+                    loaded =
+                        loadRegister { sampleResponse | entries = [ fixtureEntry ] }
+
+                    ( opened, _, _ ) =
+                        Page.update
+                            { env = reducedMotionEnv }
+                            (Page.SelectDetail fixtureEntry)
+                            loaded
+
+                    ( closed, _, _ ) =
+                        Page.update { env = reducedMotionEnv } Page.CloseDetail opened
+                in
+                Expect.equal
+                    { openSelection = Page.selectedEntry opened
+                    , openAnimating = Page.isAnimating opened
+                    , closedSelection = Page.selectedEntry closed
+                    , closedAnimating = Page.isAnimating closed
+                    }
+                    { openSelection = Just fixtureEntry
+                    , openAnimating = False
+                    , closedSelection = Nothing
+                    , closedAnimating = False
+                    }
+        , test "wide layout clears the register detail without a transition" <|
+            \_ ->
+                let
+                    loaded =
+                        loadRegister { sampleResponse | entries = [ fixtureEntry ] }
+
+                    ( opened, _, _ ) =
+                        Page.update
+                            { env = desktopEnv }
+                            (Page.SelectDetail fixtureEntry)
+                            loaded
+
+                    ( closed, _, _ ) =
+                        Page.update { env = desktopEnv } Page.CloseDetail opened
+                in
+                Expect.equal
+                    { opened = Page.selectedEntry opened
+                    , openAnimating = Page.isAnimating opened
+                    , closed = Page.selectedEntry closed
+                    , closedAnimating = Page.isAnimating closed
+                    }
+                    { opened = Just fixtureEntry
+                    , openAnimating = False
+                    , closed = Nothing
+                    , closedAnimating = False
+                    }
         , fuzz accountFuzzer
             "only the active request can replace the register"
             activeRequestWins
@@ -55,6 +166,73 @@ accountFuzzer =
             , "Expenses:Travel"
             ]
         )
+
+
+loadRegister : Register.Response -> Page.Model
+loadRegister response =
+    let
+        ( loading, request ) =
+            Page.beginLoading "Assets:Cash" Page.init
+    in
+    Page.receive request (Ok response) loading
+
+
+fixtureEntry : Register.Entry
+fixtureEntry =
+    case fixtureEntries of
+        entry :: _ ->
+            entry
+
+        [] ->
+            { date = Date.Date { year = 2025, month = 1, day = 1 }
+            , description = "Salary"
+            , account = "Assets:Cash"
+            , amount = emptyValue
+            , balance = emptyValue
+            }
+
+
+fixtureEntries : List Register.Entry
+fixtureEntries =
+    Decode.decodeString Register.decoder fixture
+        |> Result.map .entries
+        |> Result.withDefault []
+
+
+emptyValue : Register.Value
+emptyValue =
+    { raw = []
+    , display = []
+    , completeness = Completeness.Complete
+    }
+
+
+envWith : Int -> Bool -> Env
+envWith width reducedMotion =
+    let
+        viewport =
+            { width = width, height = 900 }
+    in
+    { theme = Theme.forMode Theme.Light
+    , device = Element.classifyDevice viewport
+    , viewport = viewport
+    , reducedMotion = reducedMotion
+    }
+
+
+mobileEnv : Env
+mobileEnv =
+    envWith 520 False
+
+
+desktopEnv : Env
+desktopEnv =
+    envWith 1600 False
+
+
+reducedMotionEnv : Env
+reducedMotionEnv =
+    envWith 520 True
 
 
 activeRequestWins : List String -> Expect.Expectation

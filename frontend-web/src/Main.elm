@@ -16,6 +16,7 @@ import Ports
 import Preferences exposing (Preferences)
 import Pwa
 import Route exposing (Route(..))
+import Time
 import Ui.Css
 import Ui.Env exposing (Env)
 import Ui.Page as UiPage
@@ -30,6 +31,7 @@ import Url exposing (Url)
 type alias Flags =
     { isIos : Bool
     , isStandalone : Bool
+    , reducedMotion : Bool
     , viewportWidth : Int
     , viewportHeight : Int
     , initialMode : String
@@ -61,6 +63,7 @@ init flags url key =
             { theme = Ui.Theme.forMode initialMode
             , device = Element.classifyDevice initialViewport
             , viewport = initialViewport
+            , reducedMotion = flags.reducedMotion
             }
 
         redirect =
@@ -82,7 +85,12 @@ init flags url key =
       , route = initialRoute
       , env = initialEnv
       , preferences = Preferences.current initialMode
-      , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
+      , pwa =
+            Pwa.fromFlags
+                { isStandalone = flags.isStandalone
+                , isIos = flags.isIos
+                , reducedMotion = flags.reducedMotion
+                }
       , bootstrap = Loading Nothing
       , page = pageModel
       }
@@ -115,6 +123,7 @@ type Msg
     | RefreshBootstrap
     | JournalChanged String
     | ConfigLoaded Decode.Value
+    | AnimationTick Time.Posix
     | PwaMsg Pwa.Msg
     | GotPageMsg Page.Msg
     | NoOp
@@ -205,6 +214,29 @@ update msg model =
 
                 Err _ ->
                     ( model, Cmd.none )
+
+        AnimationTick now ->
+            let
+                ( pwa, pwaCmd ) =
+                    Pwa.update (Pwa.AnimationTick now) model.pwa
+
+                ( pageModel, pageCmd, outMsg ) =
+                    Page.update
+                        (pageContext model.route model.env)
+                        (Page.AnimationTick now)
+                        model.page
+
+                ( finalModel, outCmd ) =
+                    applyPageOutMsg outMsg
+                        { model | pwa = pwa, page = pageModel }
+            in
+            ( finalModel
+            , Cmd.batch
+                [ Cmd.map PwaMsg pwaCmd
+                , Cmd.map GotPageMsg pageCmd
+                , outCmd
+                ]
+            )
 
         PwaMsg pwaMsg ->
             let
@@ -312,13 +344,18 @@ pageView model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions model =
     Sub.batch
         [ Browser.Events.onResize Resized
         , Ports.configLoaded ConfigLoaded
         , Ports.journalChanged JournalChanged
         , Ports.swStatus (Pwa.SwStatus >> PwaMsg)
         , Ports.promptInstallReady (\_ -> PwaMsg Pwa.PromptInstallReady)
+        , if Pwa.isAnimating model.pwa || Page.isAnimating model.page then
+            Browser.Events.onAnimationFrame AnimationTick
+
+          else
+            Sub.none
         ]
 
 

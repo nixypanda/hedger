@@ -1,7 +1,9 @@
 module Ui.Notice exposing
     ( Config
+    , Motion
     , Placement(..)
     , Tone(..)
+    , animatedView
     , view
     )
 
@@ -19,7 +21,9 @@ import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
+import Html
 import Html.Attributes as Attr
+import Ui.Animation as Animation
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon exposing (Icon)
@@ -47,14 +51,55 @@ type alias Config msg =
     }
 
 
+{-| An exit timeline for the fixed-position toast. The toast keeps its own
+centering transform; only opacity is animated.
+-}
+type alias Motion =
+    { transition : Animation.Transition Bool
+    , dismissing : Bool
+    }
+
+
 view : Theme -> Config msg -> Element msg
 view theme config =
+    render theme Nothing config
+
+
+animatedView : Theme -> Motion -> Config msg -> Element msg
+animatedView theme motion config =
+    render theme (Just motion) config
+
+
+render : Theme -> Maybe Motion -> Config msg -> Element msg
+render theme maybeMotion config =
     let
         colors =
             toneColors theme config.tone
 
         hasActions =
             not (List.isEmpty config.actions)
+
+        animated =
+            case maybeMotion of
+                Just motion ->
+                    Animation.render motion.transition noticeVisual
+
+                Nothing ->
+                    { attributes = []
+                    , stylesheet = Element.html (Html.node "style" [] [])
+                    }
+
+        transitionAttributes =
+            case maybeMotion of
+                Just motion ->
+                    if motion.dismissing then
+                        [ Common.inert, Common.ariaHidden ]
+
+                    else
+                        []
+
+                Nothing ->
+                    []
     in
     Element.row
         ([ Element.spacing Tokens.space12
@@ -84,6 +129,8 @@ view theme config =
                 )
             )
          ]
+            ++ animated.attributes
+            ++ transitionAttributes
             ++ roleAttributes config
             ++ (case config.id of
                     Just id ->
@@ -93,31 +140,50 @@ view theme config =
                         []
                )
         )
-        [ Icon.view
-            { icon = config.icon
-            , size = Tokens.iconSizeSmall
-            , color = colors.foreground
-            }
-        , Element.column
-            [ Element.width Element.fill
-            , Element.spacing Tokens.space8
-            ]
-            (Element.paragraph
-                (Typography.body ++ messageAttributes hasActions)
-                [ Element.text config.message ]
-                :: (if hasActions then
-                        [ Element.wrappedRow
-                            [ Element.width Element.fill
-                            , Element.spacing Tokens.space8
-                            ]
-                            config.actions
-                        ]
+        ((case maybeMotion of
+            Just _ ->
+                [ animated.stylesheet ]
 
-                    else
-                        []
-                   )
-            )
-        ]
+            Nothing ->
+                []
+         )
+            ++ [ Icon.view
+                    { icon = config.icon
+                    , size = Tokens.iconSizeSmall
+                    , color = colors.foreground
+                    }
+               , Element.column
+                    [ Element.width Element.fill
+                    , Element.spacing Tokens.space8
+                    ]
+                    (Element.paragraph
+                        (Typography.body ++ messageAttributes hasActions)
+                        [ Element.text config.message ]
+                        :: (if hasActions then
+                                [ Element.wrappedRow
+                                    [ Element.width Element.fill
+                                    , Element.spacing Tokens.space8
+                                    ]
+                                    config.actions
+                                ]
+
+                            else
+                                []
+                           )
+                    )
+               ]
+        )
+
+
+noticeVisual : Bool -> Animation.Visual
+noticeVisual visible =
+    Animation.Fade
+        (if visible then
+            1
+
+         else
+            0
+        )
 
 
 messageAttributes : Bool -> List (Element.Attribute msg)
