@@ -36,6 +36,11 @@ check: check-backend check-frontend
 build-backend:
     cabal build --offline all
 
+# Regenerate the checked-in cabal2nix expression after changing dependencies.
+[working-directory("backend")]
+update-backend-nix:
+    cabal2nix . | nixfmt - > default.nix
+
 # Run backend tests.
 [working-directory("backend")]
 test-backend:
@@ -46,7 +51,7 @@ format-backend:
     fourmolu --mode inplace backend/app backend/benchmark backend/src backend/test
 
 # Run all backend checks.
-check-backend: check-backend-format check-backend-line-length check-backend-manifest test-backend check-journal
+check-backend: check-backend-format check-backend-line-length check-backend-manifest check-backend-nix test-backend check-journal
 
 check-backend-format:
     fourmolu --mode check backend/app backend/benchmark backend/src backend/test
@@ -61,6 +66,11 @@ check-journal:
 [working-directory("backend")]
 check-backend-manifest:
     cabal check
+
+[private]
+[working-directory("backend")]
+check-backend-nix:
+    cabal2nix . | nixfmt - | diff --unified default.nix -
 
 # Run backend tests with coverage and open the HTML report.
 [working-directory("backend")]

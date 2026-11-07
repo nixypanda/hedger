@@ -21,17 +21,22 @@
         # Ship only the statically linked server binary. Dropping the library and
         # Haddock outputs removes the recorded GHC/toolchain and documentation
         # references that otherwise bloat the deployed closure by gigabytes.
+        #
+        # `backend/default.nix` is the checked-in output of `cabal2nix`.
+        # Calling `callCabal2nix` here would make evaluation an
+        # import-from-derivation: evaluating the x86_64-linux package on a
+        # Darwin host would try to execute a Linux cabal2nix. Regenerate the
+        # file with `just update-backend-nix` after changing dependencies.
         pkgs.haskell.lib.justStaticExecutables (
-          pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callCabal2nix "hedger-backend" ./backend { })
-            (drv: {
-              # The .cabal file declares `license-file: ../LICENSE`, which points
-              # at the repository root. Only ./backend is copied into the build,
-              # so place the licence one directory above the package sources where
-              # Cabal's install phase expects to find it.
-              postUnpack = ''
-                cp ${./LICENSE} "$sourceRoot/../LICENSE"
-              '';
-            })
+          pkgs.haskell.lib.overrideCabal (pkgs.haskellPackages.callPackage ./backend { }) (drv: {
+            # The .cabal file declares `license-file: ../LICENSE`, which points
+            # at the repository root. Only ./backend is copied into the build,
+            # so place the licence one directory above the package sources where
+            # Cabal's install phase expects to find it.
+            postUnpack = ''
+              cp ${./LICENSE} "$sourceRoot/../LICENSE"
+            '';
+          })
         );
       frontendFor =
         system:
@@ -79,6 +84,7 @@
           default = pkgs.mkShell {
             packages = with pkgs; [
               cabal-install
+              cabal2nix
               elmPackages.elm
               elmPackages.elm-format
               elmPackages.elm-test
@@ -111,6 +117,7 @@
               ))
               hledger
               just
+              nixfmt
               nodejs_22
               python3
             ];
@@ -188,6 +195,7 @@
               {
                 nativeBuildInputs = with pkgs; [
                   cabal-install
+                  cabal2nix
                   elmPackages.elm
                   elmPackages.elm-format
                   elmPackages.elm-test
@@ -195,6 +203,7 @@
                   backendGhc
                   hledger
                   just
+                  nixfmt
                   python3
                   ripgrep
                 ];

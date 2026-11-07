@@ -108,6 +108,10 @@ cd backend && cabal run hedger-server -- --config ../hedger.example.yaml
 Cabal reuses `backend/dist-newstyle`, so narrow commands stay incremental. See
 [performance.md](performance.md) for the benchmark suite.
 
+`backend/default.nix` is generated from `backend/hedger-backend.cabal` by
+`cabal2nix`. After changing dependencies, run `just update-backend-nix` and
+commit the result. `just check-backend` verifies the file is current.
+
 ## Frontend tasks
 
 ```console
