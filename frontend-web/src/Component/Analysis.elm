@@ -646,16 +646,15 @@ activityRequest context side data =
 
 controlsView : Theme -> Model -> Element Msg
 controlsView theme (Model data) =
-    Ui.Input.wideSegmentedControl theme
-        [ { label = "M"
-          , selected = data.granularity == Monthly
-          , onPress = GranularitySelected Monthly
-          }
-        , { label = "Y"
-          , selected = data.granularity == Yearly
-          , onPress = GranularitySelected Yearly
-          }
-        ]
+    Ui.Input.segmentedControl theme
+        { label = "Granularity"
+        , selected = data.granularity
+        , options =
+            { first = { label = "M", value = Monthly }
+            , rest = [ { label = "Y", value = Yearly } ]
+            }
+        , onSelect = GranularitySelected
+        }
 
 
 
@@ -1182,17 +1181,14 @@ calendarDisplayControl theme selected =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ Typography.mutedBody theme "Show calendar by"
         , Ui.Input.segmentedControl theme
-            [ Ui.Input.segmentedOption theme
-                { label = "Category"
-                , selected = selected == AnalyticsTypes.ByCategory
-                , onPress = CalendarDisplaySelected AnalyticsTypes.ByCategory
+            { label = "Calendar display"
+            , selected = selected
+            , options =
+                { first = { label = "Category", value = AnalyticsTypes.ByCategory }
+                , rest = [ { label = "Movement", value = AnalyticsTypes.ByMovement } ]
                 }
-            , Ui.Input.segmentedOption theme
-                { label = "Movement"
-                , selected = selected == AnalyticsTypes.ByMovement
-                , onPress = CalendarDisplaySelected AnalyticsTypes.ByMovement
-                }
-            ]
+            , onSelect = CalendarDisplaySelected
+            }
         ]
 
 

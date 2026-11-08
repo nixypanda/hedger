@@ -156,6 +156,39 @@ body {
     opacity var(--ui-motion-base) var(--ui-ease-standard);
 }
 
+/* Segmented control: one sliding selection pill behind equal-width labels. */
+.ui-segmented {
+  display: inline-grid !important;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  position: relative;
+  isolation: isolate;
+}
+
+/* Width (100%), height (36px), and radius (8px) come from Ui.Input so they
+   stay tied to Ui.DesignTokens. This rule owns placement and paint.
+   The direct-child selector is deliberate: elm-ui's `.s` base sets
+   `border: none; border-width: 0` at the same 0,1,0 specificity as a plain
+   `.ui-segment-indicator` rule and its stylesheet is appended after this one. */
+.ui-segmented > .ui-segment-indicator {
+  grid-area: 1 / 1;
+  align-self: center;
+  border: 1px solid var(--ui-primary);
+  background-color: var(--ui-card-bg);
+  transition:
+    transform var(--ui-motion-base) var(--ui-ease-standard),
+    background-color var(--ui-motion-base) var(--ui-ease-standard),
+    border-color var(--ui-motion-base) var(--ui-ease-standard);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ui-segmented > .ui-segment {
+  grid-row: 1;
+  position: relative;
+  z-index: 1;
+}
+
 [data-ui-busy] {
   cursor: progress;
 }
@@ -355,6 +388,7 @@ body {
   .ui-motion,
   .ui-surface,
   .ui-chart-motion,
+  .ui-segmented > .ui-segment-indicator,
   .ui-notice,
   .ui-skeleton::after,
   [data-ui-press],

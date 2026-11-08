@@ -1,10 +1,10 @@
 module Ui.Input exposing
-    ( dateInput
+    ( Segment
+    , Segments
+    , dateInput
     , fieldLabel
     , searchInputInline
     , segmentedControl
-    , segmentedOption
-    , wideSegmentedControl
     )
 
 import Element exposing (Attribute, Element)
@@ -77,50 +77,126 @@ searchInputInline theme config =
         }
 
 
-segmentedControl : Theme -> List (Element msg) -> Element msg
-segmentedControl theme segments =
+type alias Segment value =
+    { label : String, value : value }
+
+
+type alias Segments value =
+    { first : Segment value, rest : List (Segment value) }
+
+
+{-| A labelled group of toggle buttons with exactly one selected value.
+Empty options are impossible by construction; a value absent from the options
+renders no indicator and leaves every option unselected.
+-}
+segmentedControl :
+    Theme
+    ->
+        { label : String
+        , selected : value
+        , options : Segments value
+        , onSelect : value -> msg
+        }
+    -> Element msg
+segmentedControl theme config =
+    let
+        allOptions =
+            config.options.first :: config.options.rest
+
+        maybeIndex =
+            findSelectedIndex config.selected config.options
+    in
     Element.row
-        [ Element.spacing space2
+        [ Common.uiClass "ui-segmented ui-motion"
+        , Element.htmlAttribute (Html.Attributes.attribute "role" "group")
+        , Element.htmlAttribute
+            (Html.Attributes.attribute "aria-label" config.label)
+        , Element.htmlAttribute
+            (Html.Attributes.style "gap" (String.fromInt space2 ++ "px"))
         , Element.padding space4
         , Border.rounded radiusControl
         , Background.color theme.chipBg
         , Border.width 1
         , Border.color theme.divider
         ]
-        segments
+        ((case maybeIndex of
+            Just index ->
+                [ segmentedIndicator index ]
+
+            Nothing ->
+                []
+         )
+            ++ List.indexedMap
+                (segmentedOption theme config.onSelect maybeIndex)
+                allOptions
+        )
 
 
-wideSegmentedControl :
-    Theme
-    -> List { label : String, selected : Bool, onPress : msg }
-    -> Element msg
-wideSegmentedControl theme options =
-    segmentedControl theme (List.map (segmentedOption theme) options)
+findSelectedIndex : value -> Segments value -> Maybe Int
+findSelectedIndex selected options =
+    (options.first :: options.rest)
+        |> List.indexedMap Tuple.pair
+        |> List.filterMap
+            (\( index, option ) ->
+                if option.value == selected then
+                    Just index
+
+                else
+                    Nothing
+            )
+        |> List.head
+
+
+segmentedIndicator : Int -> Element msg
+segmentedIndicator index =
+    Element.el
+        [ Common.uiClass "ui-segment-indicator"
+        , Element.htmlAttribute (Html.Attributes.attribute "aria-hidden" "true")
+        , Element.width Element.fill
+        , Element.height (Element.px compactControlVisualHeight)
+        , Border.rounded radiusSmall
+        , Element.htmlAttribute
+            (Html.Attributes.style
+                "transform"
+                ("translateX(calc("
+                    ++ String.fromInt index
+                    ++ " * (100% + "
+                    ++ String.fromInt space2
+                    ++ "px)))"
+                )
+            )
+        ]
+        Element.none
 
 
 segmentedOption :
     Theme
-    -> { label : String, selected : Bool, onPress : msg }
+    -> (value -> msg)
+    -> Maybe Int
+    -> Int
+    -> Segment value
     -> Element msg
-segmentedOption theme config =
+segmentedOption theme onSelect maybeIndex index option =
     Input.button
         (Typography.label
             ++ [ Common.touchTargetHeight
-               , Element.width Element.shrink
+               , Element.width (Element.fill |> Element.minimum minimumTouchTarget)
+               , Common.uiClass "ui-segment ui-motion"
                , Font.color
-                    (if config.selected then
+                    (if Just index == maybeIndex then
                         theme.primary
 
                      else
                         theme.textMedium
                     )
                , Font.center
-               , Common.uiClass "ui-motion"
+               , Element.htmlAttribute
+                    (Html.Attributes.style "grid-column" (String.fromInt (index + 1)))
                , Motion.pressable
                , Element.htmlAttribute
                     (Html.Attributes.attribute
                         "aria-pressed"
-                        (if config.selected then
+                        (if Just index == maybeIndex then
                             "true"
 
                          else
@@ -129,27 +205,20 @@ segmentedOption theme config =
                     )
                ]
         )
-        { onPress = Just config.onPress
-        , label = segmentedSurface theme config.selected config.label
+        { onPress = Just (onSelect option.value)
+        , label = segmentedLabel option.label
         }
 
 
-segmentedSurface : Theme -> Bool -> String -> Element msg
-segmentedSurface theme selected label =
+segmentedLabel : String -> Element msg
+segmentedLabel label =
     Element.el
-        [ Element.width (Element.shrink |> Element.minimum minimumTouchTarget)
-        , Element.height (Element.px compactControlVisualHeight)
+        [ Element.height (Element.px compactControlVisualHeight)
         , Element.paddingXY space12 0
-        , Border.rounded radiusSmall
-        , Background.color
-            (if selected then
-                theme.cardBg
-
-             else
-                theme.chipBg
-            )
+        , Element.centerX
+        , Element.centerY
         ]
-        (Element.el [ Element.centerX, Element.centerY ] (Element.text label))
+        (Element.text label)
 
 
 inputAttrs : Theme -> List (Attribute msg)

@@ -188,16 +188,17 @@ categoryRowsViewport theme height config =
 depthControl : Theme -> Int -> (Int -> msg) -> Element msg
 depthControl theme selected onDepth =
     Ui.Input.segmentedControl theme
-        (List.map
-            (\depth ->
-                Ui.Input.segmentedOption theme
-                    { label = String.fromInt depth
-                    , selected = selected == depth
-                    , onPress = onDepth depth
-                    }
-            )
-            [ 1, 2, 3, 4 ]
-        )
+        { label = "Account depth"
+        , selected = selected
+        , options =
+            { first = { label = "1", value = 1 }
+            , rest =
+                List.map
+                    (\depth -> { label = String.fromInt depth, value = depth })
+                    [ 2, 3, 4 ]
+            }
+        , onSelect = onDepth
+        }
 
 
 categoryBreakdownDonut :
