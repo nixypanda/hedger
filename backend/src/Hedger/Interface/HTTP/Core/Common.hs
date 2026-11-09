@@ -91,7 +91,8 @@ parseCanonicalAccountPath raw =
             else Right path
 
 data ResponseMetadata = ResponseMetadata
-    { revision :: Text
+    { ledgerId :: Text
+    , revision :: Text
     , freshness :: Text
     , warnings :: [Text]
     }
@@ -152,7 +153,8 @@ toCommodityQuantity amount =
 toResponseMetadata :: SnapshotMetadata -> ResponseMetadata
 toResponseMetadata value =
     ResponseMetadata
-        { revision = value.revision
+        { ledgerId = value.ledgerId
+        , revision = value.revision
         , freshness = case value.freshness of
             Fresh -> "fresh"
             Stale _ -> "stale"

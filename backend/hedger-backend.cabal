@@ -71,6 +71,7 @@ library
     Hedger.Infrastructure.JournalWatcher
     Hedger.Infrastructure.SnapshotStore
     Hedger.Interface.HTTP.API
+    Hedger.Interface.HTTP.Catalog
     Hedger.Interface.HTTP.Core.Common
     Hedger.Interface.HTTP.Core.Errors
     Hedger.Interface.HTTP.Core.Middleware

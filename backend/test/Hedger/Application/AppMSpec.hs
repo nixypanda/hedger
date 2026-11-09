@@ -25,7 +25,7 @@ appMSpec =
 convertsSynchronousExceptionToInternalError :: IO ()
 convertsSynchronousExceptionToInternalError = do
     store <- newSnapshotStore configuration.journalPath
-    let env = Env{config = configuration, snapshotStore = store}
+    let env = Env{config = configuration, snapshotStore = store, ledgerId = "default"}
     result <- try (runAppM env badAction) :: IO (Either SomeException (Either AppError Int))
     case result of
         Right (Left InternalError) -> pure ()

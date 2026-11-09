@@ -6,20 +6,26 @@ import Data.Aeson (Value (..), object, (.=))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Key (Key)
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
 import Data.Vector qualified as Vector
-import Network.HTTP.Types (status200, status400)
+import Network.HTTP.Types (status200, status400, status404, status405, status503)
 import Network.Wai qualified as Wai
-import Network.Wai.Test (SResponse (simpleStatus))
+import Network.Wai.Test (SResponse (simpleHeaders, simpleStatus))
 import Test.Tasty (TestTree, testGroup, withResource)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hedger.Application.Common (SnapshotFreshness (..), SnapshotMetadata (..))
-import Hedger.Infrastructure.SnapshotStore (SnapshotLoadError (..))
+import Hedger.Config (Catalog (..), Config (..), LedgerConfig (..), mkLedgerId)
+import Hedger.Infrastructure.SnapshotStore (
+    SnapshotLoadError (..),
+    newSnapshotStore,
+    reloadSnapshot,
+ )
 import Hedger.Interface.HTTP.Core.Common (toResponseMetadata)
-import Hedger.Runtime.Internal.Server (makeApplication)
+import Hedger.Runtime.Internal.Server (makeApplication, makeCatalogApplication)
 import Hedger.TestHelpers (configuration, getJson, loadedStore, postJson)
 
 apiSpec :: TestTree
@@ -46,11 +52,13 @@ apiSpec =
                 app <- getApp
                 investmentsProjection app
             , testCase "renders fresh and stale metadata" metadataRendering
+            , testCase "scopes data and cursors to each ledger" catalogRoutes
+            , testCase "one unavailable ledger does not hide a healthy one" partialReadiness
             ]
 
 metadataRendering :: IO ()
 metadataRendering = do
-    let render = Aeson.toJSON . toResponseMetadata . SnapshotMetadata "revision"
+    let render = Aeson.toJSON . toResponseMetadata . SnapshotMetadata "default" "revision"
         fresh = render Fresh
         stale = render (Stale (JournalReadFailed "bad file"))
         warning = "The latest journal reload failed; the last usable snapshot is shown."
@@ -69,6 +77,127 @@ setup = do
 
 teardown :: Wai.Application -> IO ()
 teardown = const (pure ())
+
+catalogRoutes :: IO ()
+catalogRoutes = do
+    personal <- loadedStore
+    business <- newSnapshotStore "test/fixtures/investments.journal"
+    _ <- reloadSnapshot business
+    personalId <- either (fail . Text.unpack) pure (mkLedgerId "personal")
+    businessId <- either (fail . Text.unpack) pure (mkLedgerId "business")
+    let catalog =
+            Catalog
+                { defaultLedger = Just personalId
+                , ledgerOrder = [personalId, businessId]
+                , ledgers =
+                    Map.fromList
+                        [ (personalId, LedgerConfig "Personal" configuration)
+                        ,
+                            ( businessId
+                            , LedgerConfig
+                                "Business"
+                                configuration{journalPath = "test/fixtures/investments.journal"}
+                            )
+                        ]
+                , listenAddress = "127.0.0.1"
+                , listenPort = configuration.listenPort
+                }
+        app =
+            makeCatalogApplication
+                catalog
+                ( Map.fromList
+                    [ (personalId, (LedgerConfig "Personal" configuration, personal))
+                    , (businessId, (LedgerConfig "Business" configuration, business))
+                    ]
+                )
+    (Just list, _) <- getJson "/api/v1/ledgers" app
+    assertEqual "default ledger" (Just (String "personal")) (field "defaultLedger" list)
+    (_, wrongMethod) <- postJson "/api/v1/ledgers" "{}" app
+    assertEqual "catalog method" status405 wrongMethod.simpleStatus
+    assertEqual "allowed catalog method" (Just "GET") (lookup "Allow" wrongMethod.simpleHeaders)
+    let noDefaultApp =
+            makeCatalogApplication
+                catalog{defaultLedger = Nothing}
+                ( Map.fromList
+                    [ (personalId, (LedgerConfig "Personal" configuration, personal))
+                    , (businessId, (LedgerConfig "Business" configuration, business))
+                    ]
+                )
+    (Just noDefaultList, _) <- getJson "/api/v1/ledgers" noDefaultApp
+    assertEqual "absent default is JSON null" (Just Null) (field "defaultLedger" noDefaultList)
+    (Just first, _) <- getJson "/api/v1/ledgers/personal/transactions?limit=5" app
+    assertEqual
+        "personal metadata"
+        (Just (String "personal"))
+        (field "metadata" first >>= field "ledgerId")
+    (Just other, _) <- getJson "/api/v1/ledgers/business/transactions?limit=5" app
+    assertEqual
+        "business metadata"
+        (Just (String "business"))
+        (field "metadata" other >>= field "ledgerId")
+    (Just report, reportStatus) <-
+        postJson
+            "/api/v1/ledgers/business/net-worth/query"
+            (Aeson.encode (analyticsRequest ""))
+            app
+    assertEqual "scoped POST status" status200 reportStatus.simpleStatus
+    assertEqual
+        "scoped POST metadata"
+        (Just (String "business"))
+        (field "metadata" report >>= field "ledgerId")
+    cursor <-
+        case field "nextCursor" first of
+            Just (String value) -> pure value
+            _ -> assertFailure "expected personal cursor" >> pure ""
+    (_, wrongCursor) <-
+        getJson
+            ( "/api/v1/ledgers/business/transactions?limit=5&cursor="
+                <> TextEncoding.encodeUtf8 cursor
+            )
+            app
+    assertEqual "cursor from another ledger" status400 wrongCursor.simpleStatus
+    (Just missing, unknown) <- getJson "/api/v1/ledgers/missing/transactions" app
+    assertEqual "unknown ledger status" status404 unknown.simpleStatus
+    assertEqual
+        "unknown ledger envelope"
+        (Just (String "ledger_not_found"))
+        (field "error" missing >>= field "code")
+
+partialReadiness :: IO ()
+partialReadiness = do
+    healthy <- loadedStore
+    missing <- newSnapshotStore "test/fixtures/not-present.journal"
+    _ <- reloadSnapshot missing
+    healthyId <- either (fail . Text.unpack) pure (mkLedgerId "healthy")
+    missingId <- either (fail . Text.unpack) pure (mkLedgerId "missing")
+    let healthyLedger = LedgerConfig "Healthy" configuration
+        missingLedger = LedgerConfig "Missing" configuration
+        catalog =
+            Catalog
+                { defaultLedger = Just healthyId
+                , ledgerOrder = [healthyId, missingId]
+                , ledgers = Map.fromList [(healthyId, healthyLedger), (missingId, missingLedger)]
+                , listenAddress = "127.0.0.1"
+                , listenPort = configuration.listenPort
+                }
+        app =
+            makeCatalogApplication
+                catalog
+                ( Map.fromList
+                    [(healthyId, (healthyLedger, healthy)), (missingId, (missingLedger, missing))]
+                )
+    (_, ready) <- getJson "/api/v1/health/ready" app
+    assertEqual "global readiness" status200 ready.simpleStatus
+    let unavailableDefault =
+            makeCatalogApplication
+                catalog{defaultLedger = Just missingId}
+                ( Map.fromList
+                    [(healthyId, (healthyLedger, healthy)), (missingId, (missingLedger, missing))]
+                )
+    (_, notReady) <- getJson "/api/v1/health/ready" unavailableDefault
+    assertEqual "default ledger controls readiness" status503 notReady.simpleStatus
+    (Just unavailable, _) <- getJson "/api/v1/ledgers/missing/status" app
+    assertEqual "missing ledger status" (Just (String "unavailable")) (field "status" unavailable)
 
 accountsAndRegister :: Wai.Application -> IO ()
 accountsAndRegister app = do

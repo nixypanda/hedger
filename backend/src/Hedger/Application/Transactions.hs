@@ -31,7 +31,8 @@ transactionList request = do
     snapshotContext <- requireSnapshot
     let snapshot = snapshotContext.snapshot
         responseMetadata = metadataFor snapshotContext
-    page <- either throwError pure (TransactionQuery.transactionPage snapshot request)
+    let cursorSnapshot = snapshot{revision = snapshotContext.ledgerId <> ":" <> snapshot.revision}
+    page <- either throwError pure (TransactionQuery.transactionPage cursorSnapshot request)
     pure
         TransactionList
             { metadata = responseMetadata

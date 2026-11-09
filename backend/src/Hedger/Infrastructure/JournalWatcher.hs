@@ -3,7 +3,8 @@
 The watcher listens for filesystem events (via @fsnotify@: FSEvents on macOS,
 inotify on Linux) on every file that made up the current snapshot — the root
 journal plus any files it @include@s — and asks the 'SnapshotStore' to reload
-when one of them changes. It is event-driven, so an idle server does no work.
+when one of them changes. While a journal directory is absent, it checks for
+that directory so the ledger can recover when it is provisioned.
 
 Three cases need care and are handled here:
 
@@ -27,9 +28,11 @@ module Hedger.Infrastructure.JournalWatcher (
     guardReloaderStep,
     watchTargets,
     withJournalWatcher,
+    withJournalWatcherNamed,
 ) where
 
 import Control.Concurrent (forkIO, killThread, threadDelay)
+import Control.Concurrent.Async (race)
 import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, writeTVar)
 import Control.Exception (
     SomeAsyncException,
@@ -40,11 +43,12 @@ import Control.Exception (
     throwIO,
     try,
  )
-import Control.Monad (forever, when)
+import Control.Monad (forever, void, when)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (nub)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (isNothing)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -58,6 +62,7 @@ import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotLoadError (..),
     SnapshotStore,
+    currentGeneration,
     readCurrentSnapshot,
     reloadSnapshot,
     snapshotJournalPath,
@@ -78,6 +83,10 @@ debounceMicroseconds = 100_000
 
 withJournalWatcher :: SnapshotStore -> IO a -> IO a
 withJournalWatcher store action =
+    withJournalWatcherNamed (snapshotJournalPath store) store action
+
+withJournalWatcherNamed :: Text -> SnapshotStore -> IO a -> IO a
+withJournalWatcherNamed label store action =
     withManager $ \manager -> do
         watchedDirs' <- newIORef Map.empty
         watchTargets' <- newIORef Set.empty
@@ -85,7 +94,7 @@ withJournalWatcher store action =
         wakeReloader <- newTVarIO False
         let requestReload = atomically (writeTVar wakeReloader True)
         reconcileWatches manager store ws requestReload
-        reloader <- forkIO (runReloader store manager ws requestReload wakeReloader)
+        reloader <- forkIO (runReloader label store manager ws requestReload wakeReloader)
         action `finally` killThread reloader
 
 {- | Runs 'reloadCycle' forever, guarding each iteration with 'guardReloaderStep'
@@ -93,22 +102,41 @@ so a synchronous exception (e.g. a watched path vanishing mid-reconcile during
 an atomic-rename storm) is logged and the loop keeps going instead of the
 reloader thread dying silently.
 -}
-runReloader :: SnapshotStore -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
-runReloader store manager ws requestReload wakeReloader = forever (guardReloaderStep step)
+runReloader :: Text -> SnapshotStore -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
+runReloader label store manager ws requestReload wakeReloader = forever (guardReloaderStep step)
   where
-    step = reloadCycle store manager ws requestReload wakeReloader
+    step = reloadCycle label store manager ws requestReload wakeReloader
 
-reloadCycle :: SnapshotStore -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
-reloadCycle store manager ws requestReload wakeReloader = do
-    atomically (readTVar wakeReloader >>= check)
+reloadCycle :: Text -> SnapshotStore -> WatchManager -> WatchState -> IO () -> TVar Bool -> IO ()
+reloadCycle label store manager ws requestReload wakeReloader = do
+    waitForReload store wakeReloader
     threadDelay debounceMicroseconds
     -- Clear the flag so events coalesced during the debounce window are
     -- covered by the reload below; any that arrive afterwards set it again
     -- and drive a fresh cycle, so no change is missed.
     atomically (writeTVar wakeReloader False)
+    before <- currentGeneration store
     result <- reloadSnapshot store
-    Text.putStrLn (reloadMessage result)
+    after <- currentGeneration store
+    when (after /= before) $
+        Text.putStrLn ("Ledger " <> label <> ": " <> reloadMessage result)
     reconcileWatches manager store ws requestReload
+
+waitForReload :: SnapshotStore -> TVar Bool -> IO ()
+waitForReload store wakeReloader = do
+    let parent = takeDirectory (Text.unpack (snapshotJournalPath store))
+        awaitEvent = atomically (readTVar wakeReloader >>= check)
+    parentExists <- Directory.doesDirectoryExist parent
+    if parentExists
+        then awaitEvent
+        else void (race awaitEvent (waitForDirectory parent))
+
+waitForDirectory :: FilePath -> IO ()
+waitForDirectory parent = do
+    exists <- Directory.doesDirectoryExist parent
+    if exists
+        then pure ()
+        else threadDelay 1_000_000 >> waitForDirectory parent
 
 {- | Runs an action, catching and logging a synchronous exception so the
 caller (the reloader's @forever@ loop) can continue instead of dying.
@@ -148,8 +176,11 @@ reloadMessage result =
 reconcileWatches :: WatchManager -> SnapshotStore -> WatchState -> IO () -> IO ()
 reconcileWatches manager store ws requestReload = do
     files <- watchTargets store
-    writeIORef ws.watchTargets (Set.fromList files)
-    let desiredDirs = Set.fromList (takeDirectory <$> files)
+    plans <- traverse watchDirectoryFor files
+    let missingDirs = concatMap snd plans
+        missingParents = [parent | (parent, missing) <- plans, not (null missing)]
+        desiredDirs = Set.fromList (fst <$> plans)
+    writeIORef ws.watchTargets (Set.fromList (files ++ missingDirs ++ missingParents))
     existing <- readIORef ws.watchedDirs
     let toStop = Map.withoutKeys existing desiredDirs
         keptDirs = Map.restrictKeys existing desiredDirs
@@ -160,6 +191,24 @@ reconcileWatches manager store ws requestReload = do
             (\dir -> (,) dir <$> watchDir manager dir (const True) (handleEvent ws requestReload))
             (Set.toList toStart)
     writeIORef ws.watchedDirs (Map.union keptDirs (Map.fromList started))
+    -- A journal can appear between the failed reload and watch installation.
+    -- Recheck once after changing directories, so that creation cannot be lost.
+    when (not (Set.null toStart)) $ do
+        snapshot <- readCurrentSnapshot store
+        rootExists <- Directory.doesFileExist (Text.unpack (snapshotJournalPath store))
+        when (isNothing snapshot && rootExists) requestReload
+
+-- A missing journal may sit below a directory that has not been created yet.
+-- Watch the nearest existing ancestor and wake when each missing directory
+-- appears, then reconcile down toward the journal.
+watchDirectoryFor :: FilePath -> IO (FilePath, [FilePath])
+watchDirectoryFor file = go (takeDirectory file) []
+  where
+    go candidate missing = do
+        exists <- Directory.doesDirectoryExist candidate
+        if exists
+            then pure (candidate, missing)
+            else go (takeDirectory candidate) (candidate : missing)
 
 handleEvent :: WatchState -> IO () -> Event -> IO ()
 handleEvent ws requestReload event = do

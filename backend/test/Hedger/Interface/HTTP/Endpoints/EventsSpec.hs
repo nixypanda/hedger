@@ -33,7 +33,25 @@ httpEventsSpec =
         , testCase
             "accepts a revision subscriber after an idle client disconnects"
             reconnectsAfterDisconnect
+        , testCase "reports a failed reload to a connected client" reportsFailedReload
         ]
+
+reportsFailedReload :: IO ()
+reportsFailedReload = withTemporaryJournal $ \path -> do
+    store <- newSnapshotStore path
+    _ <- reloadSnapshot store
+    let environment = Env{config = configuration, snapshotStore = store, ledgerId = "default"}
+        application = eventsApplicationWithHeartbeat testHeartbeat environment
+    testWithApplication (pure application) $ \port ->
+        withClient port $ \client -> do
+            _ <- receiveContaining "heartbeat" client
+            ByteString.writeFile (Text.unpack path) "2026-99-99 invalid\n"
+            result <- reloadSnapshot store
+            case result of
+                Right _ -> assertFailure "invalid journal unexpectedly loaded"
+                Left _ -> do
+                    response <- receiveContaining "event:state" client
+                    assertBool "stale state event" ("stale" `ByteString.isInfixOf` response)
 
 sendsIdleHeartbeat :: IO ()
 sendsIdleHeartbeat =
@@ -48,7 +66,7 @@ reconnectsAfterDisconnect :: IO ()
 reconnectsAfterDisconnect = withTemporaryJournal $ \path -> do
     store <- newSnapshotStore path
     _ <- reloadSnapshot store
-    let environment = Env{config = configuration, snapshotStore = store}
+    let environment = Env{config = configuration, snapshotStore = store, ledgerId = "default"}
         application = eventsApplicationWithHeartbeat testHeartbeat environment
     testWithApplication (pure application) $ \port -> do
         withClient port $ \client -> receiveContaining "heartbeat" client >> pure ()
@@ -70,7 +88,7 @@ reconnectsAfterDisconnect = withTemporaryJournal $ \path -> do
 withEventsServer :: (Int -> IO a) -> IO a
 withEventsServer action = do
     store <- loadedStore
-    let environment = Env{config = configuration, snapshotStore = store}
+    let environment = Env{config = configuration, snapshotStore = store, ledgerId = "default"}
         application = eventsApplicationWithHeartbeat testHeartbeat environment
     testWithApplication (pure application) action
 

@@ -25,7 +25,8 @@ emitsNextRevision :: IO ()
 emitsNextRevision = withTemporaryJournal $ \path -> do
     store <- newSnapshotStore path
     _ <- reloadSnapshot store
-    subscription <- subscribeToRevisions Env{config = configuration, snapshotStore = store}
+    let environment = Env{config = configuration, snapshotStore = store, ledgerId = "default"}
+    subscription <- subscribeToRevisions environment
     replacement <- ByteString.readFile "test/fixtures/investments.journal"
     ByteString.writeFile (Text.unpack path) replacement
     reloadResult <- reloadSnapshot store

@@ -14,7 +14,12 @@ import Network.Wai.EventSource (ServerEvent (..), eventSourceAppIO)
 import Servant
 
 import Hedger.Application.AppM (Env)
-import Hedger.Application.Events (RevisionSubscription, awaitNextRevision, subscribeToRevisions)
+import Hedger.Application.Events (
+    EventState (..),
+    StateSubscription,
+    awaitNextState,
+    subscribeToStates,
+ )
 
 type EventsAPI = "events" :> Raw
 
@@ -29,15 +34,20 @@ eventsServer environment _requestId =
 
 eventsApplicationWithHeartbeat :: HeartbeatInterval -> Env -> Application
 eventsApplicationWithHeartbeat interval environment request sendResponse = do
-    subscription <- subscribeToRevisions environment
+    subscription <- subscribeToStates environment
     eventSourceAppIO (nextServerEvent interval subscription) request sendResponse
 
-nextServerEvent :: HeartbeatInterval -> RevisionSubscription -> IO ServerEvent
+nextServerEvent :: HeartbeatInterval -> StateSubscription -> IO ServerEvent
 nextServerEvent (HeartbeatInterval interval) subscription = do
-    result <- race (awaitNextRevision subscription) (threadDelay interval)
+    result <- race (awaitNextState subscription) (threadDelay interval)
     pure $
         case result of
-            Left revision -> ServerEvent (Just (byteString "revision")) Nothing [textData revision]
+            Left (EventRevision revision) ->
+                ServerEvent (Just (byteString "revision")) Nothing [textData revision]
+            Left EventStale ->
+                ServerEvent (Just (byteString "state")) Nothing [byteString "stale"]
+            Left EventUnavailable ->
+                ServerEvent (Just (byteString "state")) Nothing [byteString "unavailable"]
             Right () -> CommentEvent (byteString "heartbeat")
 
 heartbeatInterval :: HeartbeatInterval

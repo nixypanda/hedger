@@ -10,7 +10,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import System.Directory qualified as Directory
 import System.FilePath ((</>))
-import System.IO.Error (userError)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
@@ -31,6 +30,7 @@ journalWatcherSpec =
         , testCase "watches every file the journal includes" watchesIncludedFiles
         , testCase "reloads the snapshot when the root journal changes" reloadsOnChange
         , testCase "reloads the snapshot when an included file changes" reloadsOnIncludedChange
+        , testCase "loads a journal after its directory is created" loadsAfterDirectoryCreation
         , testCase
             "guardReloaderStep logs and swallows a synchronous exception"
             guardReloaderStepSwallowsSynchronousException
@@ -90,6 +90,19 @@ reloadsOnIncludedChange =
             appendFile includedPath ("\n" <> thirdTransaction <> "\n")
             changed <- waitForRevisionChange store revisionBefore
             assertBool "the watcher should reload after an included file changes" changed
+
+loadsAfterDirectoryCreation :: IO ()
+loadsAfterDirectoryCreation =
+    withJournalDir "missing-directory" $ \dir -> do
+        let nested = dir </> "nested" </> "child"
+            path = nested </> "main.journal"
+        store <- newSnapshotStore (Text.pack path)
+        _ <- reloadSnapshot store
+        withJournalWatcher store $ do
+            Directory.createDirectoryIfMissing True nested
+            writeFile path (openingBalance <> "\n")
+            changed <- waitForRevisionChange store Nothing
+            assertBool "the watcher should load the newly created journal" changed
 
 {- | Regression test for the reloader dying silently on a transient error.
 
