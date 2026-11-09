@@ -1,7 +1,7 @@
 # Features
 
-Hedger is a read-only personal finance viewer for a single
-[hledger](https://hledger.org/) journal. It answers questions about net worth,
+Hedger is a read-only personal finance viewer for named
+[hledger](https://hledger.org/) journals. It answers questions about net worth,
 cashflow, investments, accounts, and transactions without ever modifying the
 ledger.
 
@@ -127,12 +127,13 @@ Hedger needs no feature beyond these at present.
 |---------|--------|-------|
 | Authentication | Planned | Access control is currently delegated to the reverse proxy and deployment. |
 | Automatic journal reload via file watcher | Done | `fsnotify` watches the root journal and its includes, debounced; SIGHUP also reloads. |
-| Live updates over Server-Sent Events | Done | `/api/v1/events` streams revision changes and connected clients refresh automatically. |
+| Live updates over Server-Sent Events | Done | Ledger-scoped event streams refresh connected clients after changes. |
+| Ledger selection | Done | Choose among ledgers configured for the same deployment and audience. |
 | Response caching for large journals | Planned | Tracked in issue [#17](https://github.com/nixypanda/hedger/issues/17); needed to keep very large journals interactive. |
 
 ## Out of scope
 
 Hedger is a viewer, not a ledger editor. It intentionally does not edit or import
-transactions, serve multiple ledgers or tenants from one deployment, provide
+transactions, authorize different audiences within one deployment, provide
 budgets, forecasting, or recurring-transaction screens, offer a generic report
 builder or global search, or sync preferences to a server.

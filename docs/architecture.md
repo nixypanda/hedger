@@ -8,33 +8,32 @@ build and deployment. The backend is a read-only replica of an hledger journal.
 ```text
 Elm frontend-web (PWA)
   -> HTTP JSON under /api/v1
-  -> Server-Sent Events at /api/v1/events
+  -> Server-Sent Events at /api/v1/ledgers/:id/events
 Haskell backend (Servant + Warp)
   -> hledger-lib (journal parsing, queries, valuation, cost basis)
-  -> in-memory immutable snapshot (STM TVar)
+  -> one in-memory immutable snapshot per ledger (STM TVar)
   <- fsnotify file watcher and SIGHUP
 
 Nix flake: dev shell, packages, NixOS module
 nginx reverse proxy (production)
 ```
 
-There is no database. The journal file is the sole source of truth. The backend
-parses it into an immutable in-memory snapshot at startup and reloads it
-automatically when the underlying files change.
+There is no database. Journal files are the sole source of truth. The backend
+parses each configured journal into an immutable in-memory snapshot at startup
+and reloads it automatically when the underlying files change.
 
 ## Runtime data flow
 
-1. **Startup.** `SnapshotStore` reads the root journal and every `include` via
-   hledger-lib, builds an immutable `Snapshot`, and publishes it through an STM
-   `TVar`.
+1. **Startup.** Each configured ledger gets a `SnapshotStore` that reads its root
+   journal and every `include` via hledger-lib. Stores load independently.
 2. **Reload.** `JournalWatcher` watches the files that made up the last snapshot
    and asks the store to reload after a debounced filesystem event. `SIGHUP`
-   reloads the same store. A failed reload keeps the last successful snapshot
+   reloads all stores. A failed reload keeps the last successful snapshot
    and records the error.
 3. **Requests.** Handlers read the current snapshot, run pure domain
    calculations, and respond. No request mutates shared state.
-4. **Live updates.** `GET /api/v1/events` blocks on `awaitRevisionChange` and
-   streams a `revision` event whenever a new snapshot is published.
+4. **Live updates.** `GET /api/v1/ledgers/:id/events` streams revision events
+   and reload-state events for that ledger.
 5. **Client refresh.** The frontend opens an `EventSource` on that endpoint and
    refetches the visible screens when the revision changes.
 
@@ -44,14 +43,14 @@ Hedger is a read-only personal finance viewer:
 
 - Display net worth, cashflow, investment performance, accounts, and
   transactions from an hledger journal.
-- One deployment per ledger. No multi-tenancy or multi-ledger selection.
+- One deployment can contain named ledgers that share the same access policy.
 - A responsive phone and desktop PWA.
 - Nix-based development, builds, and NixOS deployment.
 
 Out of current product scope:
 
 - Ledger editing, transaction creation, or imports.
-- Multi-ledger selection or multi-tenancy.
+- Per-ledger authorization within one deployment.
 - Global search or generic report builders.
 - Recurring or forecasting screens.
 - Authentication in the application (a deployment/reverse-proxy concern).
@@ -121,17 +120,17 @@ detail.
 
 ## Snapshot and freshness
 
-The snapshot is the central architectural concept:
+Each ledger has its own snapshot:
 
-1. `SnapshotStore` reads the journal and all `include`s and builds an immutable
+1. Its `SnapshotStore` reads the journal and all `include`s and builds an immutable
    `Snapshot` containing the journal, transactions, account tree, latest journal
    date, and revision.
-2. Store state lives in a single STM `TVar` as
+2. Each store's state lives in an STM `TVar` as
    `NotLoaded | LoadFailed error | Fresh snapshot | Stale snapshot error`, so a
    snapshot and its published revision can never be observed independently.
 3. Concurrent readers always see a consistent, complete snapshot.
-4. `awaitRevisionChange` blocks until a revision different from the caller's
-   last-seen revision is published, which is what drives the SSE stream.
+4. A reload increments a per-store generation counter. The ledger's SSE stream
+   waits for generation changes, including failed reloads.
 5. On a failed reload the previous snapshot is retained and the error is exposed
    as stale freshness.
 6. The revision is an MD5 over effective source content (`read-options` plus
@@ -145,12 +144,12 @@ and issue [#17](https://github.com/nixypanda/hedger/issues/17).
 
 ## Live updates over Server-Sent Events
 
-`GET /api/v1/events` is a raw streaming endpoint:
+`GET /api/v1/ledgers/:id/events` is a raw streaming endpoint:
 
-- `Application.Events.subscribeToRevisions` records the current revision.
-- Each round awaits either a revision change or a 15-second heartbeat.
-- A change emits a `revision` event whose data is the new revision; otherwise a
-  heartbeat comment keeps the connection alive through proxies.
+- `Application.Events.subscribeToStates` tracks the selected store's state.
+- Each round awaits either a reload or a 15-second heartbeat.
+- A successful reload emits a `revision` event. A failed reload emits a `state`
+  event; a heartbeat comment keeps idle connections alive through proxies.
 - `main.js` opens the `EventSource` and forwards events to the `journalChanged`
   Elm port. `Main` then refreshes the current page. `EventSource` reconnects on
   its own, so no retry logic is needed in the app.
@@ -166,7 +165,7 @@ windows when the revision changes.
 2. **Read-only backend.** The backend never writes to the journal.
 3. **No effect system.** Plain `ReaderT Env (ExceptT AppError IO)`.
 4. **No database.** In-memory snapshots from the journal file.
-5. **One deployment per ledger.** No multi-tenancy.
+5. **One access policy per deployment.** Separate deployments isolate audiences.
 6. **Functional core, imperative shell.** Pure domain calculations, effects at
    the edges.
 7. **API DTOs are Hedger-owned.** Raw hledger types never reach JSON.

@@ -5,7 +5,7 @@
 The frontend is an Elm 0.19.2 Progressive Web App in `frontend-web/`. It uses
 `mdgriffith/elm-ui` for layout and `gampleman/elm-visualization` for charts, and
 talks to the backend through HTTP JSON under `/api/v1` plus a Server-Sent Events
-stream at `/api/v1/events`.
+stream scoped to the selected ledger at `/api/v1/ledgers/{id}/events`.
 
 ```text
 frontend-web/
@@ -159,8 +159,10 @@ must express spacing, sizing, colors, and classes through `Ui` modules.
   the live journal-change subscription, and theme CSS injection.
 - `Chrome.elm` — app chrome assembly: navigation destinations, active-route
   state, and PWA notice/install actions passed to `View.Chrome`.
-- `Route.elm` — the single source of truth for route parsing, serialization,
-  and document titles.
+- `Route.elm` — page route parsing and serialization. `Main.elm` scopes pages
+  to the selected ledger ID in the URL and sets document titles.
+- `LedgerRouting.elm` — pure URL scoping, default-ledger redirects, and the
+  destination used when selecting a ledger.
 - `Page.elm` — route-aware page model/message composition and page lifting.
 - `Page.*` — page-local TEA (Model, Msg, init, update, view), page-local loading
   state, and page-specific composition of shared UI and API calls. Views receive
@@ -182,7 +184,7 @@ must express spacing, sizing, colors, and classes through `Ui` modules.
 
 ## Routes
 
-Routes are defined in `Route.elm`:
+Page routes are defined in `Route.elm` and live under `/ledgers/{id}`:
 
 | Route                | URL path                  | Page module            |
 |----------------------|---------------------------|------------------------|
@@ -195,7 +197,10 @@ Routes are defined in `Route.elm`:
 | `Transactions`       | `/transactions`           | `Page.Transactions`    |
 | `Settings`           | `/settings`               | `Page.Settings`        |
 
-`/` redirects to `/net-worth`. Account names are percent-encoded in URLs.
+For example, Net Worth is `/ledgers/personal/net-worth`. With a configured
+default ledger, `/` and old unscoped page paths redirect to that ledger. Without
+a default, they show the ledger picker. Settings shows the same picker for
+switching ledgers. Account names are percent-encoded in URLs.
 
 ## Page structure
 
@@ -236,7 +241,7 @@ master/detail layouts; `Page.Investments` keeps its own page wrapper.
 
 ### Net worth (`Page.NetWorth`)
 
-Default dashboard. Fetches `POST /api/v1/net-worth/query`.
+Default dashboard. Fetches `POST /api/v1/ledgers/{id}/net-worth/query`.
 
 - Net Worth, Assets, and Liabilities KPI cards with absolute/percentage changes
   and sparkline trends.
@@ -250,7 +255,7 @@ Default dashboard. Fetches `POST /api/v1/net-worth/query`.
 
 ### Cashflow (`Page.Cashflow`)
 
-Income/expense analytics. Fetches `POST /api/v1/cashflow/query`.
+Income/expense analytics. Fetches `POST /api/v1/ledgers/{id}/cashflow/query`.
 
 - Query panel with draft/apply/clear (reuses `View.QueryPanel`).
 - Monthly/yearly timeline with selected-period synchronization.
@@ -262,7 +267,7 @@ Income/expense analytics. Fetches `POST /api/v1/cashflow/query`.
 
 ### Investments (`Page.Investments`)
 
-Investment performance tracker. Fetches `POST /api/v1/investments/query`.
+Investment performance tracker. Fetches `POST /api/v1/ledgers/{id}/investments/query`.
 
 - Portfolio KPI cards: market value, purchase cost, gain/loss, total profit.
 - Performance chart (market value and purchase cost over time).
@@ -273,7 +278,7 @@ Investment performance tracker. Fetches `POST /api/v1/investments/query`.
 
 ### Account tree (`Page.Account`)
 
-Hierarchical account browser. Fetches `GET /api/v1/accounts/tree`; the
+Hierarchical account browser. Fetches `GET /api/v1/ledgers/{id}/accounts/tree`; the
 `/accounts/{name}/value` route shows the same page focused on a specific
 account.
 
@@ -284,7 +289,7 @@ account.
 
 ### Account register (`Page.AccountRegister`)
 
-Account-level ledger. Fetches `GET /api/v1/accounts/{name}/register`.
+Account-level ledger. Fetches `GET /api/v1/ledgers/{id}/accounts/{name}/register`.
 
 - Date-range filtering (from/to).
 - Cursor-based pagination with Load More.
@@ -293,7 +298,7 @@ Account-level ledger. Fetches `GET /api/v1/accounts/{name}/register`.
 
 ### Transactions (`Page.Transactions`)
 
-Global transaction list. Fetches `GET /api/v1/transactions`.
+Selected-ledger transaction list. Fetches `GET /api/v1/ledgers/{id}/transactions`.
 
 - Hledger query text field with draft/apply/clear, help text, and parser errors.
 - Cursor-based pagination with a bounded page window (5 pages).
@@ -363,13 +368,14 @@ Rules:
 
 ## Live updates
 
-The backend streams a `revision` event whenever the journal is reloaded on disk.
-`main.js` opens the stream and forwards events to Elm:
+The backend streams `revision` and `state` events for the selected ledger.
+`main.js` closes and replaces the `EventSource` when selection changes, then
+forwards events with the ledger ID to Elm:
 
 ```js
-const journalEvents = new EventSource("/api/v1/events");
-journalEvents.addEventListener("revision", (event) =>
-  app.ports.journalChanged.send(event.data)
+const events = new EventSource(`/api/v1/ledgers/${ledgerId}/events`);
+events.addEventListener("revision", (event) =>
+  app.ports.journalChanged.send({ ledgerId, state: event.data })
 );
 ```
 
@@ -381,7 +387,7 @@ open dashboard reflect edits without a manual reload.
 
 The frontend is a Progressive Web App:
 
-- `public/manifest.webmanifest` — standalone display mode, `/net-worth` start
+- `public/manifest.webmanifest` — standalone display mode, `/` start
   URL, Hedger identity.
 - `public/sw.js` — service worker with app-shell caching of static assets, SPA
   fallback for navigation, and `/api/*` bypass (API responses are never cached).

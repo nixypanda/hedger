@@ -26,9 +26,9 @@ Start the backend and frontend together:
 just dev
 ```
 
-Then open <http://localhost:1234>.
+Then open <http://localhost:2345>.
 
-- The frontend is a Vite dev server on port **1234** with a strict port. It
+- The frontend is a Vite dev server on port **2345** with a strict port. It
   proxies `/api` to the backend.
 - The backend listens on `127.0.0.1:8080`.
 - `just dev` uses [`hedger.example.yaml`](../hedger.example.yaml) and the
@@ -49,11 +49,11 @@ Supply your own configuration and journal through the environment:
 
 ```console
 export HEDGER_CONFIG=/path/to/hedger.yaml
-export HEDGER_JOURNAL=/path/to/main.journal
 just dev-backend-real
 ```
 
-CLI flags (`--config`, `--journal`, `--port`, and so on) override YAML values.
+The server reads a version-2 catalog with `--config`; journal paths and listener
+settings are defined in that file.
 See [backend.md](backend.md) for every configuration option.
 
 ### Run a performance-sized journal

@@ -8,9 +8,9 @@ Hedger is deployed with Nix. The flake exports:
   `share/hedger/`;
 - `nixosModules.default` — the `services.hedger` NixOS module.
 
-The module runs each ledger as a dedicated system user and serves its frontend
-and `/api/*` backend under one nginx origin. It does not copy journals into the
-Nix store.
+The module runs each deployment instance as a dedicated system user and serves
+its frontend and `/api/*` backend under one nginx origin. An instance can list
+several ledgers. Journal files remain outside the Nix store.
 
 ## Add the module
 
@@ -33,7 +33,7 @@ Nix store.
 
 ## Configure an instance
 
-Configure one instance per ledger:
+Configure named ledgers within an instance:
 
 ```nix
 {
@@ -42,10 +42,20 @@ Configure one instance per ledger:
     instances.personal = {
       enable = true;
       hostName = "ledger.example.net";
-      journalPath = "/var/lib/hedger/personal/main.journal";
       port = 8080;
-      defaultCommodity = "INR";
-      fiscalYearStartMonth = 4;
+      defaultLedger = "personal";
+      ledgers.personal = {
+        label = "Personal";
+        journalPath = "/var/lib/hedger/personal/main.journal";
+        defaultCommodity = "INR";
+        fiscalYearStartMonth = 4;
+      };
+      ledgers.business = {
+        label = "Business";
+        journalPath = "/var/lib/hedger/personal/business/main.journal";
+        defaultCommodity = "USD";
+        fiscalYearStartMonth = 1;
+      };
       enableACME = true;
       forceSSL = true;
     };
@@ -54,22 +64,30 @@ Configure one instance per ledger:
 ```
 
 The module creates `/var/lib/hedger/personal` as `root:hedger-personal` with
-mode `0750`. Provision the journal tree there with group-readable files. For a
-journal managed elsewhere, set `supplementaryGroups` to a group that can read
-the complete include tree.
+mode `0750`. Grant that service user read access to every configured journal
+and its include tree. For journals managed by another group, set
+`supplementaryGroups` accordingly.
 
-`configFile` may point to a version-1 YAML file for investment portfolio and
-gain mappings (see [backend.md](backend.md)). Instance options still control the
-journal, listener, and display defaults. The configured
-`investments.assetClasses` account prefixes define which accounts appear in the
-Investments view.
+Each ledger can set `investments.assetClasses` and
+`investments.gainMappings` in its Nix options (see [backend.md](backend.md)).
+The module generates version-2 JSON configuration, which the backend reads as
+YAML. Only runtime journal paths, not journal contents, appear in that file.
+Omit `defaultLedger` to show a ledger picker at the application root. Visitors
+can switch ledgers later from Settings.
+
+Existing NixOS configurations must move `journalPath`, `defaultCommodity`, and
+`fiscalYearStartMonth` under `ledgers.<id>`. Replace `configFile` with the
+module's generated catalog options, and set `defaultLedger` only if the root
+should open one ledger automatically.
 
 The backend listens only on `127.0.0.1`. nginx preserves `/api/*` (including the
-`/api/v1/events` SSE stream), prevents API errors from falling through to the
+ledger-scoped SSE streams), prevents API errors from falling through to the
 PWA, provides SPA route fallback elsewhere, and marks hashed assets immutable.
 Set `openFirewall = false` when an upstream proxy owns ingress.
 
-Authentication is a deployment concern. Merge access control into
+All ledgers in one instance share its access policy and Unix process. Use
+separate instances for ledgers with different audiences. Authentication is a
+deployment concern. Merge access control into
 `services.nginx.virtualHosts.<host>` or use `nginxExtraConfig`. In-application
 authentication is on the roadmap; see [features.md](features.md).
 
@@ -79,9 +97,8 @@ example.
 
 ## Reloads
 
-The backend reloads its journal automatically when the watched files change, so
-no operator action is needed after editing a journal. `SIGHUP` remains an
-explicit way to force a reload:
+The backend reloads each journal automatically when watched files change.
+`SIGHUP` explicitly reloads every ledger:
 
 ```console
 systemctl reload hedger-personal
