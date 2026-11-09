@@ -69,6 +69,8 @@ type alias ModelData =
     , depth : Depth
     , calendarDisplay : AnalyticsTypes.CalendarDisplay
     , period : Maybe Period
+    , previousPeriodNudge : Int
+    , nextPeriodNudge : Int
     , calendarMonth : Maybe Month
     , latestActivityMonth : Maybe Month
     , timeline : List TimelinePoint
@@ -159,6 +161,8 @@ init =
         , depth = Depth 2
         , calendarDisplay = AnalyticsTypes.ByCategory
         , period = Nothing
+        , previousPeriodNudge = 0
+        , nextPeriodNudge = 0
         , calendarMonth = Nothing
         , latestActivityMonth = Nothing
         , timeline = []
@@ -190,6 +194,8 @@ type Msg
     = GranularitySelected Granularity
     | TimelineSelected String
     | PeriodChanged Int
+    | PreviousPeriodBlocked
+    | NextPeriodBlocked
     | DepthSelected Int
     | CalendarDisplaySelected AnalyticsTypes.CalendarDisplay
     | OtherToggled Side
@@ -217,6 +223,8 @@ update context msg (Model data) =
                     { data
                         | granularity = granularity
                         , period = Nothing
+                        , previousPeriodNudge = 0
+                        , nextPeriodNudge = 0
                         , calendarMonth = Nothing
                         , positive = beginSideLoading data.positive
                         , negative = beginSideLoading data.negative
@@ -281,6 +289,20 @@ update context msg (Model data) =
 
                 _ ->
                     ( Model data, [] )
+
+        PreviousPeriodBlocked ->
+            if canStepPeriod -1 data then
+                ( Model data, [] )
+
+            else
+                ( Model { data | previousPeriodNudge = data.previousPeriodNudge + 1 }, [] )
+
+        NextPeriodBlocked ->
+            if canStepPeriod 1 data then
+                ( Model data, [] )
+
+            else
+                ( Model { data | nextPeriodNudge = data.nextPeriodNudge + 1 }, [] )
 
         DepthSelected requestedDepth ->
             case Time.depthFromInt requestedDepth of
@@ -452,6 +474,8 @@ queryChanged context (Model data) =
         next =
             { data
                 | period = Nothing
+                , previousPeriodNudge = 0
+                , nextPeriodNudge = 0
                 , calendarMonth = Nothing
                 , positive = beginSideLoading data.positive
                 , negative = beginSideLoading data.negative
@@ -508,6 +532,8 @@ reportLoaded token context report (Model data) =
                 { data
                     | timeline = points
                     , period = period
+                    , previousPeriodNudge = 0
+                    , nextPeriodNudge = 0
                     , calendarMonth = calendarMonth
                     , latestActivityMonth = latestActivityMonth
                     , activeReportToken = Nothing
@@ -620,16 +646,15 @@ activityRequest context side data =
 
 controlsView : Theme -> Model -> Element Msg
 controlsView theme (Model data) =
-    Ui.Input.wideSegmentedControl theme
-        [ { label = "M"
-          , selected = data.granularity == Monthly
-          , onPress = GranularitySelected Monthly
-          }
-        , { label = "Y"
-          , selected = data.granularity == Yearly
-          , onPress = GranularitySelected Yearly
-          }
-        ]
+    Ui.Input.segmentedControl theme
+        { label = "Granularity"
+        , selected = data.granularity
+        , options =
+            { first = { label = "M", value = Monthly }
+            , rest = [ { label = "Y", value = Yearly } ]
+            }
+        , onSelect = GranularitySelected
+        }
 
 
 
@@ -836,8 +861,36 @@ compositionHeader theme layout warnings data =
 
                                 Yearly ->
                                     Page.FiscalYearPeriodLabel
-                        , onPrevious = PeriodChanged -1
-                        , onNext = PeriodChanged 1
+                        , previous =
+                            if canStepPeriod -1 data then
+                                Page.PeriodAvailable (PeriodChanged -1)
+
+                            else
+                                Page.PeriodUnavailable
+                                    { reason =
+                                        if data.period == Nothing then
+                                            "No period selected yet"
+
+                                        else
+                                            "No earlier period"
+                                    , nudge = periodNudge data.previousPeriodNudge data
+                                    , onPress = PreviousPeriodBlocked
+                                    }
+                        , next =
+                            if canStepPeriod 1 data then
+                                Page.PeriodAvailable (PeriodChanged 1)
+
+                            else
+                                Page.PeriodUnavailable
+                                    { reason =
+                                        if data.period == Nothing then
+                                            "No period selected yet"
+
+                                        else
+                                            "No later period"
+                                    , nudge = periodNudge data.nextPeriodNudge data
+                                    , onPress = NextPeriodBlocked
+                                    }
                         }
                     ]
                 ]
@@ -873,6 +926,15 @@ selectedPeriodLabel data =
                         >> Calendar.fiscalPeriodLabel
                     )
                 |> Maybe.withDefault "Loading…"
+
+
+periodNudge : Int -> ModelData -> Maybe Int
+periodNudge counter data =
+    if data.period == Nothing || counter == 0 then
+        Nothing
+
+    else
+        Just counter
 
 
 timelineView : Theme -> Int -> Config -> Report -> ModelData -> Element Msg
@@ -1119,17 +1181,14 @@ calendarDisplayControl theme selected =
     Element.wrappedRow [ Element.width Element.fill, Element.spacing Tokens.space12 ]
         [ Typography.mutedBody theme "Show calendar by"
         , Ui.Input.segmentedControl theme
-            [ Ui.Input.segmentedOption theme
-                { label = "Category"
-                , selected = selected == AnalyticsTypes.ByCategory
-                , onPress = CalendarDisplaySelected AnalyticsTypes.ByCategory
+            { label = "Calendar display"
+            , selected = selected
+            , options =
+                { first = { label = "Category", value = AnalyticsTypes.ByCategory }
+                , rest = [ { label = "Movement", value = AnalyticsTypes.ByMovement } ]
                 }
-            , Ui.Input.segmentedOption theme
-                { label = "Movement"
-                , selected = selected == AnalyticsTypes.ByMovement
-                , onPress = CalendarDisplaySelected AnalyticsTypes.ByMovement
-                }
-            ]
+            , onSelect = CalendarDisplaySelected
+            }
         ]
 
 
@@ -1278,6 +1337,8 @@ selectPeriod : Period -> Maybe Month -> ModelData -> ModelData
 selectPeriod period calendarMonth data =
     { data
         | period = Just period
+        , previousPeriodNudge = 0
+        , nextPeriodNudge = 0
         , calendarMonth = calendarMonth
         , positive = beginSideLoading data.positive
         , negative = beginSideLoading data.negative
@@ -1424,6 +1485,21 @@ latestPeriod granularity points =
 periodMatches : Granularity -> Period -> { point | period : String } -> Bool
 periodMatches granularity period point =
     periodFromString granularity point.period == Just period
+
+
+canStepPeriod : Int -> ModelData -> Bool
+canStepPeriod offset data =
+    case data.period of
+        Nothing ->
+            False
+
+        Just period ->
+            case timelinePointAtOffset data.granularity offset period data.timeline of
+                Just _ ->
+                    True
+
+                Nothing ->
+                    False
 
 
 timelinePointAtOffset :

@@ -1,5 +1,6 @@
 module Ui.Page exposing
     ( Header
+    , PeriodAction(..)
     , PeriodLabelKind(..)
     , layout
     , pageContainer
@@ -27,7 +28,7 @@ import Ui.DesignTokens
         , space4
         , space8
         )
-import Ui.Icon as Icon
+import Ui.Icon as Icon exposing (Icon)
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 import Ui.Viewport as Viewport exposing (Viewport)
@@ -195,21 +196,26 @@ headerTitles theme config =
            )
 
 
+type PeriodAction msg
+    = PeriodAvailable msg
+    | PeriodUnavailable { reason : String, nudge : Maybe Int, onPress : msg }
+
+
 periodNavigation :
     Theme
     ->
         { label : String
         , labelKind : PeriodLabelKind
-        , onPrevious : msg
-        , onNext : msg
+        , previous : PeriodAction msg
+        , next : PeriodAction msg
         }
     -> Element msg
 periodNavigation theme config =
     Element.row [ Element.spacing space4, Element.alignRight ]
-        [ Button.iconButton theme
+        [ periodButton theme
             { icon = Icon.ChevronLeft
             , title = "Previous period"
-            , onPress = config.onPrevious
+            , action = config.previous
             }
         , Element.el
             [ Element.width (Element.px (periodLabelWidth config.labelKind))
@@ -220,12 +226,35 @@ periodNavigation theme config =
                 (Typography.labelSmall ++ [ Element.centerX, Element.centerY ])
                 (Element.text config.label)
             )
-        , Button.iconButton theme
+        , periodButton theme
             { icon = Icon.ChevronRight
             , title = "Next period"
-            , onPress = config.onNext
+            , action = config.next
             }
         ]
+
+
+periodButton :
+    Theme
+    -> { icon : Icon, title : String, action : PeriodAction msg }
+    -> Element msg
+periodButton theme config =
+    case config.action of
+        PeriodAvailable onPress ->
+            Button.iconButton theme
+                { icon = config.icon
+                , title = config.title
+                , onPress = onPress
+                }
+
+        PeriodUnavailable unavailable ->
+            Button.unavailableIconButton theme
+                { icon = config.icon
+                , title = config.title
+                , reason = unavailable.reason
+                , nudge = unavailable.nudge
+                , onPress = unavailable.onPress
+                }
 
 
 type PeriodLabelKind

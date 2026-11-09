@@ -25,6 +25,7 @@ import Ui.Calendar.Month as MonthCalendar
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Motion as Motion
 import Ui.Skeleton as Skeleton
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
@@ -136,10 +137,12 @@ activityMonth theme config =
                     (Typography.mutedCaption theme "Select a day to see details")
 
             Just bucket ->
-                activityTransactionList theme
-                    ("Transactions · " ++ bucket.key)
-                    bucket.transactions
-                    (config.onTransaction bucket)
+                Element.el [ Element.width Element.fill, Motion.reveal ]
+                    (activityTransactionList theme
+                        ("Transactions · " ++ bucket.key)
+                        bucket.transactions
+                        (config.onTransaction bucket)
+                    )
         ]
 
 
@@ -258,6 +261,7 @@ dayCell config =
                             "aria-label"
                             (Ring.activityAccessibleLabel commodity bucket)
                         )
+                    :: Motion.pressable
                     :: attributes
                 )
                 { onPress = Just (onSelect bucket), label = label }
@@ -326,7 +330,11 @@ activityTransactionList theme title transactions onSelect =
                 (List.map
                     (\transaction ->
                         Input.button
-                            (Surface.rowSurfaceAttrs theme False ++ [ Element.width Element.fill ])
+                            (Surface.rowSurfaceAttrs theme False
+                                ++ [ Element.width Element.fill
+                                   , Motion.pressable
+                                   ]
+                            )
                             { onPress = Just (onSelect transaction)
                             , label =
                                 Element.row
@@ -479,10 +487,12 @@ activityYear theme config =
                                 (Typography.mutedCaption theme "Select a month to see details")
 
                         Just bucket ->
-                            activityTransactionList theme
-                                ("Transactions · " ++ bucket.key)
-                                bucket.transactions
-                                (config.onTransaction bucket)
+                            Element.el [ Element.width Element.fill, Motion.reveal ]
+                                (activityTransactionList theme
+                                    ("Transactions · " ++ bucket.key)
+                                    bucket.transactions
+                                    (config.onTransaction bucket)
+                                )
                     ]
         ]
 

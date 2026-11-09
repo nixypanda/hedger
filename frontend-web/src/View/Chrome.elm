@@ -18,6 +18,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Icon as Icon exposing (Icon)
+import Ui.Motion as Motion
 import Ui.Notice as Notice
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -208,20 +209,29 @@ navItem theme destination =
                 theme.navigationFg
     in
     Input.button
-        [ Element.width Element.fill
-        , Common.touchTargetHeight
-        , Element.paddingXY Tokens.space16 Tokens.space12
-        , Background.color
+        ([ Element.width Element.fill
+         , Common.touchTargetHeight
+         , Element.paddingXY Tokens.space16 Tokens.space12
+         , Background.color
             (if destination.active then
                 theme.navigationActiveBg
 
              else
                 theme.transparent
             )
-        , Border.rounded Tokens.radiusControl
-        , Font.color foreground
-        , Common.uiClass "ui-motion"
-        ]
+         , Border.rounded Tokens.radiusControl
+         , Font.color foreground
+         , Common.uiClass "ui-motion"
+         , Motion.pressable
+         , Motion.tab destination.active
+         ]
+            ++ (if destination.active then
+                    [ Element.htmlAttribute (Attr.attribute "aria-current" "page") ]
+
+                else
+                    []
+               )
+        )
         { onPress = Just destination.onPress
         , label =
             Element.row [ Element.spacing Tokens.space12 ]
@@ -292,7 +302,15 @@ tabItem viewport theme destination =
          , Border.rounded Tokens.radiusControl
          , Font.color foreground
          , Region.description destination.label
+         , Motion.pressable
+         , Motion.tab destination.active
          ]
+            ++ (if destination.active then
+                    [ Element.htmlAttribute (Attr.attribute "aria-current" "page") ]
+
+                else
+                    []
+               )
             ++ (if showLabel then
                     []
 

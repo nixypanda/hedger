@@ -30,6 +30,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Html.Attributes as Attr
 import Lib.Time as TimeExtra
 import Route exposing (Route(..))
 import Set exposing (Set)
@@ -41,6 +42,7 @@ import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Motion as Motion
 import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
@@ -530,28 +532,50 @@ accountRow :
     -> Element Msg
 accountRow theme expanded depth (AccountNode account) =
     let
+        hasChildren =
+            not (List.isEmpty account.children)
+
         isExpanded =
             Set.member (Account.accountPathToString account.path) expanded
 
+        disclosureLabel =
+            (if isExpanded then
+                "Collapse "
+
+             else
+                "Expand "
+            )
+                ++ account.name
+
         toggleButton =
-            if not (List.isEmpty account.children) then
+            if hasChildren then
                 Input.button
                     [ Element.width (Element.px Tokens.minimumTouchTarget)
                     , Element.height (Element.px Tokens.minimumTouchTarget)
                     , Element.centerY
+                    , Motion.pressable
+                    , Element.htmlAttribute
+                        (Attr.attribute "aria-expanded"
+                            (if isExpanded then
+                                "true"
+
+                             else
+                                "false"
+                            )
+                        )
+                    , Element.htmlAttribute
+                        (Attr.attribute "aria-label" disclosureLabel)
+                    , Element.htmlAttribute (Attr.title disclosureLabel)
                     ]
                     { onPress = Just (ToggleAccount account.path)
                     , label =
-                        Icon.view
-                            { icon =
-                                if isExpanded then
-                                    Icon.ChevronDown
-
-                                else
-                                    Icon.ChevronRight
-                            , size = Tokens.iconSizeSmallGlyph
-                            , color = theme.textMuted
-                            }
+                        Element.el [ Motion.chevron isExpanded ]
+                            (Icon.view
+                                { icon = Icon.ChevronRight
+                                , size = Tokens.iconSizeSmallGlyph
+                                , color = theme.textMuted
+                                }
+                            )
                     }
 
             else
@@ -564,6 +588,7 @@ accountRow theme expanded depth (AccountNode account) =
                     , Common.touchTargetHeight
                     , Element.alignRight
                     , Font.color theme.textPrimary
+                    , Motion.pressable
                     ]
                     { onPress = Just (OpenAccountValue account.path)
                     , label =
@@ -577,13 +602,30 @@ accountRow theme expanded depth (AccountNode account) =
 
         accountAction =
             Input.button
-                [ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
-                , Common.touchTargetHeight
-                , Font.color theme.textPrimary
-                ]
+                ([ Element.width (Element.fillPortion Tokens.layoutPortionTriple)
+                 , Common.touchTargetHeight
+                 , Font.color theme.textPrimary
+                 , Motion.pressable
+                 ]
+                    ++ (if hasChildren then
+                            [ Element.htmlAttribute
+                                (Attr.attribute "aria-expanded"
+                                    (if isExpanded then
+                                        "true"
+
+                                     else
+                                        "false"
+                                    )
+                                )
+                            ]
+
+                        else
+                            []
+                       )
+                )
                 { onPress =
                     Just
-                        (if not (List.isEmpty account.children) then
+                        (if hasChildren then
                             ToggleAccount account.path
 
                          else
@@ -639,7 +681,13 @@ accountRow theme expanded depth (AccountNode account) =
     Element.column [ Element.width Element.fill, Element.spacing Tokens.space8 ]
         (row
             :: (if isExpanded then
-                    List.map (accountRow theme expanded (depth + 1)) account.children
+                    [ Element.column
+                        [ Element.width Element.fill
+                        , Element.spacing Tokens.space8
+                        , Motion.reveal
+                        ]
+                        (List.map (accountRow theme expanded (depth + 1)) account.children)
+                    ]
 
                 else
                     []

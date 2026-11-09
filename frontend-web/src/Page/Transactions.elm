@@ -46,6 +46,7 @@ import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
+import Ui.Motion as Motion
 import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
@@ -72,6 +73,7 @@ type alias ModelData =
     { paginated : Paginated ApiError AppliedQuery PageData
     , draft : DraftQuery
     , selection : Maybe Transaction
+    , loadMoreBlockedAttempts : Int
     }
 
 
@@ -174,6 +176,7 @@ init =
         { paginated = Paginated.init
         , draft = DraftQuery ""
         , selection = Nothing
+        , loadMoreBlockedAttempts = 0
         }
 
 
@@ -187,6 +190,7 @@ type Msg
     | ApplyDraft
     | ClearDraft
     | LoadMore
+    | LoadMoreBlocked
     | Select Transaction
     | Back
     | Loaded Request (Result ApiError Response)
@@ -225,11 +229,28 @@ update msg (Model data) =
 
         LoadMore ->
             case beginLoadingMore (Model data) of
-                Just ( nextModel, request ) ->
-                    ( nextModel, fetchTransactions request, NoOutMsg )
+                Just ( Model next, request ) ->
+                    ( Model { next | loadMoreBlockedAttempts = 0 }
+                    , fetchTransactions request
+                    , NoOutMsg
+                    )
 
                 Nothing ->
                     ( Model data, Cmd.none, NoOutMsg )
+
+        LoadMoreBlocked ->
+            if canBeginLoadingMore (Model data) then
+                ( Model data, Cmd.none, NoOutMsg )
+
+            else
+                ( Model
+                    { data
+                        | loadMoreBlockedAttempts =
+                            data.loadMoreBlockedAttempts + 1
+                    }
+                , Cmd.none
+                , NoOutMsg
+                )
 
         Select transaction ->
             ( select transaction (Model data), Cmd.none, NoOutMsg )
@@ -305,6 +326,7 @@ receive request result (Model data) =
         { data
             | paginated =
                 Paginated.receive config request (Result.map wrap result) data.paginated
+            , loadMoreBlockedAttempts = 0
         }
 
 
@@ -486,6 +508,15 @@ loadMoreError (Model data) =
 canBeginLoadingMore : Model -> Bool
 canBeginLoadingMore (Model data) =
     Paginated.canLoadMore config data.paginated
+
+
+loadMoreNudge : Model -> Maybe Int
+loadMoreNudge (Model data) =
+    if data.loadMoreBlockedAttempts == 0 then
+        Nothing
+
+    else
+        Just data.loadMoreBlockedAttempts
 
 
 
@@ -834,7 +865,12 @@ pagingControl theme model response =
                     Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
 
                 else
-                    Typography.mutedCaption theme "Finish refreshing before loading more."
+                    Button.unavailableButton theme
+                        { label = "Load more"
+                        , reason = "Finish refreshing before loading more."
+                        , nudge = loadMoreNudge model
+                        , onPress = LoadMoreBlocked
+                        }
 
             Nothing ->
                 Typography.mutedCaption theme "All matching transactions are loaded."
@@ -957,7 +993,11 @@ transactionRow theme compact selected transaction =
                     )
                 ]
     in
-    Input.button [ Element.width Element.fill, Element.padding Tokens.space0 ]
+    Input.button
+        [ Element.width Element.fill
+        , Element.padding Tokens.space0
+        , Motion.pressable
+        ]
         { onPress = Just (Select transaction), label = rowContent }
 
 

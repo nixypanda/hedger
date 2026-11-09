@@ -239,6 +239,7 @@ activeBand theme chartLayout selected center =
             , SvgA.height (float chartLayout.plotHeight)
             , SvgA.rx "8"
             , SvgA.fill (Common.toCssColor theme.selectedBg)
+            , SvgA.class "ui-chart-band"
             ]
             []
 
@@ -294,6 +295,7 @@ hitTarget chartLayout center period label onSelect =
         , SvgA.height (float chartLayout.plotHeight)
         , SvgA.fill "transparent"
         , SvgA.cursor "pointer"
+        , SvgA.class "ui-chart-hit"
         , Attr.tabindex 0
         , Attr.attribute "data-period" period
         , Attr.attribute "aria-label" label
@@ -312,6 +314,7 @@ marker theme color x y =
         , SvgA.fill (Common.toCssColor theme.cardBg)
         , SvgA.stroke (Common.toCssColor color)
         , SvgA.strokeWidth "3"
+        , SvgA.class "ui-chart-marker"
         ]
         []
 

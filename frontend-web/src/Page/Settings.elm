@@ -76,14 +76,11 @@ appearanceSection theme model =
 themeToggle : Theme -> Model -> Element Msg
 themeToggle theme model =
     Ui.Input.segmentedControl theme
-        [ Ui.Input.segmentedOption theme
-            { label = "Light"
-            , selected = model.mode == Light
-            , onPress = ModeSelected Light
+        { label = "Theme"
+        , selected = model.mode
+        , options =
+            { first = { label = "Light", value = Light }
+            , rest = [ { label = "Dark", value = Dark } ]
             }
-        , Ui.Input.segmentedOption theme
-            { label = "Dark"
-            , selected = model.mode == Dark
-            , onPress = ModeSelected Dark
-            }
-        ]
+        , onSelect = ModeSelected
+        }

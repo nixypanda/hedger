@@ -22,6 +22,7 @@ import Ui.DesignTokens
         , radiusPill
         , space8
         )
+import Ui.Motion as Motion
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
 
@@ -51,6 +52,7 @@ chip theme config =
             Input.button
                 [ Element.height (Element.px minimumTouchTarget)
                 , Element.width Element.shrink
+                , Motion.pressable
                 ]
                 { onPress = Just msg
                 , label = surface
@@ -205,7 +207,9 @@ legendButton :
     -> Element msg
 legendButton _ config =
     Input.button
-        [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget) ]
+        [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget)
+        , Motion.pressable
+        ]
         { onPress = Just config.onPress
         , label = legendSurface config
         }
@@ -216,6 +220,7 @@ legendToggleButton theme config =
     Input.button
         [ Element.height (Element.shrink |> Element.minimum minimumTouchTarget)
         , Font.color theme.textMuted
+        , Motion.pressable
         ]
         { onPress = Just config.onPress
         , label = legendToggleSurface config.label

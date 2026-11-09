@@ -46,6 +46,7 @@ import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon
 import Ui.Input
+import Ui.Motion as Motion
 import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
@@ -71,6 +72,7 @@ type alias ModelData =
     , from : String
     , to : String
     , selection : Selection
+    , loadMoreBlockedAttempts : Int
     }
 
 
@@ -117,6 +119,7 @@ init =
         , from = ""
         , to = ""
         , selection = NoSelection
+        , loadMoreBlockedAttempts = 0
         }
 
 
@@ -130,6 +133,7 @@ type Msg
     | ToChange String
     | Refresh
     | LoadMore
+    | LoadMoreBlocked
     | SelectDetail Entry
     | CloseDetail
     | Loaded Request (Result ApiError Response)
@@ -175,11 +179,28 @@ update msg (Model data) =
 
         LoadMore ->
             case beginLoadingMore (Model data) of
-                Just ( nextModel, request ) ->
-                    ( nextModel, fetchAccountRegister request, NoOutMsg )
+                Just ( Model next, request ) ->
+                    ( Model { next | loadMoreBlockedAttempts = 0 }
+                    , fetchAccountRegister request
+                    , NoOutMsg
+                    )
 
                 Nothing ->
                     ( Model data, Cmd.none, NoOutMsg )
+
+        LoadMoreBlocked ->
+            if Paginated.canLoadMore config data.paginated then
+                ( Model data, Cmd.none, NoOutMsg )
+
+            else
+                ( Model
+                    { data
+                        | loadMoreBlockedAttempts =
+                            data.loadMoreBlockedAttempts + 1
+                    }
+                , Cmd.none
+                , NoOutMsg
+                )
 
         SelectDetail entry ->
             ( selectDetail entry (Model data), Cmd.none, NoOutMsg )
@@ -242,7 +263,11 @@ beginLoadingMore (Model data) =
 
 receive : Request -> Result ApiError Response -> Model -> Model
 receive request result (Model data) =
-    Model { data | paginated = Paginated.receive config request result data.paginated }
+    Model
+        { data
+            | paginated = Paginated.receive config request result data.paginated
+            , loadMoreBlockedAttempts = 0
+        }
 
 
 currentFilters : ModelData -> Filters
@@ -596,18 +621,32 @@ paging theme (Model data) response =
         [ Element.width Element.fill
         , Element.height (Element.px Tokens.minimumTouchTarget)
         ]
-        (Element.el [ Element.centerY ] (pagingControl theme data.paginated response))
+        (Element.el [ Element.centerY ] (pagingControl theme data response))
 
 
-pagingControl : Theme -> Paginated ApiError Criteria Response -> Response -> Element Msg
-pagingControl theme paginated response =
-    if Paginated.status paginated == Paginated.LoadingMore_ then
+pagingControl : Theme -> ModelData -> Response -> Element Msg
+pagingControl theme data response =
+    if Paginated.status data.paginated == Paginated.LoadingMore_ then
         Feedback.loading theme "Loading more entries…"
 
     else
         case response.nextCursor of
             Just _ ->
-                Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
+                if Paginated.canLoadMore config data.paginated then
+                    Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
+
+                else
+                    Button.unavailableButton theme
+                        { label = "Load more"
+                        , reason = "Finish refreshing before loading more."
+                        , nudge =
+                            if data.loadMoreBlockedAttempts == 0 then
+                                Nothing
+
+                            else
+                                Just data.loadMoreBlockedAttempts
+                        , onPress = LoadMoreBlocked
+                        }
 
             Nothing ->
                 Typography.mutedCaption theme "All matching entries are loaded."
@@ -965,7 +1004,11 @@ entryRow theme compact model commodity entry =
                 ]
     in
     if hasDetails then
-        Input.button [ Element.width Element.fill, Element.padding Tokens.space0 ]
+        Input.button
+            [ Element.width Element.fill
+            , Element.padding Tokens.space0
+            , Motion.pressable
+            ]
             { onPress = Just (SelectDetail entry), label = rowContent }
 
     else

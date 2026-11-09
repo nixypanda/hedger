@@ -10,6 +10,7 @@ import List
 import Ui.Chip as Chip
 import Ui.Common as Common
 import Ui.DesignTokens as Tokens
+import Ui.Motion as Motion
 import Ui.Surface as Surface
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -106,15 +107,20 @@ activityCategoryLegend config =
                     }
         in
         if isExpanded then
-            Element.wrappedRow
-                [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                (List.map chip indexedCategories
-                    ++ (if hiddenCount > 0 then
-                            [ toggle "show less" ]
+            Element.el
+                [ Element.width Element.fill
+                , Motion.reveal
+                ]
+                (Element.wrappedRow
+                    [ Element.width Element.fill, Element.spacing Tokens.space8 ]
+                    (List.map chip indexedCategories
+                        ++ (if hiddenCount > 0 then
+                                [ toggle "show less" ]
 
-                        else
-                            []
-                       )
+                            else
+                                []
+                           )
+                    )
                 )
 
         else

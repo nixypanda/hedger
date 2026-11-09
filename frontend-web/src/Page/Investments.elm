@@ -39,6 +39,7 @@ import Ui.Env exposing (Env)
 import Ui.Feedback as Feedback
 import Ui.Icon as Icon exposing (Icon)
 import Ui.Input
+import Ui.Motion as Motion
 import Ui.Notice as Notice
 import Ui.Page as Page
 import Ui.Skeleton as Skeleton
@@ -287,10 +288,15 @@ view env (Model data) =
 
 granularityControl : Theme -> Granularity -> Element Msg
 granularityControl theme selected =
-    Ui.Input.wideSegmentedControl theme
-        [ { label = "M", selected = selected == Monthly, onPress = GranularitySelected Monthly }
-        , { label = "Y", selected = selected == Yearly, onPress = GranularitySelected Yearly }
-        ]
+    Ui.Input.segmentedControl theme
+        { label = "Granularity"
+        , selected = selected
+        , options =
+            { first = { label = "M", value = Monthly }
+            , rest = [ { label = "Y", value = Yearly } ]
+            }
+        , onSelect = GranularitySelected
+        }
 
 
 content : Theme -> Viewport -> ModelData -> List (Element Msg)
@@ -895,17 +901,14 @@ investmentHistoryCard theme commodity chartWidth selectedMode selected summary t
 chartModeControl : Theme -> ChartMode -> Element Msg
 chartModeControl theme selectedMode =
     Ui.Input.segmentedControl theme
-        [ Ui.Input.segmentedOption theme
-            { label = "Value"
-            , selected = selectedMode == ValueChart
-            , onPress = ChartModeSelected ValueChart
+        { label = "Chart series"
+        , selected = selectedMode
+        , options =
+            { first = { label = "Value", value = ValueChart }
+            , rest = [ { label = "Returns", value = ReturnsChart } ]
             }
-        , Ui.Input.segmentedOption theme
-            { label = "Returns"
-            , selected = selectedMode == ReturnsChart
-            , onPress = ChartModeSelected ReturnsChart
-            }
-        ]
+        , onSelect = ChartModeSelected
+        }
 
 
 investmentPerformanceChart :
@@ -1198,6 +1201,7 @@ investmentNavigatorPathButton theme label onPress =
                , Element.paddingXY Tokens.space8 Tokens.space8
                , Border.rounded Tokens.radiusSmall
                , Font.color theme.primary
+               , Motion.pressable
                ]
             ++ Common.hoverBackground Common.HoverPrimarySoft
         )
@@ -1211,6 +1215,7 @@ investmentNavigatorChild theme commodity child =
         , Element.padding Tokens.space8
         , Border.rounded Tokens.radiusSmall
         , Element.htmlAttribute (Attr.title ("Open " ++ child.label))
+        , Motion.pressable
         ]
         { onPress = Just (AccountSelected child.account)
         , label =

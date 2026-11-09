@@ -20,6 +20,7 @@ import Ui.Common as Common
 import Ui.DesignTokens as Tokens
 import Ui.Icon as Icon
 import Ui.Input
+import Ui.Motion as Motion
 import Ui.Surface as Surface exposing (DonutLayout(..))
 import Ui.Theme exposing (Theme)
 import Ui.Typography as Typography
@@ -187,16 +188,17 @@ categoryRowsViewport theme height config =
 depthControl : Theme -> Int -> (Int -> msg) -> Element msg
 depthControl theme selected onDepth =
     Ui.Input.segmentedControl theme
-        (List.map
-            (\depth ->
-                Ui.Input.segmentedOption theme
-                    { label = String.fromInt depth
-                    , selected = selected == depth
-                    , onPress = onDepth depth
-                    }
-            )
-            [ 1, 2, 3, 4 ]
-        )
+        { label = "Account depth"
+        , selected = selected
+        , options =
+            { first = { label = "1", value = 1 }
+            , rest =
+                List.map
+                    (\depth -> { label = String.fromInt depth, value = depth })
+                    [ 2, 3, 4 ]
+            }
+        , onSelect = onDepth
+        }
 
 
 categoryBreakdownDonut :
@@ -349,6 +351,7 @@ categoryRows theme config =
                                             "Expand aggregated categories"
                                         )
                                     )
+                                , Motion.pressable
                                 ]
                                 { onPress = Just config.onOtherToggle
                                 , label =
@@ -366,16 +369,13 @@ categoryRows theme config =
                                                 isHighlighted
                                                 item
                                             )
-                                        , Icon.view
-                                            { icon =
-                                                if config.otherExpanded then
-                                                    Icon.ChevronUp
-
-                                                else
-                                                    Icon.ChevronDown
-                                            , size = Tokens.iconSizeSmallGlyph
-                                            , color = theme.textMuted
-                                            }
+                                        , Element.el [ Motion.flip config.otherExpanded ]
+                                            (Icon.view
+                                                { icon = Icon.ChevronDown
+                                                , size = Tokens.iconSizeSmallGlyph
+                                                , color = theme.textMuted
+                                                }
+                                            )
                                         ]
                                 }
 
@@ -391,36 +391,47 @@ categoryRows theme config =
 
         nested =
             if config.otherExpanded then
-                config.breakdown.otherItems
-                    |> List.indexedMap
-                        (\index item ->
-                            let
-                                nestedIndex =
-                                    List.length config.breakdown.items
-                                        + index
+                [ Element.el
+                    [ Element.width Element.fill
+                    , Motion.reveal
+                    ]
+                    (Element.column
+                        [ Element.width Element.fill
+                        , Element.spacing Tokens.space12
+                        ]
+                        (config.breakdown.otherItems
+                            |> List.indexedMap
+                                (\index item ->
+                                    let
+                                        nestedIndex =
+                                            List.length config.breakdown.items
+                                                + index
 
-                                isHighlighted =
-                                    config.highlightedCategory
-                                        == Just nestedIndex
-                            in
-                            Element.el
-                                [ Element.width Element.fill
-                                , Element.paddingEach
-                                    { top = Tokens.space0
-                                    , right = Tokens.space0
-                                    , bottom = Tokens.space0
-                                    , left = Tokens.space24
-                                    }
-                                ]
-                                (categoryRow theme
-                                    config.commodity
-                                    config.palette
-                                    config.breakdown.total
-                                    nestedIndex
-                                    isHighlighted
-                                    item
+                                        isHighlighted =
+                                            config.highlightedCategory
+                                                == Just nestedIndex
+                                    in
+                                    Element.el
+                                        [ Element.width Element.fill
+                                        , Element.paddingEach
+                                            { top = Tokens.space0
+                                            , right = Tokens.space0
+                                            , bottom = Tokens.space0
+                                            , left = Tokens.space24
+                                            }
+                                        ]
+                                        (categoryRow theme
+                                            config.commodity
+                                            config.palette
+                                            config.breakdown.total
+                                            nestedIndex
+                                            isHighlighted
+                                            item
+                                        )
                                 )
                         )
+                    )
+                ]
 
             else
                 []
