@@ -177,6 +177,10 @@
             elmVersion = pkgs.elmPackages.elm.version;
             registryDat = elmRegistry;
           };
+          frontendNpmDeps = pkgs.fetchNpmDeps {
+            src = ./frontend-web;
+            hash = "sha256-hYzfnaAhMEpwT923Bl8MPzA6U8a8ebn0Rt98KvIy9Dk=";
+          };
         in
         {
           backend = backend;
@@ -195,6 +199,7 @@
                   hledger
                   just
                   nixfmt
+                  nodejs_22
                   python3
                   ripgrep
                 ];
@@ -205,6 +210,9 @@
                 chmod -R u+w source
                 cd source
                 ${prepareElmDependencies}
+                cp -R ${frontendNpmDeps} "$TMPDIR/npm-cache"
+                chmod -R u+w "$TMPDIR/npm-cache"
+                (cd frontend-web && npm ci --offline --ignore-scripts --cache "$TMPDIR/npm-cache")
                 just check
                 touch $out
               '';

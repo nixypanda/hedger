@@ -11,6 +11,42 @@ let
   enabledInstances = lib.filterAttrs (_: instance: instance.enable) cfg.instances;
   instanceNames = builtins.attrNames enabledInstances;
 
+  ledgerType = lib.types.submodule (
+    { name, ... }:
+    {
+      options = {
+        label = lib.mkOption {
+          type = lib.types.str;
+          default = name;
+          description = "Ledger label shown in the selector.";
+        };
+
+        journalPath = lib.mkOption {
+          type = lib.types.str;
+          description = "Absolute runtime path to this ledger's root journal.";
+        };
+
+        defaultCommodity = lib.mkOption {
+          type = lib.types.str;
+          default = "INR";
+          description = "Default display commodity for this ledger.";
+        };
+
+        fiscalYearStartMonth = lib.mkOption {
+          type = lib.types.ints.between 1 12;
+          default = 4;
+          description = "First month of this ledger's fiscal year.";
+        };
+
+        investments = lib.mkOption {
+          type = lib.types.attrsOf lib.types.anything;
+          default = { };
+          description = "Investment assetClasses and gainMappings for this ledger.";
+        };
+      };
+    }
+  );
+
   instanceType = lib.types.submodule (
     {
       config,
@@ -19,30 +55,32 @@ let
     }:
     {
       options = {
-        enable = lib.mkEnableOption "this Hedger ledger instance";
+        enable = lib.mkEnableOption "this Hedger deployment instance";
 
         dataDir = lib.mkOption {
           type = lib.types.str;
           default = "/var/lib/hedger/${name}";
           description = ''
-            Runtime directory for this ledger. It is created as root-owned and
+            Runtime directory for this instance. It is created as root-owned and
             readable by the instance's dedicated group.
           '';
         };
 
-        journalPath = lib.mkOption {
-          type = lib.types.str;
-          default = "${config.dataDir}/main.journal";
-          description = ''
-            Runtime path to the root journal. This is deliberately a string,
-            not a Nix path, so the journal is never copied into the Nix store.
-            Relative include paths are resolved by hledger from this file.
-          '';
+        defaultLedger = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "Optional ledger ID selected at the application root; without one, visitors choose a ledger.";
+        };
+
+        ledgers = lib.mkOption {
+          type = lib.types.attrsOf ledgerType;
+          default = { };
+          description = "Named ledgers sharing this instance's access policy.";
         };
 
         hostName = lib.mkOption {
           type = lib.types.str;
-          description = "Hostname served by nginx for this ledger.";
+          description = "Hostname served by nginx for this instance.";
           example = "ledger.example.net";
         };
 
@@ -50,28 +88,6 @@ let
           type = lib.types.port;
           default = 8080;
           description = "Unique localhost port for this instance's backend.";
-        };
-
-        defaultCommodity = lib.mkOption {
-          type = lib.types.str;
-          default = "INR";
-          description = "Default display commodity exposed to the frontend.";
-        };
-
-        fiscalYearStartMonth = lib.mkOption {
-          type = lib.types.ints.between 1 12;
-          default = 4;
-          description = "First month of the fiscal year, from 1 to 12.";
-        };
-
-        configFile = lib.mkOption {
-          type = lib.types.nullOr lib.types.path;
-          default = null;
-          description = ''
-            Optional version-1 Hedger YAML configuration, primarily for
-            investment gain mappings. Instance options override its journal,
-            listen address, port, display commodity, and fiscal-year values.
-          '';
         };
 
         supplementaryGroups = lib.mkOption {
@@ -101,36 +117,45 @@ let
   serviceName = name: "hedger-${name}";
   serviceUser = name: "hedger-${name}";
 
-  backendArguments =
-    instance:
-    lib.optionals (instance.configFile != null) [
-      "--config"
-      (toString instance.configFile)
-    ]
-    ++ [
-      "--journal"
-      instance.journalPath
-      "--listen-address"
-      "127.0.0.1"
-      "--port"
-      (toString instance.port)
-      "--display-commodity"
-      instance.defaultCommodity
-      "--fiscal-year-start"
-      (toString instance.fiscalYearStartMonth)
-    ];
+  backendConfig =
+    name: instance:
+    pkgs.writeText "hedger-${name}.json" (
+      builtins.toJSON {
+        version = 2;
+        server = {
+          listenAddress = "127.0.0.1";
+          port = instance.port;
+        };
+        defaultLedger = instance.defaultLedger;
+        ledgers = lib.mapAttrsToList (
+          id: ledger:
+          {
+            inherit id;
+            label = ledger.label;
+            journal.path = ledger.journalPath;
+            display = {
+              commodity = ledger.defaultCommodity;
+              fiscalYearStartMonth = ledger.fiscalYearStartMonth;
+            };
+          }
+          // lib.optionalAttrs (ledger.investments != { }) {
+            investments = ledger.investments;
+          }
+        ) instance.ledgers;
+      }
+    );
 
   backendService =
     name: instance:
     lib.nameValuePair (serviceName name) {
-      description = "Hedger backend for the ${name} ledger";
+      description = "Hedger backend for the ${name} instance";
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
 
       restartTriggers = [
         cfg.backendPackage
-      ]
-      ++ lib.optional (instance.configFile != null) instance.configFile;
+        (backendConfig name instance)
+      ];
 
       serviceConfig = {
         Type = "exec";
@@ -138,9 +163,11 @@ let
         Group = serviceUser name;
         SupplementaryGroups = instance.supplementaryGroups;
         WorkingDirectory = instance.dataDir;
-        ExecStart = lib.escapeShellArgs (
-          [ "${cfg.backendPackage}/bin/hedger-server" ] ++ backendArguments instance
-        );
+        ExecStart = lib.escapeShellArgs ([
+          "${cfg.backendPackage}/bin/hedger-server"
+          "--config"
+          (backendConfig name instance)
+        ]);
         ExecReload = "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
         Restart = "on-failure";
         RestartSec = 5;
@@ -164,8 +191,8 @@ let
         ProtectSystem = "strict";
         ReadOnlyPaths = [
           instance.dataDir
-          instance.journalPath
-        ];
+        ]
+        ++ (lib.mapAttrsToList (_: ledger: ledger.journalPath) instance.ledgers);
         RestrictAddressFamilies = [
           "AF_INET"
           "AF_INET6"
@@ -243,7 +270,7 @@ in
     instances = lib.mkOption {
       type = lib.types.attrsOf instanceType;
       default = { };
-      description = "Named, isolated Hedger deployments, one per ledger.";
+      description = "Named, isolated Hedger deployments, each with one or more ledgers.";
     };
   };
 
@@ -274,13 +301,22 @@ in
       name: instance: {
         assertion =
           lib.hasPrefix "/" instance.dataDir
-          && lib.hasPrefix "/" instance.journalPath
           && instance.hostName != ""
-          && builtins.match "^[^[:space:]]+$" instance.defaultCommodity != null;
+          && instance.ledgers != { }
+          && (instance.defaultLedger == null || builtins.hasAttr instance.defaultLedger instance.ledgers)
+          && lib.all (
+            id:
+            let
+              ledger = instance.ledgers.${id};
+            in
+            builtins.match "^[a-z][a-z0-9-]{0,23}$" id != null
+            && lib.hasPrefix "/" ledger.journalPath
+            && builtins.match ".*[^[:space:]].*" ledger.label != null
+            && builtins.match "^[^[:space:]]+$" ledger.defaultCommodity != null
+          ) (builtins.attrNames instance.ledgers);
         message = ''
-          services.hedger.instances.${name} requires absolute dataDir and
-          journalPath values, a non-empty hostName, and a whitespace-free
-          defaultCommodity.
+          services.hedger.instances.${name} requires valid
+          ledger IDs, absolute journal paths, and non-empty labels and hostName.
         '';
       }
     );

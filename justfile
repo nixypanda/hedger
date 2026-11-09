@@ -97,12 +97,15 @@ dev-backend-perf size="5000":
         50000) journal="../examples/performance/india-us-portfolio-large-50000.journal" ;;
         *) echo "size must be 5000 or 50000" >&2; exit 2 ;;
     esac
-    cabal run --enable-optimization=2 hedger-server -- --config ../hedger.example.yaml --journal "$journal"
+    config=$(mktemp)
+    trap 'rm -f "$config"' EXIT
+    sed "s#../examples/india-us-portfolio-2023-2025.journal#$journal#" ../hedger.example.yaml > "$config"
+    cabal run --enable-optimization=2 hedger-server -- --config "$config"
 
 # Run the backend using paths supplied through the local environment.
 [working-directory("backend")]
 dev-backend-real:
-    cabal run hedger-server -- --config "${HEDGER_CONFIG:?set HEDGER_CONFIG}" --journal "${HEDGER_JOURNAL:?set HEDGER_JOURNAL}"
+    cabal run hedger-server -- --config "${HEDGER_CONFIG:?set HEDGER_CONFIG}"
 
 # Build the frontend.
 [working-directory("frontend-web")]
