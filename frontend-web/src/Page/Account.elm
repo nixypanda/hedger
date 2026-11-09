@@ -641,18 +641,7 @@ accountRow theme expanded depth (AccountNode account) =
                             , size = Tokens.iconSizeCaption
                             , color = theme.primary
                             }
-                        , Element.column
-                            [ Element.width Element.fill
-                            , Element.spacing Tokens.space2
-                            ]
-                            [ Common.truncatedText account.name
-                            , Element.text
-                                (account.accountType
-                                    |> Maybe.map AccountType.toString
-                                    |> Maybe.withDefault "account"
-                                )
-                                |> Element.el (Typography.caption ++ [ Font.color theme.textMuted ])
-                            ]
+                        , Common.truncatedText account.name
                         ]
                 }
 
