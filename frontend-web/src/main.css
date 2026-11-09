@@ -161,6 +161,9 @@ body {
   display: inline-grid !important;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
+  /* elm-ui's row sets `flex-basis: 0%`; this keeps the grid tracks from
+     collapsing to their minimum width. */
+  min-width: max-content;
   position: relative;
   isolation: isolate;
 }

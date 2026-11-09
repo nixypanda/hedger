@@ -218,7 +218,7 @@ segmentedLabel label =
         , Element.centerX
         , Element.centerY
         ]
-        (Element.text label)
+        (Element.el [ Element.centerX, Element.centerY ] (Element.text label))
 
 
 inputAttrs : Theme -> List (Attribute msg)
