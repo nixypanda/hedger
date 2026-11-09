@@ -93,13 +93,18 @@ dev-backend-perf size="5000":
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{size}}" in
-        5000) journal="../examples/performance/india-us-portfolio-medium-5000.journal" ;;
-        50000) journal="../examples/performance/india-us-portfolio-large-50000.journal" ;;
+        5000) journal="$PWD/../examples/performance/india-us-portfolio-medium-5000.journal" ;;
+        50000) journal="$PWD/../examples/performance/india-us-portfolio-large-50000.journal" ;;
         *) echo "size must be 5000 or 50000" >&2; exit 2 ;;
     esac
     config=$(mktemp)
     trap 'rm -f "$config"' EXIT
-    sed "s#../examples/india-us-portfolio-2023-2025.journal#$journal#" ../hedger.example.yaml > "$config"
+    sed \
+      -e "s#examples/india-us-portfolio-2023-2025.journal#$journal#" \
+      -e "s#examples/personal.settings.yaml#$PWD/../examples/personal.settings.yaml#" \
+      -e "s#examples/demo.settings.yaml#$PWD/../examples/demo.settings.yaml#" \
+      -e "s#backend/test/fixtures/shared.journal#$PWD/../backend/test/fixtures/shared.journal#" \
+      ../hedger.example.yaml > "$config"
     cabal run --enable-optimization=2 hedger-server -- --config "$config"
 
 # Run the backend using paths supplied through the local environment.

@@ -144,7 +144,7 @@ light/dark themes, automatic journal reloads, and live frontend refresh.
 - [Deployment](docs/deployment.md) — the NixOS module and production topology.
 - [Local development](docs/local-development.md) — dev shell, running, and checks.
 
-The [configuration example](hedger.example.yaml) shows every supported option.
+The [deployment configuration example](hedger.example.yaml) and [per-ledger settings example](examples/personal.settings.yaml) show every supported option.
 
 Agent and contributor instructions live in [AGENTS.md](AGENTS.md).
 

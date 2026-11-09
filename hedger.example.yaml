@@ -1,60 +1,15 @@
-version: 2
+version: 3
+
 server:
   listenAddress: "127.0.0.1"
   port: 8080
+
 ledgers:
   - id: personal
     label: Personal
-    journal:
-      path: "../examples/india-us-portfolio-2023-2025.journal"
-    display:
-      commodity: "INR"
-      fiscalYearStartMonth: 4
-    investments:
-      assetClasses:
-        - kind: equity
-          accountPrefixes:
-            - "assets:equity"
-          targetPercent: 60
-        - kind: debt
-          accountPrefixes:
-            - "assets:debt"
-          targetPercent: 25
-        - kind: cash
-          accountPrefixes:
-            - "assets:liquid"
-          targetPercent: 5
-        - kind: hybrid
-          accountPrefixes:
-            - "assets:hybrid"
-          targetPercent: 10
-      gainMappings:
-        - assetAccount: "assets:debt:fd"
-          gainAccounts:
-            - "income:interest:fd"
-        - assetAccount: "assets:debt:epf:india:nimbusworks"
-          gainAccounts:
-            - "income:interest:epf"
-        - assetAccount: "assets:debt:eps:india:nimbusworks"
-          gainAccounts:
-            - "income:interest:eps"
-        - assetAccount: "assets:debt:ppf:india:varuna"
-          gainAccounts:
-            - "income:interest:ppf"
-        - assetAccount: "assets:hybrid:india:nps:monsoon"
-          gainAccounts:
-            - "income:interest:nps"
-        - assetAccount: "assets:liquid"
-          gainAccounts:
-            - "income:interest:liquid"
-        - assetAccount: "assets:equity"
-          gainAccounts:
-            - "income:dividend:india"
-            - "income:dividend:us"
+    journalPath: "examples/india-us-portfolio-2023-2025.journal"
+    configPath: "examples/personal.settings.yaml"
   - id: demo
     label: Demo
-    journal:
-      path: "test/fixtures/shared.journal"
-    display:
-      commodity: "INR"
-      fiscalYearStartMonth: 4
+    journalPath: "backend/test/fixtures/shared.journal"
+    configPath: "examples/demo.settings.yaml"

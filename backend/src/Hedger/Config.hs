@@ -19,8 +19,9 @@ module Hedger.Config (
     LedgerId,
     ledgerIdText,
     mkLedgerId,
+    decodeCatalogFileConfig,
     loadCatalog,
-    parseCatalog,
+    loadCatalogFile,
 ) where
 
 import Control.Applicative ((<|>))
@@ -40,6 +41,7 @@ import Data.Text qualified as Text
 import Data.Yaml qualified as Yaml
 import GHC.Generics (Generic)
 import Options.Applicative qualified as Options
+import System.FilePath (isAbsolute, normalise, takeDirectory, (</>))
 
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.Period (MonthOfYear, mkMonthOfYear)
@@ -147,9 +149,8 @@ data CatalogFileConfig = CatalogFileConfig
 data LedgerFileConfig = LedgerFileConfig
     { id :: Text
     , label :: Text
-    , journal :: JournalFileConfig
-    , display :: Maybe DisplayFileConfig
-    , investments :: Maybe InvestmentsFileConfig
+    , journalPath :: Text
+    , configPath :: Text
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON)
@@ -254,7 +255,7 @@ loadConfig = do
                 case loaded of
                     Left problem ->
                         Left
-                            ( "Could not read configuration file "
+                            ( "Could not read settings file "
                                 <> configPath
                                 <> ": "
                                 <> Text.pack (displayException problem)
@@ -270,20 +271,29 @@ parseConfig document arguments = do
 loadCatalog :: IO (Either Text Catalog)
 loadCatalog = do
     configPath <- Options.execParser catalogParserInfo
-    loaded <- readConfigurationFile (Text.unpack configPath)
-    pure $
-        case loaded of
-            Left problem ->
+    loadCatalogFile (Text.unpack configPath)
+
+loadCatalogFile :: FilePath -> IO (Either Text Catalog)
+loadCatalogFile path = do
+    loaded <- readConfigurationFile path
+    case loaded of
+        Left problem ->
+            pure $
                 Left
-                    ( "Could not read configuration file "
-                        <> configPath
+                    ( "Could not read settings file "
+                        <> Text.pack path
                         <> ": "
                         <> Text.pack (displayException problem)
                     )
-            Right contents -> parseCatalog contents
+        Right contents -> do
+            decoded <- pure (decodeCatalogFileConfig contents)
+            case decoded of
+                Left problem -> pure (Left problem)
+                Right fileConfig ->
+                    resolveCatalogIO (takeDirectory path) fileConfig
 
-parseCatalog :: ByteString -> Either Text Catalog
-parseCatalog contents = do
+decodeCatalogFileConfig :: ByteString -> Either Text CatalogFileConfig
+decodeCatalogFileConfig contents = do
     raw <-
         case Yaml.decodeEither' contents of
             Left problem -> Left (Text.pack (Yaml.prettyPrintParseException problem))
@@ -292,53 +302,197 @@ parseCatalog contents = do
         Aeson.Object fields
             | any (`KeyMap.member` fields) ["journal", "display", "investments"] ->
                 Left
-                    ( "Version-2 configuration must place journal, display, "
-                        <> "and investments under ledgers."
+                    ( "Version-3 configuration no longer accepts top-level "
+                        <> "journal, display, or investments settings."
                     )
         _ -> pure ()
+    case raw of
+        Aeson.Object fields
+            | Just (Aeson.Array ledgers) <- KeyMap.lookup "ledgers" fields ->
+                case traverse validateLedgerEntry ledgers of
+                    Left problem -> Left problem
+                    Right _ -> Right ()
+        _ -> Right ()
     fileConfig <-
         case Aeson.fromJSON raw of
             Aeson.Error problem -> Left (Text.pack problem)
             Aeson.Success decoded -> Right decoded
-    if fileConfig.version == 2
-        then resolveCatalog fileConfig
-        else Left "Configuration version must be 2."
+    if fileConfig.version == 3
+        then Right fileConfig
+        else Left "Configuration version must be 3."
 
-resolveCatalog :: CatalogFileConfig -> Either Text Catalog
-resolveCatalog fileConfig = do
-    defaultLedger <- traverse mkLedgerId fileConfig.defaultLedger
-    entries <- traverse resolveLedger fileConfig.ledgers
-    let ledgers = Map.fromList entries
-        ledgerOrder = fst <$> entries
-    if null entries
-        then Left "At least one ledger is required."
-        else pure ()
-    if Map.size ledgers == length entries
-        then pure ()
-        else Left "Ledger IDs must be unique."
-    if maybe True (`Map.member` ledgers) defaultLedger
-        then pure ()
-        else Left "The default ledger must name a configured ledger."
-    let server = fileConfig.server
+validateLedgerEntry :: Aeson.Value -> Either Text ()
+validateLedgerEntry (Aeson.Object fields)
+    | any (`KeyMap.member` fields) ["journal", "display", "investments"] =
+        Left
+            ( "Version-3 ledger entries no longer accept inline journal, "
+                <> "display, or investments settings; use journalPath and configPath."
+            )
+validateLedgerEntry _ = Right ()
+
+resolveCatalogIO :: FilePath -> CatalogFileConfig -> IO (Either Text Catalog)
+resolveCatalogIO baseDir fileConfig =
+    case resolveServerConfig fileConfig.server of
+        Left problem -> pure (Left problem)
+        Right (listenAddress, listenPort) ->
+            case traverse mkLedgerId fileConfig.defaultLedger of
+                Left problem -> pure (Left problem)
+                Right defaultLedger -> do
+                    entriesResult <- resolveLedgersIO baseDir fileConfig fileConfig.ledgers
+                    case entriesResult of
+                        Left problem -> pure (Left problem)
+                        Right entries -> do
+                            let ledgers = Map.fromList entries
+                                ledgerOrder = fst <$> entries
+                            let defaultLedgerError =
+                                    "Default ledger must name a configured ledger."
+                            if null entries
+                                then pure (Left "At least one ledger is required.")
+                                else
+                                    if Map.size ledgers /= length entries
+                                        then pure (Left "Ledger IDs must be unique.")
+                                        else
+                                            if not (maybe True (`Map.member` ledgers) defaultLedger)
+                                                then pure (Left defaultLedgerError)
+                                                else pure (Right Catalog{..})
+
+resolveServerConfig :: Maybe ServerFileConfig -> Either Text (Text, Port)
+resolveServerConfig server = do
     listenPort <- mkPort ((server >>= (.port)) `orDefault` 8080)
     let listenAddress = (server >>= (.listenAddress)) `orDefault` "127.0.0.1"
     requireToken "listen address" listenAddress
-    pure Catalog{..}
+    pure (listenAddress, listenPort)
+
+resolveLedgersIO ::
+    FilePath ->
+    CatalogFileConfig ->
+    [LedgerFileConfig] ->
+    IO (Either Text [(LedgerId, LedgerConfig)])
+resolveLedgersIO baseDir catalogFile entries =
+    foldLedgers (Right []) entries
   where
-    resolveLedger entry = do
-        ledgerId <- mkLedgerId entry.id
-        requireNonBlank "ledger label" entry.label
-        let fileConfigForLedger =
-                FileConfig
-                    { version = 1
-                    , journal = Just entry.journal
-                    , server = fileConfig.server
-                    , display = entry.display
-                    , investments = entry.investments
-                    }
-            noOverrides = CliOptions Nothing Nothing Nothing Nothing Nothing Nothing
-        ledgerConfig <- resolveConfig fileConfigForLedger noOverrides
-        pure (ledgerId, LedgerConfig entry.label ledgerConfig)
+    foldLedgers accumulator [] = pure accumulator
+    foldLedgers accumulator (entry : rest) =
+        case accumulator of
+            Left problem -> pure (Left problem)
+            Right collected -> do
+                result <- resolveLedgerIO baseDir catalogFile entry
+                case result of
+                    Left problem -> pure (Left problem)
+                    Right resolved -> foldLedgers (Right (collected <> [resolved])) rest
+
+resolveLedgerIO ::
+    FilePath ->
+    CatalogFileConfig ->
+    LedgerFileConfig ->
+    IO (Either Text (LedgerId, LedgerConfig))
+resolveLedgerIO baseDir catalogFile entry = do
+    case mkLedgerId entry.id of
+        Left problem -> pure (Left problem)
+        Right ledgerId -> do
+            if Text.all Char.isSpace entry.label || Text.null entry.label
+                then pure (Left "A non-empty ledger label is required.")
+                else do
+                    if Text.all Char.isSpace entry.journalPath || Text.null entry.journalPath
+                        then pure (Left "A non-empty journal path is required.")
+                        else do
+                            let journalPathResolved = resolveRelativePath baseDir entry.journalPath
+                            if Text.all Char.isSpace journalPathResolved
+                                || Text.null journalPathResolved
+                                then pure (Left "A non-empty journal path is required.")
+                                else do
+                                    let settingsPath = resolveRelativePath baseDir entry.configPath
+                                    settingsResult <-
+                                        if Text.all Char.isSpace entry.configPath
+                                            || Text.null entry.configPath
+                                            then
+                                                pure
+                                                    ( Left
+                                                        "A non-empty config path is required."
+                                                    )
+                                            else do
+                                                loaded <-
+                                                    readConfigurationFile (Text.unpack settingsPath)
+                                                case loaded of
+                                                    Left problem ->
+                                                        pure $
+                                                            Left
+                                                                ( "Could not read settings file "
+                                                                    <> settingsPath
+                                                                    <> " for ledger "
+                                                                    <> entry.id
+                                                                    <> ": "
+                                                                    <> Text.pack
+                                                                        (displayException problem)
+                                                                )
+                                                    Right contents ->
+                                                        pure
+                                                            ( decodeLedgerSettingsFileConfig
+                                                                contents
+                                                            )
+                                    case settingsResult of
+                                        Left problem ->
+                                            pure
+                                                ( Left
+                                                    ( problem
+                                                        <> " (ledger "
+                                                        <> entry.id
+                                                        <> ", settings "
+                                                        <> settingsPath
+                                                        <> ")"
+                                                    )
+                                                )
+                                        Right settings -> do
+                                            let fileConfigForLedger =
+                                                    FileConfig
+                                                        { version = 1
+                                                        , journal =
+                                                            Just
+                                                                ( JournalFileConfig
+                                                                    journalPathResolved
+                                                                )
+                                                        , server = catalogFile.server
+                                                        , display = settings.display
+                                                        , investments = settings.investments
+                                                        }
+                                                noOverrides =
+                                                    CliOptions
+                                                        Nothing
+                                                        Nothing
+                                                        Nothing
+                                                        Nothing
+                                                        Nothing
+                                                        Nothing
+                                            case resolveConfig fileConfigForLedger noOverrides of
+                                                Left problem ->
+                                                    pure
+                                                        ( Left
+                                                            ( problem
+                                                                <> " (ledger "
+                                                                <> entry.id
+                                                                <> ", settings "
+                                                                <> settingsPath
+                                                                <> ")"
+                                                            )
+                                                        )
+                                                Right ledgerConfig ->
+                                                    pure
+                                                        ( Right
+                                                            ( ledgerId
+                                                            , LedgerConfig entry.label ledgerConfig
+                                                            )
+                                                        )
+
+resolveRelativePath :: FilePath -> Text -> Text
+resolveRelativePath baseDir raw =
+    if Text.null raw
+        then raw
+        else
+            let combined =
+                    if isAbsolute (Text.unpack raw)
+                        then Text.unpack raw
+                        else normalise (baseDir </> Text.unpack raw)
+             in Text.pack combined
 
 catalogParserInfo :: Options.ParserInfo Text
 catalogParserInfo =
@@ -348,7 +502,7 @@ catalogParserInfo =
                     <$> Options.strOption
                         ( Options.long "config"
                             <> Options.metavar "PATH"
-                            <> Options.help "Version-2 YAML configuration"
+                            <> Options.help "Version-3 YAML configuration"
                         )
                 )
         )
@@ -375,6 +529,44 @@ emptyFileConfig =
         , display = Nothing
         , investments = Nothing
         }
+
+data LedgerSettingsFileConfig = LedgerSettingsFileConfig
+    { version :: Int
+    , display :: Maybe DisplayFileConfig
+    , investments :: Maybe InvestmentsFileConfig
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+decodeLedgerSettingsFileConfig :: ByteString -> Either Text LedgerSettingsFileConfig
+decodeLedgerSettingsFileConfig contents = do
+    raw <-
+        case Yaml.decodeEither' contents of
+            Left problem -> Left (Text.pack (Yaml.prettyPrintParseException problem))
+            Right decoded -> Right decoded
+    case raw of
+        Aeson.Object fields
+            | any
+                (`KeyMap.member` fields)
+                [ "server"
+                , "journal"
+                , "journalPath"
+                , "configPath"
+                , "ledgers"
+                , "defaultLedger"
+                ] ->
+                Left
+                    ( "Ledger settings files may contain only display and "
+                        <> "investments settings."
+                    )
+        _ -> pure ()
+    fileConfig <-
+        case Aeson.fromJSON raw of
+            Aeson.Error problem -> Left (Text.pack problem)
+            Aeson.Success decoded -> Right decoded
+    if fileConfig.version == 1
+        then Right fileConfig
+        else Left "Configuration version must be 1."
 
 -- * Configuration resolution
 resolveConfig :: FileConfig -> CliOptions -> Either Text Config

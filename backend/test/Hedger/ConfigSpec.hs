@@ -2,21 +2,35 @@ module Hedger.ConfigSpec (
     configSpec,
 ) where
 
+import Control.Exception (IOException, catch, finally)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as ByteString
 import Data.Either (isLeft)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
+import System.Directory (
+    createDirectory,
+    getTemporaryDirectory,
+    removeDirectoryRecursive,
+    removeFile,
+    withCurrentDirectory,
+ )
+import System.FilePath ((</>))
+import System.IO (hClose, openTempFile)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import Hedger.Config (
     Catalog (..),
     Config (..),
+    LedgerConfig (..),
+    LedgerId,
+    decodeCatalogFileConfig,
     ledgerIdText,
+    loadCatalogFile,
     mkConfig,
-    parseCatalog,
+    mkLedgerId,
     parseConfig,
     portValue,
  )
@@ -30,6 +44,17 @@ configSpec =
         "configuration"
         [ testCase "requires a journal runtime path" requiresJournalPath
         , testCase "loads a named ledger catalog" loadsCatalog
+        , testCase "applies referenced ledger settings" appliesReferencedSettings
+        , testCase
+            "resolves relative paths from another working directory"
+            resolvesRelativePathsAcrossCwd
+        , testCase "rejects a missing ledger settings file" rejectsMissingSettingsFile
+        , testCase "rejects malformed ledger settings" rejectsMalformedSettings
+        , testCase "rejects the wrong ledger settings version" rejectsWrongSettingsVersion
+        , testCase "rejects deployment keys in ledger settings" rejectsDeploymentKeysInSettings
+        , testCase "rejects a blank configuration path" rejectsBlankConfigPath
+        , testCase "rejects a whitespace-only journal path" rejectsWhitespaceJournalPath
+        , testCase "rejects mixed ledger keys" rejectsMixedLedgerKeys
         , testCase "allows a catalog without a default ledger" allowsNoDefaultLedger
         , testCase "rejects duplicate catalog IDs" rejectsDuplicateCatalogIds
         , testCase "rejects mixed configuration layouts" rejectsMixedCatalogLayout
@@ -59,65 +84,94 @@ requiresJournalPath =
     assertEqual "" (Left "A non-empty journal path is required.") (parseConfig Nothing [])
 
 loadsCatalog :: IO ()
-loadsCatalog = do
-    catalog <- either (assertFailure . Text.unpack) pure (parseCatalog catalogDocument)
+loadsCatalog = withTempConfigDir $ \directory -> do
+    ByteString.writeFile (directory </> "personal.settings.yaml") personalSettings
+    ByteString.writeFile (directory </> "business.settings.yaml") businessSettings
+    ByteString.writeFile (directory </> "catalog.yaml") catalogDocument
+    catalog <-
+        either (assertFailure . Text.unpack) pure
+            =<< loadCatalogFile (directory </> "catalog.yaml")
     assertEqual "two ledgers" 2 (Map.size catalog.ledgers)
     assertEqual
         "configuration order"
         ["personal", "business"]
         (ledgerIdText <$> catalog.ledgerOrder)
+    let Just personal = Map.lookup (requireLedgerId "personal") catalog.ledgers
+    assertEqual "personal commodity" "USD" personal.ledgerConfig.defaultDisplayCommodity
+    assertEqual
+        "personal fiscal month"
+        1
+        (monthOfYearValue personal.ledgerConfig.fiscalYearStartMonth)
+    let Just business = Map.lookup (requireLedgerId "business") catalog.ledgers
+    assertEqual "business commodity" "EUR" business.ledgerConfig.defaultDisplayCommodity
+    assertEqual
+        "business fiscal month"
+        7
+        (monthOfYearValue business.ledgerConfig.fiscalYearStartMonth)
 
 allowsNoDefaultLedger :: IO ()
-allowsNoDefaultLedger = do
-    catalog <- either (assertFailure . Text.unpack) pure (parseCatalog noDefaultCatalogDocument)
+allowsNoDefaultLedger = withTempConfigDir $ \directory -> do
+    ByteString.writeFile (directory </> "personal.settings.yaml") personalSettings
+    ByteString.writeFile (directory </> "catalog.yaml") noDefaultCatalogDocument
+    catalog <-
+        either (assertFailure . Text.unpack) pure
+            =<< loadCatalogFile (directory </> "catalog.yaml")
     assertEqual "no default" Nothing catalog.defaultLedger
 
 noDefaultCatalogDocument :: ByteString
 noDefaultCatalogDocument =
     ByteString.unlines
-        [ "version: 2"
+        [ "version: 3"
         , "ledgers:"
         , "  - id: personal"
         , "    label: Personal"
-        , "    journal:"
-        , "      path: personal.journal"
+        , "    journalPath: personal.journal"
+        , "    configPath: personal.settings.yaml"
         ]
 
 rejectsDuplicateCatalogIds :: IO ()
-rejectsDuplicateCatalogIds =
-    assertBool
-        "duplicate IDs should be rejected"
-        (isLeft (parseCatalog (catalogDocument <> duplicateLedger)))
+rejectsDuplicateCatalogIds = withTempConfigDir $ \directory -> do
+    ByteString.writeFile (directory </> "personal.settings.yaml") personalSettings
+    ByteString.writeFile (directory </> "business.settings.yaml") businessSettings
+    ByteString.writeFile (directory </> "other.settings.yaml") personalSettings
+    ByteString.writeFile (directory </> "catalog.yaml") (catalogDocument <> duplicateLedger)
+    result <- loadCatalogFile (directory </> "catalog.yaml")
+    case result of
+        Left problem ->
+            assertBool
+                "mentions duplicate ledger IDs"
+                ("Ledger IDs must be unique." `Text.isInfixOf` problem)
+        Right _ -> assertFailure "expected failure"
 
 rejectsMixedCatalogLayout :: IO ()
 rejectsMixedCatalogLayout =
     assertBool
         "top-level journal is invalid in a catalog"
-        (isLeft (parseCatalog (catalogDocument <> "journal:\n  path: other.journal\n")))
+        (isLeft (decodeCatalogFileConfig (catalogDocument <> "journal:\n  path: other.journal\n")))
 
 duplicateLedger :: ByteString
 duplicateLedger =
     ByteString.unlines
         [ "  - id: personal"
         , "    label: Again"
-        , "    journal:"
-        , "      path: other.journal"
+        , "    journalPath: other.journal"
+        , "    configPath: other.settings.yaml"
         ]
 
 catalogDocument :: ByteString
 catalogDocument =
     ByteString.unlines
-        [ "version: 2"
+        [ "version: 3"
         , "defaultLedger: personal"
         , "ledgers:"
         , "  - id: personal"
         , "    label: Personal"
-        , "    journal:"
-        , "      path: personal.journal"
+        , "    journalPath: personal.journal"
+        , "    configPath: personal.settings.yaml"
         , "  - id: business"
         , "    label: Business"
-        , "    journal:"
-        , "      path: business.journal"
+        , "    journalPath: business.journal"
+        , "    configPath: business.settings.yaml"
         ]
 
 builderValidatesJournalPath :: IO ()
@@ -413,4 +467,212 @@ assetClassConfigWith setting =
         , "  assetClasses:"
         , "    - kind: equity"
         , "      " <> setting
+        ]
+
+personalSettings :: ByteString
+personalSettings =
+    ByteString.unlines
+        [ "version: 1"
+        , "display:"
+        , "  commodity: \"USD\""
+        , "  fiscalYearStartMonth: 1"
+        , "investments:"
+        , "  gainMappings:"
+        , "    - assetAccount: \"assets:equity\""
+        , "      gainAccounts: [\"income:dividend\"]"
+        , "  assetClasses:"
+        , "    - kind: equity"
+        , "      accountPrefixes: [assets:equity]"
+        , "      targetPercent: 100"
+        ]
+
+businessSettings :: ByteString
+businessSettings =
+    ByteString.unlines
+        [ "version: 1"
+        , "display:"
+        , "  commodity: \"EUR\""
+        , "  fiscalYearStartMonth: 7"
+        ]
+
+withTempConfigDir :: (FilePath -> IO a) -> IO a
+withTempConfigDir action = do
+    parent <- getTemporaryDirectory
+    (path, handle) <- openTempFile parent "hedger-config-XXXXXX"
+    hClose handle
+    removeFile path
+    createDirectory path
+    action path `finally` removeDirectoryRecursive path
+
+requireLedgerId :: Text -> LedgerId
+requireLedgerId value =
+    case mkLedgerId value of
+        Right ledgerId -> ledgerId
+        Left problem -> error (Text.unpack problem)
+
+appliesReferencedSettings :: IO ()
+appliesReferencedSettings = withTempConfigDir $ \directory -> do
+    ByteString.writeFile (directory </> "personal.settings.yaml") personalSettings
+    ByteString.writeFile (directory </> "business.settings.yaml") businessSettings
+    ByteString.writeFile (directory </> "catalog.yaml") catalogDocument
+    catalog <-
+        either (assertFailure . Text.unpack) pure
+            =<< loadCatalogFile (directory </> "catalog.yaml")
+    let Just personal = Map.lookup (requireLedgerId "personal") catalog.ledgers
+    assertEqual "personal commodity" "USD" personal.ledgerConfig.defaultDisplayCommodity
+    assertEqual
+        "personal fiscal month"
+        1
+        (monthOfYearValue personal.ledgerConfig.fiscalYearStartMonth)
+    case Investment.mappingForAccount "assets:equity" personal.ledgerConfig.investmentMappings of
+        Nothing -> assertFailure "expected equity gain mapping"
+        Just mapping ->
+            assertEqual
+                "personal gain accounts"
+                ["income:dividend"]
+                (Investment.accountNameText . (.account) <$> mapping.performanceAccounts)
+    assertEqual
+        "personal asset class"
+        Investment.Equity
+        ( Investment.assetClassForAccount
+            "assets:equity:holding"
+            personal.ledgerConfig.assetClassMappings
+        )
+
+resolvesRelativePathsAcrossCwd :: IO ()
+resolvesRelativePathsAcrossCwd = withTempConfigDir $ \directory -> do
+    let base = directory </> "base"
+    createDirectory base
+    ByteString.writeFile (base </> "personal.settings.yaml") personalSettings
+    ByteString.writeFile (base </> "business.settings.yaml") businessSettings
+    ByteString.writeFile (base </> "personal.journal") "2024-01-01 open assets:cash\n"
+    ByteString.writeFile (base </> "catalog.yaml") catalogDocument
+    result <- loadCatalogFile (base </> "catalog.yaml")
+    case result of
+        Left problem -> assertFailure (Text.unpack problem)
+        Right catalog -> do
+            let Just personal = Map.lookup (requireLedgerId "personal") catalog.ledgers
+            assertEqual
+                "journal path"
+                (base </> "personal.journal")
+                (Text.unpack personal.ledgerConfig.journalPath)
+
+rejectsMissingSettingsFile :: IO ()
+rejectsMissingSettingsFile = withTempConfigDir $ \directory -> do
+    ByteString.writeFile (directory </> "catalog.yaml") catalogDocument
+    result <- loadCatalogFile (directory </> "catalog.yaml")
+    case result of
+        Left problem -> do
+            assertBool "mentions ledger id" ("personal" `Text.isInfixOf` problem)
+            assertBool
+                "mentions resolved path"
+                ( Text.pack (directory </> "personal.settings.yaml")
+                    `Text.isInfixOf` problem
+                )
+        Right _ -> assertFailure "expected failure"
+
+rejectsMalformedSettings :: IO ()
+rejectsMalformedSettings = withTempConfigDir $ \directory -> do
+    ByteString.writeFile (directory </> "personal.settings.yaml") "display: ["
+    ByteString.writeFile (directory </> "catalog.yaml") catalogDocument
+    result <- loadCatalogFile (directory </> "catalog.yaml")
+    case result of
+        Left problem -> do
+            assertBool "mentions ledger id" ("personal" `Text.isInfixOf` problem)
+            assertBool
+                "mentions resolved path"
+                ( Text.pack (directory </> "personal.settings.yaml")
+                    `Text.isInfixOf` problem
+                )
+        Right _ -> assertFailure "expected failure"
+
+rejectsWrongSettingsVersion :: IO ()
+rejectsWrongSettingsVersion = withTempConfigDir $ \directory -> do
+    ByteString.writeFile
+        (directory </> "personal.settings.yaml")
+        "version: 2\ndisplay:\n  commodity: USD\n"
+    ByteString.writeFile (directory </> "catalog.yaml") catalogDocument
+    result <- loadCatalogFile (directory </> "catalog.yaml")
+    case result of
+        Left problem -> do
+            assertBool "mentions ledger id" ("personal" `Text.isInfixOf` problem)
+            assertBool
+                "mentions resolved path"
+                ( Text.pack (directory </> "personal.settings.yaml")
+                    `Text.isInfixOf` problem
+                )
+        Right _ -> assertFailure "expected failure"
+
+rejectsDeploymentKeysInSettings :: IO ()
+rejectsDeploymentKeysInSettings = withTempConfigDir $ \directory -> do
+    ByteString.writeFile
+        (directory </> "personal.settings.yaml")
+        ( ByteString.unlines
+            [ "version: 1"
+            , "journalPath: x.journal"
+            , "display:"
+            , "  commodity: USD"
+            ]
+        )
+    ByteString.writeFile (directory </> "catalog.yaml") catalogDocument
+    result <- loadCatalogFile (directory </> "catalog.yaml")
+    assertBool "deployment keys rejected" (isLeft result)
+
+rejectsBlankConfigPath :: IO ()
+rejectsBlankConfigPath = withTempConfigDir $ \directory -> do
+    let content =
+            ByteString.unlines
+                [ "version: 3"
+                , "ledgers:"
+                , "  - id: personal"
+                , "    label: Personal"
+                , "    journalPath: personal.journal"
+                , "    configPath: \"\""
+                ]
+    ByteString.writeFile (directory </> "catalog.yaml") content
+    result <- loadCatalogFile (directory </> "catalog.yaml")
+    case result of
+        Left problem ->
+            assertBool
+                "blank config path error"
+                ("A non-empty config path is required." `Text.isInfixOf` problem)
+        Right _ -> assertFailure "expected failure"
+
+rejectsWhitespaceJournalPath :: IO ()
+rejectsWhitespaceJournalPath = withTempConfigDir $ \directory -> do
+    let content =
+            ByteString.unlines
+                [ "version: 3"
+                , "ledgers:"
+                , "  - id: personal"
+                , "    label: Personal"
+                , "    journalPath: \"   \""
+                , "    configPath: personal.settings.yaml"
+                ]
+    ByteString.writeFile (directory </> "catalog.yaml") content
+    result <- loadCatalogFile (directory </> "catalog.yaml")
+    case result of
+        Left problem ->
+            assertBool
+                "whitespace journal path error"
+                ("A non-empty journal path is required." `Text.isInfixOf` problem)
+        Right _ -> assertFailure "expected failure"
+
+rejectsMixedLedgerKeys :: IO ()
+rejectsMixedLedgerKeys =
+    assertBool
+        "mixed ledger keys rejected"
+        (isLeft (decodeCatalogFileConfig mixedLedgerDocument))
+
+mixedLedgerDocument :: ByteString
+mixedLedgerDocument =
+    ByteString.unlines
+        [ "version: 3"
+        , "ledgers:"
+        , "  - id: personal"
+        , "    label: Personal"
+        , "    journalPath: personal.journal"
+        , "    configPath: personal.settings.yaml"
+        , "    display:"
+        , "      commodity: USD"
         ]

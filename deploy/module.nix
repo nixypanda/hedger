@@ -26,22 +26,9 @@ let
           description = "Absolute runtime path to this ledger's root journal.";
         };
 
-        defaultCommodity = lib.mkOption {
+        configPath = lib.mkOption {
           type = lib.types.str;
-          default = "INR";
-          description = "Default display commodity for this ledger.";
-        };
-
-        fiscalYearStartMonth = lib.mkOption {
-          type = lib.types.ints.between 1 12;
-          default = 4;
-          description = "First month of this ledger's fiscal year.";
-        };
-
-        investments = lib.mkOption {
-          type = lib.types.attrsOf lib.types.anything;
-          default = { };
-          description = "Investment assetClasses and gainMappings for this ledger.";
+          description = "Absolute runtime path to this ledger's version-1 settings file.";
         };
       };
     }
@@ -121,27 +108,18 @@ let
     name: instance:
     pkgs.writeText "hedger-${name}.json" (
       builtins.toJSON {
-        version = 2;
+        version = 3;
         server = {
           listenAddress = "127.0.0.1";
           port = instance.port;
         };
         defaultLedger = instance.defaultLedger;
-        ledgers = lib.mapAttrsToList (
-          id: ledger:
-          {
-            inherit id;
-            label = ledger.label;
-            journal.path = ledger.journalPath;
-            display = {
-              commodity = ledger.defaultCommodity;
-              fiscalYearStartMonth = ledger.fiscalYearStartMonth;
-            };
-          }
-          // lib.optionalAttrs (ledger.investments != { }) {
-            investments = ledger.investments;
-          }
-        ) instance.ledgers;
+        ledgers = lib.mapAttrsToList (id: ledger: {
+          inherit id;
+          label = ledger.label;
+          journalPath = ledger.journalPath;
+          configPath = ledger.configPath;
+        }) instance.ledgers;
       }
     );
 
@@ -192,7 +170,8 @@ let
         ReadOnlyPaths = [
           instance.dataDir
         ]
-        ++ (lib.mapAttrsToList (_: ledger: ledger.journalPath) instance.ledgers);
+        ++ (lib.mapAttrsToList (_: ledger: ledger.journalPath) instance.ledgers)
+        ++ (lib.mapAttrsToList (_: ledger: ledger.configPath) instance.ledgers);
         RestrictAddressFamilies = [
           "AF_INET"
           "AF_INET6"
@@ -312,11 +291,11 @@ in
             builtins.match "^[a-z][a-z0-9-]{0,23}$" id != null
             && lib.hasPrefix "/" ledger.journalPath
             && builtins.match ".*[^[:space:]].*" ledger.label != null
-            && builtins.match "^[^[:space:]]+$" ledger.defaultCommodity != null
+            && lib.hasPrefix "/" ledger.configPath
           ) (builtins.attrNames instance.ledgers);
         message = ''
           services.hedger.instances.${name} requires valid
-          ledger IDs, absolute journal paths, and non-empty labels and hostName.
+          ledger IDs, absolute journal and settings paths, and non-empty labels and hostName.
         '';
       }
     );

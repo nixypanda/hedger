@@ -47,14 +47,12 @@ Configure named ledgers within an instance:
       ledgers.personal = {
         label = "Personal";
         journalPath = "/var/lib/hedger/personal/main.journal";
-        defaultCommodity = "INR";
-        fiscalYearStartMonth = 4;
+        configPath = "/var/lib/hedger/personal/settings.yaml";
       };
       ledgers.business = {
         label = "Business";
         journalPath = "/var/lib/hedger/personal/business/main.journal";
-        defaultCommodity = "USD";
-        fiscalYearStartMonth = 1;
+        configPath = "/var/lib/hedger/personal/business/settings.yaml";
       };
       enableACME = true;
       forceSSL = true;
@@ -64,21 +62,23 @@ Configure named ledgers within an instance:
 ```
 
 The module creates `/var/lib/hedger/personal` as `root:hedger-personal` with
-mode `0750`. Grant that service user read access to every configured journal
-and its include tree. For journals managed by another group, set
+mode `0750`. Grant that service user read access to every configured journal,
+its include tree, and each referenced settings file. For journals managed by another group, set
 `supplementaryGroups` accordingly.
 
-Each ledger can set `investments.assetClasses` and
-`investments.gainMappings` in its Nix options (see [backend.md](backend.md)).
-The module generates version-2 JSON configuration, which the backend reads as
-YAML. Only runtime journal paths, not journal contents, appear in that file.
-Omit `defaultLedger` to show a ledger picker at the application root. Visitors
-can switch ledgers later from Settings.
+Each ledger references a user-owned version-1 settings file through
+`configPath`; display commodity, fiscal year, and investment mappings live in
+that file (see [backend.md](backend.md)). The module generates version-3 JSON
+configuration, which the backend reads as YAML. Only runtime paths, not journal
+or settings contents, appear in that generated file. Omit `defaultLedger` to
+show a ledger picker at the application root. Visitors can switch ledgers later
+from Settings.
 
-Existing NixOS configurations must move `journalPath`, `defaultCommodity`, and
-`fiscalYearStartMonth` under `ledgers.<id>`. Replace `configFile` with the
-module's generated catalog options, and set `defaultLedger` only if the root
-should open one ledger automatically.
+Existing NixOS configurations must move to `ledgers.<id>.journalPath` and
+`ledgers.<id>.configPath`. Settings are no longer generated from
+`defaultCommodity`, `fiscalYearStartMonth`, or `investments`; create the
+referenced settings files before enabling the instance. `defaultLedger` should
+be set only if the root should open one ledger automatically.
 
 The backend listens only on `127.0.0.1`. nginx preserves `/api/*` (including the
 ledger-scoped SSE streams), prevents API errors from falling through to the

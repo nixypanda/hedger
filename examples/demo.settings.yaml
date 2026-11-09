@@ -1,0 +1,5 @@
+version: 1
+
+display:
+  commodity: "INR"
+  fiscalYearStartMonth: 4

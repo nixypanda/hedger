@@ -108,7 +108,7 @@ IDs are URL-safe, and fiscal-year starts become `MonthOfYear` (1–12).
 ### YAML format
 
 ```yaml
-version: 2
+version: 3
 
 server:
   listenAddress: "127.0.0.1"
@@ -119,32 +119,48 @@ defaultLedger: personal
 ledgers:
   - id: personal
     label: Personal
-    journal:
-      path: "../examples/india-us-portfolio-2023-2025.journal"
-    display:
-      commodity: "INR"
-      fiscalYearStartMonth: 4
-    investments:
-      gainMappings:
-        - assetAccount: "assets:debt:fd"
-          gainAccounts: ["income:interest:fd"]
-      assetClasses:
-        - kind: debt
-          accountPrefixes: ["assets:debt"]
-          targetPercent: 100
+    journalPath: "examples/india-us-portfolio-2023-2025.journal"
+    configPath: "examples/personal.settings.yaml"
+```
+
+`examples/personal.settings.yaml`:
+
+```yaml
+version: 1
+
+display:
+  commodity: "INR"
+  fiscalYearStartMonth: 4
+
+investments:
+  gainMappings:
+    - assetAccount: "assets:debt:fd"
+      gainAccounts: ["income:interest:fd"]
+  assetClasses:
+    - kind: debt
+      accountPrefixes: ["assets:debt"]
+      targetPercent: 100
 ```
 
 ### Defaults
 
 | Field | YAML path | Default |
 |-------|-----------|---------|
-| Journal path | `ledgers[].journal.path` | required |
+| Journal path | `ledgers[].journalPath` | required |
 | Listen address | `server.listenAddress` | `127.0.0.1` |
 | Listen port | `server.port` | `8080` |
-| Display commodity | `ledgers[].display.commodity` | `INR` |
-| Fiscal-year start | `ledgers[].display.fiscalYearStartMonth` | `4` |
-| Gain mappings | `ledgers[].investments.gainMappings` | empty |
-| Asset classes | `ledgers[].investments.assetClasses` | empty |
+| Display commodity | `configPath` file's `display.commodity` | `INR` |
+| Fiscal-year start | `configPath` file's `display.fiscalYearStartMonth` | `4` |
+| Gain mappings | `configPath` file's `investments.gainMappings` | empty |
+| Asset classes | `configPath` file's `investments.assetClasses` | empty |
+
+### Paths
+
+- `journalPath` and `configPath` may be relative or absolute. Relative paths
+  are resolved against the directory containing the catalog file.
+- `configPath` is required for every ledger.
+- Settings files referenced by `configPath` are read at startup; restart the
+  backend after editing them.
 
 ### Validation
 

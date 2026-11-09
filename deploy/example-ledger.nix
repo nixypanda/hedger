@@ -13,8 +13,8 @@
         label = "Personal";
         # The journal path stays a runtime string, outside the Nix store.
         journalPath = "/var/lib/hedger/personal/main.journal";
-        defaultCommodity = "INR";
-        fiscalYearStartMonth = 4;
+        # The settings file is owned and edited outside the Nix store.
+        configPath = "/var/lib/hedger/personal/settings.yaml";
       };
 
       # Enable these after the hostname resolves to this machine and ACME can

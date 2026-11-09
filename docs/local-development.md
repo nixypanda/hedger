@@ -52,8 +52,8 @@ export HEDGER_CONFIG=/path/to/hedger.yaml
 just dev-backend-real
 ```
 
-The server reads a version-2 catalog with `--config`; journal paths and listener
-settings are defined in that file.
+The server reads a version-3 catalog with `--config`; journal paths,
+per-ledger settings paths, and listener settings are defined in that file.
 See [backend.md](backend.md) for every configuration option.
 
 ### Run a performance-sized journal
