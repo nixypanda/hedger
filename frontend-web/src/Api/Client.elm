@@ -5,6 +5,7 @@ module Api.Client exposing
     , getBootstrap
     , getCashflow
     , getInvestments
+    , getLedgers
     , getNetWorth
     , getTransactions
     , transactionsUrl
@@ -15,6 +16,7 @@ import Api.Analytics as Analytics
 import Api.Bootstrap as Bootstrap exposing (Bootstrap)
 import Api.Error as ApiError exposing (ApiError)
 import Api.Investments as Investments
+import Api.Ledgers as Ledgers
 import Api.Register as Register
 import Api.Transaction as Transaction exposing (Response)
 import Data.Analytics as AnalyticsData
@@ -24,25 +26,38 @@ import Json.Encode as Encode
 import Url.Builder as Builder
 
 
-getBootstrap : (Result ApiError Bootstrap -> msg) -> Cmd msg
-getBootstrap toMsg =
+getLedgers : (Result ApiError Ledgers.Catalog -> msg) -> Cmd msg
+getLedgers toMsg =
     Http.get
-        { url = "/api/v1/bootstrap"
+        { url = "/api/v1/ledgers"
+        , expect = expectApiJson toMsg Ledgers.decoder
+        }
+
+
+ledgerPath : String -> List String -> List String
+ledgerPath ledgerId suffix =
+    [ "api", "v1", "ledgers", ledgerId ] ++ suffix
+
+
+getBootstrap : String -> (Result ApiError Bootstrap -> msg) -> Cmd msg
+getBootstrap ledgerId toMsg =
+    Http.get
+        { url = Builder.absolute (ledgerPath ledgerId [ "bootstrap" ]) []
         , expect = expectApiJson toMsg Bootstrap.decoder
         }
 
 
-getAccounts : Maybe String -> (Result ApiError Account.Response -> msg) -> Cmd msg
-getAccounts commodity toMsg =
+getAccounts : String -> Maybe String -> (Result ApiError Account.Response -> msg) -> Cmd msg
+getAccounts ledgerId commodity toMsg =
     Http.get
-        { url = accountsUrl commodity
+        { url = accountsUrl ledgerId commodity
         , expect = expectApiJson toMsg Account.decoder
         }
 
 
-accountsUrl : Maybe String -> String
-accountsUrl commodity =
-    Builder.absolute [ "api", "v1", "accounts", "tree" ]
+accountsUrl : String -> Maybe String -> String
+accountsUrl ledgerId commodity =
+    Builder.absolute (ledgerPath ledgerId [ "accounts", "tree" ])
         (commodity
             |> Maybe.map (Builder.string "commodity" >> List.singleton)
             |> Maybe.withDefault []
@@ -50,43 +65,67 @@ accountsUrl commodity =
 
 
 getTransactions :
-    { query : String, cursor : Maybe String }
+    String
+    -> { query : String, cursor : Maybe String }
     -> (Result ApiError Response -> msg)
     -> Cmd msg
-getTransactions request toMsg =
+getTransactions ledgerId request toMsg =
     Http.get
-        { url = transactionsUrl request
+        { url = transactionsUrl ledgerId request
         , expect = expectApiJson toMsg Transaction.decoder
         }
 
 
 getNetWorth :
-    Analytics.AnalyticsRequest
+    String
+    -> Analytics.AnalyticsRequest
     -> (Result ApiError AnalyticsData.NetWorthResponse -> msg)
     -> Cmd msg
-getNetWorth request toMsg =
-    analyticsPost "net-worth" (Analytics.requestEncoder request) Analytics.netWorthDecoder toMsg
+getNetWorth ledgerId request toMsg =
+    analyticsPost
+        ledgerId
+        "net-worth"
+        (Analytics.requestEncoder request)
+        Analytics.netWorthDecoder
+        toMsg
 
 
 getCashflow :
-    Analytics.AnalyticsRequest
+    String
+    -> Analytics.AnalyticsRequest
     -> (Result ApiError AnalyticsData.CashflowResponse -> msg)
     -> Cmd msg
-getCashflow request toMsg =
-    analyticsPost "cashflow" (Analytics.requestEncoder request) Analytics.cashflowDecoder toMsg
+getCashflow ledgerId request toMsg =
+    analyticsPost
+        ledgerId
+        "cashflow"
+        (Analytics.requestEncoder request)
+        Analytics.cashflowDecoder
+        toMsg
 
 
-getInvestments : Investments.Request -> (Result ApiError Investments.Response -> msg) -> Cmd msg
-getInvestments request toMsg =
-    analyticsPost "investments" (Investments.requestEncoder request) Investments.decoder toMsg
+getInvestments :
+    String
+    -> Investments.Request
+    -> (Result ApiError Investments.Response -> msg)
+    -> Cmd msg
+getInvestments ledgerId request toMsg =
+    analyticsPost
+        ledgerId
+        "investments"
+        (Investments.requestEncoder request)
+        Investments.decoder
+        toMsg
 
 
 getActivity :
-    Analytics.ActivityRequest
+    String
+    -> Analytics.ActivityRequest
     -> (Result ApiError AnalyticsData.ActivityResponse -> msg)
     -> Cmd msg
-getActivity request toMsg =
+getActivity ledgerId request toMsg =
     analyticsPost
+        ledgerId
         "activity"
         (Analytics.activityRequestEncoder request)
         Analytics.activityDecoder
@@ -95,44 +134,49 @@ getActivity request toMsg =
 
 analyticsPost :
     String
+    -> String
     -> Encode.Value
     -> Decode.Decoder value
     -> (Result ApiError value -> msg)
     -> Cmd msg
-analyticsPost screen body decoder toMsg =
+analyticsPost ledgerId screen body decoder toMsg =
     Http.post
-        { url = Builder.absolute [ "api", "v1", screen, "query" ] []
+        { url = Builder.absolute (ledgerPath ledgerId [ screen, "query" ]) []
         , body = Http.jsonBody body
         , expect = expectApiJson toMsg decoder
         }
 
 
 getAccountRegister :
-    { account : String
-    , commodity : Maybe String
-    , from : Maybe String
-    , to : Maybe String
-    , cursor : Maybe String
-    }
+    String
+    ->
+        { account : String
+        , commodity : Maybe String
+        , from : Maybe String
+        , to : Maybe String
+        , cursor : Maybe String
+        }
     -> (Result ApiError Register.Response -> msg)
     -> Cmd msg
-getAccountRegister request toMsg =
+getAccountRegister ledgerId request toMsg =
     Http.get
-        { url = accountRegisterUrl request
+        { url = accountRegisterUrl ledgerId request
         , expect = expectApiJson toMsg Register.decoder
         }
 
 
 accountRegisterUrl :
-    { account : String
-    , commodity : Maybe String
-    , from : Maybe String
-    , to : Maybe String
-    , cursor : Maybe String
-    }
+    String
+    ->
+        { account : String
+        , commodity : Maybe String
+        , from : Maybe String
+        , to : Maybe String
+        , cursor : Maybe String
+        }
     -> String
-accountRegisterUrl request =
-    Builder.absolute [ "api", "v1", "accounts", request.account, "register" ]
+accountRegisterUrl ledgerId request =
+    Builder.absolute (ledgerPath ledgerId [ "accounts", request.account, "register" ])
         (List.concat
             [ [ Builder.int "limit" 50 ]
             , optionalQuery "commodity" request.commodity
@@ -150,9 +194,9 @@ optionalQuery name value =
         |> Maybe.withDefault []
 
 
-transactionsUrl : { query : String, cursor : Maybe String } -> String
-transactionsUrl request =
-    Builder.absolute [ "api", "v1", "transactions" ]
+transactionsUrl : String -> { query : String, cursor : Maybe String } -> String
+transactionsUrl ledgerId request =
+    Builder.absolute (ledgerPath ledgerId [ "transactions" ])
         (List.concat
             [ if String.isEmpty request.query then
                 []

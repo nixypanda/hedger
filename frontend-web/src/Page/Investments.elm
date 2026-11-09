@@ -6,6 +6,7 @@ module Page.Investments exposing
     , chartMode
     , granularity
     , init
+    , initForLedger
     , selectedPeriod
     , update
     , view
@@ -60,7 +61,8 @@ type Model
 
 
 type alias ModelData =
-    { response : RemoteData ApiError Investments.Response
+    { ledgerId : String
+    , response : RemoteData ApiError Investments.Response
     , nextRequestToken : Int
     , activeRequestToken : Int
     , granularity : Granularity
@@ -77,9 +79,15 @@ type ChartMode
 
 init : ( Model, Cmd Msg )
 init =
+    initForLedger "default"
+
+
+initForLedger : String -> ( Model, Cmd Msg )
+initForLedger ledgerId =
     let
         data =
-            { response = Loading Nothing
+            { ledgerId = ledgerId
+            , response = Loading Nothing
             , nextRequestToken = 1
             , activeRequestToken = 1
             , granularity = Monthly
@@ -198,6 +206,7 @@ beginRequest nextResponse data =
 fetch : Int -> ModelData -> Cmd Msg
 fetch token data =
     Api.getInvestments
+        data.ledgerId
         { granularity = data.granularity
         , displayCommodity = Nothing
         , accountPrefix = data.accountPrefix

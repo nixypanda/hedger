@@ -169,11 +169,12 @@ suite =
         , test "transaction query and cursor are URL encoded" <|
             \_ ->
                 Api.transactionsUrl
+                    "personal"
                     { query = "acct:food & café"
                     , cursor = Just "page+/="
                     }
                     |> Expect.equal
-                        ("/api/v1/transactions"
+                        ("/api/v1/ledgers/personal/transactions"
                             ++ "?query=acct%3Afood%20%26%20caf%C3%A9"
                             ++ "&limit=50"
                             ++ "&cursor=page%2B%2F%3D"

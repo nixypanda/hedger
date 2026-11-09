@@ -4,7 +4,7 @@ module Page.Account exposing
     , OutMsg(..)
     , beginLoading
     , clearValue
-    , fetchAccounts
+    , fetchForLedger
     , init
     , initWithValueSelected
     , receive
@@ -141,19 +141,21 @@ type OutMsg
 
 
 type alias UpdateProps =
-    { env : Env }
+    { env : Env
+    , ledgerId : String
+    }
 
 
-fetchAccounts : Cmd Msg
-fetchAccounts =
-    Api.getAccounts Nothing Receive
+fetchForLedger : String -> Cmd Msg
+fetchForLedger ledgerId =
+    Api.getAccounts ledgerId Nothing Receive
 
 
 update : UpdateProps -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
 update props msg (Model model) =
     case msg of
         Refresh ->
-            ( beginLoading (Model model), fetchAccounts, NoOutMsg )
+            ( beginLoading (Model model), fetchForLedger props.ledgerId, NoOutMsg )
 
         ToggleAccount path ->
             ( toggle path (Model model), Cmd.none, NoOutMsg )

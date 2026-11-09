@@ -3,6 +3,7 @@ module Main exposing (main)
 import Api.Bootstrap exposing (Bootstrap)
 import Api.Client as Api
 import Api.Error exposing (ApiError)
+import Api.Ledgers as Ledgers
 import Browser
 import Browser.Events
 import Browser.Navigation as Nav
@@ -10,16 +11,21 @@ import Chrome
 import Element exposing (Element)
 import Html
 import Json.Decode as Decode
+import LedgerRouting
 import Lib.RemoteData as RemoteData exposing (RemoteData(..))
 import Page
 import Ports
 import Preferences exposing (Preferences)
 import Pwa
 import Route exposing (Route(..))
+import String
 import Ui.Css
+import Ui.DesignTokens as Tokens
 import Ui.Env exposing (Env)
+import Ui.LedgerPicker
 import Ui.Page as UiPage
 import Ui.Theme
+import Ui.Typography as Typography
 import Url exposing (Url)
 
 
@@ -43,6 +49,10 @@ type alias Model =
     , preferences : Preferences
     , pwa : Pwa.Model
     , bootstrap : RemoteData ApiError Bootstrap
+    , catalog : RemoteData ApiError Ledgers.Catalog
+    , selectedLedger : Maybe String
+    , location : Url
+    , pageEpoch : Int
     , page : Page.Model
     }
 
@@ -63,42 +73,37 @@ init flags url key =
             , viewport = initialViewport
             }
 
-        redirect =
-            if url.path == "/" then
-                Nav.replaceUrl key (Route.toPath NetWorth)
-
-            else
-                Cmd.none
-
-        initialRoute =
-            Route.fromUrl url
-
         ( pageModel, pageCmd, _ ) =
             Page.init
-                (pageContext initialRoute initialEnv)
+                (pageContext Settings initialEnv "default" [])
                 Nothing
     in
     ( { key = key
-      , route = initialRoute
+      , route = NetWorth
       , env = initialEnv
       , preferences = Preferences.current initialMode
       , pwa = Pwa.fromFlags flags.isStandalone flags.isIos
       , bootstrap = Loading Nothing
+      , catalog = Loading Nothing
+      , selectedLedger = Nothing
+      , location = url
+      , pageEpoch = 0
       , page = pageModel
       }
     , Cmd.batch
-        [ redirect
-        , Api.getBootstrap BootstrapLoaded
-        , Cmd.map GotPageMsg pageCmd
+        [ Api.getLedgers CatalogLoaded
+        , Cmd.map (GotPageMsg 0) pageCmd
         , Ports.registerServiceWorker ()
         ]
     )
 
 
-pageContext : Route -> Env -> Page.Context
-pageContext route env =
+pageContext : Route -> Env -> String -> List Ledgers.Ledger -> Page.Context
+pageContext route env ledgerId ledgers =
     { route = route
     , env = env
+    , ledgerId = ledgerId
+    , ledgers = ledgers
     }
 
 
@@ -111,12 +116,14 @@ type Msg
     | Navigate Route
     | UrlChanged Url
     | Resized Int Int
-    | BootstrapLoaded (Result ApiError Bootstrap)
+    | CatalogLoaded (Result ApiError Ledgers.Catalog)
+    | BootstrapLoaded String (Result ApiError Bootstrap)
     | RefreshBootstrap
-    | JournalChanged String
+    | JournalChanged Decode.Value
+    | SelectLedger String
     | ConfigLoaded Decode.Value
     | PwaMsg Pwa.Msg
-    | GotPageMsg Page.Msg
+    | GotPageMsg Int Page.Msg
     | NoOp
 
 
@@ -132,66 +139,81 @@ update msg model =
                     ( model, Nav.load href )
 
         Navigate route ->
-            ( model, Nav.pushUrl model.key (Route.toPath route) )
+            ( model, navigateTo model route )
 
         UrlChanged url ->
-            let
-                route =
-                    Route.fromUrl url
-
-                ( pageModel, pageCmd, outMsg ) =
-                    Page.init
-                        (pageContext route model.env)
-                        (Just model.page)
-
-                ( finalModel, outCmd ) =
-                    applyPageOutMsg outMsg { model | route = route, page = pageModel }
-            in
-            ( finalModel
-            , Cmd.batch [ Cmd.map GotPageMsg pageCmd, outCmd ]
-            )
+            openLocation url { model | location = url }
 
         Resized width height ->
             ( { model | env = Ui.Env.resize model.env width height }, Cmd.none )
 
-        BootstrapLoaded result ->
+        CatalogLoaded result ->
             case result of
-                Ok bootstrap ->
-                    ( { model | bootstrap = Success bootstrap }, Cmd.none )
+                Ok catalog ->
+                    openLocation model.location { model | catalog = Success catalog }
 
                 Err error ->
-                    ( { model
-                        | bootstrap = Failure error (RemoteData.value model.bootstrap)
-                      }
-                    , Cmd.none
-                    )
+                    ( { model | catalog = Failure error Nothing }, Cmd.none )
+
+        BootstrapLoaded ledgerId result ->
+            if model.selectedLedger /= Just ledgerId then
+                ( model, Cmd.none )
+
+            else
+                case result of
+                    Ok bootstrap ->
+                        ( { model | bootstrap = Success bootstrap }, Cmd.none )
+
+                    Err error ->
+                        ( { model
+                            | bootstrap = Failure error (RemoteData.value model.bootstrap)
+                          }
+                        , Cmd.none
+                        )
 
         RefreshBootstrap ->
-            ( { model | bootstrap = RemoteData.beginLoading model.bootstrap }
-            , Api.getBootstrap BootstrapLoaded
-            )
+            case model.selectedLedger of
+                Just ledgerId ->
+                    ( { model | bootstrap = RemoteData.beginLoading model.bootstrap }
+                    , Api.getBootstrap ledgerId (BootstrapLoaded ledgerId)
+                    )
 
-        JournalChanged _ ->
-            let
-                ( pageModel, pageCmd, outMsg ) =
-                    Page.init
-                        (pageContext model.route model.env)
-                        (Just model.page)
+                Nothing ->
+                    ( model, Cmd.none )
 
-                ( finalModel, outCmd ) =
-                    applyPageOutMsg outMsg
-                        { model
-                            | page = pageModel
-                            , bootstrap = RemoteData.beginLoading model.bootstrap
-                        }
-            in
-            ( finalModel
-            , Cmd.batch
-                [ Cmd.map GotPageMsg pageCmd
-                , outCmd
-                , Api.getBootstrap BootstrapLoaded
-                ]
-            )
+        JournalChanged value ->
+            case Decode.decodeValue (Decode.field "ledgerId" Decode.string) value of
+                Ok ledgerId ->
+                    if model.selectedLedger == Just ledgerId then
+                        refreshLedger ledgerId model
+
+                    else
+                        ( model, Cmd.none )
+
+                Err _ ->
+                    ( model, Cmd.none )
+
+        SelectLedger ledgerId ->
+            case RemoteData.value model.catalog of
+                Just catalog ->
+                    if Ledgers.find ledgerId catalog == Nothing then
+                        ( model, Cmd.none )
+
+                    else if model.selectedLedger == Just ledgerId then
+                        ( model, Cmd.none )
+
+                    else
+                        let
+                            destination =
+                                LedgerRouting.selectionRoute
+                                    model.selectedLedger
+                                    model.route
+                                    model.location
+                        in
+                        ( model, Nav.pushUrl model.key (LedgerRouting.scopedPath ledgerId destination) )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         ConfigLoaded value ->
             case Decode.decodeValue Preferences.decoder value of
@@ -213,20 +235,29 @@ update msg model =
             in
             ( { model | pwa = pwa }, Cmd.map PwaMsg command )
 
-        GotPageMsg pageMsg ->
-            let
-                ( pageModel, pageCmd, outMsg ) =
-                    Page.update
-                        (pageContext model.route model.env)
-                        pageMsg
-                        model.page
+        GotPageMsg epoch pageMsg ->
+            case model.selectedLedger of
+                Just ledgerId ->
+                    if epoch /= model.pageEpoch then
+                        ( model, Cmd.none )
 
-                ( finalModel, outCmd ) =
-                    applyPageOutMsg outMsg { model | page = pageModel }
-            in
-            ( finalModel
-            , Cmd.batch [ Cmd.map GotPageMsg pageCmd, outCmd ]
-            )
+                    else
+                        let
+                            ( pageModel, pageCmd, outMsg ) =
+                                Page.update
+                                    (pageContext model.route model.env ledgerId (modelLedgers model))
+                                    pageMsg
+                                    model.page
+
+                            ( finalModel, outCmd ) =
+                                applyPageOutMsg outMsg { model | page = pageModel }
+                        in
+                        ( finalModel
+                        , Cmd.batch [ Cmd.map (GotPageMsg epoch) pageCmd, outCmd ]
+                        )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         NoOp ->
             ( model, Cmd.none )
@@ -239,7 +270,7 @@ applyPageOutMsg outMsg model =
             ( model, Cmd.none )
 
         Page.Navigate route ->
-            ( model, Nav.pushUrl model.key (Route.toPath route) )
+            ( model, navigateTo model route )
 
         Page.SetTheme mode ->
             let
@@ -252,6 +283,144 @@ applyPageOutMsg outMsg model =
               }
             , Ports.storeConfig (Preferences.encode preferences)
             )
+
+        Page.SelectLedger ledgerId ->
+            update (SelectLedger ledgerId) model
+
+
+navigateTo : Model -> Route -> Cmd Msg
+navigateTo model route =
+    (case model.selectedLedger of
+        Just ledgerId ->
+            Just ledgerId
+
+        Nothing ->
+            RemoteData.value model.catalog |> Maybe.andThen .defaultLedger
+    )
+        |> Maybe.map (\ledgerId -> Nav.pushUrl model.key (LedgerRouting.scopedPath ledgerId route))
+        |> Maybe.withDefault (Nav.pushUrl model.key (Route.toPath route))
+
+
+modelLedgers : Model -> List Ledgers.Ledger
+modelLedgers model =
+    model.catalog
+        |> RemoteData.value
+        |> Maybe.map .ledgers
+        |> Maybe.withDefault []
+
+
+openLocation : Url -> Model -> ( Model, Cmd Msg )
+openLocation url model =
+    case RemoteData.value model.catalog of
+        Nothing ->
+            ( model, Cmd.none )
+
+        Just catalog ->
+            if url.path == "/" then
+                case catalog.defaultLedger of
+                    Just ledgerId ->
+                        ( model, Nav.replaceUrl model.key (LedgerRouting.scopedPath ledgerId NetWorth) )
+
+                    Nothing ->
+                        ( { model | selectedLedger = Nothing, route = NetWorth }
+                        , Ports.setActiveLedger ""
+                        )
+
+            else
+                case LedgerRouting.scopedLocation url of
+                    Just ( ledgerId, route ) ->
+                        case Ledgers.find ledgerId catalog of
+                            Just _ ->
+                                let
+                                    changed =
+                                        model.selectedLedger /= Just ledgerId
+
+                                    epoch =
+                                        model.pageEpoch + 1
+
+                                    ( pageModel, pageCmd, outMsg ) =
+                                        Page.init
+                                            (pageContext route model.env ledgerId catalog.ledgers)
+                                            (if changed then
+                                                Nothing
+
+                                             else
+                                                Just model.page
+                                            )
+
+                                    next =
+                                        { model
+                                            | selectedLedger = Just ledgerId
+                                            , route = route
+                                            , page = pageModel
+                                            , pageEpoch = epoch
+                                            , bootstrap = Loading Nothing
+                                        }
+
+                                    ( finalModel, outCmd ) =
+                                        applyPageOutMsg outMsg next
+                                in
+                                ( finalModel
+                                , Cmd.batch
+                                    [ Cmd.map (GotPageMsg epoch) pageCmd
+                                    , Api.getBootstrap ledgerId (BootstrapLoaded ledgerId)
+                                    , if changed then
+                                        Ports.setActiveLedger ledgerId
+
+                                      else
+                                        Cmd.none
+                                    , outCmd
+                                    ]
+                                )
+
+                            Nothing ->
+                                ( { model
+                                    | selectedLedger = Nothing
+                                    , pageEpoch = model.pageEpoch + 1
+                                  }
+                                , Ports.setActiveLedger ""
+                                )
+
+                    Nothing ->
+                        case LedgerRouting.entryRedirect catalog.defaultLedger url of
+                            Just destination ->
+                                ( model, Nav.replaceUrl model.key destination )
+
+                            Nothing ->
+                                ( { model
+                                    | selectedLedger = Nothing
+                                    , pageEpoch = model.pageEpoch + 1
+                                  }
+                                , Ports.setActiveLedger ""
+                                )
+
+
+refreshLedger : String -> Model -> ( Model, Cmd Msg )
+refreshLedger ledgerId model =
+    let
+        epoch =
+            model.pageEpoch + 1
+
+        ( pageModel, pageCmd, outMsg ) =
+            Page.init
+                (pageContext model.route model.env ledgerId (modelLedgers model))
+                (Just model.page)
+
+        ( finalModel, outCmd ) =
+            applyPageOutMsg outMsg
+                { model
+                    | page = pageModel
+                    , pageEpoch = epoch
+                    , bootstrap = RemoteData.beginLoading model.bootstrap
+                }
+    in
+    ( finalModel
+    , Cmd.batch
+        [ Cmd.map (GotPageMsg epoch) pageCmd
+        , outCmd
+        , Api.getBootstrap ledgerId (BootstrapLoaded ledgerId)
+        ]
+    )
 
 
 
@@ -267,7 +436,14 @@ view model =
         page =
             pageView model
     in
-    { title = Route.title model.route ++ " · Hedger"
+    { title =
+        (if model.selectedLedger == Nothing then
+            "Choose a ledger"
+
+         else
+            Route.title model.route
+        )
+            ++ " · Hedger"
     , body =
         [ Html.node "style"
             []
@@ -303,8 +479,37 @@ view model =
 
 pageView : Model -> Element Msg
 pageView model =
-    Element.map GotPageMsg
-        (Page.view (pageContext model.route model.env) model.page)
+    case model.selectedLedger of
+        Just ledgerId ->
+            Element.map (GotPageMsg model.pageEpoch)
+                (Page.view
+                    (pageContext model.route model.env ledgerId (modelLedgers model))
+                    model.page
+                )
+
+        Nothing ->
+            case model.catalog of
+                Failure error _ ->
+                    Element.text ("Could not load ledgers: " ++ error.message)
+
+                Success catalog ->
+                    Element.column
+                        [ Element.width Element.fill
+                        , Element.spacing Tokens.space24
+                        , Element.padding Tokens.space24
+                        ]
+                        [ Typography.pageTitle model.env.theme
+                            (if String.startsWith "/ledgers/" model.location.path then
+                                "Ledger not found. Choose a ledger."
+
+                             else
+                                "Choose a ledger"
+                            )
+                        , Ui.LedgerPicker.view model.env.theme Nothing catalog.ledgers SelectLedger
+                        ]
+
+                _ ->
+                    Element.text "Loading ledgers..."
 
 
 

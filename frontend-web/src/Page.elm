@@ -1,5 +1,6 @@
 module Page exposing (Context, Model(..), Msg(..), OutMsg(..), init, update, view)
 
+import Api.Ledgers as Ledgers
 import Element exposing (Element)
 import Page.Account as AccountPage
 import Page.AccountRegister as AccountRegisterPage
@@ -30,6 +31,8 @@ type Model
 type alias Context =
     { route : Route
     , env : Env
+    , ledgerId : String
+    , ledgers : List Ledgers.Ledger
     }
 
 
@@ -52,50 +55,50 @@ init context maybeExistingModel =
                     TransactionsPage.beginLoading existingModel
             in
             ( TransactionsPage nextModel
-            , Cmd.map GotTransactionsMsg (TransactionsPage.fetch request)
+            , Cmd.map GotTransactionsMsg (TransactionsPage.fetchForLedger context.ledgerId request)
             , NoOutMsg
             )
 
         ( NetWorth, _ ) ->
             let
                 ( model, command ) =
-                    NetWorthPage.init
+                    NetWorthPage.initForLedger context.ledgerId
             in
             ( NetWorthPage model, Cmd.map GotNetWorthMsg command, NoOutMsg )
 
         ( Cashflow, _ ) ->
             let
                 ( model, command ) =
-                    CashflowPage.init
+                    CashflowPage.initForLedger context.ledgerId
             in
             ( CashflowPage model, Cmd.map GotCashflowMsg command, NoOutMsg )
 
         ( Investments, _ ) ->
             let
                 ( model, command ) =
-                    InvestmentsPage.init
+                    InvestmentsPage.initForLedger context.ledgerId
             in
             ( InvestmentsPage model, Cmd.map GotInvestmentsMsg command, NoOutMsg )
 
         ( Transactions, _ ) ->
             let
                 ( nextModel, request ) =
-                    TransactionsPage.beginLoading TransactionsPage.init
+                    TransactionsPage.beginLoading (TransactionsPage.initForLedger context.ledgerId)
             in
             ( TransactionsPage nextModel
-            , Cmd.map GotTransactionsMsg (TransactionsPage.fetch request)
+            , Cmd.map GotTransactionsMsg (TransactionsPage.fetchForLedger context.ledgerId request)
             , NoOutMsg
             )
 
         ( Accounts, Just (AccountsPage existingModel) ) ->
             ( AccountsPage (AccountPage.beginLoading existingModel)
-            , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
+            , Cmd.map GotAccountsMsg (AccountPage.fetchForLedger context.ledgerId)
             , NoOutMsg
             )
 
         ( Accounts, _ ) ->
             ( AccountsPage (AccountPage.beginLoading AccountPage.init)
-            , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
+            , Cmd.map GotAccountsMsg (AccountPage.fetchForLedger context.ledgerId)
             , NoOutMsg
             )
 
@@ -105,23 +108,27 @@ init context maybeExistingModel =
                     AccountRegisterPage.beginLoading accountName existingModel
             in
             ( AccountRegisterPage nextModel
-            , Cmd.map GotAccountRegisterMsg (AccountRegisterPage.fetch request)
+            , Cmd.map GotAccountRegisterMsg <|
+                AccountRegisterPage.fetchForLedger context.ledgerId request
             , NoOutMsg
             )
 
         ( Account accountName, _ ) ->
             let
                 ( nextModel, request ) =
-                    AccountRegisterPage.beginLoading accountName AccountRegisterPage.init
+                    AccountRegisterPage.beginLoading
+                        accountName
+                        (AccountRegisterPage.initForLedger context.ledgerId)
             in
             ( AccountRegisterPage nextModel
-            , Cmd.map GotAccountRegisterMsg (AccountRegisterPage.fetch request)
+            , Cmd.map GotAccountRegisterMsg <|
+                AccountRegisterPage.fetchForLedger context.ledgerId request
             , NoOutMsg
             )
 
         ( AccountValue _, Just (AccountsPage existingModel) ) ->
             ( AccountsPage (AccountPage.beginLoading existingModel)
-            , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
+            , Cmd.map GotAccountsMsg (AccountPage.fetchForLedger context.ledgerId)
             , NoOutMsg
             )
 
@@ -130,7 +137,7 @@ init context maybeExistingModel =
                 (AccountPage.beginLoading
                     (AccountPage.initWithValueSelected accountName)
                 )
-            , Cmd.map GotAccountsMsg AccountPage.fetchAccounts
+            , Cmd.map GotAccountsMsg (AccountPage.fetchForLedger context.ledgerId)
             , NoOutMsg
             )
 
@@ -159,6 +166,7 @@ type OutMsg
     = NoOutMsg
     | Navigate Route
     | SetTheme Mode
+    | SelectLedger String
 
 
 mapTransactionsOutMsg : TransactionsPage.OutMsg -> OutMsg
@@ -184,6 +192,9 @@ mapSettingsOutMsg outMsg =
         SettingsPage.SetTheme mode ->
             SetTheme mode
 
+        SettingsPage.SelectLedger ledgerId ->
+            SelectLedger ledgerId
+
 
 update : Context -> Msg -> Model -> ( Model, Cmd Msg, OutMsg )
 update context msg model =
@@ -191,7 +202,10 @@ update context msg model =
         ( GotAccountsMsg subMsg, AccountsPage subModel ) ->
             let
                 ( nextModel, subCmd, outMsg ) =
-                    AccountPage.update { env = context.env } subMsg subModel
+                    AccountPage.update
+                        { env = context.env, ledgerId = context.ledgerId }
+                        subMsg
+                        subModel
             in
             ( AccountsPage nextModel
             , Cmd.map GotAccountsMsg subCmd
@@ -288,4 +302,4 @@ view context model =
 
         ( _, SettingsPage subModel ) ->
             Element.map GotSettingsMsg
-                (SettingsPage.view context.env subModel)
+                (SettingsPage.view context.env context.ledgers context.ledgerId subModel)

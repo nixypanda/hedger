@@ -4,6 +4,7 @@ port module Ports exposing
     , promptInstall
     , promptInstallReady
     , registerServiceWorker
+    , setActiveLedger
     , skipWaiting
     , storeConfig
     , swStatus
@@ -25,7 +26,10 @@ port registerServiceWorker : () -> Cmd msg
 port swStatus : (String -> msg) -> Sub msg
 
 
-port journalChanged : (String -> msg) -> Sub msg
+port journalChanged : (Json.Decode.Value -> msg) -> Sub msg
+
+
+port setActiveLedger : String -> Cmd msg
 
 
 port promptInstallReady : (() -> msg) -> Sub msg

@@ -6,8 +6,9 @@ module Page.AccountRegister exposing
     , beginLoading
     , beginLoadingMore
     , clearDetail
-    , fetch
+    , fetchForLedger
     , init
+    , initForLedger
     , receive
     , requestAccount
     , requestCursor
@@ -67,7 +68,8 @@ type Model
 
 
 type alias ModelData =
-    { paginated : Paginated ApiError Criteria Response
+    { ledgerId : String
+    , paginated : Paginated ApiError Criteria Response
     , account : String
     , from : String
     , to : String
@@ -113,8 +115,14 @@ config =
 
 init : Model
 init =
+    initForLedger "default"
+
+
+initForLedger : String -> Model
+initForLedger ledgerId =
     Model
-        { paginated = Paginated.init
+        { ledgerId = ledgerId
+        , paginated = Paginated.init
         , account = ""
         , from = ""
         , to = ""
@@ -158,7 +166,7 @@ update msg (Model data) =
                 ( nextModel, request ) =
                     beginLoading (modelAccount changed) changed
             in
-            ( nextModel, fetchAccountRegister request, NoOutMsg )
+            ( nextModel, fetchAccountRegister data.ledgerId request, NoOutMsg )
 
         ToChange value ->
             let
@@ -168,20 +176,20 @@ update msg (Model data) =
                 ( nextModel, request ) =
                     beginLoading (modelAccount changed) changed
             in
-            ( nextModel, fetchAccountRegister request, NoOutMsg )
+            ( nextModel, fetchAccountRegister data.ledgerId request, NoOutMsg )
 
         Refresh ->
             let
                 ( nextModel, request ) =
                     beginLoading data.account (Model data)
             in
-            ( nextModel, fetchAccountRegister request, NoOutMsg )
+            ( nextModel, fetchAccountRegister data.ledgerId request, NoOutMsg )
 
         LoadMore ->
             case beginLoadingMore (Model data) of
                 Just ( Model next, request ) ->
                     ( Model { next | loadMoreBlockedAttempts = 0 }
-                    , fetchAccountRegister request
+                    , fetchAccountRegister data.ledgerId request
                     , NoOutMsg
                     )
 
@@ -212,9 +220,10 @@ update msg (Model data) =
             ( receive request result (Model data), Cmd.none, NoOutMsg )
 
 
-fetchAccountRegister : Request -> Cmd Msg
-fetchAccountRegister request =
+fetchAccountRegister : String -> Request -> Cmd Msg
+fetchAccountRegister ledgerId request =
     Api.getAccountRegister
+        ledgerId
         { account = requestAccount request
         , commodity = Nothing
         , from = requestFrom request
@@ -224,8 +233,8 @@ fetchAccountRegister request =
         (Loaded request)
 
 
-fetch : Request -> Cmd Msg
-fetch =
+fetchForLedger : String -> Request -> Cmd Msg
+fetchForLedger =
     fetchAccountRegister
 
 
