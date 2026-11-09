@@ -36,6 +36,7 @@ type alias Notice msg =
     { icon : Icon
     , message : String
     , actions : List (NoticeAction msg)
+    , motion : Notice.Motion
     }
 
 
@@ -108,7 +109,8 @@ noticeView : Theme -> Maybe (Notice msg) -> Element msg
 noticeView theme maybeNotice =
     case maybeNotice of
         Just notice ->
-            Notice.view theme
+            Notice.animatedView theme
+                notice.motion
                 { placement = Notice.Top
                 , tone = Notice.Info
                 , icon = notice.icon

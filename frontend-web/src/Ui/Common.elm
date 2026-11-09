@@ -1,8 +1,10 @@
 module Ui.Common exposing
     ( HoverBackground(..)
+    , ariaHidden
     , gridCellMaxWidth
     , hoverBackground
     , hoverBorderPrimary
+    , inert
     , minHeightZero
     , minWidthZero
     , toCssColor
@@ -19,6 +21,16 @@ import Ui.DesignTokens exposing (minimumTouchTarget, space12)
 uiClass : String -> Element.Attribute msg
 uiClass className =
     Element.htmlAttribute (Html.Attributes.class className)
+
+
+inert : Element.Attribute msg
+inert =
+    Element.htmlAttribute (Html.Attributes.attribute "inert" "")
+
+
+ariaHidden : Element.Attribute msg
+ariaHidden =
+    Element.htmlAttribute (Html.Attributes.attribute "aria-hidden" "true")
 
 
 minWidthZero : Element.Attribute msg

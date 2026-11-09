@@ -1,4 +1,13 @@
-module Page exposing (Context, Model(..), Msg(..), OutMsg(..), init, update, view)
+module Page exposing
+    ( Context
+    , Model(..)
+    , Msg(..)
+    , OutMsg(..)
+    , init
+    , isAnimating
+    , update
+    , view
+    )
 
 import Element exposing (Element)
 import Page.Account as AccountPage
@@ -9,6 +18,7 @@ import Page.NetWorth as NetWorthPage
 import Page.Settings as SettingsPage
 import Page.Transactions as TransactionsPage
 import Route exposing (Route(..))
+import Time
 import Ui.Env exposing (Env)
 import Ui.Theme exposing (Mode)
 
@@ -153,6 +163,7 @@ type Msg
     | GotCashflowMsg CashflowPage.Msg
     | GotInvestmentsMsg InvestmentsPage.Msg
     | GotSettingsMsg SettingsPage.Msg
+    | AnimationTick Time.Posix
 
 
 type OutMsg
@@ -201,7 +212,7 @@ update context msg model =
         ( GotTransactionsMsg subMsg, TransactionsPage subModel ) ->
             let
                 ( nextModel, subCmd, outMsg ) =
-                    TransactionsPage.update subMsg subModel
+                    TransactionsPage.update { env = context.env } subMsg subModel
             in
             ( TransactionsPage nextModel
             , Cmd.map GotTransactionsMsg subCmd
@@ -211,7 +222,7 @@ update context msg model =
         ( GotAccountRegisterMsg subMsg, AccountRegisterPage subModel ) ->
             let
                 ( nextModel, subCmd, outMsg ) =
-                    AccountRegisterPage.update subMsg subModel
+                    AccountRegisterPage.update { env = context.env } subMsg subModel
             in
             ( AccountRegisterPage nextModel
             , Cmd.map GotAccountRegisterMsg subCmd
@@ -249,8 +260,47 @@ update context msg model =
             , mapSettingsOutMsg outMsg
             )
 
+        ( AnimationTick now, TransactionsPage subModel ) ->
+            let
+                ( nextModel, subCmd, outMsg ) =
+                    TransactionsPage.update
+                        { env = context.env }
+                        (TransactionsPage.AnimationTick now)
+                        subModel
+            in
+            ( TransactionsPage nextModel
+            , Cmd.map GotTransactionsMsg subCmd
+            , mapTransactionsOutMsg outMsg
+            )
+
+        ( AnimationTick now, AccountRegisterPage subModel ) ->
+            let
+                ( nextModel, subCmd, outMsg ) =
+                    AccountRegisterPage.update
+                        { env = context.env }
+                        (AccountRegisterPage.AnimationTick now)
+                        subModel
+            in
+            ( AccountRegisterPage nextModel
+            , Cmd.map GotAccountRegisterMsg subCmd
+            , mapAccountRegisterOutMsg outMsg
+            )
+
         _ ->
             ( model, Cmd.none, NoOutMsg )
+
+
+isAnimating : Model -> Bool
+isAnimating model =
+    case model of
+        TransactionsPage subModel ->
+            TransactionsPage.isAnimating subModel
+
+        AccountRegisterPage subModel ->
+            AccountRegisterPage.isAnimating subModel
+
+        _ ->
+            False
 
 
 

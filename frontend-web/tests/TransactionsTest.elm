@@ -9,11 +9,15 @@ import Data.Freshness exposing (Freshness(..))
 import Data.Metadata exposing (Metadata)
 import Data.Status as Status
 import Data.Transaction exposing (Transaction, TransactionEffect(..), effectDecoder)
+import Element
 import Expect
 import Fuzz
 import Json.Decode as Decode
 import Page.Transactions as Page
 import Test exposing (Test, describe, fuzz, test)
+import Time
+import Ui.Env exposing (Env)
+import Ui.Theme as Theme
 
 
 {-| Two domain rules live on the Transactions page: a selection only ever
@@ -92,6 +96,23 @@ suite =
                         , status = Page.InitialLoadingStatus
                         , requestedQuery = "acct:expenses"
                         }
+        , test "applying a query clears selection even if the next response contains the row" <|
+            \_ ->
+                let
+                    response =
+                        sampleResponse "revision-a"
+
+                    ( loading, request ) =
+                        loadInitial response
+                            |> selectFirst response
+                            |> Page.setDraft "acct:expenses"
+                            |> Page.applyDraft
+
+                    reloaded =
+                        Page.receive request (Ok response) loading
+                in
+                Page.selectedTransaction reloaded
+                    |> Expect.equal Nothing
         , test "loaded windows own the applied query independently of later drafts" <|
             \_ ->
                 let
@@ -178,6 +199,121 @@ suite =
                             ++ "&limit=50"
                             ++ "&cursor=page%2B%2F%3D"
                         )
+        , test "mobile selection keeps the detail until the pop timeline arrives" <|
+            \_ ->
+                let
+                    response =
+                        samplePage 0
+
+                    transaction =
+                        firstTransaction response
+
+                    ( opened, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.Select transaction)
+                            (loadInitial response)
+
+                    ( openedFrame, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.AnimationTick (Time.millisToPosix 0))
+                            opened
+
+                    ( openedAtRest, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.AnimationTick (Time.millisToPosix 500))
+                            openedFrame
+
+                    ( closing, _, _ ) =
+                        Page.update { env = mobileEnv } Page.Back openedAtRest
+
+                    ( closingFrame, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.AnimationTick (Time.millisToPosix 1000))
+                            closing
+
+                    ( arrived, _, _ ) =
+                        Page.update
+                            { env = mobileEnv }
+                            (Page.AnimationTick (Time.millisToPosix 2000))
+                            closingFrame
+                in
+                Expect.equal
+                    { openSelection = Page.selectedTransaction opened
+                    , openAnimating = Page.isAnimating opened
+                    , closingSelection = Page.selectedTransaction closing
+                    , closingAnimating = Page.isAnimating closing
+                    , arrivedSelection = Page.selectedTransaction arrived
+                    , arrivedAnimating = Page.isAnimating arrived
+                    }
+                    { openSelection = Just transaction
+                    , openAnimating = True
+                    , closingSelection = Just transaction
+                    , closingAnimating = True
+                    , arrivedSelection = Nothing
+                    , arrivedAnimating = False
+                    }
+        , test "reduced motion swaps mobile panes without a transition" <|
+            \_ ->
+                let
+                    response =
+                        sampleResponse "revision-a"
+
+                    transaction =
+                        firstTransaction response
+
+                    ( opened, _, _ ) =
+                        Page.update
+                            { env = reducedMotionEnv }
+                            (Page.Select transaction)
+                            (loadInitial response)
+
+                    ( closed, _, _ ) =
+                        Page.update { env = reducedMotionEnv } Page.Back opened
+                in
+                Expect.equal
+                    { openSelection = Page.selectedTransaction opened
+                    , openAnimating = Page.isAnimating opened
+                    , closedSelection = Page.selectedTransaction closed
+                    , closedAnimating = Page.isAnimating closed
+                    }
+                    { openSelection = Just transaction
+                    , openAnimating = False
+                    , closedSelection = Nothing
+                    , closedAnimating = False
+                    }
+        , test "wide layout keeps the split view out of the transition timeline" <|
+            \_ ->
+                let
+                    response =
+                        sampleResponse "revision-a"
+
+                    transaction =
+                        firstTransaction response
+
+                    ( opened, _, _ ) =
+                        Page.update
+                            { env = desktopEnv }
+                            (Page.Select transaction)
+                            (loadInitial response)
+
+                    ( closed, _, _ ) =
+                        Page.update { env = desktopEnv } Page.Back opened
+                in
+                Expect.equal
+                    { opened = Page.selectedTransaction opened
+                    , openAnimating = Page.isAnimating opened
+                    , closed = Page.selectedTransaction closed
+                    , closedAnimating = Page.isAnimating closed
+                    }
+                    { opened = Just transaction
+                    , openAnimating = False
+                    , closed = Nothing
+                    , closedAnimating = False
+                    }
         , fuzz selectionFuzzer "a selection always references a transaction in the visible window" selectionClosure
         , fuzz pagingFuzzer "the paging window stays bounded and never stitches revisions" pagingLaws
         ]
@@ -444,6 +580,41 @@ selectFirst response model =
 
         [] ->
             model
+
+
+firstTransaction : Response -> Transaction
+firstTransaction response =
+    response.transactions
+        |> List.head
+        |> Maybe.withDefault (sampleTransaction 1)
+
+
+envWith : Int -> Bool -> Env
+envWith width reducedMotion =
+    let
+        viewport =
+            { width = width, height = 900 }
+    in
+    { theme = Theme.forMode Theme.Light
+    , device = Element.classifyDevice viewport
+    , viewport = viewport
+    , reducedMotion = reducedMotion
+    }
+
+
+mobileEnv : Env
+mobileEnv =
+    envWith 520 False
+
+
+desktopEnv : Env
+desktopEnv =
+    envWith 1600 False
+
+
+reducedMotionEnv : Env
+reducedMotionEnv =
+    envWith 520 True
 
 
 sampleResponse : String -> Response

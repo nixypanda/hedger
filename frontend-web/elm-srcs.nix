@@ -45,9 +45,19 @@
     version = "2.4.3";
   };
 
+  "mdgriffith/elm-animator" = {
+    sha256 = "1vm106q7mqlddjc65g4jfmsnp2ihd0l4kg33a0dk3jpfsx7s2nc7";
+    version = "2.0.0";
+  };
+
   "mdgriffith/elm-ui" = {
     sha256 = "0ffcqv4a4ad400hwp824m3qq4jy82cqp5ghmhp1m0q7n004z6kgv";
     version = "1.1.8";
+  };
+
+  "mdgriffith/elm-bezier" = {
+    sha256 = "080bwqwrnswjxlrhayhg3v0v4yw7ydm95x1y4fgxmzd8hvaac7wl";
+    version = "2.0.0";
   };
 
   "avh4/elm-color" = {
