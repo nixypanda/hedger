@@ -25,13 +25,15 @@ accountTypeClassifier :: Hledger.Journal -> AccountTypeClassifier
 accountTypeClassifier journal = HledgerAccountName.accountNameType journal.jaccounttypes
 
 data SnapshotMetadata = SnapshotMetadata
-    { revision :: Text
+    { ledgerId :: Text
+    , revision :: Text
     , freshness :: SnapshotFreshness
     }
 
 metadataFor :: SnapshotContext -> SnapshotMetadata
 metadataFor context =
     SnapshotMetadata
-        { revision = context.snapshot.revision
+        { ledgerId = context.ledgerId
+        , revision = context.snapshot.revision
         , freshness = context.freshness
         }

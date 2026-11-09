@@ -1,4 +1,4 @@
-module Page.Cashflow exposing (Model, Msg(..), init, update, view)
+module Page.Cashflow exposing (Model, Msg(..), init, initForLedger, update, view)
 
 import Api.Client as Api
 import Api.Error as ApiError exposing (ApiError)
@@ -34,7 +34,8 @@ type Model
 
 
 type alias ModelData =
-    { response : RemoteData ApiError Analytics.CashflowResponse
+    { ledgerId : String
+    , response : RemoteData ApiError Analytics.CashflowResponse
     , draftQuery : String
     , appliedQuery : String
     , analysis : Analysis.Model
@@ -43,18 +44,24 @@ type alias ModelData =
 
 init : ( Model, Cmd Msg )
 init =
+    initForLedger "default"
+
+
+initForLedger : String -> ( Model, Cmd Msg )
+initForLedger ledgerId =
     let
         ( analysis, effects ) =
             Analysis.requestReport (analysisContext "") Analysis.init
 
         data =
-            { response = Loading Nothing
+            { ledgerId = ledgerId
+            , response = Loading Nothing
             , draftQuery = ""
             , appliedQuery = ""
             , analysis = analysis
             }
     in
-    ( Model data, performEffects effects )
+    ( Model data, performEffects ledgerId effects )
 
 
 
@@ -85,7 +92,7 @@ update msg (Model data) =
                     | response = RemoteData.beginLoading data.response
                     , analysis = analysis
                 }
-            , performEffects effects
+            , performEffects data.ledgerId effects
             )
 
         DraftChanged draft ->
@@ -131,7 +138,7 @@ update msg (Model data) =
                                     | response = Success loadedResponse
                                     , analysis = analysis
                                 }
-                            , performEffects effects
+                            , performEffects data.ledgerId effects
                             )
 
         AnalysisMsg analysisMsg ->
@@ -147,7 +154,7 @@ update msg (Model data) =
                         data.response
             in
             ( Model { data | analysis = analysis, response = response }
-            , performEffects effects
+            , performEffects data.ledgerId effects
             )
 
 
@@ -166,7 +173,7 @@ applyQuery query data =
             , analysis = analysis
             , response = RemoteData.beginLoading data.response
         }
-    , performEffects effects
+    , performEffects data.ledgerId effects
     )
 
 
@@ -221,19 +228,19 @@ analysisReport response =
     }
 
 
-performEffects : List Analysis.Effect -> Cmd Msg
-performEffects effects =
-    effects |> List.map performEffect |> Cmd.batch
+performEffects : String -> List Analysis.Effect -> Cmd Msg
+performEffects ledgerId effects =
+    effects |> List.map (performEffect ledgerId) |> Cmd.batch
 
 
-performEffect : Analysis.Effect -> Cmd Msg
-performEffect effect =
+performEffect : String -> Analysis.Effect -> Cmd Msg
+performEffect ledgerId effect =
     case effect of
         Analysis.FetchReport token request ->
-            Api.getCashflow request (ResponseLoaded token)
+            Api.getCashflow ledgerId request (ResponseLoaded token)
 
         Analysis.FetchActivity side token request ->
-            Api.getActivity request (Analysis.ActivityLoaded side token >> AnalysisMsg)
+            Api.getActivity ledgerId request (Analysis.ActivityLoaded side token >> AnalysisMsg)
 
 
 isReportEffect : Analysis.Effect -> Bool

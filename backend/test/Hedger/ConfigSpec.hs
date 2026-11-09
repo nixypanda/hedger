@@ -5,11 +5,21 @@ module Hedger.ConfigSpec (
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as ByteString
 import Data.Either (isLeft)
+import Data.Map.Strict qualified as Map
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
-import Hedger.Config (Config (..), mkConfig, parseConfig, portValue)
+import Hedger.Config (
+    Catalog (..),
+    Config (..),
+    ledgerIdText,
+    mkConfig,
+    parseCatalog,
+    parseConfig,
+    portValue,
+ )
 import Hedger.Domain.Investment (AssetClass (..), InvestmentMapping (..), PerformanceAccount (..))
 import Hedger.Domain.Investment qualified as Investment
 import Hedger.Domain.Period (monthOfYearValue)
@@ -19,6 +29,10 @@ configSpec =
     testGroup
         "configuration"
         [ testCase "requires a journal runtime path" requiresJournalPath
+        , testCase "loads a named ledger catalog" loadsCatalog
+        , testCase "allows a catalog without a default ledger" allowsNoDefaultLedger
+        , testCase "rejects duplicate catalog IDs" rejectsDuplicateCatalogIds
+        , testCase "rejects mixed configuration layouts" rejectsMixedCatalogLayout
         , testCase
             "the resolved-config builder validates the journal path"
             builderValidatesJournalPath
@@ -43,6 +57,68 @@ configSpec =
 requiresJournalPath :: IO ()
 requiresJournalPath =
     assertEqual "" (Left "A non-empty journal path is required.") (parseConfig Nothing [])
+
+loadsCatalog :: IO ()
+loadsCatalog = do
+    catalog <- either (assertFailure . Text.unpack) pure (parseCatalog catalogDocument)
+    assertEqual "two ledgers" 2 (Map.size catalog.ledgers)
+    assertEqual
+        "configuration order"
+        ["personal", "business"]
+        (ledgerIdText <$> catalog.ledgerOrder)
+
+allowsNoDefaultLedger :: IO ()
+allowsNoDefaultLedger = do
+    catalog <- either (assertFailure . Text.unpack) pure (parseCatalog noDefaultCatalogDocument)
+    assertEqual "no default" Nothing catalog.defaultLedger
+
+noDefaultCatalogDocument :: ByteString
+noDefaultCatalogDocument =
+    ByteString.unlines
+        [ "version: 2"
+        , "ledgers:"
+        , "  - id: personal"
+        , "    label: Personal"
+        , "    journal:"
+        , "      path: personal.journal"
+        ]
+
+rejectsDuplicateCatalogIds :: IO ()
+rejectsDuplicateCatalogIds =
+    assertBool
+        "duplicate IDs should be rejected"
+        (isLeft (parseCatalog (catalogDocument <> duplicateLedger)))
+
+rejectsMixedCatalogLayout :: IO ()
+rejectsMixedCatalogLayout =
+    assertBool
+        "top-level journal is invalid in a catalog"
+        (isLeft (parseCatalog (catalogDocument <> "journal:\n  path: other.journal\n")))
+
+duplicateLedger :: ByteString
+duplicateLedger =
+    ByteString.unlines
+        [ "  - id: personal"
+        , "    label: Again"
+        , "    journal:"
+        , "      path: other.journal"
+        ]
+
+catalogDocument :: ByteString
+catalogDocument =
+    ByteString.unlines
+        [ "version: 2"
+        , "defaultLedger: personal"
+        , "ledgers:"
+        , "  - id: personal"
+        , "    label: Personal"
+        , "    journal:"
+        , "      path: personal.journal"
+        , "  - id: business"
+        , "    label: Business"
+        , "    journal:"
+        , "      path: business.journal"
+        ]
 
 builderValidatesJournalPath :: IO ()
 builderValidatesJournalPath = do

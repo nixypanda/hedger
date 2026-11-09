@@ -21,12 +21,12 @@ import Hedger.Domain.Error (AppError (..))
 -- Transaction
 encodeTransactionCursor :: Text -> Text -> Day -> Int -> Text
 encodeTransactionCursor revision query referenceDate offset =
-    payload <> "." <> fingerprint ("cursor-check-v1:" <> payload)
+    payload <> "." <> fingerprint ("cursor-check-v2:" <> payload)
   where
     payload =
         Text.intercalate
             "."
-            [ "v1"
+            [ "v2"
             , Text.pack (show offset)
             , Text.pack (show referenceDate)
             , fingerprint query
@@ -38,8 +38,8 @@ decodeTransactionCursor :: Text -> Text -> Day -> Text -> Either AppError Int
 decodeTransactionCursor revision query referenceDate cursor =
     case Text.splitOn "." cursor of
         [version, offsetText, cursorReference, queryHash, revisionHash, orderingHash, checksum]
-            | version /= "v1" -> invalid "The cursor version is not supported."
-            | checksum /= fingerprint ("cursor-check-v1:" <> payload) ->
+            | version /= "v2" -> invalid "The cursor version is not supported."
+            | checksum /= fingerprint ("cursor-check-v2:" <> payload) ->
                 invalid "The cursor is malformed."
             | cursorReference /= Text.pack (show referenceDate) ->
                 invalid "The cursor relative-date reference does not match this snapshot."
@@ -72,12 +72,12 @@ ordering = "transaction-date-and-source-position-desc-v1"
 -- Register
 encodeRegisterCursor :: Text -> Text -> Text -> DateRange -> Int -> Text
 encodeRegisterCursor revision account commodity dateRange offset =
-    payload <> "." <> fingerprint ("register-cursor-check-v1:" <> payload)
+    payload <> "." <> fingerprint ("register-cursor-check-v2:" <> payload)
   where
     payload =
         Text.intercalate
             "."
-            [ "register-v1"
+            [ "register-v2"
             , Text.pack (show offset)
             , fingerprint revision
             , fingerprint account
@@ -102,8 +102,8 @@ decodeRegisterCursor revision account commodity dateRange cursor =
             , orderingHash
             , checksum
             ]
-                | version /= "register-v1" -> invalid "The cursor version is not supported."
-                | checksum /= fingerprint ("register-cursor-check-v1:" <> payload) ->
+                | version /= "register-v2" -> invalid "The cursor version is not supported."
+                | checksum /= fingerprint ("register-cursor-check-v2:" <> payload) ->
                     invalid "The cursor is malformed."
                 | revisionHash /= fingerprint revision ->
                     invalid "The cursor was created for a different journal revision."

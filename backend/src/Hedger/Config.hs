@@ -14,16 +14,26 @@ module Hedger.Config (
     portValue,
     loadConfig,
     parseConfig,
+    Catalog (..),
+    LedgerConfig (..),
+    LedgerId,
+    ledgerIdText,
+    mkLedgerId,
+    loadCatalog,
+    parseCatalog,
 ) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (IOException, displayException, try)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
 import Data.Char qualified as Char
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Scientific (Scientific)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -43,6 +53,43 @@ data Config = Config
     , fiscalYearStartMonth :: MonthOfYear
     , investmentMappings :: Investment.InvestmentMappings
     , assetClassMappings :: Investment.AssetClassMappings
+    }
+    deriving stock (Eq, Show)
+
+newtype LedgerId = LedgerId Text
+    deriving stock (Eq, Ord, Show)
+
+ledgerIdText :: LedgerId -> Text
+ledgerIdText (LedgerId value) = value
+
+mkLedgerId :: Text -> Either Text LedgerId
+mkLedgerId value
+    | Text.length value > 24 = Left "Ledger IDs must be at most 24 characters."
+    | Text.null value = Left "Ledger IDs must not be empty."
+    | Char.isAsciiLower (Text.head value)
+        && Text.all validCharacter value =
+        Right (LedgerId value)
+    | otherwise =
+        Left
+            ( "Ledger IDs must start with a lowercase letter and use "
+                <> "lowercase letters, digits, or hyphens."
+            )
+  where
+    validCharacter character =
+        Char.isAsciiLower character || Char.isDigit character || character == '-'
+
+data LedgerConfig = LedgerConfig
+    { ledgerLabel :: Text
+    , ledgerConfig :: Config
+    }
+    deriving stock (Eq, Show)
+
+data Catalog = Catalog
+    { defaultLedger :: Maybe LedgerId
+    , ledgers :: Map LedgerId LedgerConfig
+    , ledgerOrder :: [LedgerId]
+    , listenAddress :: Text
+    , listenPort :: Port
     }
     deriving stock (Eq, Show)
 
@@ -82,6 +129,25 @@ data FileConfig = FileConfig
     { version :: Int
     , journal :: Maybe JournalFileConfig
     , server :: Maybe ServerFileConfig
+    , display :: Maybe DisplayFileConfig
+    , investments :: Maybe InvestmentsFileConfig
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data CatalogFileConfig = CatalogFileConfig
+    { version :: Int
+    , server :: Maybe ServerFileConfig
+    , defaultLedger :: Maybe Text
+    , ledgers :: [LedgerFileConfig]
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+data LedgerFileConfig = LedgerFileConfig
+    { id :: Text
+    , label :: Text
+    , journal :: JournalFileConfig
     , display :: Maybe DisplayFileConfig
     , investments :: Maybe InvestmentsFileConfig
     }
@@ -200,6 +266,93 @@ parseConfig document arguments = do
     cli <- parseArguments arguments
     fileConfig <- maybe (Right emptyFileConfig) decodeFileConfig document
     resolveConfig fileConfig cli
+
+loadCatalog :: IO (Either Text Catalog)
+loadCatalog = do
+    configPath <- Options.execParser catalogParserInfo
+    loaded <- readConfigurationFile (Text.unpack configPath)
+    pure $
+        case loaded of
+            Left problem ->
+                Left
+                    ( "Could not read configuration file "
+                        <> configPath
+                        <> ": "
+                        <> Text.pack (displayException problem)
+                    )
+            Right contents -> parseCatalog contents
+
+parseCatalog :: ByteString -> Either Text Catalog
+parseCatalog contents = do
+    raw <-
+        case Yaml.decodeEither' contents of
+            Left problem -> Left (Text.pack (Yaml.prettyPrintParseException problem))
+            Right decoded -> Right decoded
+    case raw of
+        Aeson.Object fields
+            | any (`KeyMap.member` fields) ["journal", "display", "investments"] ->
+                Left
+                    ( "Version-2 configuration must place journal, display, "
+                        <> "and investments under ledgers."
+                    )
+        _ -> pure ()
+    fileConfig <-
+        case Aeson.fromJSON raw of
+            Aeson.Error problem -> Left (Text.pack problem)
+            Aeson.Success decoded -> Right decoded
+    if fileConfig.version == 2
+        then resolveCatalog fileConfig
+        else Left "Configuration version must be 2."
+
+resolveCatalog :: CatalogFileConfig -> Either Text Catalog
+resolveCatalog fileConfig = do
+    defaultLedger <- traverse mkLedgerId fileConfig.defaultLedger
+    entries <- traverse resolveLedger fileConfig.ledgers
+    let ledgers = Map.fromList entries
+        ledgerOrder = fst <$> entries
+    if null entries
+        then Left "At least one ledger is required."
+        else pure ()
+    if Map.size ledgers == length entries
+        then pure ()
+        else Left "Ledger IDs must be unique."
+    if maybe True (`Map.member` ledgers) defaultLedger
+        then pure ()
+        else Left "The default ledger must name a configured ledger."
+    let server = fileConfig.server
+    listenPort <- mkPort ((server >>= (.port)) `orDefault` 8080)
+    let listenAddress = (server >>= (.listenAddress)) `orDefault` "127.0.0.1"
+    requireToken "listen address" listenAddress
+    pure Catalog{..}
+  where
+    resolveLedger entry = do
+        ledgerId <- mkLedgerId entry.id
+        requireNonBlank "ledger label" entry.label
+        let fileConfigForLedger =
+                FileConfig
+                    { version = 1
+                    , journal = Just entry.journal
+                    , server = fileConfig.server
+                    , display = entry.display
+                    , investments = entry.investments
+                    }
+            noOverrides = CliOptions Nothing Nothing Nothing Nothing Nothing Nothing
+        ledgerConfig <- resolveConfig fileConfigForLedger noOverrides
+        pure (ledgerId, LedgerConfig entry.label ledgerConfig)
+
+catalogParserInfo :: Options.ParserInfo Text
+catalogParserInfo =
+    Options.info
+        ( Options.helper
+            <*> ( Text.pack
+                    <$> Options.strOption
+                        ( Options.long "config"
+                            <> Options.metavar "PATH"
+                            <> Options.help "Version-2 YAML configuration"
+                        )
+                )
+        )
+        (Options.fullDesc <> Options.progDesc "Run the Hedger read-only ledger backend")
 
 -- * Configuration file parsing
 readConfigurationFile :: FilePath -> IO (Either IOException ByteString)

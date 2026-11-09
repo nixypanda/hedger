@@ -4,6 +4,8 @@ module Hedger.Infrastructure.SnapshotStore (
     SnapshotStore,
     snapshotJournalPath,
     awaitRevisionChange,
+    awaitStateChange,
+    currentGeneration,
     currentRevision,
     loadSnapshot,
     newSnapshotStore,
@@ -21,6 +23,7 @@ import Control.Concurrent.STM (
     newTVarIO,
     readTVar,
     readTVarIO,
+    writeTVar,
  )
 import Control.Exception (
     SomeAsyncException,
@@ -59,12 +62,14 @@ its published revision cannot be observed independently.
 -}
 data SnapshotStore = SnapshotStore
     { storeState :: TVar SnapshotStoreRead
+    , storeGeneration :: TVar Int
     , journalPath :: Text
     }
 
 -- Store operations
 newSnapshotStore :: Text -> IO SnapshotStore
-newSnapshotStore path = SnapshotStore <$> newTVarIO SnapshotNotLoaded <*> pure path
+newSnapshotStore path =
+    SnapshotStore <$> newTVarIO SnapshotNotLoaded <*> newTVarIO 0 <*> pure path
 
 snapshotJournalPath :: SnapshotStore -> Text
 snapshotJournalPath = (.journalPath)
@@ -95,12 +100,39 @@ readSnapshotStore SnapshotStore{..} = readTVarIO storeState
 reloadSnapshot :: SnapshotStore -> IO (Either SnapshotLoadError Snapshot)
 reloadSnapshot SnapshotStore{..} = do
     result <- loadSnapshot journalPath
-    atomically (modifyTVar' storeState (storeReloadResult result))
+    atomically $ do
+        previous <- readTVar storeState
+        let next = storeReloadResult result previous
+        writeTVar storeState next
+        if samePublishedState previous next
+            then pure ()
+            else modifyTVar' storeGeneration (+ 1)
     pure result
+
+samePublishedState :: SnapshotStoreRead -> SnapshotStoreRead -> Bool
+samePublishedState previous next =
+    case (previous, next) of
+        (SnapshotNotLoaded, SnapshotNotLoaded) -> True
+        (SnapshotLoadFailed first, SnapshotLoadFailed second) -> first == second
+        (SnapshotFresh first, SnapshotFresh second) -> first.revision == second.revision
+        (SnapshotStale first firstError, SnapshotStale second secondError) ->
+            first.revision == second.revision && firstError == secondError
+        _ -> False
 
 -- | The revision currently published, or @""@ before the first successful load.
 currentRevision :: SnapshotStore -> IO Text
 currentRevision SnapshotStore{..} = storeRevision <$> readTVarIO storeState
+
+currentGeneration :: SnapshotStore -> IO Int
+currentGeneration SnapshotStore{..} = readTVarIO storeGeneration
+
+awaitStateChange :: SnapshotStore -> Int -> IO (Int, SnapshotStoreRead)
+awaitStateChange SnapshotStore{..} seen =
+    atomically $ do
+        generation <- readTVar storeGeneration
+        check (generation /= seen)
+        state <- readTVar storeState
+        pure (generation, state)
 
 -- Blocks until a revision different from @seen@ is published, so a caller can
 -- react to reloads without polling.

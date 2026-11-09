@@ -3,9 +3,9 @@
 ## Overview
 
 The backend is a Haskell service built with Servant, Warp, and hledger-lib. It
-reads an hledger journal into an immutable in-memory snapshot, reloads it
-automatically when the files change, and serves JSON under `/api/v1`. It never
-writes to the journal.
+reads configured hledger journals into separate immutable in-memory snapshots,
+reloads them automatically when their files change, and serves JSON under
+`/api/v1`. It never writes to the journals.
 
 ```text
 backend/src/Hedger/
@@ -48,6 +48,7 @@ backend/src/Hedger/
   Interface/
     HTTP/
       API.hs                 # combined Servant type
+      Catalog.hs             # catalog, health, and ledger route dispatch
       Core/
         Common.hs            # shared DTOs, ResponseMetadata, parsing helpers
         Errors.hs            # error envelope
@@ -99,62 +100,58 @@ JSON error envelope. `runAppM` catches synchronous exceptions and maps them to
 
 ## Configuration
 
-Configuration is parsed once at startup from CLI flags and an optional YAML
-file. CLI flags override YAML values. Types are parsed into valid values at the
-boundary: the port becomes `Port` (1–65535) and the fiscal-year start becomes a
-`MonthOfYear` (1–12).
+Configuration is parsed once at startup from the required `--config PATH` YAML
+file. It names one or more ledgers and a default selection. Types are parsed
+into valid values at the boundary: the port becomes `Port` (1–65535), ledger
+IDs are URL-safe, and fiscal-year starts become `MonthOfYear` (1–12).
 
 ### YAML format
 
 ```yaml
-version: 1
-
-journal:
-  path: "../examples/india-us-portfolio-2023-2025.journal"
+version: 2
 
 server:
   listenAddress: "127.0.0.1"
   port: 8080
 
-display:
-  commodity: "INR"
-  fiscalYearStartMonth: 4
+defaultLedger: personal
 
-investments:
-  gainMappings:
-    - assetAccount: "assets:debt:fd"
-      gainAccounts:
-        - "income:interest:fd"
-    - assetAccount: "assets:debt:fd:excluded"
-      gainAccounts: []
-  assetClasses:
-    - kind: debt
-      accountPrefixes:
-        - "assets:debt"
-      targetPercent: 35
-    - kind: equity
-      accountPrefixes:
-        - "assets:equity"
-      targetPercent: 65
+ledgers:
+  - id: personal
+    label: Personal
+    journal:
+      path: "../examples/india-us-portfolio-2023-2025.journal"
+    display:
+      commodity: "INR"
+      fiscalYearStartMonth: 4
+    investments:
+      gainMappings:
+        - assetAccount: "assets:debt:fd"
+          gainAccounts: ["income:interest:fd"]
+      assetClasses:
+        - kind: debt
+          accountPrefixes: ["assets:debt"]
+          targetPercent: 100
 ```
 
 ### Defaults
 
-| Field                     | CLI flag                | YAML path                      | Default    |
-|---------------------------|-------------------------|--------------------------------|------------|
-| `journalPath`             | `--journal PATH`        | `journal.path`                 | required   |
-| `listenAddress`           | `--listen-address ADDR` | `server.listenAddress`         | `127.0.0.1`|
-| `listenPort`              | `--port PORT`           | `server.port`                  | `8080`     |
-| `defaultDisplayCommodity` | `--display-commodity C` | `display.commodity`            | `INR`      |
-| `fiscalYearStartMonth`    | `--fiscal-year-start M` | `display.fiscalYearStartMonth` | `4`        |
-| `investmentMappings`      | (none)                  | `investments.gainMappings`     | empty      |
-| `assetClassMappings`      | (none)                  | `investments.assetClasses`     | empty      |
-
-`--config PATH` selects the YAML file.
+| Field | YAML path | Default |
+|-------|-----------|---------|
+| Journal path | `ledgers[].journal.path` | required |
+| Listen address | `server.listenAddress` | `127.0.0.1` |
+| Listen port | `server.port` | `8080` |
+| Display commodity | `ledgers[].display.commodity` | `INR` |
+| Fiscal-year start | `ledgers[].display.fiscalYearStartMonth` | `4` |
+| Gain mappings | `ledgers[].investments.gainMappings` | empty |
+| Asset classes | `ledgers[].investments.assetClasses` | empty |
 
 ### Validation
 
 - Journal path must be non-blank.
+- Ledger IDs must be unique, lowercase URL-safe names. `defaultLedger` is
+  optional; when present, it must name one of them. Without it, the root page
+  asks the visitor to choose a ledger.
 - Listen address and display commodity must be non-blank, whitespace-free
   tokens.
 - Port must be 1..65535.
@@ -239,8 +236,8 @@ Thin use cases in `AppM`. No ledger calculations live here.
 - `Accounts` / `AccountRegisterQuery` — account-tree construction and register
   query with date-range filtering.
 - `PageRequest` — shared pagination limits and date-range parsing.
-- `Events` — `subscribeToRevisions` / `awaitNextRevision`, wrapping the store's
-  revision waiter for the SSE endpoint.
+- `Events` — waits for each store's reload generation and exposes revision and
+  reload-state events to the SSE endpoint.
 - `System` — health probes and the bootstrap response.
 - `Internal.Cursor` — cursor encoding (revision + query fingerprint + reference
   date + ordering string).
@@ -255,8 +252,7 @@ Thin use cases in `AppM`. No ledger calculations live here.
 - `reloadSnapshot` atomically publishes the result; on failure it transitions to
   `Stale` and retains the last successful snapshot.
 - `readCurrentSnapshot`, `readLastReloadError`, and `readSnapshotStore` expose
-  state; `currentRevision` and `awaitRevisionChange` expose the revision for the
-  SSE stream.
+  state; a generation counter wakes the SSE stream after every reload attempt.
 - `JournalRevision` is an MD5 over effective source content.
 
 ### JournalWatcher
@@ -264,10 +260,12 @@ Thin use cases in `AppM`. No ledger calculations live here.
 The watcher listens for filesystem events (`fsnotify`: FSEvents on macOS,
 inotify on Linux) on every file that made up the current snapshot — the root
 journal plus any `include`s — and asks the store to reload when one changes. It
-is event-driven, so an idle server does no work.
+is event-driven while the journal directories exist.
 
 - `fsnotify` watches directories, not files, so each distinct parent directory is
   watched and events are filtered down to the exact journal-file set.
+- While a journal's parent directory is missing, the watcher retries until it
+  appears, then returns to event-driven reloading.
 - A save that emits several events is coalesced by a 100 ms debounce.
 - After every reload the watch set is re-derived from the fresh snapshot, so new
   includes start being watched and removed ones stop.
@@ -278,11 +276,13 @@ is event-driven, so an idle server does no work.
 
 `Runtime.Internal.Server`:
 
-- Creates the `SnapshotStore` and performs an initial `reloadSnapshot`.
-- Installs a `SIGHUP` handler that reloads the store.
+- Creates a `SnapshotStore` per ledger and loads each independently.
+- Installs a `SIGHUP` handler that reloads all stores.
 - Configures Warp (host, port, graceful-shutdown timeout, `SIGTERM` shutdown
   handler).
-- Runs the server inside `withJournalWatcher`, which owns the watcher thread.
+- Runs each store inside `withJournalWatcher`, with independent watcher threads.
+- Supplies store readers and ledger applications to `Interface.HTTP.Catalog`,
+  which owns catalog HTTP responses and scoped request dispatch.
 
 ## HTTP routes
 
@@ -294,16 +294,18 @@ All routes are under `/api/v1`. Every request optionally carries an
 ```text
 GET /api/v1/health/live     -> Health { status }
 GET /api/v1/health/ready    -> Health { status }
-GET /api/v1/bootstrap       -> Bootstrap { apiVersion, appName, fiscalYearStartMonth, metadata }
+GET /api/v1/ledgers         -> { defaultLedger, ledgers: [{ id, label, status }] }
+GET /api/v1/ledgers/{id}/status -> { status }
+GET /api/v1/ledgers/{id}/bootstrap -> Bootstrap { apiVersion, appName, fiscalYearStartMonth, metadata }
 ```
 
 ### Accounts
 
 ```text
-GET /api/v1/accounts/tree?commodity=
+GET /api/v1/ledgers/{id}/accounts/tree?commodity=
     -> AccountsTreeResponse { metadata, displayCommodity, accounts }
 
-GET /api/v1/accounts/{account}/register?commodity=&from=&to=&limit=&cursor=
+GET /api/v1/ledgers/{id}/accounts/{account}/register?commodity=&from=&to=&limit=&cursor=
     -> AccountRegisterResponse { metadata, displayCommodity, entries, nextCursor }
 ```
 
@@ -313,7 +315,7 @@ postings for the account and all its descendants.
 ### Transactions
 
 ```text
-GET /api/v1/transactions?query=&limit=&cursor=
+GET /api/v1/ledgers/{id}/transactions?query=&limit=&cursor=
     -> TransactionsResponse { metadata, transactions, nextCursor }
 ```
 
@@ -326,9 +328,9 @@ GET /api/v1/transactions?query=&limit=&cursor=
 ### Analytics
 
 ```text
-POST /api/v1/net-worth/query   -> NetWorthResponse
-POST /api/v1/cashflow/query    -> CashflowResponse
-POST /api/v1/activity/query    -> ActivityResponse
+POST /api/v1/ledgers/{id}/net-worth/query   -> NetWorthResponse
+POST /api/v1/ledgers/{id}/cashflow/query    -> CashflowResponse
+POST /api/v1/ledgers/{id}/activity/query    -> ActivityResponse
 ```
 
 Request bodies are JSON. Net worth and cashflow share an
@@ -349,7 +351,7 @@ legacy single `classification` label.
 ### Investments
 
 ```text
-POST /api/v1/investments/query -> InvestmentsResponse
+POST /api/v1/ledgers/{id}/investments/query -> InvestmentsResponse
 ```
 
 Supports account-prefix drill-down, monthly/yearly granularity, and breadcrumb
@@ -359,11 +361,12 @@ navigation within the account prefixes configured under
 ### Events
 
 ```text
-GET /api/v1/events -> text/event-stream
+GET /api/v1/ledgers/{id}/events -> text/event-stream
 ```
 
-A Server-Sent Events stream. It emits a `revision` event when the journal
-revision changes and a heartbeat comment every 15 seconds otherwise. See
+A Server-Sent Events stream. It emits a `revision` event after a successful
+reload, a `state` event when a load fails, and a heartbeat comment every 15
+seconds otherwise. See
 [architecture.md](architecture.md) for the client side.
 
 ## Error shape

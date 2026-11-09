@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "../..");
 const OUTPUT_ROOT = path.join(REPO_ROOT, "docs/images/readme");
-const BASE_URL = normalizeBaseUrl(process.env.HEDGER_URL ?? "http://localhost:1234");
+const BASE_URL = normalizeBaseUrl(process.env.HEDGER_URL ?? "http://localhost:2345");
+let ledgerPrefix = "";
 const THEMES = ["light", "dark"];
 const PHONE_WIDTH = 390;
 const PHONE_HEIGHT = 844;
@@ -127,6 +128,12 @@ let cdp = null;
 async function main() {
   try {
     await ensureServerRunning();
+    const catalogResponse = await fetch(`${BASE_URL}/api/v1/ledgers`);
+    if (!catalogResponse.ok) throw new Error("Could not load the ledger catalog.");
+    const catalog = await catalogResponse.json();
+    const ledgerId = catalog.defaultLedger ?? catalog.ledgers[0]?.id;
+    if (!ledgerId) throw new Error("No ledger is available for screenshots.");
+    ledgerPrefix = `/ledgers/${encodeURIComponent(ledgerId)}`;
     chromeProfile = await fs.mkdtemp(
       path.join(os.tmpdir(), "hedger-readme-shots-"),
     );
@@ -152,7 +159,7 @@ async function main() {
         throw new Error(`Unknown theme "${theme}". Use light or dark.`);
       }
 
-      await navigate(cdp, `${BASE_URL}/net-worth`, network);
+      await navigate(cdp, `${BASE_URL}${ledgerPrefix}/net-worth`, network);
       await setTheme(cdp, theme);
 
       for (const shot of desktopShots) {
@@ -352,7 +359,7 @@ function trackApiRequests(client) {
     const url = request.url;
     if (!tracking) return;
     if (loaderId && requestLoaderId && requestLoaderId !== loaderId) return;
-    if (url.includes("/api/v1/") && !url.includes("/api/v1/events")) {
+    if (url.includes("/api/v1/") && !url.endsWith("/events")) {
       inFlight.add(requestId);
     }
   });
@@ -384,7 +391,7 @@ function trackApiRequests(client) {
 
 async function captureDesktopShot(client, network, shot, theme) {
   await setViewport(client, shot.width, shot.height);
-  await navigate(client, `${BASE_URL}${shot.path}`, network);
+  await navigate(client, `${BASE_URL}${ledgerPrefix}${shot.path}`, network);
   await waitForText(client, shot.waitFor);
   await network.waitForIdle();
 
@@ -408,7 +415,7 @@ async function captureDesktopShot(client, network, shot, theme) {
 
 async function captureAnalysisShot(client, network, shot, theme) {
   await setViewport(client, shot.width, shot.height);
-  await navigate(client, `${BASE_URL}${shot.path}`, network);
+  await navigate(client, `${BASE_URL}${ledgerPrefix}${shot.path}`, network);
   await waitForText(client, shot.waitFor);
   await network.waitForIdle();
 
@@ -435,7 +442,7 @@ async function captureAnalysisShot(client, network, shot, theme) {
 
 async function capturePhonePanel(client, network, panel) {
   await setViewport(client, PHONE_WIDTH, PHONE_HEIGHT);
-  await navigate(client, `${BASE_URL}${panel.path}`, network);
+  await navigate(client, `${BASE_URL}${ledgerPrefix}${panel.path}`, network);
   await waitForText(client, panel.waitFor);
   await network.waitForIdle();
   await removeDevChrome(client);

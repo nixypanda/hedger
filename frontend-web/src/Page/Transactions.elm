@@ -10,8 +10,9 @@ module Page.Transactions exposing
     , beginLoadingMore
     , clearSelection
     , draftQuery
-    , fetch
+    , fetchForLedger
     , init
+    , initForLedger
     , receive
     , requestCursor
     , requestQuery
@@ -70,7 +71,8 @@ type Model
 
 
 type alias ModelData =
-    { paginated : Paginated ApiError AppliedQuery PageData
+    { ledgerId : String
+    , paginated : Paginated ApiError AppliedQuery PageData
     , draft : DraftQuery
     , selection : Maybe Transaction
     , loadMoreBlockedAttempts : Int
@@ -172,8 +174,14 @@ wrap response =
 
 init : Model
 init =
+    initForLedger "default"
+
+
+initForLedger : String -> Model
+initForLedger ledgerId =
     Model
-        { paginated = Paginated.init
+        { ledgerId = ledgerId
+        , paginated = Paginated.init
         , draft = DraftQuery ""
         , selection = Nothing
         , loadMoreBlockedAttempts = 0
@@ -208,7 +216,7 @@ update msg (Model data) =
                 ( nextModel, request ) =
                     beginLoading (Model data)
             in
-            ( nextModel, fetchTransactions request, NoOutMsg )
+            ( nextModel, fetchTransactions data.ledgerId request, NoOutMsg )
 
         DraftChanged draft ->
             ( Model { data | draft = DraftQuery draft }, Cmd.none, NoOutMsg )
@@ -218,20 +226,20 @@ update msg (Model data) =
                 ( nextModel, request ) =
                     applyDraft (Model data)
             in
-            ( nextModel, fetchTransactions request, NoOutMsg )
+            ( nextModel, fetchTransactions data.ledgerId request, NoOutMsg )
 
         ClearDraft ->
             let
                 ( nextModel, request ) =
                     applyDraft (setDraft "" (Model data))
             in
-            ( nextModel, fetchTransactions request, NoOutMsg )
+            ( nextModel, fetchTransactions data.ledgerId request, NoOutMsg )
 
         LoadMore ->
             case beginLoadingMore (Model data) of
                 Just ( Model next, request ) ->
                     ( Model { next | loadMoreBlockedAttempts = 0 }
-                    , fetchTransactions request
+                    , fetchTransactions data.ledgerId request
                     , NoOutMsg
                     )
 
@@ -262,17 +270,18 @@ update msg (Model data) =
             ( receive request result (Model data), Cmd.none, NoOutMsg )
 
 
-fetchTransactions : Request -> Cmd Msg
-fetchTransactions request =
+fetchTransactions : String -> Request -> Cmd Msg
+fetchTransactions ledgerId request =
     Api.getTransactions
+        ledgerId
         { query = requestQuery request
         , cursor = requestCursor request
         }
         (Loaded request)
 
 
-fetch : Request -> Cmd Msg
-fetch =
+fetchForLedger : String -> Request -> Cmd Msg
+fetchForLedger =
     fetchTransactions
 
 

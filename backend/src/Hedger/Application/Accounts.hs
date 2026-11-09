@@ -107,7 +107,10 @@ accountRegister request = do
         resolvedCommodity = fromMaybe configuredCommodity (nonEmpty request.commodity)
     page <-
         either throwError pure $
-            AccountRegisterQuery.registerPage snapshot resolvedCommodity request
+            AccountRegisterQuery.registerPage
+                snapshot{revision = snapshotContext.ledgerId <> ":" <> snapshot.revision}
+                resolvedCommodity
+                request
     pure
         AccountRegister
             { metadata = responseMetadata

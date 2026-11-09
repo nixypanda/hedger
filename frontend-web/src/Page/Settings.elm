@@ -1,8 +1,10 @@
 module Page.Settings exposing (Model, Msg(..), OutMsg(..), init, update, view)
 
+import Api.Ledgers as Ledgers
 import Element exposing (Element)
 import Ui.Env exposing (Env)
 import Ui.Input
+import Ui.LedgerPicker
 import Ui.Page as Page
 import Ui.Surface as Surface
 import Ui.Theme exposing (Mode(..), Theme)
@@ -28,10 +30,12 @@ init mode =
 
 type Msg
     = ModeSelected Mode
+    | LedgerSelected String
 
 
 type OutMsg
     = SetTheme Mode
+    | SelectLedger String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg, OutMsg )
@@ -43,13 +47,16 @@ update msg model =
             , SetTheme mode
             )
 
+        LedgerSelected ledgerId ->
+            ( model, Cmd.none, SelectLedger ledgerId )
+
 
 
 -- VIEW
 
 
-view : Env -> Model -> Element Msg
-view env model =
+view : Env -> List Ledgers.Ledger -> String -> Model -> Element Msg
+view env ledgers selectedLedger model =
     let
         theme =
             env.theme
@@ -62,7 +69,12 @@ view env model =
             , subtitle = Nothing
             , actions = []
             }
-        , body = [ appearanceSection theme model ]
+        , body =
+            [ Surface.formSection theme
+                "Ledger"
+                [ Ui.LedgerPicker.view theme (Just selectedLedger) ledgers LedgerSelected ]
+            , appearanceSection theme model
+            ]
         }
 
 

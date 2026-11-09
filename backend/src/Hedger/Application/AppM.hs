@@ -11,6 +11,7 @@ import Control.Exception (SomeAsyncException, evaluate, fromException, throwIO, 
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
+import Data.Text (Text)
 
 import Hedger.Config (Config (..))
 import Hedger.Domain.Error (AppError (InternalError, JournalUnavailable))
@@ -25,6 +26,7 @@ import Hedger.Infrastructure.SnapshotStore (
 data Env = Env
     { config :: Config
     , snapshotStore :: SnapshotStore
+    , ledgerId :: Text
     }
 
 type AppM = ReaderT Env (ExceptT AppError IO)
@@ -32,6 +34,7 @@ type AppM = ReaderT Env (ExceptT AppError IO)
 data SnapshotContext = SnapshotContext
     { snapshot :: Snapshot
     , freshness :: SnapshotFreshness
+    , ledgerId :: Text
     }
 
 data SnapshotFreshness
@@ -56,10 +59,11 @@ runAppM environment action = do
 requireSnapshot :: AppM SnapshotContext
 requireSnapshot = do
     store <- asks (.snapshotStore)
+    ledgerId <- asks (.ledgerId)
     storeRead <- liftIO (readSnapshotStore store)
     case storeRead of
         SnapshotNotLoaded -> throwError JournalUnavailable
         SnapshotLoadFailed _ -> throwError JournalUnavailable
-        SnapshotFresh snapshot -> pure SnapshotContext{snapshot, freshness = Fresh}
+        SnapshotFresh snapshot -> pure SnapshotContext{snapshot, freshness = Fresh, ledgerId}
         SnapshotStale snapshot loadError ->
-            pure SnapshotContext{snapshot, freshness = Stale loadError}
+            pure SnapshotContext{snapshot, freshness = Stale loadError, ledgerId}

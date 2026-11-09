@@ -18,6 +18,7 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Hedger.Domain.Snapshot (Snapshot (..))
 import Hedger.Infrastructure.SnapshotStore (
     SnapshotStoreRead (..),
+    currentGeneration,
     currentRevision,
     loadSnapshot,
     newSnapshotStore,
@@ -49,6 +50,7 @@ snapshotStoreSpec =
         , testCase "starts in the explicit not-loaded state" startsNotLoaded
         , testCase "models an initial load failure explicitly" modelsInitialLoadFailure
         , testCase "models a successful load as fresh" modelsSuccessfulLoadAsFresh
+        , testCase "unchanged reloads do not notify subscribers" unchangedReloadsDoNotNotify
         , testCase
             "keeps the last good immutable snapshot when a reload fails"
             keepsSnapshotOnFailedReload
@@ -80,6 +82,14 @@ modelsSuccessfulLoadAsFresh = do
     case storeRead of
         SnapshotFresh _ -> pure ()
         _ -> assertFailure "expected a successful load to produce a fresh snapshot"
+
+unchangedReloadsDoNotNotify :: IO ()
+unchangedReloadsDoNotNotify = do
+    store <- loadedStore
+    before <- currentGeneration store
+    _ <- reloadSnapshot store
+    after <- currentGeneration store
+    assertEqual "an unchanged revision has no event" before after
 
 parsesSharedJournal :: IO ()
 parsesSharedJournal = do
