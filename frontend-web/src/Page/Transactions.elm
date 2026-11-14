@@ -871,7 +871,15 @@ pagingControl theme model response =
         case response.nextCursor of
             Just _ ->
                 if canBeginLoadingMore model then
-                    Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
+                    Button.textButton theme
+                        { tone = Button.GhostFilled
+                        , width = Button.ContentWidth
+                        , label = "Load more"
+                        , onPress = LoadMore
+                        , submitState = Nothing
+                        , submittingLabel = Nothing
+                        , trailing = Nothing
+                        }
 
                 else
                     Button.unavailableButton theme
@@ -1157,7 +1165,14 @@ detailPage viewport theme onBack transaction =
             { header =
                 { leading =
                     Maybe.map
-                        (\message -> Button.backButton theme { onPress = message })
+                        (\message ->
+                            Button.iconButtonWithTone theme
+                                { icon = Icon.ChevronLeft
+                                , title = "Back"
+                                , onPress = Just message
+                                , tone = Button.Ghost
+                                }
+                        )
                         onBack
                 , title = Typography.pageTitle theme "Transaction Detail"
                 , subtitle = Nothing

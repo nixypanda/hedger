@@ -125,12 +125,26 @@ noticeAction : Theme -> NoticeAction msg -> Element msg
 noticeAction theme action =
     case action.style of
         PrimaryAction ->
-            Button.primaryButton theme
-                { label = action.label, onPress = action.onPress }
+            Button.textButton theme
+                { tone = Button.Primary
+                , width = Button.ContentWidth
+                , label = action.label
+                , onPress = action.onPress
+                , submitState = Nothing
+                , submittingLabel = Nothing
+                , trailing = Nothing
+                }
 
         GhostAction ->
-            Button.ghostButton theme
-                { label = action.label, onPress = action.onPress }
+            Button.textButton theme
+                { tone = Button.Ghost
+                , width = Button.ContentWidth
+                , label = action.label
+                , onPress = action.onPress
+                , submitState = Nothing
+                , submittingLabel = Nothing
+                , trailing = Nothing
+                }
 
 
 sidebar : Env -> Config msg -> Element msg
