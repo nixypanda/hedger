@@ -47,8 +47,16 @@ view config =
 
         buttons =
             Element.row [ Element.spacing Tokens.space8 ]
-                [ Button.dangerButton config.theme { label = "Clear", onPress = config.onClear }
-                , Button.primaryButton config.theme { label = "Apply", onPress = config.onApply }
+                [ queryActionButton config.theme
+                    { tone = Button.Danger
+                    , label = "Clear"
+                    , onPress = config.onClear
+                    }
+                , queryActionButton config.theme
+                    { tone = Button.Primary
+                    , label = "Apply"
+                    , onPress = config.onApply
+                    }
                 ]
 
         inputRow =
@@ -90,6 +98,22 @@ view config =
             ]
         , queryErrorNotice config
         ]
+
+
+queryActionButton :
+    Theme
+    -> { tone : Button.ButtonTone, label : String, onPress : msg }
+    -> Element msg
+queryActionButton theme config =
+    Button.textButton theme
+        { tone = config.tone
+        , width = Button.ContentWidth
+        , label = config.label
+        , onPress = config.onPress
+        , submitState = Nothing
+        , submittingLabel = Nothing
+        , trailing = Nothing
+        }
 
 
 queryErrorNotice : Config msg -> Element msg

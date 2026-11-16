@@ -771,7 +771,14 @@ accountDetailHeader : Theme -> Maybe Msg -> Page.Header Msg
 accountDetailHeader theme onBack =
     { leading =
         Maybe.map
-            (\message -> Button.backButton theme { onPress = message })
+            (\message ->
+                Button.iconButtonWithTone theme
+                    { icon = Icon.ChevronLeft
+                    , title = "Back"
+                    , onPress = Just message
+                    , tone = Button.Ghost
+                    }
+            )
             onBack
     , title = Typography.pageTitle theme "Account Detail"
     , subtitle = Nothing

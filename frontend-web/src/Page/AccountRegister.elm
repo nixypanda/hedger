@@ -451,7 +451,12 @@ registerHeader viewport theme compact model =
             , Common.minWidthZero
             ]
             [ Element.row [ Element.width Element.fill, Element.spacing Tokens.space8 ]
-                [ Button.backButton theme { onPress = BackToAccounts }
+                [ Button.iconButtonWithTone theme
+                    { icon = Icon.ChevronLeft
+                    , title = "Back"
+                    , onPress = Just BackToAccounts
+                    , tone = Button.Ghost
+                    }
                 , Element.el [ Element.alignRight ]
                     (Element.row [ Element.spacing Tokens.space8 ] actions)
                 ]
@@ -468,7 +473,15 @@ registerHeader viewport theme compact model =
     else
         Page.pageHeader viewport
             theme
-            { leading = Just (Button.backButton theme { onPress = BackToAccounts })
+            { leading =
+                Just
+                    (Button.iconButtonWithTone theme
+                        { icon = Icon.ChevronLeft
+                        , title = "Back"
+                        , onPress = Just BackToAccounts
+                        , tone = Button.Ghost
+                        }
+                    )
             , title = Typography.pageTitleWithDelimiter theme ":" account
             , subtitle = Just "Account register"
             , actions = actions
@@ -642,7 +655,15 @@ pagingControl theme data response =
         case response.nextCursor of
             Just _ ->
                 if Paginated.canLoadMore config data.paginated then
-                    Button.secondaryButton theme { label = "Load more", onPress = LoadMore }
+                    Button.textButton theme
+                        { tone = Button.GhostFilled
+                        , width = Button.ContentWidth
+                        , label = "Load more"
+                        , onPress = LoadMore
+                        , submitState = Nothing
+                        , submittingLabel = Nothing
+                        , trailing = Nothing
+                        }
 
                 else
                     Button.unavailableButton theme
@@ -1127,7 +1148,15 @@ detailPage viewport theme onClose commodity entry =
     Page.scaffold viewport
         theme
         { header =
-            { leading = Just (Button.backButton theme { onPress = onClose })
+            { leading =
+                Just
+                    (Button.iconButtonWithTone theme
+                        { icon = Icon.ChevronLeft
+                        , title = "Back"
+                        , onPress = Just onClose
+                        , tone = Button.Ghost
+                        }
+                    )
             , title = Typography.pageTitle theme "Details"
             , subtitle = Nothing
             , actions = []

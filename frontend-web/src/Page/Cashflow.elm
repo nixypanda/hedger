@@ -281,8 +281,12 @@ transactionView viewport theme selectedTransaction =
         { header =
             { leading =
                 Just
-                    (Button.backButton theme
-                        { onPress = AnalysisMsg Analysis.Back }
+                    (Button.iconButtonWithTone theme
+                        { icon = Icon.ChevronLeft
+                        , title = "Back"
+                        , onPress = Just (AnalysisMsg Analysis.Back)
+                        , tone = Button.Ghost
+                        }
                     )
             , title = Typography.pageTitle theme "Transaction Detail"
             , subtitle = Nothing
@@ -360,7 +364,15 @@ dashboardContent env data =
             case data.response of
                 Failure error _ ->
                     [ Feedback.errorBanner theme (ApiError.message error)
-                    , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
+                    , Button.textButton theme
+                        { tone = Button.GhostFilled
+                        , width = Button.ContentWidth
+                        , label = "Retry"
+                        , onPress = Refresh
+                        , submitState = Nothing
+                        , submittingLabel = Nothing
+                        , trailing = Nothing
+                        }
                     ]
 
                 _ ->

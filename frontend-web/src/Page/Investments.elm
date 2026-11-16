@@ -315,7 +315,15 @@ content theme viewport data =
             case data.response of
                 Failure error _ ->
                     [ Feedback.errorBanner theme (ApiError.message error)
-                    , Button.secondaryButton theme { label = "Retry", onPress = Refresh }
+                    , Button.textButton theme
+                        { tone = Button.GhostFilled
+                        , width = Button.ContentWidth
+                        , label = "Retry"
+                        , onPress = Refresh
+                        , submitState = Nothing
+                        , submittingLabel = Nothing
+                        , trailing = Nothing
+                        }
                     ]
 
                 _ ->

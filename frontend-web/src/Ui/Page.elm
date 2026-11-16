@@ -241,10 +241,11 @@ periodButton :
 periodButton theme config =
     case config.action of
         PeriodAvailable onPress ->
-            Button.iconButton theme
+            Button.iconButtonWithTone theme
                 { icon = config.icon
                 , title = config.title
-                , onPress = onPress
+                , onPress = Just onPress
+                , tone = Button.Ghost
                 }
 
         PeriodUnavailable unavailable ->
